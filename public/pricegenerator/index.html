@@ -6,9 +6,9 @@
     <meta name="robots" content="noindex,nofollow" />
     <title>Конструктор этикеток Bulka</title>
     <link rel="icon" href="/favicon.png" />
-    <link rel="stylesheet" href="/pricegenerator/style.css?v=20260917-6" />
+    <link rel="stylesheet" href="/pricegenerator/style.css?v=20260917-7" />
     <style id="print-page-settings"></style>
-    <script src="/pricegenerator/app.js?v=20260917-12" defer></script>
+    <script src="/pricegenerator/app.js?v=20260917-13" defer></script>
   </head>
   <body>
     <header class="topbar">
@@ -20,6 +20,7 @@
         <button class="button secondary admin-only" id="save-template" type="button">
           Сохранить шаблон
         </button>
+        <button class="button secondary" id="test-print" type="button">Пробная печать</button>
         <button class="button secondary admin-only" id="print-sheet" type="button">
           Печать листа
         </button>
@@ -55,6 +56,7 @@
           </div>
           <div class="row two">
             <label>Дата изготовления<input id="made-date" type="date" /></label>
+            <label>Время изготовления<input id="made-time" type="time" value="12:00" /></label>
             <label class="admin-only"
               >Формат даты<select id="date-format">
                 <option value="dd.mm.yyyy">ДД.ММ.ГГГГ</option>
@@ -144,6 +146,30 @@
                 value="5"
             /></label>
           </div>
+          <div class="calibration-box">
+            <strong>Калибровка XPrinter</strong>
+            <small>Сдвиг печати в миллиметрах</small>
+            <div class="row two">
+              <label
+                >Влево / вправо<input
+                  id="offset-x"
+                  type="number"
+                  min="-20"
+                  max="20"
+                  step="0.5"
+                  value="0"
+              /></label>
+              <label
+                >Вверх / вниз<input
+                  id="offset-y"
+                  type="number"
+                  min="-20"
+                  max="20"
+                  step="0.5"
+                  value="0"
+              /></label>
+            </div>
+          </div>
         </section>
 
         <section class="admin-only">
@@ -224,7 +250,8 @@
           </div>
           <div class="zoom">
             <button id="zoom-out" type="button">−</button><output id="zoom-value">100%</output
-            ><button id="zoom-in" type="button">+</button>
+            ><button id="zoom-in" type="button">+</button
+            ><button id="zoom-actual" type="button">1:1</button>
           </div>
         </div>
         <div class="canvas-scroll">
@@ -238,6 +265,7 @@
         <div id="overflow-warning" class="overflow-warning" hidden>
           Текст не помещается. Увеличьте блок или сократите текст.
         </div>
+        <div id="layout-warning" class="overflow-warning" hidden></div>
         <div class="notice" id="notice" role="status"></div>
       </section>
 
@@ -253,9 +281,26 @@
           ><span>Поиск</span
           ><input id="search-products" type="search" placeholder="Название или штрихкод"
         /></label>
+        <label class="check admin-only archived-toggle"
+          ><input id="show-archived" type="checkbox" /> Показать архив</label
+        >
         <div id="product-list" class="product-list"></div>
+        <details class="admin-only history-panel">
+          <summary>История изменений</summary>
+          <div id="product-history" class="history-list">История пока пуста.</div>
+        </details>
       </aside>
     </main>
     <div id="print-root" aria-hidden="true"></div>
+    <dialog id="print-confirm" class="print-confirm">
+      <form method="dialog">
+        <h2>Проверьте перед печатью</h2>
+        <div id="print-summary"></div>
+        <div class="dialog-actions">
+          <button value="cancel" class="button secondary">Отмена</button>
+          <button value="confirm" class="button primary">Открыть печать</button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>

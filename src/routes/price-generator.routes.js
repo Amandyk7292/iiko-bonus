@@ -48,6 +48,8 @@ const templateSchema = z
         radius: z.number().min(0).max(50),
         background: z.string().regex(/^#[0-9a-f]{6}$/i),
         foreground: z.string().regex(/^#[0-9a-f]{6}$/i),
+        offsetX: z.number().min(-20).max(20).optional(),
+        offsetY: z.number().min(-20).max(20).optional(),
       })
       .strict(),
     paper: z
@@ -63,6 +65,7 @@ const templateSchema = z
   .strict();
 const TEMPLATE_KEY = 'price_generator_template_v1';
 const PRODUCTS_KEY = 'price_generator_products_v1';
+const HISTORY_KEY = 'price_generator_history_v1';
 const productSchema = z
   .object({
     id: z.string().min(1).max(100),
@@ -70,10 +73,24 @@ const productSchema = z
     composition: z.string().max(5000),
     price: z.string().max(50),
     expiry: z.string().max(20),
+    expiryUnit: z.enum(['days', 'hours']).optional(),
     barcode: z.string().max(100),
+    archived: z.boolean().optional(),
   })
   .strict();
 const productsSchema = z.array(productSchema).max(2000);
+const productSaveSchema = z
+  .object({
+    products: productsSchema,
+    action: z
+      .object({
+        type: z.enum(['save', 'archive', 'restore', 'duplicate', 'import']),
+        productId: z.string().max(100).optional(),
+        productName: z.string().max(300).optional(),
+      })
+      .strict(),
+  })
+  .strict();
 const ownerOrAdminOnly = (req, res, next) => {
   if (!['owner', 'admin'].includes(String(req.admin?.role || ''))) {
     return res
@@ -113,6 +130,29 @@ router.get('/api/pricegenerator/products', async (_req, res) => {
   }
 });
 
+router.get(
+  '/admin/api/pricegenerator/history',
+  adminAuthMiddleware,
+  ownerOrAdminOnly,
+  async (_req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', HISTORY_KEY)
+        .maybeSingle();
+      if (error) throw error;
+      const history = data?.value ? JSON.parse(data.value) : [];
+      return res.json({
+        success: true,
+        history: Array.isArray(history) ? history.slice(0, 100) : [],
+      });
+    } catch {
+      return res.status(503).json({ success: false, error: 'Не удалось загрузить историю.' });
+    }
+  },
+);
+
 router.post(
   '/admin/api/pricegenerator/template',
   adminAuthMiddleware,
@@ -138,15 +178,34 @@ router.post(
   adminAuthMiddleware,
   ownerOrAdminOnly,
   async (req, res) => {
-    const parsed = productsSchema.safeParse(req.body);
+    const parsed = productSaveSchema.safeParse(req.body);
     if (!parsed.success)
       return res.status(400).json({ success: false, error: 'Проверьте заполнение товара.' });
     try {
-      const { error } = await supabase
+      const { data: historyRow, error: historyReadError } = await supabase
         .from('settings')
-        .upsert({ key: PRODUCTS_KEY, value: JSON.stringify(parsed.data) }, { onConflict: 'key' });
+        .select('value')
+        .eq('key', HISTORY_KEY)
+        .maybeSingle();
+      if (historyReadError) throw historyReadError;
+      const oldHistory = historyRow?.value ? JSON.parse(historyRow.value) : [];
+      const history = [
+        {
+          ...parsed.data.action,
+          username: String(req.admin?.username || req.admin?.sub || 'admin'),
+          at: new Date().toISOString(),
+        },
+        ...(Array.isArray(oldHistory) ? oldHistory : []),
+      ].slice(0, 100);
+      const { error } = await supabase.from('settings').upsert(
+        [
+          { key: PRODUCTS_KEY, value: JSON.stringify(parsed.data.products) },
+          { key: HISTORY_KEY, value: JSON.stringify(history) },
+        ],
+        { onConflict: 'key' },
+      );
       if (error) throw error;
-      return res.json({ success: true, products: parsed.data });
+      return res.json({ success: true, products: parsed.data.products, history });
     } catch {
       return res.status(503).json({ success: false, error: 'Не удалось сохранить товары.' });
     }

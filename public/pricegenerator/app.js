@@ -85,6 +85,8 @@
       radius: 4,
       background: '#ffffff',
       foreground: '#222222',
+      offsetX: 0,
+      offsetY: 0,
     },
     paper: saved?.paper || { width: 210, height: 297, gapX: 3, gapY: 3, margin: 5 },
   };
@@ -102,6 +104,7 @@
       label: structuredClone(state.label),
       paper: structuredClone(state.paper),
       madeDate: $('made-date').value,
+      madeTime: $('made-time').value,
       dateFormat: $('date-format').value,
     };
   }
@@ -130,6 +133,7 @@
     state.label = structuredClone(snapshot.label);
     state.paper = structuredClone(snapshot.paper);
     $('made-date').value = snapshot.madeDate;
+    $('made-time').value = snapshot.madeTime || '12:00';
     $('date-format').value = snapshot.dateFormat;
     renderedDate = snapshot.madeDate;
     for (const [id, value] of [
@@ -138,6 +142,8 @@
       ['label-radius', state.label.radius],
       ['background', state.label.background],
       ['foreground', state.label.foreground],
+      ['offset-x', state.label.offsetX || 0],
+      ['offset-y', state.label.offsetY || 0],
       ['paper-width', state.paper.width],
       ['paper-height', state.paper.height],
       ['gap-x', state.paper.gapX],
@@ -169,10 +175,15 @@
       ? `${day}.${month}.${year.slice(2)}`
       : `${day}.${month}.${year}`;
   }
-  function expiryDate(days) {
-    const date = new Date(`${$('made-date').value}T12:00:00`);
-    date.setDate(date.getDate() + Math.max(0, Number(days) || 0));
-    return formatDate(date);
+  function expiryDate(days, unit = 'days') {
+    const date = new Date(`${$('made-date').value}T${$('made-time').value || '12:00'}:00`);
+    const amount = Math.max(0, Number(days) || 0);
+    if (unit === 'hours') date.setHours(date.getHours() + amount);
+    else date.setDate(date.getDate() + amount);
+    const formatted = formatDate(date);
+    return unit === 'hours'
+      ? `${formatted} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+      : formatted;
   }
   function validEan(value) {
     return /^\d{13}$/.test(String(value));
@@ -265,7 +276,7 @@
     }
     if (key === 'barcode') return eanSvg(item.barcode);
     if (key === 'dates')
-      return `ИЗГОТОВЛЕНО: ${formatDate(new Date(`${$('made-date').value}T12:00:00`))}<br>ГОДЕН ДО: ${expiryDate(item.expiry)}`;
+      return `ИЗГОТОВЛЕНО: ${formatDate(new Date(`${$('made-date').value}T${$('made-time').value || '12:00'}:00`))}${item.expiryUnit === 'hours' ? ` ${esc($('made-time').value || '12:00')}` : ''}<br>ГОДЕН ДО: ${expiryDate(item.expiry, item.expiryUnit)}`;
     return `<span>ЦЕНА:</span><br><b>${esc(item.price)} ₸</b>`;
   }
   function styleElement(node, cfg, key, print = false) {
@@ -329,6 +340,27 @@
     if (showWarning) $('overflow-warning').hidden = !hasOverflow;
     return !hasOverflow;
   }
+  function updateLayoutWarnings() {
+    const warnings = [];
+    for (const [key, cfg] of Object.entries(state.layout)) {
+      if (!cfg.visible) continue;
+      if (
+        cfg.x < 0 ||
+        cfg.y < 0 ||
+        cfg.x + cfg.w > state.label.width ||
+        cfg.y + cfg.h > state.label.height
+      )
+        warnings.push(`Блок «${names[key]}» выходит за границы этикетки.`);
+    }
+    const barcode = state.layout.barcode;
+    if (barcode.visible && (barcode.w < 30 || barcode.h < 10))
+      warnings.push(
+        'Штрихкод слишком маленький для надёжного сканирования. Нужно не менее 30 × 10 мм.',
+      );
+    const warning = $('layout-warning');
+    warning.hidden = warnings.length === 0;
+    warning.innerHTML = warnings.map((item) => `<div>${esc(item)}</div>`).join('');
+  }
   function renderStage() {
     const fresh = buildLabel(product());
     stage.replaceWith(fresh);
@@ -336,6 +368,7 @@
     stage = fresh;
     bindStage(fresh);
     fitLabel(fresh, true);
+    updateLayoutWarnings();
     updateControls();
   }
   function bindStage(node) {
@@ -398,21 +431,24 @@
   }
   function renderProducts() {
     const q = $('search-products').value.trim().toLowerCase();
-    $('product-select').innerHTML = state.products
+    const visibleProducts = state.products.map((p, i) => ({ p, i })).filter(({ p }) => !p.archived);
+    $('product-select').innerHTML = visibleProducts
       .map(
-        (p, i) =>
+        ({ p, i }) =>
           `<option value="${i}"${i === state.selectedProduct ? ' selected' : ''}>${esc(p.name)}</option>`,
       )
       .join('');
+    const showArchived = state.isAdmin && $('show-archived')?.checked;
     const filtered = state.products
       .map((p, i) => ({ p, i }))
+      .filter(({ p }) => (showArchived ? p.archived : !p.archived))
       .filter(({ p }) => `${p.name} ${p.barcode}`.toLowerCase().includes(q));
-    $('product-count').textContent = `${state.products.length} позиций`;
+    $('product-count').textContent = `${visibleProducts.length} активных`;
     $('upload-status').textContent = `Загружено товаров: ${state.products.length}`;
     $('product-list').innerHTML = filtered
       .map(
         ({ p, i }) =>
-          `<article class="product-row ${i === state.selectedProduct ? 'active' : ''}" data-index="${i}"><strong>${esc(p.name || 'Без названия')}${dirtyProductIds.has(p.id) ? '<em class="unsaved-badge">Не сохранено</em>' : ''}</strong><small><span>${esc(p.barcode)}</span><span>${esc(p.price)} ₸</span></small>${state.isAdmin && i === state.selectedProduct ? `<div class="product-editor"><label><span>Название товара</span><input data-edit="name" value="${esc(p.name)}" placeholder="Например: Синнабон"></label><label><span>Цена, ₸</span><input data-edit="price" type="number" min="0" step="1" value="${esc(p.price)}" placeholder="Например: 535"></label><label><span>Штрихкод</span><input data-edit="barcode" inputmode="numeric" maxlength="13" value="${esc(p.barcode)}" placeholder="13 цифр"></label><label><span>Срок годности, дней</span><input data-edit="expiry" type="number" min="0" max="3650" step="1" value="${esc(p.expiry)}" placeholder="Например: 3"><small class="editor-hint">Можно указать 3, 4, 7 и другое количество дней</small></label><label><span>Состав на казахском и русском</span><textarea data-edit="composition" rows="5" placeholder="Құрамы: ...&#10;Состав: ...">${esc(p.composition)}</textarea></label><div class="product-editor-actions"><button type="button" data-save-product>${dirtyProductIds.size ? 'Сохранить изменения' : 'Сохранено'}</button><button type="button" class="danger" data-delete-product>Удалить товар</button></div></div>` : ''}</article>`,
+          `<article class="product-row ${i === state.selectedProduct ? 'active' : ''}${p.archived ? ' archived' : ''}" data-index="${i}"><strong>${esc(p.name || 'Без названия')}${p.archived ? '<em class="archive-badge">В архиве</em>' : ''}${dirtyProductIds.has(p.id) ? '<em class="unsaved-badge">Не сохранено</em>' : ''}</strong><small><span>${esc(p.barcode)}</span><span>${esc(p.price)} ₸</span></small>${state.isAdmin && i === state.selectedProduct ? `<div class="product-editor"><label><span>Название товара</span><input data-edit="name" value="${esc(p.name)}" placeholder="Например: Синнабон"></label><label><span>Цена, ₸</span><input data-edit="price" type="number" min="0" step="1" value="${esc(p.price)}" placeholder="Например: 535"></label><label><span>Штрихкод</span><input data-edit="barcode" inputmode="numeric" maxlength="13" value="${esc(p.barcode)}" placeholder="13 цифр"></label><div class="expiry-row"><label><span>Срок годности</span><input data-edit="expiry" type="number" min="0" max="87600" step="1" value="${esc(p.expiry)}" placeholder="Например: 3"></label><label><span>Единица</span><select data-edit="expiryUnit"><option value="days"${p.expiryUnit !== 'hours' ? ' selected' : ''}>Дней</option><option value="hours"${p.expiryUnit === 'hours' ? ' selected' : ''}>Часов</option></select></label></div><small class="editor-hint">Например: 12 часов, 24 часа или 3 дня</small><label><span>Состав на казахском и русском</span><textarea data-edit="composition" rows="5" placeholder="Құрамы: ...&#10;Состав: ...">${esc(p.composition)}</textarea></label><div class="product-editor-actions"><button type="button" data-save-product>${dirtyProductIds.size ? 'Сохранить изменения' : 'Сохранено'}</button><button type="button" data-duplicate-product>Дублировать</button><button type="button" class="danger" data-archive-product>${p.archived ? 'Восстановить' : 'В архив'}</button></div></div>` : ''}</article>`,
       )
       .join('');
   }
@@ -427,6 +463,8 @@
     state.label.radius = number('label-radius', 0);
     state.label.background = $('background').value;
     state.label.foreground = $('foreground').value;
+    state.label.offsetX = number('offset-x', 0);
+    state.label.offsetY = number('offset-y', 0);
     state.paper.width = number('paper-width', 210);
     state.paper.height = number('paper-height', 297);
     state.paper.gapX = number('gap-x', 0);
@@ -438,6 +476,8 @@
     if (!template) return;
     state.layout = structuredClone(template.layout);
     state.label = structuredClone(template.label);
+    state.label.offsetX ??= 0;
+    state.label.offsetY ??= 0;
     state.paper = structuredClone(template.paper);
     for (const [id, value] of [
       ['label-width', state.label.width],
@@ -445,6 +485,8 @@
       ['label-radius', state.label.radius],
       ['background', state.label.background],
       ['foreground', state.label.foreground],
+      ['offset-x', state.label.offsetX],
+      ['offset-y', state.label.offsetY],
       ['paper-width', state.paper.width],
       ['paper-height', state.paper.height],
       ['gap-x', state.paper.gapX],
@@ -479,25 +521,64 @@
         $('data-help').textContent = 'Excel обрабатывается и не сохраняется';
         $('canvas-help').textContent =
           'Перетаскивайте блоки. Потяните за угол, чтобы изменить размер.';
+        loadHistory();
       }
     } catch {
       state.isAdmin = false;
     }
   }
-  function preparePrint(mode) {
+  const historyActionNames = {
+    save: 'сохранил товар',
+    archive: 'переместил в архив',
+    restore: 'восстановил товар',
+    duplicate: 'создал копию товара',
+    import: 'сохранил импортированный список',
+  };
+  async function loadHistory() {
+    if (!state.isAdmin) return;
+    try {
+      const response = await fetch('/admin/api/pricegenerator/history', { credentials: 'include' });
+      const data = await response.json();
+      if (!response.ok) throw new Error();
+      $('product-history').innerHTML = data.history?.length
+        ? data.history
+            .slice(0, 20)
+            .map(
+              (event) =>
+                `<div><strong>${esc(event.username)}</strong> ${esc(historyActionNames[event.type] || event.type)}${event.productName ? ` «${esc(event.productName)}»` : ''}<time>${new Date(event.at).toLocaleString('ru-RU')}</time></div>`,
+            )
+            .join('')
+        : 'История пока пуста.';
+    } catch {
+      $('product-history').textContent = 'История временно недоступна.';
+    }
+  }
+  async function confirmPrint(summary) {
+    const dialog = $('print-confirm');
+    $('print-summary').innerHTML = summary;
+    dialog.showModal();
+    return new Promise((resolve) => {
+      dialog.addEventListener('close', () => resolve(dialog.returnValue === 'confirm'), {
+        once: true,
+      });
+    });
+  }
+  async function preparePrint(mode) {
     syncSettings();
-    const sourceProducts = mode === 'roll' ? [product()] : state.products;
+    const rollMode = mode === 'roll' || mode === 'test';
+    const sourceProducts = rollMode ? [product()] : state.products.filter((item) => !item.archived);
     const products = sourceProducts.flatMap((p) =>
-      Array.from({ length: Math.max(1, number('copies', 1)) }, () => p),
+      Array.from({ length: mode === 'test' ? 1 : Math.max(1, number('copies', 1)) }, () => p),
     );
     if (!products.length) return notice('Нет товаров для печати.', true);
     printRoot.replaceChildren();
     const printSettings = $('print-page-settings');
-    if (mode === 'roll') {
-      printSettings.textContent = `@media print{@page{size:${state.label.width}mm ${state.label.height}mm;margin:0!important}html,body{width:${state.label.width}mm!important;height:${state.label.height}mm!important;min-width:0!important;margin:0!important;padding:0!important;overflow:hidden!important}#print-root{width:${state.label.width}mm!important;height:auto!important;margin:0!important;padding:0!important}.print-page{width:${state.label.width}mm!important;height:${state.label.height}mm!important;margin:0!important;padding:0!important;overflow:hidden!important}.print-label{width:${state.label.width}mm!important;height:${state.label.height}mm!important;margin:0!important}}`;
+    if (rollMode) {
+      printSettings.textContent = `@media print{@page{size:${state.label.width}mm ${state.label.height}mm;margin:0!important}html,body{width:${state.label.width}mm!important;height:${state.label.height}mm!important;min-width:0!important;margin:0!important;padding:0!important;overflow:hidden!important}#print-root{width:${state.label.width}mm!important;height:auto!important;margin:0!important;padding:0!important}.print-page{width:${state.label.width}mm!important;height:${state.label.height}mm!important;margin:0!important;padding:0!important;overflow:hidden!important}.print-label{width:${state.label.width}mm!important;height:${state.label.height}mm!important;margin:0!important;transform:translate(${state.label.offsetX || 0}mm,${state.label.offsetY || 0}mm)}.test-print .print-label{outline:.3mm solid #000!important;outline-offset:-.3mm}}`;
       for (const item of products) {
         const page = document.createElement('section');
         page.className = 'print-page';
+        if (mode === 'test') page.classList.add('test-print');
         page.append(buildLabel(item, true));
         printRoot.append(page);
       }
@@ -533,11 +614,14 @@
     for (const label of printRoot.querySelectorAll('.print-label')) fitLabel(label);
     printRoot.removeAttribute('style');
     notice(
-      mode === 'roll'
+      rollMode
         ? `Выбранный товар подготовлен: ${products.length} этикеток, размер ${state.label.width} × ${state.label.height} мм.`
         : `Подготовлено этикеток: ${products.length}. В окне печати выберите масштаб 100%.`,
     );
-    setTimeout(() => window.print(), 80);
+    const accepted = await confirmPrint(
+      `<dl><dt>Товар</dt><dd>${mode === 'sheet' ? `Все активные товары (${products.length})` : esc(product().name)}</dd><dt>Копий</dt><dd>${products.length}</dd><dt>Размер</dt><dd>${state.label.width} × ${state.label.height} мм</dd><dt>Дата</dt><dd>${esc($('made-date').value)} ${esc($('made-time').value)}</dd><dt>Калибровка</dt><dd>X: ${state.label.offsetX || 0} мм, Y: ${state.label.offsetY || 0} мм</dd></dl>`,
+    );
+    if (accepted) setTimeout(() => window.print(), 80);
   }
   async function loadDefaults() {
     try {
@@ -549,7 +633,13 @@
         const response = await fetch('/pricegenerator/products.json');
         state.products = await response.json();
       }
-      selectProduct(0);
+      state.products = state.products.map((item) => ({
+        ...item,
+        expiryUnit: item.expiryUnit || 'days',
+        archived: Boolean(item.archived),
+      }));
+      const firstActive = state.products.findIndex((item) => !item.archived);
+      selectProduct(firstActive >= 0 ? firstActive : 0);
       history.length = 0;
       historyIndex = -1;
       recordHistory();
@@ -565,6 +655,8 @@
     ['label-radius', state.label.radius],
     ['background', state.label.background],
     ['foreground', state.label.foreground],
+    ['offset-x', state.label.offsetX || 0],
+    ['offset-y', state.label.offsetY || 0],
     ['paper-width', state.paper.width],
     ['paper-height', state.paper.height],
     ['gap-x', state.paper.gapX],
@@ -610,8 +702,12 @@
       saveProducts();
       return;
     }
-    if (e.target.closest('[data-delete-product]')) {
-      deleteSelectedProduct();
+    if (e.target.closest('[data-duplicate-product]')) {
+      duplicateSelectedProduct();
+      return;
+    }
+    if (e.target.closest('[data-archive-product]')) {
+      toggleArchiveSelectedProduct();
       return;
     }
     const row = e.target.closest('.product-row');
@@ -634,7 +730,12 @@
     recordHistory();
   });
   $('product-list').addEventListener('change', (e) => {
-    if (e.target.dataset.edit) renderProducts();
+    if (state.isAdmin && e.target.dataset.edit) {
+      state.products[state.selectedProduct][e.target.dataset.edit] = e.target.value;
+      dirtyProductIds.add(product().id);
+      renderProducts();
+      renderStage();
+    }
   });
   $('add-product').addEventListener('click', () => {
     if (!state.isAdmin) return;
@@ -644,19 +745,21 @@
       composition: 'Құрамы: . Состав: .',
       price: '0',
       expiry: '1',
+      expiryUnit: 'days',
       barcode: '',
+      archived: false,
     });
     dirtyProductIds.add(state.products[0].id);
     selectProduct(0);
     recordHistory();
     notice('Новый товар добавлен. Заполните поля и нажмите «Сохранить товар».');
   });
-  async function persistProducts(successMessage) {
+  async function persistProducts(successMessage, action = { type: 'save' }) {
     const response = await fetch('/admin/api/pricegenerator/products', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(state.products),
+      body: JSON.stringify({ products: state.products, action }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Ошибка сохранения');
@@ -668,8 +771,12 @@
     if (!item.name.trim()) return notice('Введите название товара.', true);
     if (!/^\d+(?:[.,]\d+)?$/.test(item.price) || Number(item.price.replace(',', '.')) < 0)
       return notice('Введите корректную цену, например 535.', true);
-    if (!/^\d+$/.test(item.expiry) || Number(item.expiry) < 0 || Number(item.expiry) > 3650)
-      return notice('Срок годности должен быть целым количеством дней, например 3 или 4.', true);
+    const expiryLimit = item.expiryUnit === 'hours' ? 87600 : 3650;
+    if (!/^\d+$/.test(item.expiry) || Number(item.expiry) < 0 || Number(item.expiry) > expiryLimit)
+      return notice(
+        `Срок годности должен быть целым количеством ${item.expiryUnit === 'hours' ? 'часов' : 'дней'}.`,
+        true,
+      );
     if (item.barcode && !validEan(item.barcode))
       return notice('Штрихкод должен содержать 13 цифр.', true);
     const duplicate = state.products.find(
@@ -681,26 +788,59 @@
     if (duplicate)
       return notice(`Этот штрихкод уже используется товаром «${duplicate.name}».`, true);
     try {
-      await persistProducts(`Товар «${item.name}» сохранён для всех устройств.`);
+      await persistProducts(`Товар «${item.name}» сохранён для всех устройств.`, {
+        type: 'save',
+        productId: item.id,
+        productName: item.name,
+      });
       dirtyProductIds.clear();
       renderProducts();
+      loadHistory();
     } catch (error) {
       notice(error.message, true);
     }
   }
-  async function deleteSelectedProduct() {
+  async function duplicateSelectedProduct() {
+    if (!state.isAdmin) return;
+    const source = product();
+    const copy = {
+      ...structuredClone(source),
+      id: crypto.randomUUID(),
+      name: `${source.name} — копия`,
+      barcode: '',
+      archived: false,
+    };
+    state.products.unshift(copy);
+    state.selectedProduct = 0;
+    dirtyProductIds.add(copy.id);
+    renderProducts();
+    renderStage();
+    notice('Копия создана. Укажите новый штрихкод и сохраните товар.');
+  }
+  async function toggleArchiveSelectedProduct() {
     if (!state.isAdmin || !state.products.length) return;
     const item = product();
-    if (!window.confirm(`Удалить товар «${item.name || 'Без названия'}»?`)) return;
+    const restoring = Boolean(item.archived);
+    if (
+      !window.confirm(
+        `${restoring ? 'Восстановить' : 'Переместить в архив'} товар «${item.name || 'Без названия'}»?`,
+      )
+    )
+      return;
     const previous = structuredClone(state.products);
-    state.products.splice(state.selectedProduct, 1);
-    state.selectedProduct = Math.min(state.selectedProduct, Math.max(0, state.products.length - 1));
+    item.archived = !restoring;
     try {
-      await persistProducts(`Товар «${item.name || 'Без названия'}» удалён.`);
+      await persistProducts(
+        `Товар «${item.name || 'Без названия'}» ${restoring ? 'восстановлен' : 'перемещён в архив'}.`,
+        { type: restoring ? 'restore' : 'archive', productId: item.id, productName: item.name },
+      );
       dirtyProductIds.delete(item.id);
+      const nextActive = state.products.findIndex((candidate) => !candidate.archived);
+      if (!restoring && nextActive >= 0) state.selectedProduct = nextActive;
       renderProducts();
       renderStage();
       recordHistory();
+      loadHistory();
     } catch (error) {
       state.products = previous;
       renderProducts();
@@ -719,7 +859,10 @@
     'gap-x',
     'gap-y',
     'page-margin',
+    'offset-x',
+    'offset-y',
     'made-date',
+    'made-time',
     'date-format',
   ];
   for (const id of liveSettingIds) {
@@ -750,6 +893,7 @@
     syncSettings();
     recordHistory();
   });
+  $('show-archived').addEventListener('change', renderProducts);
   for (const [id, key] of [
     ['field-x', 'x'],
     ['field-y', 'y'],
@@ -804,6 +948,11 @@
     renderStage();
     recordHistory();
   });
+  $('zoom-actual').addEventListener('click', () => {
+    state.zoom = 96 / 25.4 / 6;
+    renderStage();
+    notice('Предпросмотр установлен в физический масштаб 1:1 для экрана 96 DPI.');
+  });
   document.addEventListener('keydown', (event) => {
     if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
     const key = event.key.toLowerCase();
@@ -842,6 +991,7 @@
   });
   $('print-sheet').addEventListener('click', () => preparePrint('sheet'));
   $('print-xprinter').addEventListener('click', () => preparePrint('roll'));
+  $('test-print').addEventListener('click', () => preparePrint('test'));
   window.addEventListener('beforeunload', (event) => {
     if (!dirtyProductIds.size) return;
     event.preventDefault();

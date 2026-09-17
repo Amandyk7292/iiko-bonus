@@ -23,7 +23,7 @@ require.cache[require.resolve('../src/config/supabase')] = {
             };
           },
           async upsert(row) {
-            values.set(row.key, row.value);
+            for (const item of Array.isArray(row) ? row : [row]) values.set(item.key, item.value);
             return { error: null };
           },
         };
@@ -95,6 +95,7 @@ test('price generator mutations require owner or admin role', () => {
     '/admin/api/pricegenerator/template',
     '/admin/api/pricegenerator/import',
     '/admin/api/pricegenerator/products',
+    '/admin/api/pricegenerator/history',
   ]) {
     const route = router.stack.find((layer) => layer.route?.path === path).route;
     const guard = route.stack.find((layer) => layer.handle.name === 'ownerOrAdminOnly').handle;
@@ -126,9 +127,22 @@ test('price generator products are saved and loaded for all devices', async () =
     },
   ];
   const save = response();
-  await handler('post', '/admin/api/pricegenerator/products')({ body: products }, save);
+  await handler('post', '/admin/api/pricegenerator/products')(
+    {
+      body: {
+        products,
+        action: { type: 'save', productId: 'custom-1', productName: 'Новый товар' },
+      },
+      admin: { username: 'owner', role: 'owner' },
+    },
+    save,
+  );
   assert.equal(save.statusCode, 200);
   const read = response();
   await handler('get', '/api/pricegenerator/products')({}, read);
   assert.deepEqual(read.data.products, products);
+  const history = response();
+  await handler('get', '/admin/api/pricegenerator/history')({}, history);
+  assert.equal(history.data.history[0].username, 'owner');
+  assert.equal(history.data.history[0].type, 'save');
 });

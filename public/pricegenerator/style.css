@@ -252,6 +252,13 @@ textarea:focus {
   border-radius: 10px;
   overflow: hidden;
 }
+.zoom #zoom-actual {
+  width: auto;
+  padding: 0 9px;
+  border-left: 1px solid #eee3d8;
+  font-size: 11px;
+  font-weight: 700;
+}
 .zoom button {
   width: 36px;
   height: 36px;
@@ -399,6 +406,19 @@ textarea:focus {
   font-style: normal;
   white-space: nowrap;
 }
+.archive-badge {
+  display: inline-block;
+  margin-left: 7px;
+  border-radius: 999px;
+  padding: 2px 6px;
+  background: #ececec;
+  color: #666;
+  font-size: 9px;
+  font-style: normal;
+}
+.product-row.archived {
+  opacity: 0.72;
+}
 .product-row small {
   color: #88776d;
   display: flex;
@@ -443,6 +463,17 @@ textarea:focus {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+.product-editor-actions button:first-child {
+  grid-column: 1 / -1;
+}
+.expiry-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.expiry-row select {
+  width: 100%;
+}
 .product-editor-actions button {
   border: 0;
   border-radius: 9px;
@@ -465,6 +496,81 @@ textarea:focus {
   font-size: 10px;
   font-weight: 400;
   line-height: 1.25;
+}
+.calibration-box {
+  margin-top: 12px;
+  border: 1px solid #eadfd3;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fffaf3;
+}
+.calibration-box > strong,
+.calibration-box > small {
+  display: block;
+}
+.calibration-box > small {
+  margin: 3px 0 8px;
+  color: #8d7c71;
+  font-size: 10px;
+}
+.archived-toggle {
+  margin-top: 10px;
+}
+.history-panel {
+  margin-top: 16px;
+  border-top: 1px solid #eee3d8;
+  padding-top: 12px;
+}
+.history-panel summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.history-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 11px;
+}
+.history-list > div {
+  border-bottom: 1px solid #f0e8df;
+  padding-bottom: 7px;
+}
+.history-list time {
+  display: block;
+  margin-top: 2px;
+  color: #8d7c71;
+}
+.print-confirm {
+  width: min(430px, calc(100vw - 32px));
+  border: 0;
+  border-radius: 16px;
+  padding: 22px;
+  color: #2f1d15;
+  box-shadow: 0 24px 70px #2f1d1540;
+}
+.print-confirm::backdrop {
+  background: #2f1d1570;
+}
+.print-confirm h2 {
+  margin: 0 0 16px;
+}
+.print-confirm dl {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px;
+}
+.print-confirm dt {
+  color: #8d7c71;
+}
+.print-confirm dd {
+  margin: 0;
+  font-weight: 700;
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
 }
 .product-row textarea {
   min-height: 92px;
