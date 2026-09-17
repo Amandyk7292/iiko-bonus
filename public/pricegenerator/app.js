@@ -89,6 +89,7 @@
     paper: saved?.paper || { width: 210, height: 297, gapX: 3, gapY: 3, margin: 5 },
   };
   const history = [];
+  const dirtyProductIds = new Set();
   let historyIndex = -1;
   let restoringHistory = false;
   function historySnapshot() {
@@ -411,7 +412,7 @@
     $('product-list').innerHTML = filtered
       .map(
         ({ p, i }) =>
-          `<article class="product-row ${i === state.selectedProduct ? 'active' : ''}" data-index="${i}"><strong>${esc(p.name || 'Без названия')}</strong><small><span>${esc(p.barcode)}</span><span>${esc(p.price)} ₸</span></small>${state.isAdmin && i === state.selectedProduct ? `<div class="product-editor"><label><span>Название товара</span><input data-edit="name" value="${esc(p.name)}" placeholder="Например: Синнабон"></label><label><span>Цена, ₸</span><input data-edit="price" inputmode="decimal" value="${esc(p.price)}" placeholder="Например: 535"></label><label><span>Штрихкод</span><input data-edit="barcode" inputmode="numeric" value="${esc(p.barcode)}" placeholder="13 цифр"></label><label><span>Срок годности, дней</span><input data-edit="expiry" inputmode="numeric" value="${esc(p.expiry)}" placeholder="Например: 1"></label><label><span>Состав на казахском и русском</span><textarea data-edit="composition" rows="5" placeholder="Құрамы: ...&#10;Состав: ...">${esc(p.composition)}</textarea></label><div class="product-editor-actions"><button type="button" data-save-product>Сохранить товар</button><button type="button" class="danger" data-delete-product>Удалить товар</button></div></div>` : ''}</article>`,
+          `<article class="product-row ${i === state.selectedProduct ? 'active' : ''}" data-index="${i}"><strong>${esc(p.name || 'Без названия')}${dirtyProductIds.has(p.id) ? '<em class="unsaved-badge">Не сохранено</em>' : ''}</strong><small><span>${esc(p.barcode)}</span><span>${esc(p.price)} ₸</span></small>${state.isAdmin && i === state.selectedProduct ? `<div class="product-editor"><label><span>Название товара</span><input data-edit="name" value="${esc(p.name)}" placeholder="Например: Синнабон"></label><label><span>Цена, ₸</span><input data-edit="price" type="number" min="0" step="1" value="${esc(p.price)}" placeholder="Например: 535"></label><label><span>Штрихкод</span><input data-edit="barcode" inputmode="numeric" maxlength="13" value="${esc(p.barcode)}" placeholder="13 цифр"></label><label><span>Срок годности, дней</span><input data-edit="expiry" type="number" min="0" max="3650" step="1" value="${esc(p.expiry)}" placeholder="Например: 3"><small class="editor-hint">Можно указать 3, 4, 7 и другое количество дней</small></label><label><span>Состав на казахском и русском</span><textarea data-edit="composition" rows="5" placeholder="Құрамы: ...&#10;Состав: ...">${esc(p.composition)}</textarea></label><div class="product-editor-actions"><button type="button" data-save-product>${dirtyProductIds.size ? 'Сохранить изменения' : 'Сохранено'}</button><button type="button" class="danger" data-delete-product>Удалить товар</button></div></div>` : ''}</article>`,
       )
       .join('');
   }
@@ -587,6 +588,8 @@
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Ошибка импорта');
       state.products = data.products;
+      dirtyProductIds.clear();
+      for (const item of state.products) dirtyProductIds.add(item.id);
       selectProduct(0);
       recordHistory();
       notice(`Импортировано товаров: ${state.products.length}.`);
@@ -617,6 +620,16 @@
   $('product-list').addEventListener('input', (e) => {
     if (!state.isAdmin || !e.target.dataset.edit) return;
     state.products[state.selectedProduct][e.target.dataset.edit] = e.target.value;
+    dirtyProductIds.add(product().id);
+    const badge = e.target.closest('.product-row').querySelector('.unsaved-badge');
+    if (!badge) {
+      const marker = document.createElement('em');
+      marker.className = 'unsaved-badge';
+      marker.textContent = 'Не сохранено';
+      e.target.closest('.product-row').querySelector('strong').append(marker);
+    }
+    const saveButton = e.target.closest('.product-row').querySelector('[data-save-product]');
+    if (saveButton) saveButton.textContent = 'Сохранить изменения';
     renderStage();
     recordHistory();
   });
@@ -633,6 +646,7 @@
       expiry: '1',
       barcode: '',
     });
+    dirtyProductIds.add(state.products[0].id);
     selectProduct(0);
     recordHistory();
     notice('Новый товар добавлен. Заполните поля и нажмите «Сохранить товар».');
@@ -652,8 +666,23 @@
     if (!state.isAdmin) return;
     const item = product();
     if (!item.name.trim()) return notice('Введите название товара.', true);
+    if (!/^\d+(?:[.,]\d+)?$/.test(item.price) || Number(item.price.replace(',', '.')) < 0)
+      return notice('Введите корректную цену, например 535.', true);
+    if (!/^\d+$/.test(item.expiry) || Number(item.expiry) < 0 || Number(item.expiry) > 3650)
+      return notice('Срок годности должен быть целым количеством дней, например 3 или 4.', true);
+    if (item.barcode && !validEan(item.barcode))
+      return notice('Штрихкод должен содержать 13 цифр.', true);
+    const duplicate = state.products.find(
+      (candidate) =>
+        candidate.id !== item.id &&
+        item.barcode &&
+        String(candidate.barcode) === String(item.barcode),
+    );
+    if (duplicate)
+      return notice(`Этот штрихкод уже используется товаром «${duplicate.name}».`, true);
     try {
       await persistProducts(`Товар «${item.name}» сохранён для всех устройств.`);
+      dirtyProductIds.clear();
       renderProducts();
     } catch (error) {
       notice(error.message, true);
@@ -668,6 +697,7 @@
     state.selectedProduct = Math.min(state.selectedProduct, Math.max(0, state.products.length - 1));
     try {
       await persistProducts(`Товар «${item.name || 'Без названия'}» удалён.`);
+      dirtyProductIds.delete(item.id);
       renderProducts();
       renderStage();
       recordHistory();
@@ -812,6 +842,11 @@
   });
   $('print-sheet').addEventListener('click', () => preparePrint('sheet'));
   $('print-xprinter').addEventListener('click', () => preparePrint('roll'));
+  window.addEventListener('beforeunload', (event) => {
+    if (!dirtyProductIds.size) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
   $('center-horizontal').addEventListener('click', () => {
     const cfg = state.layout[state.selected];
     cfg.x = Math.max(0, (state.label.width - cfg.w) / 2);
