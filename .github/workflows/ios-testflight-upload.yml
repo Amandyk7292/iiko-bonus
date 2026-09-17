@@ -1,0 +1,70 @@
+name: Upload iOS build to TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        description: Successful App Store IPA workflow run ID
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  upload:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+    steps:
+      - name: Check App Store Connect credentials
+        run: |
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing App Store Connect secret: $name"
+              exit 1
+            fi
+          done
+
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
+        with:
+          name: bulka-iphone-appstore-release-14d9340d271e2bff09273184f9fac59806affc0c
+          path: artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.artifact_run_id }}
+
+      - name: Prepare App Store Connect API key
+        run: |
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          value = os.environ['ASC_PRIVATE_KEY'].strip()
+          if 'BEGIN PRIVATE KEY' in value:
+              payload = value.encode()
+          else:
+              payload = base64.b64decode(value, validate=True)
+          target = Path.home() / '.appstoreconnect/private_keys' / f"AuthKey_{os.environ['ASC_KEY_ID']}.p8"
+          target.write_bytes(payload)
+          target.chmod(0o600)
+          PY
+
+      - name: Upload IPA to TestFlight
+        run: |
+          IPA="$(find artifact -type f -name '*.ipa' -print -quit)"
+          test -n "$IPA"
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA" \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Remove App Store Connect API key
+        if: always()
+        run: rm -rf "$HOME/.appstoreconnect/private_keys"
