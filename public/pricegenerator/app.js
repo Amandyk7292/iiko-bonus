@@ -31,7 +31,7 @@
     },
     paper: saved?.paper || { width: 210, height: 297, gapX: 3, gapY: 3, margin: 5 },
   };
-  const stage = $('label-stage');
+  let stage = $('label-stage');
   const printRoot = $('print-root');
   const notice = (message, error = false) => {
     $('notice').textContent = message;
@@ -186,6 +186,7 @@
     const fresh = buildLabel(product());
     stage.replaceWith(fresh);
     fresh.id = 'label-stage';
+    stage = fresh;
     bindStage(fresh);
     updateControls();
   }
