@@ -331,6 +331,7 @@
     }
   }
   $('made-date').value = new Date().toISOString().slice(0, 10);
+  let renderedDate = $('made-date').value;
   for (const [id, value] of [
     ['label-width', state.label.width],
     ['label-height', state.label.height],
@@ -412,6 +413,12 @@
     $(id).addEventListener('input', syncSettings);
     $(id).addEventListener('change', syncSettings);
   }
+  window.setInterval(() => {
+    const currentDate = $('made-date').value;
+    if (currentDate === renderedDate) return;
+    renderedDate = currentDate;
+    renderStage();
+  }, 100);
   $('print-mode').addEventListener('change', () => {
     $('paper-settings').hidden = $('print-mode').value !== 'sheet';
   });
