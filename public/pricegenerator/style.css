@@ -1,5 +1,5 @@
 :root {
-  font-family: Inter, Arial, sans-serif;
+  font-family: 'Segoe UI', Arial, sans-serif;
   color: #2f1d15;
   background: #f5f1ea;
   font-synthesis: none;
@@ -237,6 +237,7 @@ select:focus {
 }
 .label-stage {
   position: relative;
+  font-family: 'Segoe UI', Arial, sans-serif;
   background: #fff;
   box-shadow: 0 18px 45px #3f2b1e30;
   overflow: hidden;
@@ -365,6 +366,7 @@ select:focus {
   }
   .print-label {
     position: relative;
+    font-family: 'Segoe UI', Arial, sans-serif;
     overflow: hidden;
     background: #fff;
     break-inside: avoid;

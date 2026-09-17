@@ -394,7 +394,7 @@
     });
     selectProduct(0);
   });
-  for (const id of [
+  const liveSettingIds = [
     'label-width',
     'label-height',
     'label-radius',
@@ -407,8 +407,11 @@
     'page-margin',
     'made-date',
     'date-format',
-  ])
+  ];
+  for (const id of liveSettingIds) {
     $(id).addEventListener('input', syncSettings);
+    $(id).addEventListener('change', syncSettings);
+  }
   $('print-mode').addEventListener('change', () => {
     $('paper-settings').hidden = $('print-mode').value !== 'sheet';
   });
