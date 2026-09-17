@@ -7,7 +7,7 @@
     <title>Конструктор этикеток Bulka</title>
     <link rel="icon" href="/favicon.png" />
     <link rel="stylesheet" href="/pricegenerator/style.css?v=20260917-2" />
-    <script src="/pricegenerator/app.js?v=20260917-4" defer></script>
+    <script src="/pricegenerator/app.js?v=20260917-5" defer></script>
   </head>
   <body>
     <header class="topbar">
@@ -188,6 +188,9 @@
             <label class="check"
               ><input id="field-visible" type="checkbox" checked /> Показывать этот блок</label
             >
+            <button id="reset-field" class="secondary-action" type="button">
+              Сбросить оформление блока
+            </button>
             <details class="position-settings">
               <summary>Расположение и размер блока</summary>
               <div class="row two">
@@ -214,6 +217,9 @@
         </div>
         <div class="canvas-scroll">
           <div id="label-stage" class="label-stage" aria-label="Редактор этикетки"></div>
+        </div>
+        <div id="overflow-warning" class="overflow-warning" hidden>
+          Текст не помещается. Увеличьте блок или сократите текст.
         </div>
         <div class="notice" id="notice" role="status"></div>
       </section>

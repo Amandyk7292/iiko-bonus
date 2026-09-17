@@ -208,6 +208,22 @@ textarea:focus {
   font-size: 12px;
   font-weight: 700;
 }
+.secondary-action {
+  width: 100%;
+  margin-top: 12px;
+  padding: 9px 12px;
+  border: 1px solid #e2d5c8;
+  border-radius: 9px;
+  background: #fff;
+  color: #704632;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.secondary-action:hover {
+  background: #fff8ed;
+}
 .canvas-column {
   padding: 26px;
   min-width: 0;
@@ -317,6 +333,16 @@ textarea:focus {
   margin-top: 12px;
   color: #7d542f;
   font-size: 13px;
+}
+.overflow-warning {
+  margin-top: 12px;
+  padding: 9px 12px;
+  border: 1px solid #efb4aa;
+  border-radius: 9px;
+  background: #fff3f1;
+  color: #a52d20;
+  font-size: 12px;
+  font-weight: 700;
 }
 .products-head {
   display: flex;

@@ -82,6 +82,68 @@
     },
     paper: saved?.paper || { width: 210, height: 297, gapX: 3, gapY: 3, margin: 5 },
   };
+  const history = [];
+  let historyIndex = -1;
+  let restoringHistory = false;
+  function historySnapshot() {
+    return {
+      products: structuredClone(state.products),
+      selectedProduct: state.selectedProduct,
+      selected: state.selected,
+      zoom: state.zoom,
+      layout: structuredClone(state.layout),
+      label: structuredClone(state.label),
+      paper: structuredClone(state.paper),
+      madeDate: $('made-date').value,
+      dateFormat: $('date-format').value,
+    };
+  }
+  function recordHistory() {
+    if (restoringHistory) return;
+    const snapshot = historySnapshot();
+    const serialized = JSON.stringify(snapshot);
+    if (historyIndex >= 0 && JSON.stringify(history[historyIndex]) === serialized) return;
+    history.splice(historyIndex + 1);
+    history.push(snapshot);
+    if (history.length > 60) history.shift();
+    historyIndex = history.length - 1;
+  }
+  function restoreHistory(index) {
+    const snapshot = history[index];
+    if (!snapshot) return;
+    restoringHistory = true;
+    state.products = structuredClone(snapshot.products);
+    state.selectedProduct = Math.min(
+      snapshot.selectedProduct,
+      Math.max(0, state.products.length - 1),
+    );
+    state.selected = snapshot.selected;
+    state.zoom = snapshot.zoom;
+    state.layout = structuredClone(snapshot.layout);
+    state.label = structuredClone(snapshot.label);
+    state.paper = structuredClone(snapshot.paper);
+    $('made-date').value = snapshot.madeDate;
+    $('date-format').value = snapshot.dateFormat;
+    renderedDate = snapshot.madeDate;
+    for (const [id, value] of [
+      ['label-width', state.label.width],
+      ['label-height', state.label.height],
+      ['label-radius', state.label.radius],
+      ['background', state.label.background],
+      ['foreground', state.label.foreground],
+      ['paper-width', state.paper.width],
+      ['paper-height', state.paper.height],
+      ['gap-x', state.paper.gapX],
+      ['gap-y', state.paper.gapY],
+      ['page-margin', state.paper.margin],
+    ])
+      $(id).value = String(value);
+    renderProducts();
+    renderStage();
+    historyIndex = index;
+    restoringHistory = false;
+    notice(index < history.length - 1 ? 'Изменение отменено.' : 'Изменение возвращено.');
+  }
   let stage = $('label-stage');
   const printRoot = $('print-root');
   const notice = (message, error = false) => {
@@ -240,12 +302,32 @@
     }
     return label;
   }
+  function fitLabel(label, showWarning = false) {
+    let hasOverflow = false;
+    for (const node of label.querySelectorAll('.label-element:not(.field-barcode)')) {
+      if (node.style.display === 'none') continue;
+      let size = Number.parseFloat(getComputedStyle(node).fontSize);
+      const minimum = 4;
+      while (
+        size > minimum &&
+        (node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1)
+      ) {
+        size = Math.max(minimum, size - 0.5);
+        node.style.fontSize = `${size}px`;
+      }
+      if (node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1)
+        hasOverflow = true;
+    }
+    if (showWarning) $('overflow-warning').hidden = !hasOverflow;
+    return !hasOverflow;
+  }
   function renderStage() {
     const fresh = buildLabel(product());
     stage.replaceWith(fresh);
     fresh.id = 'label-stage';
     stage = fresh;
     bindStage(fresh);
+    fitLabel(fresh, true);
     updateControls();
   }
   function bindStage(node) {
@@ -282,6 +364,7 @@
       active.onpointerup = () => {
         active.onpointermove = null;
         active.onpointerup = null;
+        recordHistory();
       };
     });
   }
@@ -381,6 +464,15 @@
       });
     }
     printRoot.prepend(style);
+    Object.assign(printRoot.style, {
+      display: 'block',
+      position: 'fixed',
+      visibility: 'hidden',
+      left: '-10000px',
+      top: '0',
+    });
+    for (const label of printRoot.querySelectorAll('.print-label')) fitLabel(label);
+    printRoot.removeAttribute('style');
     notice(`Подготовлено этикеток: ${products.length}. В окне печати выберите масштаб 100%.`);
     setTimeout(() => window.print(), 80);
   }
@@ -389,6 +481,9 @@
       const response = await fetch('/pricegenerator/products.json');
       state.products = await response.json();
       selectProduct(0);
+      history.length = 0;
+      historyIndex = -1;
+      recordHistory();
     } catch {
       notice('Не удалось загрузить исходный список.', true);
     }
@@ -424,6 +519,7 @@
       if (!response.ok) throw new Error(data.error || 'Ошибка импорта');
       state.products = data.products;
       selectProduct(0);
+      recordHistory();
       notice(`Импортировано товаров: ${state.products.length}.`);
     } catch (error) {
       notice(
@@ -445,6 +541,7 @@
     if (!e.target.dataset.edit) return;
     state.products[state.selectedProduct][e.target.dataset.edit] = e.target.value;
     renderStage();
+    recordHistory();
   });
   $('product-list').addEventListener('change', (e) => {
     if (e.target.dataset.edit) renderProducts();
@@ -459,6 +556,7 @@
       barcode: '',
     });
     selectProduct(0);
+    recordHistory();
   });
   const liveSettingIds = [
     'label-width',
@@ -475,14 +573,21 @@
     'date-format',
   ];
   for (const id of liveSettingIds) {
-    $(id).addEventListener('input', syncSettings);
-    $(id).addEventListener('change', syncSettings);
+    $(id).addEventListener('input', () => {
+      syncSettings();
+      recordHistory();
+    });
+    $(id).addEventListener('change', () => {
+      syncSettings();
+      recordHistory();
+    });
   }
   window.setInterval(() => {
     const currentDate = $('made-date').value;
     if (currentDate === renderedDate) return;
     renderedDate = currentDate;
     renderStage();
+    recordHistory();
   }, 100);
   $('print-mode').addEventListener('change', () => {
     $('paper-settings').hidden = $('print-mode').value !== 'sheet';
@@ -493,6 +598,7 @@
     $('paper-width').value = w;
     $('paper-height').value = h;
     syncSettings();
+    recordHistory();
   });
   for (const [id, key] of [
     ['field-x', 'x'],
@@ -504,34 +610,59 @@
     $(id).addEventListener('input', () => {
       state.layout[state.selected][key] = number(id, state.layout[state.selected][key]);
       renderStage();
+      recordHistory();
     });
   $('text-align').addEventListener('change', (e) => {
     state.layout[state.selected].align = e.target.value;
     renderStage();
+    recordHistory();
   });
   $('font-weight').addEventListener('change', (e) => {
     state.layout[state.selected].weight = Number(e.target.value);
     renderStage();
+    recordHistory();
   });
   $('line-height').addEventListener('change', (e) => {
     state.layout[state.selected].lineHeight = Number(e.target.value);
     renderStage();
+    recordHistory();
   });
   $('language-break').addEventListener('change', (e) => {
     state.layout.composition.breakLanguages = e.target.checked;
     renderStage();
+    recordHistory();
   });
   $('field-visible').addEventListener('change', (e) => {
     state.layout[state.selected].visible = e.target.checked;
     renderStage();
+    recordHistory();
+  });
+  $('reset-field').addEventListener('click', () => {
+    state.layout[state.selected] = structuredClone(defaults[state.selected]);
+    renderStage();
+    recordHistory();
+    notice(`Оформление блока «${names[state.selected]}» сброшено.`);
   });
   $('zoom-in').addEventListener('click', () => {
     state.zoom = Math.min(1.8, state.zoom + 0.1);
     renderStage();
+    recordHistory();
   });
   $('zoom-out').addEventListener('click', () => {
     state.zoom = Math.max(0.5, state.zoom - 0.1);
     renderStage();
+    recordHistory();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+    const key = event.key.toLowerCase();
+    if (key === 'z' && !event.shiftKey) {
+      event.preventDefault();
+      restoreHistory(historyIndex - 1);
+    } else if (key === 'y' || (key === 'z' && event.shiftKey)) {
+      event.preventDefault();
+      restoreHistory(historyIndex + 1);
+    }
   });
   $('save-template').addEventListener('click', () => {
     syncSettings();
