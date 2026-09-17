@@ -63,7 +63,7 @@ const templateSchema = z
   .strict();
 const TEMPLATE_KEY = 'price_generator_template_v1';
 
-router.get('/admin/api/pricegenerator/template', adminAuthMiddleware, async (_req, res) => {
+router.get('/api/pricegenerator/template', async (_req, res) => {
   try {
     const { data, error } = await supabase
       .from('settings')

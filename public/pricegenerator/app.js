@@ -452,9 +452,7 @@
   }
   async function loadSharedTemplate() {
     try {
-      const response = await fetch('/admin/api/pricegenerator/template', {
-        credentials: 'include',
-      });
+      const response = await fetch('/api/pricegenerator/template');
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Ошибка загрузки');
       if (data.template) {

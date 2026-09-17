@@ -77,7 +77,7 @@ test('price generator template is shared through server settings', async () => {
   await handler('post', '/admin/api/pricegenerator/template')({ body: template }, save);
   assert.equal(save.statusCode, 200);
   const read = response();
-  await handler('get', '/admin/api/pricegenerator/template')({}, read);
+  await handler('get', '/api/pricegenerator/template')({}, read);
   assert.deepEqual(read.data.template, template);
 });
 
