@@ -127,7 +127,8 @@ label {
   margin-top: 12px;
 }
 input,
-select {
+select,
+textarea {
   width: 100%;
   border: 1px solid #dfd4c8;
   border-radius: 9px;
@@ -137,7 +138,8 @@ select {
   font: inherit;
 }
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   outline: 2px solid #efb05480;
   border-color: #d67528;
 }
@@ -178,6 +180,33 @@ select:focus {
 .check input {
   width: 17px;
   height: 17px;
+}
+.selected-block {
+  margin-top: 14px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: #fff7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: #806d61;
+}
+.selected-block strong {
+  color: #582f1e;
+  font-size: 13px;
+}
+.position-settings {
+  margin-top: 14px;
+  border-top: 1px solid #eee3d8;
+  padding-top: 12px;
+}
+.position-settings summary {
+  cursor: pointer;
+  color: #7b5c4d;
+  font-size: 12px;
+  font-weight: 700;
 }
 .canvas-column {
   padding: 26px;
@@ -251,6 +280,9 @@ select:focus {
   user-select: none;
   line-height: 1.15;
   white-space: pre-wrap;
+}
+.field-price b {
+  font-weight: inherit;
 }
 .label-element.selected {
   outline: 2px solid #e26d27;
@@ -329,10 +361,16 @@ select:focus {
   display: flex;
   justify-content: space-between;
 }
-.product-row input {
+.product-row input,
+.product-row textarea {
   margin-top: 8px;
   padding: 7px;
   font-size: 12px;
+}
+.product-row textarea {
+  min-height: 92px;
+  resize: vertical;
+  line-height: 1.35;
 }
 #print-root {
   display: none;

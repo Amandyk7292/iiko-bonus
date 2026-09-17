@@ -7,7 +7,7 @@
     <title>Конструктор этикеток Bulka</title>
     <link rel="icon" href="/favicon.png" />
     <link rel="stylesheet" href="/pricegenerator/style.css?v=20260917-2" />
-    <script src="/pricegenerator/app.js?v=20260917-3" defer></script>
+    <script src="/pricegenerator/app.js?v=20260917-4" defer></script>
   </head>
   <body>
     <header class="topbar">
@@ -147,12 +147,8 @@
             ><label>Текст<input id="foreground" type="color" value="#222222" /></label>
           </div>
           <div id="element-controls">
-            <label>Выбранный блок<input id="selected-name" type="text" readonly /></label>
-            <div class="row four">
-              <label>X<input id="field-x" type="number" step="0.5" /></label
-              ><label>Y<input id="field-y" type="number" step="0.5" /></label
-              ><label>Ширина<input id="field-w" type="number" step="0.5" /></label
-              ><label>Высота<input id="field-h" type="number" step="0.5" /></label>
+            <div class="selected-block">
+              <span>Настройки блока</span><strong id="selected-name"></strong>
             </div>
             <div class="row two">
               <label
@@ -170,9 +166,37 @@
                 </select></label
               >
             </div>
+            <div class="row two">
+              <label
+                >Жирность<select id="font-weight">
+                  <option value="400">Обычный</option>
+                  <option value="600">Полужирный</option>
+                  <option value="700">Жирный</option>
+                  <option value="800">Очень жирный</option>
+                </select></label
+              ><label
+                >Расстояние между строками<select id="line-height">
+                  <option value="1">Плотно</option>
+                  <option value="1.15">Обычно</option>
+                  <option value="1.35">Свободно</option>
+                </select></label
+              >
+            </div>
+            <label id="language-break-control" class="check"
+              ><input id="language-break" type="checkbox" /> Русский состав с новой строки</label
+            >
             <label class="check"
               ><input id="field-visible" type="checkbox" checked /> Показывать этот блок</label
             >
+            <details class="position-settings">
+              <summary>Расположение и размер блока</summary>
+              <div class="row two">
+                <label>Слева, мм<input id="field-x" type="number" step="0.5" /></label
+                ><label>Сверху, мм<input id="field-y" type="number" step="0.5" /></label
+                ><label>Ширина, мм<input id="field-w" type="number" step="0.5" /></label
+                ><label>Высота, мм<input id="field-h" type="number" step="0.5" /></label>
+              </div>
+            </details>
           </div>
         </section>
       </aside>

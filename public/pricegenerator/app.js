@@ -9,11 +9,62 @@
     price: 'Цена',
   };
   const defaults = {
-    name: { x: 6, y: 3, w: 58, h: 7, font: 12, align: 'center', visible: true },
-    composition: { x: 7, y: 11, w: 56, h: 12, font: 5.3, align: 'left', visible: true },
-    barcode: { x: 10, y: 24, w: 50, h: 12, font: 5, align: 'center', visible: true },
-    dates: { x: 7, y: 39, w: 38, h: 8, font: 5.2, align: 'left', visible: true },
-    price: { x: 47, y: 39, w: 17, h: 8, font: 8, align: 'right', visible: true },
+    name: {
+      x: 6,
+      y: 3,
+      w: 58,
+      h: 7,
+      font: 12,
+      weight: 400,
+      lineHeight: 1.15,
+      align: 'center',
+      visible: true,
+    },
+    composition: {
+      x: 7,
+      y: 11,
+      w: 56,
+      h: 12,
+      font: 5.3,
+      weight: 400,
+      lineHeight: 1.15,
+      breakLanguages: false,
+      align: 'left',
+      visible: true,
+    },
+    barcode: {
+      x: 10,
+      y: 24,
+      w: 50,
+      h: 12,
+      font: 5,
+      weight: 400,
+      lineHeight: 1.15,
+      align: 'center',
+      visible: true,
+    },
+    dates: {
+      x: 7,
+      y: 39,
+      w: 38,
+      h: 8,
+      font: 5.2,
+      weight: 400,
+      lineHeight: 1.15,
+      align: 'left',
+      visible: true,
+    },
+    price: {
+      x: 47,
+      y: 39,
+      w: 17,
+      h: 8,
+      font: 8,
+      weight: 700,
+      lineHeight: 1.15,
+      align: 'right',
+      visible: true,
+    },
   };
   const saved = JSON.parse(localStorage.getItem('bulka-label-designer-v1') || 'null');
   const state = {
@@ -137,7 +188,12 @@
   }
   function elementContent(key, item) {
     if (key === 'name') return esc(item.name);
-    if (key === 'composition') return esc(item.composition);
+    if (key === 'composition') {
+      const text = state.layout.composition.breakLanguages
+        ? String(item.composition || '').replace(/\s+(Состав:)/giu, '\n$1')
+        : item.composition;
+      return esc(text);
+    }
     if (key === 'barcode') return eanSvg(item.barcode);
     if (key === 'dates')
       return `ИЗГОТОВЛЕНО: ${formatDate(new Date(`${$('made-date').value}T12:00:00`))}<br>ГОДЕН ДО: ${expiryDate(item.expiry)}`;
@@ -152,6 +208,8 @@
       width: unit(cfg.w),
       height: unit(cfg.h),
       fontSize: `${cfg.font * (print ? 1 : state.zoom)}pt`,
+      fontWeight: String(cfg.weight || 400),
+      lineHeight: String(cfg.lineHeight || 1.15),
       textAlign: cfg.align,
       justifyContent:
         cfg.align === 'center' ? 'center' : cfg.align === 'right' ? 'flex-end' : 'flex-start',
@@ -229,7 +287,7 @@
   }
   function updateControls() {
     const cfg = state.layout[state.selected];
-    $('selected-name').value = names[state.selected];
+    $('selected-name').textContent = names[state.selected];
     for (const [id, key] of [
       ['field-x', 'x'],
       ['field-y', 'y'],
@@ -239,6 +297,10 @@
     ])
       $(id).value = String(Math.round(cfg[key] * 10) / 10);
     $('text-align').value = cfg.align;
+    $('font-weight').value = String(cfg.weight || 400);
+    $('line-height').value = String(cfg.lineHeight || 1.15);
+    $('language-break-control').hidden = state.selected !== 'composition';
+    $('language-break').checked = Boolean(cfg.breakLanguages);
     $('field-visible').checked = cfg.visible;
     $('zoom-value').value = `${Math.round(state.zoom * 100)}%`;
   }
@@ -258,7 +320,7 @@
     $('product-list').innerHTML = filtered
       .map(
         ({ p, i }) =>
-          `<article class="product-row ${i === state.selectedProduct ? 'active' : ''}" data-index="${i}"><strong>${esc(p.name || 'Без названия')}</strong><small><span>${esc(p.barcode)}</span><span>${esc(p.price)} ₸</span></small>${i === state.selectedProduct ? `<input data-edit="name" value="${esc(p.name)}" aria-label="Название"><input data-edit="price" value="${esc(p.price)}" aria-label="Цена"><input data-edit="barcode" value="${esc(p.barcode)}" aria-label="Штрихкод"><input data-edit="composition" value="${esc(p.composition)}" aria-label="Состав">` : ''}</article>`,
+          `<article class="product-row ${i === state.selectedProduct ? 'active' : ''}" data-index="${i}"><strong>${esc(p.name || 'Без названия')}</strong><small><span>${esc(p.barcode)}</span><span>${esc(p.price)} ₸</span></small>${i === state.selectedProduct ? `<input data-edit="name" value="${esc(p.name)}" aria-label="Название"><input data-edit="price" value="${esc(p.price)}" aria-label="Цена"><input data-edit="barcode" value="${esc(p.barcode)}" aria-label="Штрихкод"><textarea data-edit="composition" rows="5" aria-label="Состав" placeholder="Введите состав. Enter начинает новую строку.">${esc(p.composition)}</textarea>` : ''}</article>`,
       )
       .join('');
   }
@@ -377,13 +439,15 @@
   $('search-products').addEventListener('input', renderProducts);
   $('product-list').addEventListener('click', (e) => {
     const row = e.target.closest('.product-row');
-    if (row && !e.target.matches('input')) selectProduct(row.dataset.index);
+    if (row && !e.target.matches('input, textarea')) selectProduct(row.dataset.index);
   });
   $('product-list').addEventListener('input', (e) => {
     if (!e.target.dataset.edit) return;
     state.products[state.selectedProduct][e.target.dataset.edit] = e.target.value;
     renderStage();
-    renderProducts();
+  });
+  $('product-list').addEventListener('change', (e) => {
+    if (e.target.dataset.edit) renderProducts();
   });
   $('add-product').addEventListener('click', () => {
     state.products.unshift({
@@ -443,6 +507,18 @@
     });
   $('text-align').addEventListener('change', (e) => {
     state.layout[state.selected].align = e.target.value;
+    renderStage();
+  });
+  $('font-weight').addEventListener('change', (e) => {
+    state.layout[state.selected].weight = Number(e.target.value);
+    renderStage();
+  });
+  $('line-height').addEventListener('change', (e) => {
+    state.layout[state.selected].lineHeight = Number(e.target.value);
+    renderStage();
+  });
+  $('language-break').addEventListener('change', (e) => {
+    state.layout.composition.breakLanguages = e.target.checked;
     renderStage();
   });
   $('field-visible').addEventListener('change', (e) => {
