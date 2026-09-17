@@ -319,6 +319,7 @@ app.use(walletRoutes);
 app.use(publicRoutes);
 app.use(yandexMapRoutes);
 app.use(require('./routes/screen-cakes.routes'));
+app.use(require('./routes/price-generator.routes'));
 app.use(legacyRoutes);
 
 app.use('/admin', express.static(adminUiDirectory, { setHeaders: adminStaticHeaders }));

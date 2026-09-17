@@ -60,8 +60,17 @@ const staticDocumentPolicies = new Map([
   ['/courier', staticDocumentPolicy('public/courier.html')],
   ['/screencakes', staticDocumentPolicy('public/screencakes/index.html')],
   ['/screencakes/', staticDocumentPolicy('public/screencakes/index.html')],
+  ['/pricegenerator', staticDocumentPolicy('public/pricegenerator/index.html')],
+  ['/pricegenerator/', staticDocumentPolicy('public/pricegenerator/index.html')],
   ['/account-deletion', staticDocumentPolicy('public/legal/account-deletion.html')],
 ]);
+const priceGeneratorPolicy = {
+  ...staticDocumentPolicy('public/pricegenerator/index.html'),
+  styleSrc: ["'self'", "'unsafe-inline'"],
+  styleSrcAttr: ["'unsafe-inline'"],
+};
+staticDocumentPolicies.set('/pricegenerator', priceGeneratorPolicy);
+staticDocumentPolicies.set('/pricegenerator/', priceGeneratorPolicy);
 const legalPagePaths = new Set(
   allLegalPagePaths().flatMap((legalPath) => [legalPath, `${legalPath}/`]),
 );

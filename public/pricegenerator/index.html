@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Конструктор этикеток Bulka</title>
+    <link rel="icon" href="/favicon.png" />
+    <link rel="stylesheet" href="/pricegenerator/style.css" />
+    <script src="/pricegenerator/app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/admin/menu" aria-label="Вернуться в админку">
+        <img src="/favicon.png" alt="" />
+        <span><b>Bulka</b><small>Конструктор этикеток</small></span>
+      </a>
+      <div class="top-actions">
+        <button class="button secondary" id="save-template" type="button">Сохранить шаблон</button>
+        <button class="button secondary" id="print-sheet" type="button">Печать листа</button>
+        <button class="button primary" id="print-xprinter" type="button">Печать на XPrinter</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="panel settings-panel">
+        <section>
+          <div class="section-title">
+            <span>1</span>
+            <div>
+              <h2>Данные</h2>
+              <p>Excel обрабатывается и не сохраняется</p>
+            </div>
+          </div>
+          <label class="upload">
+            <input id="excel-file" type="file" accept=".xlsx" />
+            <span>Загрузить Excel .xlsx</span>
+            <small id="upload-status">Загружено товаров: 0</small>
+          </label>
+          <div class="row two">
+            <label>Товар для просмотра<select id="product-select"></select></label>
+            <label>Количество<input id="copies" type="number" min="1" max="999" value="1" /></label>
+          </div>
+          <div class="row two">
+            <label>Дата изготовления<input id="made-date" type="date" /></label>
+            <label
+              >Формат даты<select id="date-format">
+                <option value="dd.mm.yyyy">ДД.ММ.ГГГГ</option>
+                <option value="dd.mm.yy">ДД.ММ.ГГ</option>
+              </select></label
+            >
+          </div>
+        </section>
+
+        <section>
+          <div class="section-title">
+            <span>2</span>
+            <div>
+              <h2>Размеры</h2>
+              <p>Все значения в миллиметрах</p>
+            </div>
+          </div>
+          <label
+            >Режим печати<select id="print-mode">
+              <option value="roll">Рулонный принтер XPrinter</option>
+              <option value="sheet">Лист A4 / A5</option>
+            </select></label
+          >
+          <div id="paper-settings" hidden>
+            <label
+              >Бумага<select id="paper-preset">
+                <option value="210x297">A4 — 210 × 297</option>
+                <option value="148x210">A5 — 148 × 210</option>
+                <option value="custom">Свой размер</option>
+              </select></label
+            >
+            <div class="row two">
+              <label
+                >Ширина листа<input id="paper-width" type="number" min="30" value="210" /></label
+              ><label
+                >Высота листа<input id="paper-height" type="number" min="30" value="297"
+              /></label>
+            </div>
+            <div class="row two">
+              <label
+                >Зазор по горизонтали<input
+                  id="gap-x"
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value="3" /></label
+              ><label
+                >Зазор по вертикали<input id="gap-y" type="number" min="0" step="0.5" value="3"
+              /></label>
+            </div>
+          </div>
+          <div class="row two">
+            <label
+              >Ширина этикетки<input
+                id="label-width"
+                type="number"
+                min="30"
+                max="200"
+                step="1"
+                value="70" /></label
+            ><label
+              >Высота этикетки<input
+                id="label-height"
+                type="number"
+                min="20"
+                max="150"
+                step="1"
+                value="50"
+            /></label>
+          </div>
+          <div class="row two">
+            <label
+              >Скругление<input
+                id="label-radius"
+                type="number"
+                min="0"
+                max="15"
+                step="0.5"
+                value="4" /></label
+            ><label
+              >Поля листа<input
+                id="page-margin"
+                type="number"
+                min="0"
+                max="30"
+                step="0.5"
+                value="5"
+            /></label>
+          </div>
+        </section>
+
+        <section>
+          <div class="section-title">
+            <span>3</span>
+            <div>
+              <h2>Оформление</h2>
+              <p>Нажмите блок на этикетке</p>
+            </div>
+          </div>
+          <div class="row two">
+            <label>Фон<input id="background" type="color" value="#ffffff" /></label
+            ><label>Текст<input id="foreground" type="color" value="#222222" /></label>
+          </div>
+          <div id="element-controls">
+            <label>Выбранный блок<input id="selected-name" type="text" readonly /></label>
+            <div class="row four">
+              <label>X<input id="field-x" type="number" step="0.5" /></label
+              ><label>Y<input id="field-y" type="number" step="0.5" /></label
+              ><label>Ширина<input id="field-w" type="number" step="0.5" /></label
+              ><label>Высота<input id="field-h" type="number" step="0.5" /></label>
+            </div>
+            <div class="row two">
+              <label
+                >Размер текста<input
+                  id="font-size"
+                  type="number"
+                  min="5"
+                  max="40"
+                  step="0.5" /></label
+              ><label
+                >Выравнивание<select id="text-align">
+                  <option value="left">Слева</option>
+                  <option value="center">По центру</option>
+                  <option value="right">Справа</option>
+                </select></label
+              >
+            </div>
+            <label class="check"
+              ><input id="field-visible" type="checkbox" checked /> Показывать этот блок</label
+            >
+          </div>
+        </section>
+      </aside>
+
+      <section class="canvas-column">
+        <div class="canvas-head">
+          <div>
+            <h1>Макет этикетки</h1>
+            <p>Перетаскивайте блоки. Потяните за угол, чтобы изменить размер.</p>
+          </div>
+          <div class="zoom">
+            <button id="zoom-out" type="button">−</button><output id="zoom-value">100%</output
+            ><button id="zoom-in" type="button">+</button>
+          </div>
+        </div>
+        <div class="canvas-scroll">
+          <div id="label-stage" class="label-stage" aria-label="Редактор этикетки"></div>
+        </div>
+        <div class="notice" id="notice" role="status"></div>
+      </section>
+
+      <aside class="panel products-panel">
+        <div class="products-head">
+          <div>
+            <h2>Товары</h2>
+            <p id="product-count">0 позиций</p>
+          </div>
+          <button id="add-product" type="button">Добавить</button>
+        </div>
+        <label class="search"
+          ><span>Поиск</span
+          ><input id="search-products" type="search" placeholder="Название или штрихкод"
+        /></label>
+        <div id="product-list" class="product-list"></div>
+      </aside>
+    </main>
+    <div id="print-root" aria-hidden="true"></div>
+  </body>
+</html>
