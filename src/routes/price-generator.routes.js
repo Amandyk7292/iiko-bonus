@@ -1,6 +1,8 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('node:path');
+const { z } = require('zod');
+const { supabase } = require('../config/supabase');
 const { adminAuthMiddleware } = require('../middlewares/auth.middleware');
 const { emptyBodySchema, validateRequest } = require('../middlewares/validation.middleware');
 const { rowsFromWorkbook } = require('../services/price-generator-xlsx.service');
@@ -13,6 +15,82 @@ const upload = multer({
   fileFilter(_req, file, callback) {
     callback(null, /\.xlsx$/i.test(file.originalname));
   },
+});
+const fieldSchema = z
+  .object({
+    x: z.number().min(0).max(500),
+    y: z.number().min(0).max(500),
+    w: z.number().min(1).max(500),
+    h: z.number().min(1).max(500),
+    font: z.number().min(1).max(100),
+    weight: z.number().int().min(100).max(900).optional(),
+    lineHeight: z.number().min(0.7).max(3).optional(),
+    breakLanguages: z.boolean().optional(),
+    align: z.enum(['left', 'center', 'right']),
+    visible: z.boolean(),
+  })
+  .strict();
+const templateSchema = z
+  .object({
+    layout: z
+      .object({
+        name: fieldSchema,
+        composition: fieldSchema,
+        barcode: fieldSchema,
+        dates: fieldSchema,
+        price: fieldSchema,
+      })
+      .strict(),
+    label: z
+      .object({
+        width: z.number().min(20).max(500),
+        height: z.number().min(20).max(500),
+        radius: z.number().min(0).max(50),
+        background: z.string().regex(/^#[0-9a-f]{6}$/i),
+        foreground: z.string().regex(/^#[0-9a-f]{6}$/i),
+      })
+      .strict(),
+    paper: z
+      .object({
+        width: z.number().min(20).max(1000),
+        height: z.number().min(20).max(1000),
+        gapX: z.number().min(0).max(100),
+        gapY: z.number().min(0).max(100),
+        margin: z.number().min(0).max(100),
+      })
+      .strict(),
+  })
+  .strict();
+const TEMPLATE_KEY = 'price_generator_template_v1';
+
+router.get('/admin/api/pricegenerator/template', adminAuthMiddleware, async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', TEMPLATE_KEY)
+      .maybeSingle();
+    if (error) throw error;
+    const parsed = data?.value ? templateSchema.safeParse(JSON.parse(data.value)) : null;
+    return res.json({ success: true, template: parsed?.success ? parsed.data : null });
+  } catch {
+    return res.status(503).json({ success: false, error: 'Не удалось загрузить общий шаблон.' });
+  }
+});
+
+router.post('/admin/api/pricegenerator/template', adminAuthMiddleware, async (req, res) => {
+  const parsed = templateSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ success: false, error: 'Некорректные настройки шаблона.' });
+  try {
+    const { error } = await supabase
+      .from('settings')
+      .upsert({ key: TEMPLATE_KEY, value: JSON.stringify(parsed.data) }, { onConflict: 'key' });
+    if (error) throw error;
+    return res.json({ success: true, template: parsed.data });
+  } catch {
+    return res.status(503).json({ success: false, error: 'Не удалось сохранить общий шаблон.' });
+  }
 });
 
 router.post(

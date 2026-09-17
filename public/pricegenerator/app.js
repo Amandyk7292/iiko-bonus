@@ -66,7 +66,12 @@
       visible: true,
     },
   };
-  const saved = JSON.parse(localStorage.getItem('bulka-label-designer-v1') || 'null');
+  let saved = null;
+  try {
+    saved = JSON.parse(localStorage.getItem('bulka-label-designer-v1') || 'null');
+  } catch {
+    localStorage.removeItem('bulka-label-designer-v1');
+  }
   const state = {
     products: [],
     selectedProduct: 0,
@@ -425,16 +430,53 @@
     state.paper.margin = number('page-margin', 0);
     renderStage();
   }
+  function applyTemplate(template) {
+    if (!template) return;
+    state.layout = structuredClone(template.layout);
+    state.label = structuredClone(template.label);
+    state.paper = structuredClone(template.paper);
+    for (const [id, value] of [
+      ['label-width', state.label.width],
+      ['label-height', state.label.height],
+      ['label-radius', state.label.radius],
+      ['background', state.label.background],
+      ['foreground', state.label.foreground],
+      ['paper-width', state.paper.width],
+      ['paper-height', state.paper.height],
+      ['gap-x', state.paper.gapX],
+      ['gap-y', state.paper.gapY],
+      ['page-margin', state.paper.margin],
+    ])
+      $(id).value = String(value);
+    renderStage();
+  }
+  async function loadSharedTemplate() {
+    try {
+      const response = await fetch('/admin/api/pricegenerator/template', {
+        credentials: 'include',
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Ошибка загрузки');
+      if (data.template) {
+        applyTemplate(data.template);
+        localStorage.setItem('bulka-label-designer-v1', JSON.stringify(data.template));
+        notice('Общий шаблон загружен.');
+      }
+    } catch {
+      notice('Сервер недоступен. Используется сохранённая копия этого браузера.', true);
+    }
+  }
   function preparePrint(mode) {
     syncSettings();
-    const products = state.products.flatMap((p) =>
+    const sourceProducts = mode === 'roll' ? [product()] : state.products;
+    const products = sourceProducts.flatMap((p) =>
       Array.from({ length: Math.max(1, number('copies', 1)) }, () => p),
     );
     if (!products.length) return notice('Нет товаров для печати.', true);
     printRoot.replaceChildren();
-    const style = document.createElement('style');
+    const printSettings = $('print-page-settings');
     if (mode === 'roll') {
-      style.textContent = `@page{size:${state.label.width}mm ${state.label.height}mm;margin:0}.print-page{width:${state.label.width}mm;height:${state.label.height}mm}.print-label{width:${state.label.width}mm!important;height:${state.label.height}mm!important}`;
+      printSettings.textContent = `@media print{@page{size:${state.label.width}mm ${state.label.height}mm;margin:0!important}html,body{width:${state.label.width}mm!important;height:${state.label.height}mm!important;margin:0!important;padding:0!important}.print-page{width:${state.label.width}mm!important;height:${state.label.height}mm!important;margin:0!important;overflow:hidden}.print-label{width:${state.label.width}mm!important;height:${state.label.height}mm!important}}`;
       for (const item of products) {
         const page = document.createElement('section');
         page.className = 'print-page';
@@ -453,7 +495,7 @@
         Math.floor((usableH + state.paper.gapY) / (state.label.height + state.paper.gapY)),
       );
       const per = cols * rows;
-      style.textContent = `@page{size:${state.paper.width}mm ${state.paper.height}mm;margin:${state.paper.margin}mm}.print-page{width:${usableW}mm;height:${usableH}mm;grid-template-columns:repeat(${cols},${state.label.width}mm);grid-auto-rows:${state.label.height}mm;gap:${state.paper.gapY}mm ${state.paper.gapX}mm}.print-label{width:${state.label.width}mm!important;height:${state.label.height}mm!important}`;
+      printSettings.textContent = `@media print{@page{size:${state.paper.width}mm ${state.paper.height}mm;margin:${state.paper.margin}mm}.print-page{width:${usableW}mm;height:${usableH}mm;grid-template-columns:repeat(${cols},${state.label.width}mm);grid-auto-rows:${state.label.height}mm;gap:${state.paper.gapY}mm ${state.paper.gapX}mm}.print-label{width:${state.label.width}mm!important;height:${state.label.height}mm!important}}`;
       products.forEach((item, i) => {
         if (i % per === 0) {
           const page = document.createElement('section');
@@ -463,7 +505,6 @@
         printRoot.lastElementChild.append(buildLabel(item, true));
       });
     }
-    printRoot.prepend(style);
     Object.assign(printRoot.style, {
       display: 'block',
       position: 'fixed',
@@ -473,7 +514,11 @@
     });
     for (const label of printRoot.querySelectorAll('.print-label')) fitLabel(label);
     printRoot.removeAttribute('style');
-    notice(`Подготовлено этикеток: ${products.length}. В окне печати выберите масштаб 100%.`);
+    notice(
+      mode === 'roll'
+        ? `Выбранный товар подготовлен: ${products.length} этикеток, размер ${state.label.width} × ${state.label.height} мм.`
+        : `Подготовлено этикеток: ${products.length}. В окне печати выберите масштаб 100%.`,
+    );
     setTimeout(() => window.print(), 80);
   }
   async function loadDefaults() {
@@ -664,15 +709,31 @@
       restoreHistory(historyIndex + 1);
     }
   });
-  $('save-template').addEventListener('click', () => {
+  $('save-template').addEventListener('click', async () => {
     syncSettings();
-    localStorage.setItem(
-      'bulka-label-designer-v1',
-      JSON.stringify({ layout: state.layout, label: state.label, paper: state.paper }),
-    );
-    notice('Шаблон сохранён в этом браузере.');
+    const button = $('save-template');
+    const template = { layout: state.layout, label: state.label, paper: state.paper };
+    localStorage.setItem('bulka-label-designer-v1', JSON.stringify(template));
+    button.disabled = true;
+    button.textContent = 'Сохранение...';
+    try {
+      const response = await fetch('/admin/api/pricegenerator/template', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(template),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Ошибка сохранения');
+      notice('Общий шаблон сохранён для всех сотрудников и устройств.');
+    } catch (error) {
+      notice(`${error.message}. Локальная резервная копия сохранена.`, true);
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Сохранить шаблон';
+    }
   });
   $('print-sheet').addEventListener('click', () => preparePrint('sheet'));
   $('print-xprinter').addEventListener('click', () => preparePrint('roll'));
-  loadDefaults();
+  loadSharedTemplate().finally(loadDefaults);
 })();
