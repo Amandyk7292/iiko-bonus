@@ -474,6 +474,11 @@
       const data = await response.json();
       state.isAdmin = ['owner', 'admin'].includes(String(data.user?.role || ''));
       document.body.classList.toggle('admin-mode', state.isAdmin);
+      if (state.isAdmin) {
+        $('data-help').textContent = 'Excel обрабатывается и не сохраняется';
+        $('canvas-help').textContent =
+          'Перетаскивайте блоки. Потяните за угол, чтобы изменить размер.';
+      }
     } catch {
       state.isAdmin = false;
     }

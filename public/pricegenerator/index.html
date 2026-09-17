@@ -8,7 +8,7 @@
     <link rel="icon" href="/favicon.png" />
     <link rel="stylesheet" href="/pricegenerator/style.css?v=20260917-4" />
     <style id="print-page-settings"></style>
-    <script src="/pricegenerator/app.js?v=20260917-9" defer></script>
+    <script src="/pricegenerator/app.js?v=20260917-10" defer></script>
   </head>
   <body>
     <header class="topbar">
@@ -36,7 +36,7 @@
             <span>1</span>
             <div>
               <h2>Данные</h2>
-              <p>Excel обрабатывается и не сохраняется</p>
+              <p id="data-help">Выберите товар и дату для печати</p>
             </div>
           </div>
           <label class="upload admin-only">
@@ -215,7 +215,7 @@
         <div class="canvas-head">
           <div>
             <h1>Макет этикетки</h1>
-            <p>Перетаскивайте блоки. Потяните за угол, чтобы изменить размер.</p>
+            <p id="canvas-help">Нажмите блок и перемещайте его по этикетке.</p>
           </div>
           <div class="zoom">
             <button id="zoom-out" type="button">−</button><output id="zoom-value">100%</output
