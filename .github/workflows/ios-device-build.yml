@@ -8,6 +8,15 @@ on:
         type: choice
         options: [profile, release]
         default: profile
+      distribution:
+        description: Signing/export destination
+        type: choice
+        options: [device, appstore]
+        default: device
+      build_number:
+        description: Explicit iOS build number (blank uses the workflow run number)
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -26,10 +35,12 @@ jobs:
     env:
       IOS_CERTIFICATE_P12: ${{ secrets.IOS_CERTIFICATE_P12 }}
       IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
-      IOS_APP_PROFILE: ${{ secrets.IOS_APP_PROFILE }}
-      IOS_WIDGET_PROFILE: ${{ secrets.IOS_WIDGET_PROFILE }}
+      IOS_APP_PROFILE: ${{ inputs.distribution == 'appstore' && secrets.IOS_APP_STORE_PROFILE || secrets.IOS_APP_PROFILE }}
+      IOS_WIDGET_PROFILE: ${{ inputs.distribution == 'appstore' && secrets.IOS_WIDGET_APP_STORE_PROFILE || secrets.IOS_WIDGET_PROFILE }}
       IOS_FIREBASE_PLIST: ${{ secrets.IOS_FIREBASE_PLIST }}
       BUILD_MODE: ${{ inputs.mode }}
+      IOS_DISTRIBUTION: ${{ inputs.distribution }}
+      REQUESTED_BUILD_NUMBER: ${{ inputs.build_number }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Check signing inputs
@@ -53,8 +64,9 @@ jobs:
         run: ruby ../scripts/apply-ios-device-profiles.rb
       - name: Build signed IPA
         run: |
+          BUILD_NUMBER="${REQUESTED_BUILD_NUMBER:-$GITHUB_RUN_NUMBER}"
           flutter build ipa "--$BUILD_MODE" \
-            --build-number="$GITHUB_RUN_NUMBER" \
+            --build-number="$BUILD_NUMBER" \
             --export-options-plist="$RUNNER_TEMP/bulka-signing/ExportOptions.plist" \
             --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
       - name: Verify built application
@@ -64,7 +76,7 @@ jobs:
           shasum -a 256 build/ios/ipa/*.ipa > build/ios/ipa/SHA256SUMS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: bulka-iphone-${{ inputs.mode }}-${{ github.sha }}
+          name: bulka-iphone-${{ inputs.distribution }}-${{ inputs.mode }}-${{ github.sha }}
           path: |
             BulkaAndroid/build/ios/ipa/*.ipa
             BulkaAndroid/build/ios/ipa/SHA256SUMS
