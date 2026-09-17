@@ -474,7 +474,7 @@
     printRoot.replaceChildren();
     const printSettings = $('print-page-settings');
     if (mode === 'roll') {
-      printSettings.textContent = `@media print{@page{size:${state.label.width}mm ${state.label.height}mm;margin:0!important}html,body{width:${state.label.width}mm!important;height:${state.label.height}mm!important;margin:0!important;padding:0!important}.print-page{width:${state.label.width}mm!important;height:${state.label.height}mm!important;margin:0!important;overflow:hidden}.print-label{width:${state.label.width}mm!important;height:${state.label.height}mm!important}}`;
+      printSettings.textContent = `@media print{@page{size:${state.label.width}mm ${state.label.height}mm;margin:0!important}html,body{width:${state.label.width}mm!important;height:${state.label.height}mm!important;min-width:0!important;margin:0!important;padding:0!important;overflow:hidden!important}#print-root{width:${state.label.width}mm!important;height:auto!important;margin:0!important;padding:0!important}.print-page{width:${state.label.width}mm!important;height:${state.label.height}mm!important;margin:0!important;padding:0!important;overflow:hidden!important}.print-label{width:${state.label.width}mm!important;height:${state.label.height}mm!important;margin:0!important}}`;
       for (const item of products) {
         const page = document.createElement('section');
         page.className = 'print-page';

@@ -428,8 +428,13 @@ textarea:focus {
   }
   .print-page {
     page-break-after: always;
+    break-after: page;
     display: grid;
     align-content: start;
+  }
+  .print-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
   }
   .print-label {
     position: relative;
