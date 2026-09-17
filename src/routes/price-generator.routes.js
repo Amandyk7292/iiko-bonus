@@ -62,6 +62,14 @@ const templateSchema = z
   })
   .strict();
 const TEMPLATE_KEY = 'price_generator_template_v1';
+const ownerOrAdminOnly = (req, res, next) => {
+  if (!['owner', 'admin'].includes(String(req.admin?.role || ''))) {
+    return res
+      .status(403)
+      .json({ success: false, error: 'Доступно только владельцу или администратору.' });
+  }
+  return next();
+};
 
 router.get('/api/pricegenerator/template', async (_req, res) => {
   try {
@@ -78,24 +86,30 @@ router.get('/api/pricegenerator/template', async (_req, res) => {
   }
 });
 
-router.post('/admin/api/pricegenerator/template', adminAuthMiddleware, async (req, res) => {
-  const parsed = templateSchema.safeParse(req.body);
-  if (!parsed.success)
-    return res.status(400).json({ success: false, error: 'Некорректные настройки шаблона.' });
-  try {
-    const { error } = await supabase
-      .from('settings')
-      .upsert({ key: TEMPLATE_KEY, value: JSON.stringify(parsed.data) }, { onConflict: 'key' });
-    if (error) throw error;
-    return res.json({ success: true, template: parsed.data });
-  } catch {
-    return res.status(503).json({ success: false, error: 'Не удалось сохранить общий шаблон.' });
-  }
-});
+router.post(
+  '/admin/api/pricegenerator/template',
+  adminAuthMiddleware,
+  ownerOrAdminOnly,
+  async (req, res) => {
+    const parsed = templateSchema.safeParse(req.body);
+    if (!parsed.success)
+      return res.status(400).json({ success: false, error: 'Некорректные настройки шаблона.' });
+    try {
+      const { error } = await supabase
+        .from('settings')
+        .upsert({ key: TEMPLATE_KEY, value: JSON.stringify(parsed.data) }, { onConflict: 'key' });
+      if (error) throw error;
+      return res.json({ success: true, template: parsed.data });
+    } catch {
+      return res.status(503).json({ success: false, error: 'Не удалось сохранить общий шаблон.' });
+    }
+  },
+);
 
 router.post(
   '/admin/api/pricegenerator/import',
   adminAuthMiddleware,
+  ownerOrAdminOnly,
   upload.single('file'),
   validateRequest({ body: emptyBodySchema }),
   (req, res) => {

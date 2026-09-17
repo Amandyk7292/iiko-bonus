@@ -89,3 +89,22 @@ test('price generator template rejects unsafe or malformed values', async () => 
   );
   assert.equal(result.statusCode, 400);
 });
+
+test('price generator mutations require owner or admin role', () => {
+  for (const path of ['/admin/api/pricegenerator/template', '/admin/api/pricegenerator/import']) {
+    const route = router.stack.find((layer) => layer.route?.path === path).route;
+    const guard = route.stack.find((layer) => layer.handle.name === 'ownerOrAdminOnly').handle;
+    const denied = response();
+    let continued = false;
+    guard({ admin: { role: 'editor' } }, denied, () => {
+      continued = true;
+    });
+    assert.equal(denied.statusCode, 403);
+    assert.equal(continued, false);
+
+    guard({ admin: { role: 'admin' } }, response(), () => {
+      continued = true;
+    });
+    assert.equal(continued, true);
+  }
+});

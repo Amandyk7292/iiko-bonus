@@ -6,9 +6,9 @@
     <meta name="robots" content="noindex,nofollow" />
     <title>Конструктор этикеток Bulka</title>
     <link rel="icon" href="/favicon.png" />
-    <link rel="stylesheet" href="/pricegenerator/style.css?v=20260917-3" />
+    <link rel="stylesheet" href="/pricegenerator/style.css?v=20260917-4" />
     <style id="print-page-settings"></style>
-    <script src="/pricegenerator/app.js?v=20260917-8" defer></script>
+    <script src="/pricegenerator/app.js?v=20260917-9" defer></script>
   </head>
   <body>
     <header class="topbar">
@@ -17,8 +17,12 @@
         <span><b>Bulka</b><small>Конструктор этикеток</small></span>
       </a>
       <div class="top-actions">
-        <button class="button secondary" id="save-template" type="button">Сохранить шаблон</button>
-        <button class="button secondary" id="print-sheet" type="button">Печать листа</button>
+        <button class="button secondary admin-only" id="save-template" type="button">
+          Сохранить шаблон
+        </button>
+        <button class="button secondary admin-only" id="print-sheet" type="button">
+          Печать листа
+        </button>
         <button class="button primary" id="print-xprinter" type="button">
           Печать выбранного на XPrinter
         </button>
@@ -35,7 +39,7 @@
               <p>Excel обрабатывается и не сохраняется</p>
             </div>
           </div>
-          <label class="upload">
+          <label class="upload admin-only">
             <input id="excel-file" type="file" accept=".xlsx" />
             <span>Загрузить Excel .xlsx</span>
             <small id="upload-status">Загружено товаров: 0</small>
@@ -46,7 +50,7 @@
           </div>
           <div class="row two">
             <label>Дата изготовления<input id="made-date" type="date" /></label>
-            <label
+            <label class="admin-only"
               >Формат даты<select id="date-format">
                 <option value="dd.mm.yyyy">ДД.ММ.ГГГГ</option>
                 <option value="dd.mm.yy">ДД.ММ.ГГ</option>
@@ -55,7 +59,7 @@
           </div>
         </section>
 
-        <section>
+        <section class="admin-only">
           <div class="section-title">
             <span>2</span>
             <div>
@@ -137,7 +141,7 @@
           </div>
         </section>
 
-        <section>
+        <section class="admin-only">
           <div class="section-title">
             <span>3</span>
             <div>
@@ -221,6 +225,11 @@
         <div class="canvas-scroll">
           <div id="label-stage" class="label-stage" aria-label="Редактор этикетки"></div>
         </div>
+        <div class="position-actions" aria-label="Выравнивание выбранного блока">
+          <span>Выбранный блок:</span>
+          <button id="center-horizontal" type="button">По центру по ширине</button>
+          <button id="center-vertical" type="button">По центру по высоте</button>
+        </div>
         <div id="overflow-warning" class="overflow-warning" hidden>
           Текст не помещается. Увеличьте блок или сократите текст.
         </div>
@@ -233,7 +242,7 @@
             <h2>Товары</h2>
             <p id="product-count">0 позиций</p>
           </div>
-          <button id="add-product" type="button">Добавить</button>
+          <button class="admin-only" id="add-product" type="button">Добавить</button>
         </div>
         <label class="search"
           ><span>Поиск</span

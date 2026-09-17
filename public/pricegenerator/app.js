@@ -73,6 +73,7 @@
     localStorage.removeItem('bulka-label-designer-v1');
   }
   const state = {
+    isAdmin: false,
     products: [],
     selectedProduct: 0,
     selected: 'barcode',
@@ -301,7 +302,8 @@
       node.className = `label-element field-${key}${!print && state.selected === key ? ' selected' : ''}`;
       node.dataset.key = key;
       node.innerHTML =
-        elementContent(key, item) + (!print ? '<i class="resize" aria-hidden="true"></i>' : '');
+        elementContent(key, item) +
+        (!print && state.isAdmin ? '<i class="resize" aria-hidden="true"></i>' : '');
       styleElement(node, state.layout[key], key, print);
       label.append(node);
     }
@@ -344,6 +346,7 @@
       renderStage();
       const active = $('label-stage').querySelector(`[data-key="${key}"]`);
       const resize = event.target.classList.contains('resize');
+      if (resize && !state.isAdmin) return;
       const start = { x: event.clientX, y: event.clientY, cfg: { ...state.layout[key] } };
       active.setPointerCapture(event.pointerId);
       active.onpointermove = (move) => {
@@ -408,7 +411,7 @@
     $('product-list').innerHTML = filtered
       .map(
         ({ p, i }) =>
-          `<article class="product-row ${i === state.selectedProduct ? 'active' : ''}" data-index="${i}"><strong>${esc(p.name || 'Без названия')}</strong><small><span>${esc(p.barcode)}</span><span>${esc(p.price)} ₸</span></small>${i === state.selectedProduct ? `<input data-edit="name" value="${esc(p.name)}" aria-label="Название"><input data-edit="price" value="${esc(p.price)}" aria-label="Цена"><input data-edit="barcode" value="${esc(p.barcode)}" aria-label="Штрихкод"><textarea data-edit="composition" rows="5" aria-label="Состав" placeholder="Введите состав. Enter начинает новую строку.">${esc(p.composition)}</textarea>` : ''}</article>`,
+          `<article class="product-row ${i === state.selectedProduct ? 'active' : ''}" data-index="${i}"><strong>${esc(p.name || 'Без названия')}</strong><small><span>${esc(p.barcode)}</span><span>${esc(p.price)} ₸</span></small>${state.isAdmin && i === state.selectedProduct ? `<input data-edit="name" value="${esc(p.name)}" aria-label="Название"><input data-edit="price" value="${esc(p.price)}" aria-label="Цена"><input data-edit="barcode" value="${esc(p.barcode)}" aria-label="Штрихкод"><textarea data-edit="composition" rows="5" aria-label="Состав" placeholder="Введите состав. Enter начинает новую строку.">${esc(p.composition)}</textarea>` : ''}</article>`,
       )
       .join('');
   }
@@ -462,6 +465,17 @@
       }
     } catch {
       notice('Сервер недоступен. Используется сохранённая копия этого браузера.', true);
+    }
+  }
+  async function loadAccess() {
+    try {
+      const response = await fetch('/admin/api/session', { credentials: 'include' });
+      if (!response.ok) return;
+      const data = await response.json();
+      state.isAdmin = ['owner', 'admin'].includes(String(data.user?.role || ''));
+      document.body.classList.toggle('admin-mode', state.isAdmin);
+    } catch {
+      state.isAdmin = false;
     }
   }
   function preparePrint(mode) {
@@ -547,6 +561,7 @@
   ])
     $(id).value = String(value);
   $('excel-file').addEventListener('change', async (event) => {
+    if (!state.isAdmin) return;
     const file = event.target.files[0];
     if (!file) return;
     const form = new FormData();
@@ -581,7 +596,7 @@
     if (row && !e.target.matches('input, textarea')) selectProduct(row.dataset.index);
   });
   $('product-list').addEventListener('input', (e) => {
-    if (!e.target.dataset.edit) return;
+    if (!state.isAdmin || !e.target.dataset.edit) return;
     state.products[state.selectedProduct][e.target.dataset.edit] = e.target.value;
     renderStage();
     recordHistory();
@@ -590,6 +605,7 @@
     if (e.target.dataset.edit) renderProducts();
   });
   $('add-product').addEventListener('click', () => {
+    if (!state.isAdmin) return;
     state.products.unshift({
       id: crypto.randomUUID(),
       name: 'Новый товар',
@@ -681,6 +697,7 @@
     recordHistory();
   });
   $('reset-field').addEventListener('click', () => {
+    if (!state.isAdmin) return;
     state.layout[state.selected] = structuredClone(defaults[state.selected]);
     renderStage();
     recordHistory();
@@ -708,6 +725,7 @@
     }
   });
   $('save-template').addEventListener('click', async () => {
+    if (!state.isAdmin) return;
     syncSettings();
     const button = $('save-template');
     const template = { layout: state.layout, label: state.label, paper: state.paper };
@@ -733,5 +751,19 @@
   });
   $('print-sheet').addEventListener('click', () => preparePrint('sheet'));
   $('print-xprinter').addEventListener('click', () => preparePrint('roll'));
-  loadSharedTemplate().finally(loadDefaults);
+  $('center-horizontal').addEventListener('click', () => {
+    const cfg = state.layout[state.selected];
+    cfg.x = Math.max(0, (state.label.width - cfg.w) / 2);
+    renderStage();
+    recordHistory();
+    notice(`Блок «${names[state.selected]}» выровнен по центру по ширине.`);
+  });
+  $('center-vertical').addEventListener('click', () => {
+    const cfg = state.layout[state.selected];
+    cfg.y = Math.max(0, (state.label.height - cfg.h) / 2);
+    renderStage();
+    recordHistory();
+    notice(`Блок «${names[state.selected]}» выровнен по центру по высоте.`);
+  });
+  loadAccess().finally(() => loadSharedTemplate().finally(loadDefaults));
 })();
