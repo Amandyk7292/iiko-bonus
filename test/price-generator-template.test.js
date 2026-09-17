@@ -91,7 +91,11 @@ test('price generator template rejects unsafe or malformed values', async () => 
 });
 
 test('price generator mutations require owner or admin role', () => {
-  for (const path of ['/admin/api/pricegenerator/template', '/admin/api/pricegenerator/import']) {
+  for (const path of [
+    '/admin/api/pricegenerator/template',
+    '/admin/api/pricegenerator/import',
+    '/admin/api/pricegenerator/products',
+  ]) {
     const route = router.stack.find((layer) => layer.route?.path === path).route;
     const guard = route.stack.find((layer) => layer.handle.name === 'ownerOrAdminOnly').handle;
     const denied = response();
@@ -107,4 +111,24 @@ test('price generator mutations require owner or admin role', () => {
     });
     assert.equal(continued, true);
   }
+});
+
+test('price generator products are saved and loaded for all devices', async () => {
+  values.clear();
+  const products = [
+    {
+      id: 'custom-1',
+      name: 'Новый товар',
+      composition: 'Құрамы: ұн. Состав: мука.',
+      price: '500',
+      expiry: '3',
+      barcode: '2100000000001',
+    },
+  ];
+  const save = response();
+  await handler('post', '/admin/api/pricegenerator/products')({ body: products }, save);
+  assert.equal(save.statusCode, 200);
+  const read = response();
+  await handler('get', '/api/pricegenerator/products')({}, read);
+  assert.deepEqual(read.data.products, products);
 });

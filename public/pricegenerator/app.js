@@ -411,7 +411,7 @@
     $('product-list').innerHTML = filtered
       .map(
         ({ p, i }) =>
-          `<article class="product-row ${i === state.selectedProduct ? 'active' : ''}" data-index="${i}"><strong>${esc(p.name || 'Без названия')}</strong><small><span>${esc(p.barcode)}</span><span>${esc(p.price)} ₸</span></small>${state.isAdmin && i === state.selectedProduct ? `<input data-edit="name" value="${esc(p.name)}" aria-label="Название"><input data-edit="price" value="${esc(p.price)}" aria-label="Цена"><input data-edit="barcode" value="${esc(p.barcode)}" aria-label="Штрихкод"><textarea data-edit="composition" rows="5" aria-label="Состав" placeholder="Введите состав. Enter начинает новую строку.">${esc(p.composition)}</textarea>` : ''}</article>`,
+          `<article class="product-row ${i === state.selectedProduct ? 'active' : ''}" data-index="${i}"><strong>${esc(p.name || 'Без названия')}</strong><small><span>${esc(p.barcode)}</span><span>${esc(p.price)} ₸</span></small>${state.isAdmin && i === state.selectedProduct ? `<div class="product-editor"><label><span>Название товара</span><input data-edit="name" value="${esc(p.name)}" placeholder="Например: Синнабон"></label><label><span>Цена, ₸</span><input data-edit="price" inputmode="decimal" value="${esc(p.price)}" placeholder="Например: 535"></label><label><span>Штрихкод</span><input data-edit="barcode" inputmode="numeric" value="${esc(p.barcode)}" placeholder="13 цифр"></label><label><span>Срок годности, дней</span><input data-edit="expiry" inputmode="numeric" value="${esc(p.expiry)}" placeholder="Например: 1"></label><label><span>Состав на казахском и русском</span><textarea data-edit="composition" rows="5" placeholder="Құрамы: ...&#10;Состав: ...">${esc(p.composition)}</textarea></label><div class="product-editor-actions"><button type="button" data-save-product>Сохранить товар</button><button type="button" class="danger" data-delete-product>Удалить товар</button></div></div>` : ''}</article>`,
       )
       .join('');
   }
@@ -540,8 +540,14 @@
   }
   async function loadDefaults() {
     try {
-      const response = await fetch('/pricegenerator/products.json');
-      state.products = await response.json();
+      const savedResponse = await fetch('/api/pricegenerator/products');
+      const savedData = await savedResponse.json();
+      if (!savedResponse.ok) throw new Error(savedData.error || 'Ошибка загрузки');
+      if (Array.isArray(savedData.products)) state.products = savedData.products;
+      else {
+        const response = await fetch('/pricegenerator/products.json');
+        state.products = await response.json();
+      }
       selectProduct(0);
       history.length = 0;
       historyIndex = -1;
@@ -597,6 +603,14 @@
   $('product-select').addEventListener('change', (e) => selectProduct(e.target.value));
   $('search-products').addEventListener('input', renderProducts);
   $('product-list').addEventListener('click', (e) => {
+    if (e.target.closest('[data-save-product]')) {
+      saveProducts();
+      return;
+    }
+    if (e.target.closest('[data-delete-product]')) {
+      deleteSelectedProduct();
+      return;
+    }
     const row = e.target.closest('.product-row');
     if (row && !e.target.matches('input, textarea')) selectProduct(row.dataset.index);
   });
@@ -621,7 +635,49 @@
     });
     selectProduct(0);
     recordHistory();
+    notice('Новый товар добавлен. Заполните поля и нажмите «Сохранить товар».');
   });
+  async function persistProducts(successMessage) {
+    const response = await fetch('/admin/api/pricegenerator/products', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state.products),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Ошибка сохранения');
+    notice(successMessage);
+  }
+  async function saveProducts() {
+    if (!state.isAdmin) return;
+    const item = product();
+    if (!item.name.trim()) return notice('Введите название товара.', true);
+    try {
+      await persistProducts(`Товар «${item.name}» сохранён для всех устройств.`);
+      renderProducts();
+    } catch (error) {
+      notice(error.message, true);
+    }
+  }
+  async function deleteSelectedProduct() {
+    if (!state.isAdmin || !state.products.length) return;
+    const item = product();
+    if (!window.confirm(`Удалить товар «${item.name || 'Без названия'}»?`)) return;
+    const previous = structuredClone(state.products);
+    state.products.splice(state.selectedProduct, 1);
+    state.selectedProduct = Math.min(state.selectedProduct, Math.max(0, state.products.length - 1));
+    try {
+      await persistProducts(`Товар «${item.name || 'Без названия'}» удалён.`);
+      renderProducts();
+      renderStage();
+      recordHistory();
+    } catch (error) {
+      state.products = previous;
+      renderProducts();
+      renderStage();
+      notice(error.message, true);
+    }
+  }
   const liveSettingIds = [
     'label-width',
     'label-height',

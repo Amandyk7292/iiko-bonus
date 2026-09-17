@@ -399,6 +399,55 @@ textarea:focus {
   padding: 7px;
   font-size: 12px;
 }
+.product-editor {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+  cursor: default;
+}
+.product-editor label,
+.product-editor label > span {
+  display: block;
+}
+.product-editor label > span {
+  margin-bottom: 4px;
+  color: #604c40;
+  font-size: 11px;
+  font-weight: 700;
+}
+.product-editor input,
+.product-editor textarea {
+  width: 100%;
+  margin-top: 0;
+}
+.product-editor-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.product-editor-actions button {
+  border: 0;
+  border-radius: 9px;
+  padding: 9px 7px;
+  background: #703019;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.product-editor-actions button.danger {
+  border: 1px solid #e2b8ad;
+  background: #fff;
+  color: #a52d20;
+}
+.field-hint {
+  display: block;
+  margin-top: 4px;
+  color: #8d7c71;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.25;
+}
 .product-row textarea {
   min-height: 92px;
   resize: vertical;

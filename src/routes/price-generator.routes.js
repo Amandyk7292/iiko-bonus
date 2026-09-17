@@ -62,6 +62,18 @@ const templateSchema = z
   })
   .strict();
 const TEMPLATE_KEY = 'price_generator_template_v1';
+const PRODUCTS_KEY = 'price_generator_products_v1';
+const productSchema = z
+  .object({
+    id: z.string().min(1).max(100),
+    name: z.string().min(1).max(300),
+    composition: z.string().max(5000),
+    price: z.string().max(50),
+    expiry: z.string().max(20),
+    barcode: z.string().max(100),
+  })
+  .strict();
+const productsSchema = z.array(productSchema).max(2000);
 const ownerOrAdminOnly = (req, res, next) => {
   if (!['owner', 'admin'].includes(String(req.admin?.role || ''))) {
     return res
@@ -86,6 +98,21 @@ router.get('/api/pricegenerator/template', async (_req, res) => {
   }
 });
 
+router.get('/api/pricegenerator/products', async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', PRODUCTS_KEY)
+      .maybeSingle();
+    if (error) throw error;
+    const parsed = data?.value ? productsSchema.safeParse(JSON.parse(data.value)) : null;
+    return res.json({ success: true, products: parsed?.success ? parsed.data : null });
+  } catch {
+    return res.status(503).json({ success: false, error: 'Не удалось загрузить товары.' });
+  }
+});
+
 router.post(
   '/admin/api/pricegenerator/template',
   adminAuthMiddleware,
@@ -102,6 +129,26 @@ router.post(
       return res.json({ success: true, template: parsed.data });
     } catch {
       return res.status(503).json({ success: false, error: 'Не удалось сохранить общий шаблон.' });
+    }
+  },
+);
+
+router.post(
+  '/admin/api/pricegenerator/products',
+  adminAuthMiddleware,
+  ownerOrAdminOnly,
+  async (req, res) => {
+    const parsed = productsSchema.safeParse(req.body);
+    if (!parsed.success)
+      return res.status(400).json({ success: false, error: 'Проверьте заполнение товара.' });
+    try {
+      const { error } = await supabase
+        .from('settings')
+        .upsert({ key: PRODUCTS_KEY, value: JSON.stringify(parsed.data) }, { onConflict: 'key' });
+      if (error) throw error;
+      return res.json({ success: true, products: parsed.data });
+    } catch {
+      return res.status(503).json({ success: false, error: 'Не удалось сохранить товары.' });
     }
   },
 );
