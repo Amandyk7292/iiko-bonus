@@ -33,10 +33,10 @@ jobs:
       run:
         working-directory: BulkaAndroid
     env:
-      IOS_CERTIFICATE_P12: ${{ secrets.IOS_CERTIFICATE_P12 }}
-      IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
-      IOS_APP_PROFILE: ${{ inputs.distribution == 'appstore' && secrets.IOS_APP_STORE_PROFILE || secrets.IOS_APP_PROFILE }}
-      IOS_WIDGET_PROFILE: ${{ inputs.distribution == 'appstore' && secrets.IOS_WIDGET_APP_STORE_PROFILE || secrets.IOS_WIDGET_PROFILE }}
+      IOS_CERTIFICATE_P12: ${{ inputs.distribution == 'appstore' && secrets.IOS_STORE_CERTIFICATE_P12 || secrets.IOS_CERTIFICATE_P12 }}
+      IOS_CERTIFICATE_PASSWORD: ${{ inputs.distribution == 'appstore' && secrets.IOS_STORE_CERTIFICATE_PASSWORD || secrets.IOS_CERTIFICATE_PASSWORD }}
+      IOS_APP_PROFILE: ${{ inputs.distribution == 'appstore' && secrets.IOS_STORE_APP_PROFILE || secrets.IOS_APP_PROFILE }}
+      IOS_WIDGET_PROFILE: ${{ inputs.distribution == 'appstore' && secrets.IOS_STORE_WIDGET_PROFILE || secrets.IOS_WIDGET_PROFILE }}
       IOS_FIREBASE_PLIST: ${{ secrets.IOS_FIREBASE_PLIST }}
       BUILD_MODE: ${{ inputs.mode }}
       IOS_DISTRIBUTION: ${{ inputs.distribution }}
