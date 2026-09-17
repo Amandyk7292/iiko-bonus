@@ -1,4 +1,4 @@
-"""Reject a wrong or non-device IPA before exposing it as an install artifact."""
+"""Reject an incorrectly signed IPA before exposing it as a release artifact."""
 import argparse
 from pathlib import Path
 import plistlib
@@ -7,7 +7,7 @@ import tempfile
 import zipfile
 
 
-def verify(directory, expected):
+def verify(directory, expected, distribution='device'):
     packages = list(Path(directory).glob('*.ipa'))
     if len(packages) != 1:
         raise ValueError('Expected exactly one IPA')
@@ -31,8 +31,13 @@ def verify(directory, expected):
             path.write_bytes(archive.read(root + '/embedded.mobileprovision'))
             profile = plistlib.loads(subprocess.check_output(
                 ['security', 'cms', '-D', '-i', str(path)], stderr=subprocess.PIPE))
-            if not profile.get('ProvisionedDevices'):
+            provisioned_devices = profile.get('ProvisionedDevices')
+            if distribution == 'device' and not provisioned_devices:
                 raise ValueError('IPA profile does not allow direct device installation')
+            if distribution == 'appstore' and provisioned_devices:
+                raise ValueError('IPA uses a device profile instead of an App Store profile')
+            if distribution == 'appstore' and profile.get('Entitlements', {}).get('get-task-allow'):
+                raise ValueError('App Store IPA unexpectedly allows debugging')
         print('Verified IPA:', expected, 'version', info.get('CFBundleShortVersionString'),
               'build', info.get('CFBundleVersion'))
 
@@ -41,5 +46,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('directory')
     parser.add_argument('--expected-bundle-id', required=True)
+    parser.add_argument('--distribution', choices=('device', 'appstore'), default='device')
     args = parser.parse_args()
-    verify(args.directory, args.expected_bundle_id)
+    verify(args.directory, args.expected_bundle_id, args.distribution)
