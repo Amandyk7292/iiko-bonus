@@ -71,8 +71,8 @@ export default function CashReport({
         <div>
           <h2>Отчёт по кассе</h2>
           <p>
-            Выберите кассовую смену и найдите товар. Ниже появятся все чеки и товары, купленные
-            вместе с ним.
+            Сначала выберите кассовую смену, затем найдите товар. Ниже появятся все чеки и товары,
+            купленные вместе с ним.
           </p>
         </div>
         {data && (
@@ -99,7 +99,7 @@ export default function CashReport({
         <label>
           <span>Кассовая смена</span>
           <select value={shift} onChange={(e) => setShift(e.target.value)}>
-            <option value="">Все смены</option>
+            <option value="">Выберите смену</option>
             {data?.shifts.map((item) => (
               <option key={item.id} value={item.id}>
                 Смена {item.id} · {item.checks} чеков
@@ -118,7 +118,7 @@ export default function CashReport({
             />
           </div>
         </label>
-        <button type="submit" disabled={loading}>
+        <button type="submit" disabled={loading || !shift || !search.trim()}>
           Найти
         </button>
       </form>
