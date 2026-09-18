@@ -82,12 +82,21 @@ test('price generator template is shared through server settings', async () => {
 });
 
 test('price generator template rejects unsafe or malformed values', async () => {
-  const result = response();
-  await handler('post', '/admin/api/pricegenerator/template')(
+  const route = router.stack.find(
+    (layer) =>
+      layer.route?.path === '/admin/api/pricegenerator/template' && layer.route.methods.post,
+  ).route;
+  const validate = route.stack.at(-2).handle;
+  let validationError;
+  validate(
     { body: { ...template, label: { ...template.label, background: 'red;script' } } },
-    result,
+    response(),
+    (error) => {
+      validationError = error;
+    },
   );
-  assert.equal(result.statusCode, 400);
+  assert.equal(validationError?.statusCode, 400);
+  assert.equal(validationError?.code, 'VALIDATION_ERROR');
 });
 
 test('price generator mutations require owner or admin role', () => {
