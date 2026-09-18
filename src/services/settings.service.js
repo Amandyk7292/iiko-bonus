@@ -69,7 +69,7 @@ const defaultSettings = {
     ios: {
       latest_version: '1.0.0',
       minimum_version: '1.0.0',
-      store_url: '',
+      store_url: 'https://apps.apple.com/app/id6811576637',
     },
   },
 };

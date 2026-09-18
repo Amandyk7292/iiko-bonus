@@ -26,7 +26,7 @@ test('app release policy exposes safe Android and iOS store configuration', () =
     platform: 'ios',
     latestVersion: '1.0.0',
     minimumVersion: '1.0.0',
-    storeUrl: '',
+    storeUrl: 'https://apps.apple.com/app/id6811576637',
   });
 });
 
@@ -43,8 +43,5 @@ test('app release policy rejects malformed versions and unsafe URLs', () => {
 
   assert.equal(policy.latestVersion, '1.0.0');
   assert.equal(policy.minimumVersion, '1.0.0');
-  assert.equal(
-    policy.storeUrl,
-    'https://play.google.com/store/apps/details?id=com.bulka.bonus',
-  );
+  assert.equal(policy.storeUrl, 'https://play.google.com/store/apps/details?id=com.bulka.bonus');
 });

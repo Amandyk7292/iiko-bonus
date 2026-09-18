@@ -480,11 +480,11 @@ const en: Record<string, string> = {
   'settings.appValue': 'Bulka Business · React SPA',
   'settings.releaseHeading': 'Mobile app versions',
   'settings.releaseHint':
-    'Enter published versions. Clients below the minimum version will see a required update.',
+    'The App Store and Google Play button links on /applink are managed here. Clients below the minimum version will see a required update.',
   'settings.latestVersion': 'Latest version',
   'settings.minimumVersion': 'Minimum supported version',
   'settings.minimumHint': 'Raise this only after the update is published in the store.',
-  'settings.storeUrl': 'App store URL',
+  'settings.storeUrl': 'Button URL on /applink',
   'settings.releaseSaved': 'Update policy saved',
   'bonus.heading': 'General bonus system rules',
   'bonus.baseCashback': 'Base cashback (%)',

@@ -22,7 +22,11 @@ const defaultPolicy: ReleasePolicy = {
     minimum_version: '1.0.0',
     store_url: 'https://play.google.com/store/apps/details?id=com.bulka.bonus',
   },
-  ios: { latest_version: '1.0.0', minimum_version: '1.0.0', store_url: '' },
+  ios: {
+    latest_version: '1.0.0',
+    minimum_version: '1.0.0',
+    store_url: 'https://apps.apple.com/app/id6811576637',
+  },
 };
 
 export default function SettingsPage() {

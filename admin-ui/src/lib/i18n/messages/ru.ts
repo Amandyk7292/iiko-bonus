@@ -489,11 +489,11 @@ const ru: Record<string, string> = {
   'settings.appValue': 'Bulka Business · React SPA',
   'settings.releaseHeading': 'Версии мобильного приложения',
   'settings.releaseHint':
-    'Укажите опубликованные версии. Клиенты ниже минимальной версии увидят обязательное обновление.',
+    'Здесь меняются ссылки кнопок App Store и Google Play на странице /applink. Клиенты ниже минимальной версии увидят обязательное обновление.',
   'settings.latestVersion': 'Последняя версия',
   'settings.minimumVersion': 'Минимальная поддерживаемая версия',
   'settings.minimumHint': 'Повышайте только после публикации обновления в магазине.',
-  'settings.storeUrl': 'Ссылка на приложение в магазине',
+  'settings.storeUrl': 'Ссылка кнопки на странице /applink',
   'settings.releaseSaved': 'Политика обновления сохранена',
   'bonus.heading': 'Общие правила бонусной системы',
   'bonus.baseCashback': 'Базовый кэшбэк (%)',

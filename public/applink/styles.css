@@ -27,23 +27,12 @@ body {
 }
 body {
   margin: 0;
-  background: var(--yellow);
+  background-color: #fff;
+  background-image: url('/applink/pattern.png');
+  background-repeat: repeat;
+  background-size: 520px 520px;
   color: var(--ink);
   font-family: 'Montserrat', Arial, sans-serif;
-}
-body::before {
-  position: fixed;
-  inset: 0;
-  content: '';
-  pointer-events: none;
-  opacity: 0.14;
-  background-image: repeating-radial-gradient(
-    ellipse at 0 50%,
-    transparent 0 11px,
-    var(--brown) 12px 14px,
-    transparent 15px 28px
-  );
-  background-size: 58px 58px;
 }
 .page {
   position: relative;
@@ -57,7 +46,7 @@ body::before {
   overflow: hidden;
   border: 2px solid rgb(120 43 14 / 14%);
   border-radius: 32px;
-  background: var(--cream);
+  background: #fff;
   box-shadow: 0 24px 70px rgb(83 31 12 / 24%);
 }
 .brand-row {
@@ -75,6 +64,7 @@ body::before {
 }
 .content {
   padding: 42px 46px 40px;
+  background: #fff;
   text-align: center;
 }
 .app-mark {

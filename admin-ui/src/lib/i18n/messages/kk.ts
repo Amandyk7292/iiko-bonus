@@ -479,11 +479,11 @@ const kk: Record<string, string> = {
   'settings.appValue': 'Bulka Business · React SPA',
   'settings.releaseHeading': 'Мобильді қолданба нұсқалары',
   'settings.releaseHint':
-    'Жарияланған нұсқаларды көрсетіңіз. Минималды нұсқадан ескі қолданбалар міндетті жаңартуды көрсетеді.',
+    'Мұнда /applink бетіндегі App Store және Google Play батырмаларының сілтемелері өзгереді. Минималды нұсқадан ескі қолданбалар міндетті жаңартуды көрсетеді.',
   'settings.latestVersion': 'Соңғы нұсқа',
   'settings.minimumVersion': 'Қолдау көрсетілетін ең төменгі нұсқа',
   'settings.minimumHint': 'Дүкенде жаңарту жарияланғаннан кейін ғана көтеріңіз.',
-  'settings.storeUrl': 'Дүкендегі қолданба сілтемесі',
+  'settings.storeUrl': '/applink бетіндегі батырма сілтемесі',
   'settings.releaseSaved': 'Жаңарту саясаты сақталды',
   'bonus.heading': 'Бонус жүйесінің жалпы ережелері',
   'bonus.baseCashback': 'Негізгі кэшбэк (%)',

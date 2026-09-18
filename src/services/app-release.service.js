@@ -11,7 +11,7 @@ const defaultPolicies = {
   ios: {
     latest_version: '1.0.0',
     minimum_version: '1.0.0',
-    store_url: '',
+    store_url: 'https://apps.apple.com/app/id6811576637',
   },
 };
 
@@ -22,7 +22,7 @@ function normalizeVersion(value, fallback) {
 
 function normalizeStoreUrl(value, fallback) {
   const raw = String(value || '').trim();
-  if (!raw) return '';
+  if (!raw) return fallback;
   try {
     const url = new URL(raw);
     return url.protocol === 'https:' ? url.toString() : fallback;
