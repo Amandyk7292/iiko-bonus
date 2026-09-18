@@ -27,12 +27,20 @@ body {
 }
 body {
   margin: 0;
-  background-color: #fff;
-  background-image: url('/applink/pattern.png');
-  background-repeat: repeat;
-  background-size: 520px 520px;
+  background-color: var(--yellow);
   color: var(--ink);
   font-family: 'Montserrat', Arial, sans-serif;
+}
+body::before {
+  position: fixed;
+  inset: -4px;
+  content: '';
+  pointer-events: none;
+  background-image: url('/applink/pattern-white.png');
+  background-repeat: repeat;
+  background-size: 520px 520px;
+  filter: blur(0.6px);
+  opacity: 0.2;
 }
 .page {
   position: relative;
