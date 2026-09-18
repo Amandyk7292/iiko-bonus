@@ -14,7 +14,12 @@ test('bulk PDF uses fresh stops and prices, eight per A4, shared saved preferenc
     city: 'Актау',
     active: true,
   };
-  let settings = { profileKey: 'default', background: '#792C14', includeQr: false };
+  let settings = {
+    profileKey: 'default',
+    background: '#792C14',
+    textColor: '#FFFFFF',
+    includeQr: false,
+  };
   let fresh = false;
   await page.addInitScript((id) => localStorage.setItem('adminSelectedBranchId', id), branch.id);
   await page.route('**/admin/api/**', async (route) => {
@@ -73,6 +78,7 @@ test('bulk PDF uses fresh stops and prices, eight per A4, shared saved preferenc
   const dialog = page.getByRole('dialog', { name: 'Общая печать ценников' });
   await expect(dialog.getByText(/К печати: 10/)).toBeVisible();
   await dialog.getByLabel('Фон всех ценников, HEX').fill('#792C14');
+  await dialog.getByLabel('Цвет текста, HEX').fill('#F5D400');
   await dialog.getByRole('checkbox').check();
   const downloadReady = page.waitForEvent('download');
   await dialog.getByRole('button', { name: 'Скачать PDF' }).click();
@@ -136,21 +142,28 @@ test('prints separate PDFs with the selected city prices', async ({ page }) => {
         success: true,
         profileKey,
         rawMenu: {
-          products: [{
-            id: isAstana ? 'astana-product' : 'aktau-product',
-            name: isAstana ? 'Товар Астана' : 'Товар Актау',
-            price: isAstana ? 500 : 300,
-          }],
+          products: [
+            {
+              id: isAstana ? 'astana-product' : 'aktau-product',
+              name: isAstana ? 'Товар Астана' : 'Товар Актау',
+              price: isAstana ? 500 : 300,
+            },
+          ],
           groups: [],
         },
         overrides: { products: [], categories: [], customProducts: [] },
       };
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(data) });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(data),
+    });
   });
 
   await page.goto('/admin/menu');
-  const openBulk = () => page.getByRole('button', { name: 'Общая печать ценников', exact: true }).click();
+  const openBulk = () =>
+    page.getByRole('button', { name: 'Общая печать ценников', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Общая печать ценников' });
   await openBulk();
   await expect(dialog.getByText(/Ценники города Актау/)).toBeVisible();

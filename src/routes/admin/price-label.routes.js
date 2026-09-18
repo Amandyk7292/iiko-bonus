@@ -14,11 +14,14 @@ function registerPriceLabelRoutes(router) {
         .eq('key', `price_labels_${profileKey}`)
         .maybeSingle();
       if (error) throw error;
-      const saved = data ? JSON.parse(data.value) : { background: '#792C14', includeQr: false };
+      const saved = data
+        ? JSON.parse(data.value)
+        : { background: '#792C14', textColor: '#FFFFFF', includeQr: false };
       res.json({
         success: true,
         profileKey,
         background: saved.background,
+        textColor: saved.textColor,
         includeQr: saved.includeQr,
       });
     } catch {
@@ -41,6 +44,7 @@ function registerPriceLabelRoutes(router) {
             .json({ success: false, error: 'Город изменился. Откройте печать заново.' });
         const settings = {
           background: req.body.background.toUpperCase(),
+          textColor: (req.body.textColor || '#FFFFFF').toUpperCase(),
           includeQr: req.body.includeQr,
         };
         const { error } = await supabase

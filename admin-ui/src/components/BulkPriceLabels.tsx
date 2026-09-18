@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react';
 import { Printer } from 'lucide-react';
 import Modal from './Modal';
 import { getAdminBranchScope, request } from '../lib/api';
-import { labelHex, LABEL_BACKGROUND } from '../lib/price-label';
+import {
+  labelContrastColor,
+  labelHex,
+  LABEL_BACKGROUND,
+  LABEL_TEXT_COLOR,
+} from '../lib/price-label';
 import {
   labelProducts,
   batchLabel,
@@ -58,6 +63,7 @@ function BulkPriceLabelsModal({
   onClose: () => void;
 }) {
   const [background, setBackground] = useState(LABEL_BACKGROUND);
+  const [textColor, setTextColor] = useState(LABEL_TEXT_COLOR);
   const [includeQr, setIncludeQr] = useState(false);
   const [products, setProducts] = useState<LabelProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +86,7 @@ function BulkPriceLabelsModal({
         )
           throw new Error('Город изменился. Откройте печать заново.');
         setBackground(settings.background);
+        setTextColor(settings.textColor || labelContrastColor(settings.background));
         setIncludeQr(settings.includeQr);
         setProducts(labelProducts(menu));
       })
@@ -95,14 +102,15 @@ function BulkPriceLabelsModal({
   }, [profileKey, retry]);
   let preview = '';
   try {
-    if (products[0] && labelHex(background))
-      preview = batchLabel(products[0], background, includeQr).svg;
+    if (products[0] && labelHex(background) && labelHex(textColor))
+      preview = batchLabel(products[0], background, includeQr, textColor).svg;
   } catch {
     /* Full validation runs before PDF generation. */
   }
   const generate = async () => {
     const hex = labelHex(background);
-    if (!hex) {
+    const textHex = labelHex(textColor);
+    if (!hex || !textHex) {
       setError('Введите HEX-код из 6 символов.');
       return;
     }
@@ -113,7 +121,12 @@ function BulkPriceLabelsModal({
     try {
       if (getAdminBranchScope() !== branchId)
         throw new Error('Город изменился. Откройте печать заново.');
-      await savePriceLabelSettings({ profileKey, background: hex, includeQr });
+      await savePriceLabelSettings({
+        profileKey,
+        background: hex,
+        textColor: textHex,
+        includeQr,
+      });
       const menu = await request<LabelMenu>('/menu');
       if (getAdminBranchScope() !== branchId || menu.profileKey !== profileKey)
         throw new Error('Город изменился. Откройте печать заново.');
@@ -122,7 +135,7 @@ function BulkPriceLabelsModal({
       const current = labelProducts(menu);
       setProducts(current);
       const { generatePriceLabelsPdf } = await import('../lib/price-label-pdf');
-      const result = await generatePriceLabelsPdf(current, hex, includeQr, setDone);
+      const result = await generatePriceLabelsPdf(current, hex, includeQr, textHex, setDone);
       if (getAdminBranchScope() !== branchId)
         throw new Error('Город изменился во время генерации. Откройте печать заново.');
       const url = URL.createObjectURL(
@@ -177,23 +190,44 @@ function BulkPriceLabelsModal({
         ) : (
           <>
             <p>К печати: {products.length}. Незаполненные переводы и состав не отображаются.</p>
-            <div className="price-label-field">
-              <label htmlFor="bulk-label-color">Фон всех ценников, HEX</label>
-              <div className="price-label-color">
-                <input
-                  type="color"
-                  aria-label="Выбрать общий фон"
-                  disabled={busy}
-                  value={labelHex(background) || LABEL_BACKGROUND}
-                  onChange={(e) => setBackground(e.target.value)}
-                />
-                <input
-                  id="bulk-label-color"
-                  disabled={busy}
-                  value={background}
-                  maxLength={7}
-                  onChange={(e) => setBackground(e.target.value)}
-                />
+            <div className="price-label-color-fields">
+              <div className="price-label-field">
+                <label htmlFor="bulk-label-color">Фон всех ценников, HEX</label>
+                <div className="price-label-color">
+                  <input
+                    type="color"
+                    aria-label="Выбрать общий фон"
+                    disabled={busy}
+                    value={labelHex(background) || LABEL_BACKGROUND}
+                    onChange={(e) => setBackground(e.target.value)}
+                  />
+                  <input
+                    id="bulk-label-color"
+                    disabled={busy}
+                    value={background}
+                    maxLength={7}
+                    onChange={(e) => setBackground(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="price-label-field">
+                <label htmlFor="bulk-label-text-color">Цвет текста, HEX</label>
+                <div className="price-label-color">
+                  <input
+                    type="color"
+                    aria-label="Выбрать цвет текста"
+                    disabled={busy}
+                    value={labelHex(textColor) || LABEL_TEXT_COLOR}
+                    onChange={(e) => setTextColor(e.target.value)}
+                  />
+                  <input
+                    id="bulk-label-text-color"
+                    disabled={busy}
+                    value={textColor}
+                    maxLength={7}
+                    onChange={(e) => setTextColor(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
             <label className="price-label-qr-toggle">

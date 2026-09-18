@@ -65,7 +65,12 @@ test('label settings persist by city and reject an outdated city', async () => {
   values.clear();
   const req = {
     admin: { selectedBranchId: 'aktau' },
-    body: { profileKey: 'default', background: '#123abc', includeQr: true },
+    body: {
+      profileKey: 'default',
+      background: '#123abc',
+      textColor: '#fedcba',
+      includeQr: true,
+    },
   };
   const saved = response();
   await routes.post(req, saved);
@@ -73,6 +78,7 @@ test('label settings persist by city and reject an outdated city', async () => {
   const read = response();
   await routes.get(req, read);
   assert.equal(read.data.background, '#123ABC');
+  assert.equal(read.data.textColor, '#FEDCBA');
   assert.equal(read.data.includeQr, true);
   const other = response();
   await routes.get({ admin: { selectedBranchId: 'astana' } }, other);
@@ -89,11 +95,25 @@ test('label settings persist by city and reject an outdated city', async () => {
 test('label settings reject executable colors and non-boolean QR', () => {
   const body = adminMutationSchemas.priceLabelSettings.body;
   assert.equal(
-    body.safeParse({ profileKey: 'default', background: '#792C14', includeQr: true }).success,
+    body.safeParse({
+      profileKey: 'default',
+      background: '#792C14',
+      textColor: '#FFFFFF',
+      includeQr: true,
+    }).success,
     true,
   );
   assert.equal(
     body.safeParse({ profileKey: 'default', background: 'red;evil', includeQr: true }).success,
+    false,
+  );
+  assert.equal(
+    body.safeParse({
+      profileKey: 'default',
+      background: '#792C14',
+      textColor: 'red;evil',
+      includeQr: true,
+    }).success,
     false,
   );
   assert.equal(

@@ -37,6 +37,7 @@ export async function generatePriceLabelsPdf(
   products: LabelProduct[],
   background: string,
   includeQr: boolean,
+  textColor: string,
   progress: (done: number) => void,
 ) {
   if (!products.length) throw new Error('Нет товаров вне стоп-листа для печати.');
@@ -45,7 +46,7 @@ export async function generatePriceLabelsPdf(
   pdf.catalog.getOrCreateViewerPreferences().setPrintScaling(PrintScaling.None);
   for (const [index, product] of products.entries()) {
     if (index % 8 === 0) pdf.addPage([210 * MM, 297 * MM]);
-    const label = batchLabel(product, background, includeQr);
+    const label = batchLabel(product, background, includeQr, textColor);
     const image = await pdf.embedPng(await labelPng(label.svg));
     pdf.getPages().at(-1)!.drawImage(image, labelPosition(index));
     pdf

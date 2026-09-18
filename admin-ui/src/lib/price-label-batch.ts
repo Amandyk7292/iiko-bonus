@@ -94,20 +94,24 @@ export function labelProducts(menu: LabelMenu): LabelProduct[] {
         item.ingredients ||
         item.ingredients_translations?.ru ||
         '',
-      ingredientsKk:
-        item.description_translations?.kk || item.ingredients_translations?.kk || '',
+      ingredientsKk: item.description_translations?.kk || item.ingredients_translations?.kk || '',
     });
   }
   return products.sort((a, b) => a.nameRu.localeCompare(b.nameRu, 'ru'));
 }
 
-export function batchLabel(product: LabelProduct, background: string, includeQr: boolean) {
+export function batchLabel(
+  product: LabelProduct,
+  background: string,
+  includeQr: boolean,
+  textColor?: string,
+) {
   const draft = { ...product, background };
   const qr = includeQr
     ? create(productPublicUrl(product.id), { errorCorrectionLevel: 'M' }).modules
     : undefined;
   const measure = browserLabelMeasure();
-  const result = buildPriceLabel(draft, measure, qr, true);
+  const result = buildPriceLabel(draft, measure, qr, true, textColor);
   if (!result.fits) throw new Error(`${product.nameRu}: ${Object.values(result.errors).join(' ')}`);
   return { svg: result.svg };
 }

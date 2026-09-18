@@ -1183,6 +1183,10 @@ const adminMutationSchemas = {
           .max(64)
           .regex(/^[a-z0-9_-]+$/),
         background: z.string().regex(/^#[0-9a-f]{6}$/i),
+        textColor: z
+          .string()
+          .regex(/^#[0-9a-f]{6}$/i)
+          .optional(),
         includeQr: z.boolean(),
       })
       .strict(),

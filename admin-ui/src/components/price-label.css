@@ -46,6 +46,11 @@
   display: flex;
   gap: 8px;
 }
+.price-label-color-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
 .price-label-color input[type='color'] {
   width: 48px;
   flex: none;
@@ -102,6 +107,9 @@
   flex-shrink: 0;
 }
 @media (max-width: 760px) {
+  .price-label-color-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .price-label-editor {
     grid-template-columns: minmax(0, 1fr);
   }

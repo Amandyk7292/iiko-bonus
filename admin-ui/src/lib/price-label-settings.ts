@@ -2,6 +2,7 @@ import { request } from './api';
 export interface PriceLabelSettings {
   profileKey: string;
   background: string;
+  textColor?: string;
   includeQr: boolean;
 }
 export const loadPriceLabelSettings = () =>

@@ -8,10 +8,21 @@ export interface PriceLabelDraft {
 }
 
 export const LABEL_BACKGROUND = '#792C14';
+export const LABEL_TEXT_COLOR = '#FFFFFF';
 export const LABEL_BACKGROUND_KEY = 'bulka-price-label-background-v1';
 export const labelHex = (value: string) => {
   const hex = value.trim().replace(/^#/, '');
   return /^[\da-f]{6}$/i.test(hex) ? `#${hex.toUpperCase()}` : null;
+};
+export const labelContrastColor = (background: string) => {
+  const hex = labelHex(background) || LABEL_BACKGROUND;
+  const luminance = [1, 3, 5]
+    .map((offset) => {
+      const channel = parseInt(hex.slice(offset, offset + 2), 16) / 255;
+      return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    })
+    .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+  return luminance > 0.179 ? '#000000' : '#FFFFFF';
 };
 const escapeXml = (value: string) =>
   value
@@ -63,15 +74,11 @@ export function buildPriceLabel(
   measure: Measure,
   qr?: { size: number; data: ArrayLike<number> },
   optionalDetails = false,
+  requestedTextColor?: string,
 ) {
   const hex = labelHex(draft.background) || LABEL_BACKGROUND;
-  const luminance = [1, 3, 5]
-    .map((offset) => {
-      const channel = parseInt(hex.slice(offset, offset + 2), 16) / 255;
-      return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-    })
-    .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
-  const qrColor = luminance > 0.179 ? '#000000' : '#FFFFFF';
+  const qrColor = labelContrastColor(hex);
+  const textColor = labelHex(requestedTextColor || '') || qrColor;
   const qrSvg = qr
     ? `<svg x="820" y="20" width="160" height="160" viewBox="0 0 ${qr.size + 8} ${qr.size + 8}" shape-rendering="crispEdges" aria-label="QR-код товара"><path fill="${qrColor}" d="${Array.from(
         qr.data,
@@ -122,7 +129,8 @@ export function buildPriceLabel(
       );
       if (lines.length * size * 1.12 <= 180) break;
     }
-    if (size < 18) errors[field] = 'Описание не помещается целиком. Сократите текст для ценника 10 × 6 см.';
+    if (size < 18)
+      errors[field] = 'Описание не помещается целиком. Сократите текст для ценника 10 × 6 см.';
     return { lines, size: Math.max(18, size) };
   };
   const ru = composition(draft.ingredientsRu, 'Состав:', 'ingredientsRu');
@@ -131,7 +139,7 @@ export function buildPriceLabel(
   const namesY = 38 + readableNameSize * 0.8;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="60mm" viewBox="0 0 1000 600" role="img" aria-label="Ценник 10 на 6 сантиметров">
 <rect width="1000" height="600" fill="${background || LABEL_BACKGROUND}"/>
-<g fill="${qrColor}" font-family="Arial, Helvetica, sans-serif">
+<g fill="${textColor}" font-family="Arial, Helvetica, sans-serif">
 ${textBlock(nameLines, 500, namesY, readableNameSize, readableNameSize * 1.06, true)}
 ${textBlock([price], 500, 370, priceSize, priceSize, true)}
 ${textBlock(ru.lines, 250, 405, ru.size, ru.size * 1.12)}

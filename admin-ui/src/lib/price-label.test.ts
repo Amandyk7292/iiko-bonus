@@ -36,6 +36,13 @@ describe('price labels', () => {
     expect(result.svg).toContain('Состав:');
     expect(result.svg).toContain('>500</tspan>');
   });
+  it('uses the selected text color without changing the QR contrast color', () => {
+    const id = '0669be83-bd9c-4e74-9150-dfc9a452e56b';
+    const qr = create(productPublicUrl(id), { errorCorrectionLevel: 'M' }).modules;
+    const result = buildPriceLabel(sample, measure, qr, false, '#12AB34');
+    expect(result.svg).toContain('<g fill="#12AB34"');
+    expect(result.svg).toContain('<path fill="#FFFFFF"');
+  });
   it('does not repeat the composition prefix supplied in the description', () => {
     const result = buildPriceLabel(
       { ...sample, ingredientsRu: 'Состав: мука, молоко', ingredientsKk: 'Құрамы: ұн, сүт' },
