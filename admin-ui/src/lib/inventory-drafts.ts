@@ -18,6 +18,23 @@ export const inventoryDraftFromItem = (item: InventoryItem): InventoryDraft => (
 export const inventoryDraftsEqual = (left: InventoryDraft, right: InventoryDraft) =>
   left.quantity === right.quantity && left.stopped === right.stopped;
 
+export const inventoryQuantity = (draft: string, quantityStep = 1) => {
+  if (draft.trim() === '') return { valid: true as const, value: null };
+  const value = Number(draft);
+  const scaled = Math.round(value * 1000);
+  const step = Math.round(quantityStep * 1000);
+  const valid =
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= 100000 &&
+    Math.abs(value * 1000 - scaled) <= 0.000001 &&
+    step > 0 &&
+    scaled % step === 0;
+  return valid
+    ? { valid: true as const, value }
+    : { valid: false as const, value: null };
+};
+
 export function mergeInventoryDrafts({
   previousItems,
   nextItems,

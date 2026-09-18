@@ -20,6 +20,7 @@ import {
   inventoryDraftFromItem,
   inventoryDraftsEqual,
   inventoryItemKey,
+  inventoryQuantity,
   mergeInventoryDrafts,
   type InventoryConflicts,
   type InventoryDraft,
@@ -213,17 +214,8 @@ export default function InventoryPage({ role = 'viewer' }: { role?: string }) {
     const key = inventoryItemKey(item);
     const draft = explicitDraft ?? draftsRef.current[key];
     if (!draft || savingId) return;
-    const quantity = draft.quantity.trim() === '' ? null : Number(draft.quantity);
-    const scaled = quantity == null ? 0 : Math.round(quantity * 1000);
-    const step = Math.round((item.quantity_step || 1) * 1000);
-    if (
-      quantity != null &&
-      (!Number.isFinite(quantity) ||
-        quantity < 0 ||
-        quantity > 100000 ||
-        Math.abs(quantity * 1000 - scaled) > 0.000001 ||
-        scaled % step !== 0)
-    ) {
+    const parsedQuantity = inventoryQuantity(draft.quantity, item.quantity_step || 1);
+    if (!parsedQuantity.valid) {
       toast(t('inventory.quantityInvalid'), 'error');
       return;
     }
@@ -231,7 +223,7 @@ export default function InventoryPage({ role = 'viewer' }: { role?: string }) {
     try {
       const result = await api.updateInventory(item.branch_id, item.product_id, {
         productName: item.product_name,
-        sourceQuantity: quantity,
+        sourceQuantity: parsedQuantity.value,
         manualStop: draft.stopped,
       });
       setItems((current) =>

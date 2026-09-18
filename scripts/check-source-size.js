@@ -36,6 +36,7 @@ const budgets = new Map([
   ['src/routes/admin.routes.js', 1670],
   ['src/services/legal-page.service.js', 1727],
   ['src/services/whatsapp-assistant-console.service.js', 1205],
+  ['src/services/yandex-delivery.service.js', 3600],
 ]);
 
 const failures = [];

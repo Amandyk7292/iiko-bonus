@@ -3,6 +3,7 @@ import type { InventoryItem } from './api';
 import {
   inventoryDraftFromItem,
   inventoryItemKey,
+  inventoryQuantity,
   mergeInventoryDrafts,
 } from './inventory-drafts';
 
@@ -15,6 +16,16 @@ const item = (quantity: number, stopped = false): InventoryItem => ({
   source: 'admin',
 });
 describe('inventory draft merge', () => {
+  it('validates whole and fractional stock quantities against the configured step', () => {
+    expect(inventoryQuantity('', 1)).toEqual({ valid: true, value: null });
+    expect(inventoryQuantity('12', 1)).toEqual({ valid: true, value: 12 });
+    expect(inventoryQuantity('1.25', 0.001)).toEqual({ valid: true, value: 1.25 });
+    expect(inventoryQuantity('1.25', 1).valid).toBe(false);
+    expect(inventoryQuantity('-1', 1).valid).toBe(false);
+    expect(inventoryQuantity('100001', 1).valid).toBe(false);
+    expect(inventoryQuantity('not-a-number', 1).valid).toBe(false);
+  });
+
   it('refreshes pristine rows from realtime data', () => {
     const previous = item(5);
     const next = item(4);

@@ -22,6 +22,12 @@ type Result = {
   summary: { checks: number; quantity: number; revenue: number };
 };
 
+export const cashItemMatches = (name: string, search: string) =>
+  Boolean(
+    search.trim() &&
+      name.toLocaleLowerCase('ru').includes(search.trim().toLocaleLowerCase('ru')),
+  );
+
 export default function CashReport({
   base,
   department,
@@ -166,10 +172,7 @@ export default function CashReport({
                   {check.items.map((item, index) => (
                     <tr
                       className={
-                        submitted &&
-                        item.name
-                          .toLocaleLowerCase('ru')
-                          .includes(submitted.toLocaleLowerCase('ru'))
+                        cashItemMatches(item.name, submitted)
                           ? 'id-found-item'
                           : ''
                       }

@@ -17,6 +17,38 @@ type Row = {
 };
 type Result = { rows: Row[]; fetchedAt: string };
 
+export const revisionRows = (
+  rows: Row[],
+  counts: Record<string, string>,
+  search: string,
+  onlyDifferences: boolean,
+) => {
+  const needle = search.toLocaleLowerCase('ru');
+  return rows
+    .map((row) => {
+      const actual = counts[row.key] === undefined ? null : Number(counts[row.key]);
+      const shortage =
+        actual === null || !Number.isFinite(actual) ? null : Math.max(0, row.expected - actual);
+      const surplus =
+        actual === null || !Number.isFinite(actual) ? null : Math.max(0, actual - row.expected);
+      return { ...row, actual, shortage, surplus };
+    })
+    .filter(
+      (row) =>
+        row.name.toLocaleLowerCase('ru').includes(needle) &&
+        (!onlyDifferences || Number(row.shortage) > 0 || Number(row.surplus) > 0),
+    );
+};
+
+export const revisionTotals = (rows: ReturnType<typeof revisionRows>) =>
+  rows.reduce(
+    (sum, row) => ({
+      shortage: sum.shortage + Number(row.shortage || 0),
+      surplus: sum.surplus + Number(row.surplus || 0),
+    }),
+    { shortage: 0, surplus: 0 },
+  );
+
 export default function Revision({
   base,
   department,
@@ -68,30 +100,10 @@ export default function Revision({
     localStorage.setItem(storageKey, JSON.stringify(next));
   };
   const rows = useMemo(
-    () =>
-      (data?.rows || [])
-        .map((row) => {
-          const actual = counts[row.key] === undefined ? null : Number(counts[row.key]);
-          const shortage =
-            actual === null || !Number.isFinite(actual) ? null : Math.max(0, row.expected - actual);
-          const surplus =
-            actual === null || !Number.isFinite(actual) ? null : Math.max(0, actual - row.expected);
-          return { ...row, actual, shortage, surplus };
-        })
-        .filter(
-          (row) =>
-            row.name.toLocaleLowerCase('ru').includes(search.toLocaleLowerCase('ru')) &&
-            (!onlyDifferences || Number(row.shortage) > 0 || Number(row.surplus) > 0),
-        ),
+    () => revisionRows(data?.rows || [], counts, search, onlyDifferences),
     [data, counts, search, onlyDifferences],
   );
-  const totals = rows.reduce(
-    (sum, row) => ({
-      shortage: sum.shortage + Number(row.shortage || 0),
-      surplus: sum.surplus + Number(row.surplus || 0),
-    }),
-    { shortage: 0, surplus: 0 },
-  );
+  const totals = revisionTotals(rows);
   return (
     <section className="card id-panel id-revision">
       <div className="id-report-intro">
