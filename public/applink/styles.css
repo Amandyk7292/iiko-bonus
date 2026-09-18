@@ -57,21 +57,8 @@ body::before {
   background: #fff;
   box-shadow: 0 24px 70px rgb(83 31 12 / 24%);
 }
-.brand-row {
-  display: flex;
-  min-height: 106px;
-  align-items: center;
-  justify-content: center;
-  padding: 20px 28px;
-  background: #fff;
-}
-.brand-logo {
-  display: block;
-  width: 136px;
-  height: auto;
-}
 .content {
-  padding: 42px 46px 40px;
+  padding: 34px 46px 40px;
   background: #fff;
   text-align: center;
 }
@@ -176,15 +163,8 @@ h1 {
   .download-card {
     border-radius: 26px;
   }
-  .brand-row {
-    min-height: 92px;
-    padding: 16px 24px;
-  }
-  .brand-logo {
-    width: 118px;
-  }
   .content {
-    padding: 32px 22px 30px;
+    padding: 26px 22px 30px;
   }
   .lead {
     margin-bottom: 26px;
