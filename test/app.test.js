@@ -65,9 +65,11 @@ test('readiness and metrics endpoints expose bounded operational state', async (
 
 test('mobile association files open catalog links in installed apps', async (t) => {
   const previousFingerprints = process.env.ANDROID_APP_SHA256_CERT_FINGERPRINTS;
-  const fingerprint =
-    '1D:46:30:E7:F2:29:8D:19:B8:A8:39:5F:26:D3:43:5C:B8:30:79:D1:D3:1A:08:0B:DD:18:08:9C:D7:EB:4D:30';
-  process.env.ANDROID_APP_SHA256_CERT_FINGERPRINTS = fingerprint;
+  const fingerprints = [
+    '17:74:EA:BF:E8:2B:AC:99:2C:E2:6F:46:53:66:A7:5D:CB:81:C0:6F:85:A3:59:B2:D2:4D:A5:76:C7:D2:2B:B8',
+    '26:36:CE:1E:1C:8C:32:51:C1:47:FE:6F:DC:2C:6C:E4:57:44:9E:9E:8A:45:1E:B9:20:AF:C6:6C:87:F1:E5:86',
+  ];
+  process.env.ANDROID_APP_SHA256_CERT_FINGERPRINTS = fingerprints.join(',');
   t.after(() => {
     if (previousFingerprints === undefined) {
       delete process.env.ANDROID_APP_SHA256_CERT_FINGERPRINTS;
@@ -94,7 +96,15 @@ test('mobile association files open catalog links in installed apps', async (t) 
   const assetLinks = await assetLinksResponse.json();
   assert.equal(assetLinksResponse.status, 200);
   assert.equal(assetLinks[0].target.package_name, 'com.bulka.bonus');
-  assert.deepEqual(assetLinks[0].target.sha256_cert_fingerprints, [fingerprint]);
+  assert.deepEqual(assetLinks[0].target.sha256_cert_fingerprints, fingerprints);
+
+  const manifest = fs.readFileSync(
+    path.join(__dirname, '..', 'BulkaAndroid', 'android', 'app', 'src', 'main', 'AndroidManifest.xml'),
+    'utf8',
+  );
+  assert.match(manifest, /android:autoVerify="true"/);
+  assert.match(manifest, /android:host="bulka\.com\.kz"/);
+  assert.doesNotMatch(manifest, /bulka-bonus\.firebaseapp\.com/);
 });
 
 test('admin and Flutter CSP remove general-purpose script evaluation', async (t) => {
