@@ -66,6 +66,15 @@ const templateSchema = z
 const TEMPLATE_KEY = 'price_generator_template_v1';
 const PRODUCTS_KEY = 'price_generator_products_v1';
 const HISTORY_KEY = 'price_generator_history_v1';
+const CITY_KEYS = new Set(['aktau', 'astana']);
+const cityFromRequest = (req) =>
+  CITY_KEYS.has(String(req.query?.city || '').toLowerCase())
+    ? String(req.query.city).toLowerCase()
+    : 'aktau';
+const citySettingKey = (baseKey, req) => {
+  const city = cityFromRequest(req);
+  return city === 'aktau' ? baseKey : `${baseKey}_${city}`;
+};
 const productSchema = z
   .object({
     id: z.string().min(1).max(100),
@@ -100,12 +109,12 @@ const ownerOrAdminOnly = (req, res, next) => {
   return next();
 };
 
-router.get('/api/pricegenerator/template', async (_req, res) => {
+router.get('/api/pricegenerator/template', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('settings')
       .select('value')
-      .eq('key', TEMPLATE_KEY)
+      .eq('key', citySettingKey(TEMPLATE_KEY, req))
       .maybeSingle();
     if (error) throw error;
     const parsed = data?.value ? templateSchema.safeParse(JSON.parse(data.value)) : null;
@@ -115,12 +124,12 @@ router.get('/api/pricegenerator/template', async (_req, res) => {
   }
 });
 
-router.get('/api/pricegenerator/products', async (_req, res) => {
+router.get('/api/pricegenerator/products', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('settings')
       .select('value')
-      .eq('key', PRODUCTS_KEY)
+      .eq('key', citySettingKey(PRODUCTS_KEY, req))
       .maybeSingle();
     if (error) throw error;
     const parsed = data?.value ? productsSchema.safeParse(JSON.parse(data.value)) : null;
@@ -134,12 +143,12 @@ router.get(
   '/admin/api/pricegenerator/history',
   adminAuthMiddleware,
   ownerOrAdminOnly,
-  async (_req, res) => {
+  async (req, res) => {
     try {
       const { data, error } = await supabase
         .from('settings')
         .select('value')
-        .eq('key', HISTORY_KEY)
+        .eq('key', citySettingKey(HISTORY_KEY, req))
         .maybeSingle();
       if (error) throw error;
       const history = data?.value ? JSON.parse(data.value) : [];
@@ -162,7 +171,10 @@ router.post(
     try {
       const { error } = await supabase
         .from('settings')
-        .upsert({ key: TEMPLATE_KEY, value: JSON.stringify(req.body) }, { onConflict: 'key' });
+        .upsert(
+          { key: citySettingKey(TEMPLATE_KEY, req), value: JSON.stringify(req.body) },
+          { onConflict: 'key' },
+        );
       if (error) throw error;
       return res.json({ success: true, template: req.body });
     } catch {
@@ -181,7 +193,7 @@ router.post(
       const { data: historyRow, error: historyReadError } = await supabase
         .from('settings')
         .select('value')
-        .eq('key', HISTORY_KEY)
+        .eq('key', citySettingKey(HISTORY_KEY, req))
         .maybeSingle();
       if (historyReadError) throw historyReadError;
       const oldHistory = historyRow?.value ? JSON.parse(historyRow.value) : [];
@@ -195,8 +207,8 @@ router.post(
       ].slice(0, 100);
       const { error } = await supabase.from('settings').upsert(
         [
-          { key: PRODUCTS_KEY, value: JSON.stringify(req.body.products) },
-          { key: HISTORY_KEY, value: JSON.stringify(history) },
+          { key: citySettingKey(PRODUCTS_KEY, req), value: JSON.stringify(req.body.products) },
+          { key: citySettingKey(HISTORY_KEY, req), value: JSON.stringify(history) },
         ],
         { onConflict: 'key' },
       );

@@ -1,6 +1,15 @@
 (() => {
   'use strict';
   const $ = (id) => document.getElementById(id);
+  const cityFromUrl = new URLSearchParams(location.search).get('city');
+  const cityFromStorage = localStorage.getItem('bulka-pricegenerator-city');
+  const initialCity = ['aktau', 'astana'].includes(cityFromUrl)
+    ? cityFromUrl
+    : ['aktau', 'astana'].includes(cityFromStorage)
+      ? cityFromStorage
+      : 'aktau';
+  const cityQuery = () => `?city=${encodeURIComponent(state.city)}`;
+  const templateStorageKey = () => `bulka-label-designer-v1-${state.city}`;
   const names = {
     name: 'Название',
     composition: 'Состав',
@@ -68,12 +77,13 @@
   };
   let saved = null;
   try {
-    saved = JSON.parse(localStorage.getItem('bulka-label-designer-v1') || 'null');
+    saved = JSON.parse(localStorage.getItem(`bulka-label-designer-v1-${initialCity}`) || 'null');
   } catch {
-    localStorage.removeItem('bulka-label-designer-v1');
+    localStorage.removeItem(`bulka-label-designer-v1-${initialCity}`);
   }
   const state = {
     isAdmin: false,
+    city: initialCity,
     products: [],
     selectedProduct: 0,
     selected: 'barcode',
@@ -498,12 +508,12 @@
   }
   async function loadSharedTemplate() {
     try {
-      const response = await fetch('/api/pricegenerator/template');
+      const response = await fetch(`/api/pricegenerator/template${cityQuery()}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Ошибка загрузки');
       if (data.template) {
         applyTemplate(data.template);
-        localStorage.setItem('bulka-label-designer-v1', JSON.stringify(data.template));
+        localStorage.setItem(templateStorageKey(), JSON.stringify(data.template));
         notice('Общий шаблон загружен.');
       }
     } catch {
@@ -537,7 +547,9 @@
   async function loadHistory() {
     if (!state.isAdmin) return;
     try {
-      const response = await fetch('/admin/api/pricegenerator/history', { credentials: 'include' });
+      const response = await fetch(`/admin/api/pricegenerator/history${cityQuery()}`, {
+        credentials: 'include',
+      });
       const data = await response.json();
       if (!response.ok) throw new Error();
       $('product-history').innerHTML = data.history?.length
@@ -625,14 +637,14 @@
   }
   async function loadDefaults() {
     try {
-      const savedResponse = await fetch('/api/pricegenerator/products');
+      const savedResponse = await fetch(`/api/pricegenerator/products${cityQuery()}`);
       const savedData = await savedResponse.json();
       if (!savedResponse.ok) throw new Error(savedData.error || 'Ошибка загрузки');
       if (Array.isArray(savedData.products)) state.products = savedData.products;
-      else {
+      else if (state.city === 'aktau') {
         const response = await fetch('/pricegenerator/products.json');
         state.products = await response.json();
-      }
+      } else state.products = [];
       state.products = state.products.map((item) => ({
         ...item,
         expiryUnit: item.expiryUnit || 'days',
@@ -640,6 +652,10 @@
       }));
       const firstActive = state.products.findIndex((item) => !item.archived);
       selectProduct(firstActive >= 0 ? firstActive : 0);
+      if (!state.products.length)
+        notice(
+          `Для города ${state.city === 'astana' ? 'Астана' : 'Актау'} товары ещё не добавлены. Администратор может загрузить Excel или добавить товар вручную.`,
+        );
       history.length = 0;
       historyIndex = -1;
       recordHistory();
@@ -648,6 +664,14 @@
     }
   }
   $('made-date').value = new Date().toISOString().slice(0, 10);
+  $('city-select').value = state.city;
+  $('city-select').addEventListener('change', (event) => {
+    const city = event.target.value;
+    localStorage.setItem('bulka-pricegenerator-city', city);
+    const url = new URL(location.href);
+    url.searchParams.set('city', city);
+    location.assign(url.toString());
+  });
   let renderedDate = $('made-date').value;
   for (const [id, value] of [
     ['label-width', state.label.width],
@@ -755,7 +779,7 @@
     notice('Новый товар добавлен. Заполните поля и нажмите «Сохранить товар».');
   });
   async function persistProducts(successMessage, action = { type: 'save' }) {
-    const response = await fetch('/admin/api/pricegenerator/products', {
+    const response = await fetch(`/admin/api/pricegenerator/products${cityQuery()}`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -969,11 +993,11 @@
     syncSettings();
     const button = $('save-template');
     const template = { layout: state.layout, label: state.label, paper: state.paper };
-    localStorage.setItem('bulka-label-designer-v1', JSON.stringify(template));
+    localStorage.setItem(templateStorageKey(), JSON.stringify(template));
     button.disabled = true;
     button.textContent = 'Сохранение...';
     try {
-      const response = await fetch('/admin/api/pricegenerator/template', {
+      const response = await fetch(`/admin/api/pricegenerator/template${cityQuery()}`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -981,7 +1005,9 @@
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Ошибка сохранения');
-      notice('Общий шаблон сохранён для всех сотрудников и устройств.');
+      notice(
+        `Шаблон города ${state.city === 'astana' ? 'Астана' : 'Актау'} сохранён для всех сотрудников и устройств.`,
+      );
     } catch (error) {
       notice(`${error.message}. Локальная резервная копия сохранена.`, true);
     } finally {

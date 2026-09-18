@@ -6,16 +6,25 @@
     <meta name="robots" content="noindex,nofollow" />
     <title>Конструктор этикеток Bulka</title>
     <link rel="icon" href="/favicon.png" />
-    <link rel="stylesheet" href="/pricegenerator/style.css?v=20260917-7" />
+    <link rel="stylesheet" href="/pricegenerator/style.css?v=20260918-1" />
     <style id="print-page-settings"></style>
-    <script src="/pricegenerator/app.js?v=20260917-13" defer></script>
+    <script src="/pricegenerator/app.js?v=20260918-1" defer></script>
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="/admin/menu" aria-label="Вернуться в админку">
-        <img src="/favicon.png" alt="" />
-        <span><b>Bulka</b><small>Конструктор этикеток</small></span>
-      </a>
+      <div class="topbar-left">
+        <a class="brand" href="/admin/menu" aria-label="Вернуться в админку">
+          <img src="/favicon.png" alt="" />
+          <span><b>Bulka</b><small>Конструктор этикеток</small></span>
+        </a>
+        <label class="city-picker">
+          <span>Город</span>
+          <select id="city-select" aria-label="Город для этикеток">
+            <option value="aktau">Актау</option>
+            <option value="astana">Астана</option>
+          </select>
+        </label>
+      </div>
       <div class="top-actions">
         <button class="button secondary admin-only" id="save-template" type="button">
           Сохранить шаблон

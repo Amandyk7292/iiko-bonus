@@ -146,3 +146,25 @@ test('price generator products are saved and loaded for all devices', async () =
   assert.equal(history.data.history[0].username, 'owner');
   assert.equal(history.data.history[0].type, 'save');
 });
+
+test('price generator keeps templates and products separate for each city', async () => {
+  values.clear();
+  const astanaTemplate = {
+    ...template,
+    label: { ...template.label, width: 80 },
+  };
+  const saveTemplate = response();
+  await handler('post', '/admin/api/pricegenerator/template')(
+    { query: { city: 'astana' }, body: astanaTemplate },
+    saveTemplate,
+  );
+  assert.equal(saveTemplate.statusCode, 200);
+
+  const astanaRead = response();
+  await handler('get', '/api/pricegenerator/template')({ query: { city: 'astana' } }, astanaRead);
+  assert.deepEqual(astanaRead.data.template, astanaTemplate);
+
+  const aktauRead = response();
+  await handler('get', '/api/pricegenerator/template')({ query: { city: 'aktau' } }, aktauRead);
+  assert.equal(aktauRead.data.template, null);
+});
