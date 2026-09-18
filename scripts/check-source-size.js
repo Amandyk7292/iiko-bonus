@@ -5,7 +5,8 @@ const root = path.resolve(__dirname, '..');
 const budgets = new Map([
   ['admin-ui/src/index.css', 2320],
   ['admin-ui/src/pages/MenuPage.tsx', 80],
-  ['admin-ui/src/pages/menu/use-menu-page-controller.tsx', 900],
+  ['admin-ui/src/pages/menu/use-menu-page-controller.tsx', 700],
+  ['admin-ui/src/pages/menu/use-menu-product-options.ts', 275],
   ['admin-ui/src/pages/menu/MenuPageView.tsx', 620],
   ['admin-ui/src/pages/menu/MenuEditorModals.tsx', 1000],
   ['admin-ui/src/pages/WhatsAppPage.tsx', 80],
@@ -32,11 +33,14 @@ const budgets = new Map([
   ['BulkaAndroid/lib/screens/balance_history_screen.dart', 350],
   ['BulkaAndroid/lib/screens/login_screen.dart', 1505],
   ['BulkaAndroid/lib/widgets/stories.dart', 1620],
-  ['BulkaAndroid/lib/models/models.dart', 1640],
+  ['BulkaAndroid/lib/models/models.dart', 500],
+  ['BulkaAndroid/lib/models/engagement_models.dart', 575],
+  ['BulkaAndroid/lib/models/content_location_models.dart', 500],
   ['src/routes/admin.routes.js', 1670],
   ['src/services/legal-page.service.js', 1727],
   ['src/services/whatsapp-assistant-console.service.js', 1205],
-  ['src/services/yandex-delivery.service.js', 3600],
+  ['src/services/yandex-delivery.service.js', 3050],
+  ['src/services/yandex-delivery-payloads.js', 650],
 ]);
 
 const failures = [];

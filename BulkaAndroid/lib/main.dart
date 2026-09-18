@@ -122,6 +122,8 @@ part 'core/push_notifications.dart';
 part 'core/theme.dart';
 part 'models/fulfillment_slot.dart';
 part 'models/models.dart';
+part 'models/engagement_models.dart';
+part 'models/content_location_models.dart';
 part 'models/order_models.dart';
 part 'repositories/address_repository.dart';
 part 'repositories/contact_center_repository.dart';
