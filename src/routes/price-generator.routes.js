@@ -157,16 +157,14 @@ router.post(
   '/admin/api/pricegenerator/template',
   adminAuthMiddleware,
   ownerOrAdminOnly,
+  validateRequest({ body: templateSchema }),
   async (req, res) => {
-    const parsed = templateSchema.safeParse(req.body);
-    if (!parsed.success)
-      return res.status(400).json({ success: false, error: 'Некорректные настройки шаблона.' });
     try {
       const { error } = await supabase
         .from('settings')
-        .upsert({ key: TEMPLATE_KEY, value: JSON.stringify(parsed.data) }, { onConflict: 'key' });
+        .upsert({ key: TEMPLATE_KEY, value: JSON.stringify(req.body) }, { onConflict: 'key' });
       if (error) throw error;
-      return res.json({ success: true, template: parsed.data });
+      return res.json({ success: true, template: req.body });
     } catch {
       return res.status(503).json({ success: false, error: 'Не удалось сохранить общий шаблон.' });
     }
@@ -177,10 +175,8 @@ router.post(
   '/admin/api/pricegenerator/products',
   adminAuthMiddleware,
   ownerOrAdminOnly,
+  validateRequest({ body: productSaveSchema }),
   async (req, res) => {
-    const parsed = productSaveSchema.safeParse(req.body);
-    if (!parsed.success)
-      return res.status(400).json({ success: false, error: 'Проверьте заполнение товара.' });
     try {
       const { data: historyRow, error: historyReadError } = await supabase
         .from('settings')
@@ -191,7 +187,7 @@ router.post(
       const oldHistory = historyRow?.value ? JSON.parse(historyRow.value) : [];
       const history = [
         {
-          ...parsed.data.action,
+          ...req.body.action,
           username: String(req.admin?.username || req.admin?.sub || 'admin'),
           at: new Date().toISOString(),
         },
@@ -199,13 +195,13 @@ router.post(
       ].slice(0, 100);
       const { error } = await supabase.from('settings').upsert(
         [
-          { key: PRODUCTS_KEY, value: JSON.stringify(parsed.data.products) },
+          { key: PRODUCTS_KEY, value: JSON.stringify(req.body.products) },
           { key: HISTORY_KEY, value: JSON.stringify(history) },
         ],
         { onConflict: 'key' },
       );
       if (error) throw error;
-      return res.json({ success: true, products: parsed.data.products, history });
+      return res.json({ success: true, products: req.body.products, history });
     } catch {
       return res.status(503).json({ success: false, error: 'Не удалось сохранить товары.' });
     }

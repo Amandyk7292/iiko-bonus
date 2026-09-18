@@ -6,6 +6,8 @@ const {
   departmentsQuery,
   balancesQuery,
   balancesExportQuery,
+  revisionQuery,
+  cashReportQuery,
   controlsQuery,
   controlsExportQuery,
   receiptQuery,
@@ -24,6 +26,8 @@ function registerIikoDashboardRoutes(router, reporting = service) {
   const receiptJobs = new ReportJobs();
   const barterJobs = new ReportJobs();
   const invoiceJobs = new ReportJobs();
+  const revisionJobs = new ReportJobs();
+  const cashReportJobs = new ReportJobs();
   const ownerOnly = (req, res, next) => {
     if (!['owner', 'admin'].includes(req.admin?.role))
       return res.status(403).json({ code: 'FORBIDDEN', error: 'Недостаточно прав' });
@@ -40,6 +44,22 @@ function registerIikoDashboardRoutes(router, reporting = service) {
       });
     }
   };
+  router.post(
+    '/admin/api/iiko-dashboard/revision',
+    ownerOnly,
+    validateRequest({ body: revisionQuery }),
+    handle((req) =>
+      revisionJobs.read(JSON.stringify(req.body), () => reporting.revision(req.body)),
+    ),
+  );
+  router.post(
+    '/admin/api/iiko-dashboard/cash-report',
+    ownerOnly,
+    validateRequest({ body: cashReportQuery }),
+    handle((req) =>
+      cashReportJobs.read(JSON.stringify(req.body), () => reporting.cashReport(req.body)),
+    ),
+  );
   router.post(
     '/admin/api/iiko-dashboard/invoices',
     ownerOnly,

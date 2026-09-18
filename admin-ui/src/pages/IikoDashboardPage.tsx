@@ -14,6 +14,8 @@ import {
   PackageSearch,
   Handshake,
   PackagePlus,
+  ClipboardCheck,
+  ReceiptText,
 } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { isIikoRequestPending } from '../lib/iiko-request-policy';
@@ -40,6 +42,8 @@ import Settings, { parsePreferences, type Preferences } from './iiko-dashboard/S
 import Controls from './iiko-dashboard/Controls';
 import Barters from './iiko-dashboard/Barters';
 import Invoices from './iiko-dashboard/Invoices';
+import Revision from './iiko-dashboard/Revision';
+import CashReport from './iiko-dashboard/CashReport';
 import './iiko-dashboard/dashboard.css';
 import './iiko-dashboard/workspace.css';
 
@@ -50,6 +54,8 @@ const tabs = [
   { id: 'reports', icon: Table2 },
   { id: 'writeoffs', icon: ClipboardMinus },
   { id: 'invoices', icon: PackagePlus },
+  { id: 'revision', icon: ClipboardCheck },
+  { id: 'cashReport', icon: ReceiptText },
   { id: 'operations', icon: ShieldCheck },
   { id: 'barters', icon: Handshake },
   { id: 'assortment', icon: PackageSearch },
@@ -63,6 +69,8 @@ const departmentTabs = new Set([
   'reports',
   'writeoffs',
   'invoices',
+  'revision',
+  'cashReport',
   'operations',
   'barters',
   'assortment',
@@ -500,6 +508,8 @@ export default function IikoDashboardPage() {
           onSupplierChange={setSupplier}
         />
       )}
+      {tab === 'revision' && <Revision base={base} department={department} refresh={refresh} />}
+      {tab === 'cashReport' && <CashReport base={base} department={department} refresh={refresh} />}
       {tab === 'operations' && (
         <Controls
           key="operations"

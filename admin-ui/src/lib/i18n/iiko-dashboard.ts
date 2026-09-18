@@ -1,6 +1,8 @@
 const ru = {
   'id.departmentUnavailable': 'нет в справочнике',
   'id.invoices': 'Накладные',
+  'id.revision': 'Ревизия',
+  'id.cashReport': 'Отчёт по кассе',
   'id.barters': 'Бартеры',
   'id.operations': 'Скидки и возвраты',
   'id.assortment': 'Ассортимент',
@@ -158,6 +160,8 @@ type Keys = keyof typeof ru;
 const kk: Record<Keys, string> = {
   'id.departmentUnavailable': 'анықтамалықта жоқ',
   'id.invoices': 'Жүкқұжаттар',
+  'id.revision': 'Түгендеу',
+  'id.cashReport': 'Касса есебі',
   'id.barters': 'Бартерлер',
   'id.operations': 'Жеңілдіктер мен қайтарулар',
   'id.assortment': 'Ассортимент',
@@ -314,6 +318,8 @@ const kk: Record<Keys, string> = {
 const en: Record<Keys, string> = {
   'id.departmentUnavailable': 'not in directory',
   'id.invoices': 'Invoices',
+  'id.revision': 'Inventory audit',
+  'id.cashReport': 'Cash register report',
   'id.barters': 'Barters',
   'id.operations': 'Discounts and refunds',
   'id.assortment': 'Assortment',

@@ -68,6 +68,20 @@ const reportQuery = z
 const schemaQuery = z.object({ serverId, reportType: reportType.default('SALES') }).strict();
 const departmentsQuery = z.object({ serverId }).strict();
 const balancesQuery = z.object({ serverId, date }).strict();
+const revisionQuery = z
+  .object({ serverId, from: date, to: date, department: z.string().max(250).default('') })
+  .strict();
+const cashReportQuery = z
+  .object({
+    serverId,
+    from: date,
+    to: date,
+    department: z.string().max(250).default(''),
+    shift: z.string().max(80).default(''),
+    search: z.string().trim().max(160).default(''),
+  })
+  .strict()
+  .refine((input) => Date.parse(input.to) >= Date.parse(input.from), 'Некорректный период');
 const balancesExportQuery = z
   .object({
     serverId,
@@ -180,6 +194,8 @@ module.exports = {
   schemaQuery,
   departmentsQuery,
   balancesQuery,
+  revisionQuery,
+  cashReportQuery,
   balancesExportQuery,
   analyticsQuery,
   controlsQuery,

@@ -148,6 +148,12 @@ class IikoDashboardService {
   async invoices(input) {
     return require('./iiko-dashboard-invoices').invoices(this, input);
   }
+  async revision(input) {
+    return require('./iiko-dashboard-revision').revision(this, input);
+  }
+  async cashReport(input) {
+    return require('./iiko-dashboard-cash-report').cashReport(this, input);
+  }
   async barterPeople(report) {
     return require('./iiko-dashboard-barter-people').people(report);
   }

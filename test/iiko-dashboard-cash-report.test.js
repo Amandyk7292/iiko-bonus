@@ -1,0 +1,44 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { buildCashReport } = require('../src/services/iiko-dashboard-cash-report');
+
+test('cash report finds a product and keeps the complete check composition', () => {
+  const common = {
+    SessionNum: 14,
+    Department: 'Актау 1',
+    'UniqOrderId.Id': 'order-1',
+    OrderNum: 125,
+    'OpenDate.Typed': '2026-09-18',
+    CloseTime: '12:30',
+    Cashier: 'Алия',
+  };
+  const report = buildCashReport(
+    {
+      fetchedAt: 'now',
+      rows: [
+        {
+          ...common,
+          DishId: 'a',
+          DishName: 'Синнабон',
+          DishMeasureUnit: 'шт',
+          DishAmountInt: 2,
+          DishDiscountSumInt: 1800,
+        },
+        {
+          ...common,
+          DishId: 'b',
+          DishName: 'Кофе',
+          DishMeasureUnit: 'шт',
+          DishAmountInt: 1,
+          DishDiscountSumInt: 900,
+        },
+      ],
+    },
+    { shift: '14', search: 'синнабон' },
+  );
+  assert.equal(report.checks.length, 1);
+  assert.equal(report.checks[0].items.length, 2);
+  assert.equal(report.checks[0].total, 2700);
+  assert.equal(report.summary.quantity, 2);
+  assert.equal(report.summary.revenue, 1800);
+});
