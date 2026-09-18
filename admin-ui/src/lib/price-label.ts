@@ -111,7 +111,7 @@ export function buildPriceLabel(
   }
   if (nameSize < 30)
     errors.nameRu = 'Названия слишком длинные для ценника 10 × 6 см. Сократите их.';
-  let priceSize = qr ? 160 : 220;
+  let priceSize = qr ? 260 : 220;
   while (priceSize > 90 && measure(price, priceSize, true) > 890) priceSize -= 2;
   const composition = (text: string, prefix: string, field: 'ingredientsRu' | 'ingredientsKk') => {
     if (optionalDetails && !text.trim()) return { lines: [], size: 27 };
@@ -133,15 +133,19 @@ export function buildPriceLabel(
       errors[field] = 'Описание не помещается целиком. Сократите текст для ценника 10 × 6 см.';
     return { lines, size: Math.max(18, size) };
   };
-  const ru = composition(draft.ingredientsRu, 'Состав:', 'ingredientsRu');
-  const kk = composition(draft.ingredientsKk, 'Құрамы:', 'ingredientsKk');
+  const ru = qr
+    ? { lines: [], size: 27 }
+    : composition(draft.ingredientsRu, 'Состав:', 'ingredientsRu');
+  const kk = qr
+    ? { lines: [], size: 27 }
+    : composition(draft.ingredientsKk, 'Құрамы:', 'ingredientsKk');
   const readableNameSize = Math.max(30, nameSize);
   const namesY = 38 + readableNameSize * 0.8;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="60mm" viewBox="0 0 1000 600" role="img" aria-label="Ценник 10 на 6 сантиметров">
 <rect width="1000" height="600" fill="${background || LABEL_BACKGROUND}"/>
 <g fill="${textColor}" font-family="Arial, Helvetica, sans-serif">
 ${textBlock(nameLines, 500, namesY, readableNameSize, readableNameSize * 1.06, true)}
-${textBlock([price], 500, 370, priceSize, priceSize, true)}
+${textBlock([price], 500, qr ? 485 : 370, priceSize, priceSize, true)}
 ${textBlock(ru.lines, 250, 405, ru.size, ru.size * 1.12)}
 ${textBlock(kk.lines, 750, 405, kk.size, kk.size * 1.12)}
 </g>${qrSvg}${ru.lines.length || kk.lines.length ? '<path d="M500 385 V585" stroke="#CB842E" stroke-width="4" stroke-dasharray="17 10"/>' : ''}

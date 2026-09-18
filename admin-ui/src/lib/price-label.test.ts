@@ -43,6 +43,18 @@ describe('price labels', () => {
     expect(result.svg).toContain('<g fill="#12AB34"');
     expect(result.svg).toContain('<path fill="#FFFFFF"');
   });
+  it('hides composition and enlarges the price when QR is enabled', () => {
+    const id = '0669be83-bd9c-4e74-9150-dfc9a452e56b';
+    const qr = create(productPublicUrl(id), { errorCorrectionLevel: 'M' }).modules;
+    const withQr = buildPriceLabel(sample, measure, qr, true);
+    const withoutQr = buildPriceLabel(sample, measure, undefined, true);
+    expect(withQr.svg).not.toContain('Кукуруза');
+    expect(withQr.svg).not.toContain('Жүгері');
+    expect(withQr.svg).not.toContain('M500 385 V585');
+    expect(withQr.svg).toContain('y="485" font-size="260"');
+    expect(withoutQr.svg).toContain('Кукуруза');
+    expect(withoutQr.svg).toContain('Жүгері');
+  });
   it('does not repeat the composition prefix supplied in the description', () => {
     const result = buildPriceLabel(
       { ...sample, ingredientsRu: 'Состав: мука, молоко', ingredientsKk: 'Құрамы: ұн, сүт' },
