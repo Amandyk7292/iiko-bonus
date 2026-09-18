@@ -24,6 +24,7 @@ test('CSP routing mirrors one optional trailing slash without broad path matchin
     '/courier',
     '/maps/yandex',
     '/payments/forte-widget',
+    '/applink',
   ]) {
     const canonical = directivesForPath(canonicalPath, nonce);
     assert.deepEqual(directivesForPath(`${canonicalPath}/`, nonce), canonical, canonicalPath);

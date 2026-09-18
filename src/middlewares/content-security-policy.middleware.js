@@ -62,6 +62,8 @@ const staticDocumentPolicies = new Map([
   ['/screencakes/', staticDocumentPolicy('public/screencakes/index.html')],
   ['/pricegenerator', staticDocumentPolicy('public/pricegenerator/index.html')],
   ['/pricegenerator/', staticDocumentPolicy('public/pricegenerator/index.html')],
+  ['/applink', staticDocumentPolicy('public/applink/index.html')],
+  ['/applink/', staticDocumentPolicy('public/applink/index.html')],
   ['/account-deletion', staticDocumentPolicy('public/legal/account-deletion.html')],
 ]);
 const priceGeneratorPolicy = {
