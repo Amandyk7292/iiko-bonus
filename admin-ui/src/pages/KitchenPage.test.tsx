@@ -358,7 +358,7 @@ describe('Kitchen optimistic workflow', () => {
     });
 
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
-    expect(clearIntervalSpy).toHaveBeenCalledWith(alarmTimer);
+    await waitFor(() => expect(clearIntervalSpy).toHaveBeenCalledWith(alarmTimer));
     expect(realtimeMocks.stopOrderAlarm).toHaveBeenCalledTimes(1);
   });
 

@@ -377,6 +377,7 @@ abstract final class PushNotifications {
     AuthorizationStatus.authorized => 'authorized',
     AuthorizationStatus.provisional => 'provisional',
     AuthorizationStatus.denied => 'denied',
+    AuthorizationStatus.deniedPermanently => 'deniedPermanently',
     AuthorizationStatus.notDetermined => 'notDetermined',
   };
 
