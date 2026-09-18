@@ -50,6 +50,12 @@ export default function CashReport({
     [base.serverId, base.from, base.to, department, shift, submitted],
   );
   useEffect(() => {
+    setShift('');
+    setSearch('');
+    setSubmitted('');
+    setData(undefined);
+  }, [base.serverId, base.from, base.to, department]);
+  useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError('');

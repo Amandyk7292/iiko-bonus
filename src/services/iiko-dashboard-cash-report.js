@@ -103,7 +103,17 @@ async function cashReport(service, input) {
       fetchedAt: shiftReport.fetchedAt,
     };
 
-  const shiftFilters = [...filters, { field: 'SessionNum', values: [input.shift] }];
+  if (!shifts.some((shift) => shift.id === input.shift))
+    return {
+      shifts,
+      checks: [],
+      summary: { checks: 0, quantity: 0, revenue: 0 },
+      fetchedAt: shiftReport.fetchedAt,
+    };
+
+  const numericShift = Number(input.shift);
+  const shiftValue = Number.isFinite(numericShift) ? numericShift : input.shift;
+  const shiftFilters = [...filters, { field: 'SessionNum', values: [shiftValue] }];
   const products = await service.report({
     ...base,
     filters: shiftFilters,
