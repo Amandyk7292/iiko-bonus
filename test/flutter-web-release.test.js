@@ -31,9 +31,8 @@ test('web bootstrap versions every mutable Flutter entrypoint and checks for new
   assert.doesNotMatch(index, /<script src="flutter_bootstrap\.js"/);
   assert.doesNotMatch(index, /class="app-loading-label"/);
   assert.doesNotMatch(index, /class="app-loading-bar"/);
-  assert.match(index, /window\.setTimeout\(showLoadingError,\s*30000\)/);
-  assert.doesNotMatch(index, /setTimeout\([^)]*,\s*12000\)/);
-  assert.match(index, /src="assets\/assets\/brand\/app_icon_foreground\.png"/);
+  assert.doesNotMatch(index, /id="app-loading"/);
+  assert.doesNotMatch(index, /showLoadingError|flutter-first-frame/);
   assert.doesNotMatch(index, /bulka_logo\.png\?v=/);
   assert.match(appBootstrap, /flutter_service_worker\.js/);
   assert.match(appBootstrap, /registration\.unregister\(\)/);

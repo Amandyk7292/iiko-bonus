@@ -188,16 +188,12 @@ void main() {
     expect(missing, isEmpty);
   });
 
-  test(
-    'web loader stays visible until Flutter renders or retry is offered',
-    () {
-      final source = File('web/index.html').readAsStringSync();
-      expect(source, contains('flutter-first-frame'));
-      expect(source, contains('app-loading-error'));
-      expect(source, contains('app-loading-retry'));
-      expect(source, isNot(contains('setTimeout(hideLoading')));
-    },
-  );
+  test('web starts Flutter without a preloader overlay', () {
+    final source = File('web/index.html').readAsStringSync();
+    expect(source, isNot(contains('id="app-loading"')));
+    expect(source, isNot(contains('app-loading-error')));
+    expect(source, contains('app_bootstrap.js?v=__BULKA_RELEASE_VERSION__'));
+  });
 
   test('client UI has no hardcoded Cyrillic labels', () {
     final violations = <String>[];
@@ -1404,16 +1400,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(SplashScreen), findsOneWidget);
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is Image &&
-            widget.image is AssetImage &&
-            (widget.image as AssetImage).assetName ==
-                'assets/brand/app_icon_foreground.png',
-      ),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('splash-clean-logo')), findsNothing);
 
     await tester.pump(const Duration(milliseconds: 699));
     expect(find.byType(SplashScreen), findsOneWidget);

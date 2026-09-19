@@ -13,7 +13,7 @@ with sync_playwright() as playwright:
     browser = playwright.chromium.launch(headless=True)
     page = browser.new_page(viewport={"width": 393, "height": 852})
     page.goto(base_url, wait_until="domcontentloaded")
-    page.locator("#app-loading").wait_for(state="visible")
+    assert page.locator("#app-loading").count() == 0
 
     colors = page.evaluate(
         """
@@ -21,7 +21,6 @@ with sync_playwright() as playwright:
           themeColor: document.querySelector('meta[name="theme-color"]')?.content,
           html: getComputedStyle(document.documentElement).backgroundColor,
           body: getComputedStyle(document.body).backgroundColor,
-          loading: getComputedStyle(document.querySelector('#app-loading')).backgroundColor,
         })
         """
     )
@@ -30,7 +29,6 @@ with sync_playwright() as playwright:
     assert colors["themeColor"].lower() == "#ffffff", colors
     assert colors["html"] == "rgb(255, 255, 255)", colors
     assert colors["body"] == "rgb(255, 255, 255)", colors
-    assert colors["loading"] == "rgb(255, 255, 255)", colors
     assert manifest["background_color"].lower() == "#ffffff", manifest
     assert manifest["theme_color"].lower() == "#ffffff", manifest
 

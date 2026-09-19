@@ -14,12 +14,13 @@ OUTPUT_DIR = Path(os.environ.get("BULKA_UI_ARTIFACTS", "artifacts/client-ui"))
 
 def wait_for_flutter(page: Page) -> None:
     page.wait_for_load_state("domcontentloaded", timeout=30_000)
-    page.locator("#app-loading").wait_for(state="detached", timeout=40_000)
+    assert page.locator("#app-loading").count() == 0
+    page.locator("flutter-view").wait_for(state="attached", timeout=40_000)
     try:
         page.wait_for_load_state("networkidle", timeout=30_000)
     except Exception:
         # Live order and menu channels can keep the network active after the
-        # first stable frame. The detached loader remains the readiness gate.
+        # first stable frame. Flutter's view is the readiness gate.
         pass
     page.wait_for_timeout(800)
 

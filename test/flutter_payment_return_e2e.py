@@ -108,7 +108,8 @@ def api_route(route) -> None:
 
 def wait_for_flutter(page: Page) -> None:
     page.wait_for_load_state("domcontentloaded", timeout=30_000)
-    page.locator("#app-loading").wait_for(state="detached", timeout=40_000)
+    assert page.locator("#app-loading").count() == 0
+    page.locator("flutter-view").wait_for(state="attached", timeout=40_000)
     page.locator("flt-glass-pane").wait_for(state="attached", timeout=40_000)
     page.wait_for_timeout(1_500)
     placeholder = page.locator("flt-semantics-placeholder")

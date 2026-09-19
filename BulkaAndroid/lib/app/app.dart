@@ -1484,7 +1484,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   Widget _buildHome() {
-    if (_booting && !_publicShellReady) {
+    if (!kIsWeb && _booting && !_publicShellReady) {
       return SplashScreen(
         key: const ValueKey('app-stage-boot'),
         text: 'splash_loading'.tr,
@@ -1559,22 +1559,12 @@ class SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFFFB329),
       body: Semantics(
         container: true,
         liveRegion: true,
         label: text,
-        child: Center(
-          child: Image.asset(
-            'assets/brand/app_icon_foreground.png',
-            key: const ValueKey('splash-clean-logo'),
-            width: 256,
-            height: 256,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.high,
-            excludeFromSemantics: true,
-          ),
-        ),
+        child: const SizedBox.expand(),
       ),
     );
   }

@@ -35,7 +35,8 @@ async def main():
             await page.add_init_script("window.addEventListener('flutter-first-frame',()=>window.firstFrameMs=performance.now(),{once:true})")
             began = time.monotonic()
             await page.goto('http://127.0.0.1:4187/', wait_until='domcontentloaded')
-            await page.locator('#app-loading').wait_for(state='detached', timeout=15000)
+            assert await page.locator('#app-loading').count() == 0
+            await page.locator('flutter-view').wait_for(state='attached', timeout=15000)
             await page.locator('flt-semantics-placeholder').dispatch_event('click', timeout=10000)
             await expect(page.get_by_role('button', name=re.compile('^Каталог'))).to_be_visible(timeout=5000)
             elapsed = time.monotonic() - began

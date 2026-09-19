@@ -37,7 +37,7 @@ def main() -> None:
         page = context.new_page()
 
         def delay_flutter_bootstrap(route) -> None:
-            # Keep the HTML preloader on screen long enough to test it
+            # Delay Flutter so the test can verify no HTML preloader appears.
             # deterministically even when the release bundle is cached/fast.
             time.sleep(1.0)
             route.continue_()
@@ -58,13 +58,9 @@ def main() -> None:
         )
 
         page.goto(BASE_URL, wait_until="commit", timeout=30_000)
-        loading = page.locator("#app-loading")
-        loading.wait_for(state="visible", timeout=5_000)
-        assert loading.get_attribute("role") == "status"
-        page.locator(".app-loading-logo").wait_for(state="visible", timeout=5_000)
-
         page.wait_for_load_state("domcontentloaded", timeout=30_000)
-        loading.wait_for(state="detached", timeout=35_000)
+        assert page.locator("#app-loading").count() == 0
+        page.locator("flutter-view").wait_for(state="attached", timeout=35_000)
         page.wait_for_timeout(1_200)
         title = page.title()
         assert title == "Bulka — семейная пекарня", f"Unexpected page title: {title!r}"

@@ -286,22 +286,15 @@ void main() {
     },
   );
 
-  testWidgets('startup keeps one gold surface and a stationary centered logo', (
-    tester,
-  ) async {
+  testWidgets('startup fallback keeps one clean gold surface', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: SplashScreen(text: 'Loading Bulka')),
     );
     final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
-    expect(scaffold.backgroundColor, Colors.white);
-    expect(find.byType(Image), findsOneWidget);
+    expect(scaffold.backgroundColor, const Color(0xFFFFB329));
+    expect(find.byType(Image), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
-    final logo = find.byKey(const ValueKey('splash-clean-logo'));
-    expect(tester.getSize(logo), const Size(256, 256));
-    final center = tester.getCenter(logo);
-    expect(center, tester.getCenter(find.byType(Scaffold)));
     await tester.pump(const Duration(seconds: 3));
-    expect(tester.getCenter(logo), center);
     expect(find.text('Loading Bulka'), findsNothing);
   });
 
