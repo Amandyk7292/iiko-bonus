@@ -1,0 +1,31 @@
+.id-cash-report .id-report-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+}
+.id-cash-report .id-report-filters label:not(.id-check),
+.id-cash-report .id-report-filters select {
+  min-width: 0;
+  max-width: 100%;
+}
+.id-cash-report .id-report-filters select {
+  width: 100%;
+}
+.id-cash-shift-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 12px 0 20px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.id-cash-shift-meta strong {
+  color: var(--id-ink);
+}
+.id-cash-shift-meta span {
+  color: var(--id-muted);
+}
+@media (max-width: 700px) {
+  .id-cash-report .id-report-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

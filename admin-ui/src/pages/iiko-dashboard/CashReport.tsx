@@ -3,6 +3,7 @@ import { Search, ChevronDown } from 'lucide-react';
 import { useI18n } from '../../lib/i18n';
 import { loadControls } from './load-controls';
 import { errorKey, type Query } from './model';
+import './cash-report.css';
 
 type Item = { id: string; name: string; unit: string; quantity: number; total: number };
 type Check = {
@@ -16,56 +17,101 @@ type Check = {
   total: number;
   items: Item[];
 };
+type Shift = {
+  id: string;
+  number: string;
+  dateFrom: string;
+  dateTo: string;
+  department: string;
+  register: string;
+  checks: number;
+  revenue: number;
+};
 type Result = {
-  shifts: { id: string; checks: number; revenue: number }[];
+  shifts: Shift[];
   checks: Check[];
   summary: { checks: number; quantity: number; revenue: number };
 };
 
 export const cashItemMatches = (name: string, search: string) =>
   Boolean(
-    search.trim() &&
-      name.toLocaleLowerCase('ru').includes(search.trim().toLocaleLowerCase('ru')),
+    search.trim() && name.toLocaleLowerCase('ru').includes(search.trim().toLocaleLowerCase('ru')),
   );
 
-export default function CashReport({
-  base,
-  department,
-  refresh,
-}: {
+type Props = {
   base: Query;
   department: string;
   refresh: number;
-}) {
+};
+
+export default function CashReport(props: Props) {
+  const { base, department } = props;
+  // Changing scope must discard old selections before either request starts.
+  return (
+    <CashReportContent
+      key={JSON.stringify([base.serverId, base.from, base.to, department])}
+      {...props}
+    />
+  );
+}
+
+function CashReportContent({ base, department, refresh }: Props) {
   const { t, formatNumber, formatDate } = useI18n();
   const [shift, setShift] = useState('');
   const [search, setSearch] = useState('');
-  const [submitted, setSubmitted] = useState('');
+  const [submitted, setSubmitted] = useState({ text: '', attempt: 0 });
+  const [shifts, setShifts] = useState<Shift[]>([]);
   const [data, setData] = useState<Result>();
-  const [loading, setLoading] = useState(true);
+  const [loadingShifts, setLoadingShifts] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [shiftError, setShiftError] = useState('');
   const [error, setError] = useState('');
-  const query = useMemo(
+  const scope = useMemo(
     () => ({
       serverId: base.serverId,
       from: base.from,
       to: base.to,
       department,
-      shift,
-      search: submitted,
     }),
-    [base.serverId, base.from, base.to, department, shift, submitted],
+    [base.serverId, base.from, base.to, department],
   );
   useEffect(() => {
-    setShift('');
-    setSearch('');
-    setSubmitted('');
-    setData(undefined);
-  }, [base.serverId, base.from, base.to, department]);
+    const controller = new AbortController();
+    setLoadingShifts(true);
+    setShiftError('');
+    void loadControls<Result>(
+      { ...scope, shift: '', search: '' },
+      controller.signal,
+      '/iiko-dashboard/cash-report',
+    )
+      .then((value) => {
+        if (controller.signal.aborted) return;
+        setShifts(value.shifts);
+        setShift((current) => (value.shifts.some((item) => item.id === current) ? current : ''));
+      })
+      .catch((caught) => {
+        if (!controller.signal.aborted) setShiftError(errorKey(caught));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingShifts(false);
+      });
+    return () => controller.abort();
+  }, [scope, refresh]);
   useEffect(() => {
+    if (!shift || !submitted.text) {
+      setData(undefined);
+      setLoading(false);
+      setError('');
+      return;
+    }
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    void loadControls<Result>(query, controller.signal, '/iiko-dashboard/cash-report')
+    void loadControls<Result>(
+      { ...scope, shift, search: submitted.text },
+      controller.signal,
+      '/iiko-dashboard/cash-report',
+    )
       .then((value) => {
         if (!controller.signal.aborted) setData(value);
       })
@@ -76,7 +122,22 @@ export default function CashReport({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [query, refresh]);
+  }, [scope, shift, submitted, refresh]);
+  const selectedShift = shifts.find((item) => item.id === shift);
+  const shiftDate = (item: Shift) => {
+    const date = (value: string) =>
+      value
+        ? formatDate(`${value}T00:00:00Z`, {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            timeZone: 'UTC',
+          })
+        : 'Дата не указана';
+    return item.dateFrom && item.dateTo && item.dateFrom !== item.dateTo
+      ? `${date(item.dateFrom)} — ${date(item.dateTo)}`
+      : date(item.dateFrom || item.dateTo);
+  };
   return (
     <section className="card id-panel id-cash-report">
       <div className="id-report-intro">
@@ -105,16 +166,31 @@ export default function CashReport({
         className="id-report-filters"
         onSubmit={(e) => {
           e.preventDefault();
-          setSubmitted(search.trim());
+          if (!shift || !search.trim()) return;
+          setData(undefined);
+          setSubmitted((current) => ({ text: search.trim(), attempt: current.attempt + 1 }));
         }}
       >
         <label>
           <span>Кассовая смена</span>
-          <select value={shift} onChange={(e) => setShift(e.target.value)}>
-            <option value="">Выберите смену</option>
-            {data?.shifts.map((item) => (
+          <select
+            value={shift}
+            disabled={loadingShifts && !shifts.length}
+            onChange={(e) => {
+              setShift(e.target.value);
+              setData(undefined);
+              setSubmitted({ text: '', attempt: 0 });
+            }}
+          >
+            <option value="">
+              {loadingShifts && !shifts.length ? 'Загружаем смены…' : 'Выберите смену'}
+            </option>
+            {shifts.map((item) => (
               <option key={item.id} value={item.id}>
-                Смена {item.id} · {item.checks} чеков
+                {shiftDate(item)} · Смена {item.number || item.id}
+                {item.register ? ` · ${item.register}` : ''}
+                {!department && item.department ? ` · ${item.department}` : ''}
+                {` · ${item.checks} чеков`}
               </option>
             ))}
           </select>
@@ -134,14 +210,34 @@ export default function CashReport({
           Найти
         </button>
       </form>
-      {loading && <p role="status">{t('id.loading')}</p>}
-      {error && (
-        <p className="id-error" role="alert">
-          {t(error)}
+      {selectedShift && (
+        <p className="id-cash-shift-meta">
+          <strong>
+            {shiftDate(selectedShift)} · Смена {selectedShift.number || selectedShift.id}
+          </strong>
+          <span>
+            {[selectedShift.department, selectedShift.register].filter(Boolean).join(' · ')}
+          </span>
+          <span>Чеков в смене: {selectedShift.checks}</span>
         </p>
       )}
-      {data && !loading && !data.checks.length && (
-        <div className="id-empty">Чеки с таким товаром не найдены</div>
+      {(loading || (loadingShifts && !shifts.length)) && <p role="status">{t('id.loading')}</p>}
+      {(error || shiftError) && (
+        <p className="id-error" role="alert">
+          {t(error || shiftError)}
+        </p>
+      )}
+      {!error && !shiftError && !loading && !loadingShifts && !data && (
+        <div className="id-empty">
+          {!shifts.length
+            ? 'За выбранный период смены не найдены'
+            : !shift
+              ? 'Выберите смену по дате и кассе'
+              : 'Введите название товара и нажмите «Найти»'}
+        </div>
+      )}
+      {data && !error && !loading && !data.checks.length && (
+        <div className="id-empty">Чеки с таким товаром в выбранной смене не найдены</div>
       )}
       <div className="id-check-list">
         {data?.checks.map((check) => (
@@ -150,7 +246,14 @@ export default function CashReport({
               <div>
                 <strong>Чек № {check.number || '—'}</strong>
                 <span>
-                  {formatDate(check.date)} · {check.time || '—'} · {check.department}
+                  {formatDate(check.date, {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    timeZone: 'UTC',
+                  })}{' '}
+                  · {check.time?.match(/(?:T|^)(\d{2}:\d{2})/)?.[1] || check.time || '—'} ·{' '}
+                  {check.department}
                 </span>
               </div>
               <div>
@@ -171,11 +274,7 @@ export default function CashReport({
                 <tbody>
                   {check.items.map((item, index) => (
                     <tr
-                      className={
-                        cashItemMatches(item.name, submitted)
-                          ? 'id-found-item'
-                          : ''
-                      }
+                      className={cashItemMatches(item.name, submitted.text) ? 'id-found-item' : ''}
                       key={`${item.id}-${index}`}
                     >
                       <td>{item.name}</td>
