@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const { buildCashReport } = require('../src/services/iiko-dashboard-cash-report');
 const { cashReport } = require('../src/services/iiko-dashboard-cash-report');
 const { buildCashShifts } = require('../src/services/iiko-dashboard-cash-report');
+const { buildCashProducts } = require('../src/services/iiko-dashboard-cash-report');
+const { cashReportQuery } = require('../src/contracts/iiko-dashboard.contract');
 const { ReportCache } = require('../src/services/iiko-dashboard-cache');
 
 test('cash report finds a product and keeps the complete check composition', () => {
@@ -183,9 +185,16 @@ test('product searches reuse one full shift report and retain more than 500 comp
     search: 'кофе',
   };
   const first = await cashReport(service, input);
+  const suggestions = await cashReport(service, { ...input, search: '' });
   const second = await cashReport(service, { ...input, search: 'булочка' });
   const absent = await cashReport(service, { ...input, search: 'неизвестно' });
   assert.equal(queries.length, 2);
+  assert.deepEqual(suggestions.products, [
+    { id: 'bun', name: 'Булочка' },
+    { id: 'coffee', name: 'Кофе Американо' },
+  ]);
+  assert.equal(suggestions.checks.length, 0);
+  assert.equal(suggestions.summary.checks, 0);
   assert.equal(first.checks.length, 501);
   assert.equal(first.checks[0].items.length, 2);
   assert.equal(first.checks[0].total, 2480);
@@ -200,6 +209,80 @@ test('product searches reuse one full shift report and retain more than 500 comp
     ),
   );
   assert.equal(queries[1].serverId, 'astana-chain');
+});
+
+test('cash product suggestions are unique, sorted and limited to valid receipts of the selected session', () => {
+  const row = { SessionID: 'one', 'UniqOrderId.Id': 'receipt' };
+  assert.deepEqual(
+    buildCashProducts(
+      {
+        rows: [
+          { ...row, DishId: 'coffee', DishName: ' Кофе ' },
+          { ...row, DishId: 'bun', DishName: 'Булочка' },
+          { ...row, DishId: 'coffee', DishName: 'Кофе' },
+          { ...row, DishId: 'other', DishName: 'Другой город', SessionID: 'two' },
+          { ...row, DishId: 'no-receipt', DishName: 'Нет чека', 'UniqOrderId.Id': '' },
+          { ...row, DishId: 'empty', DishName: '  ' },
+        ],
+      },
+      'one',
+    ),
+    [
+      { id: 'bun', name: 'Булочка' },
+      { id: 'coffee', name: 'Кофе' },
+    ],
+  );
+});
+
+test('choosing a product matches its ID, keeps companion items and does not total similar names', () => {
+  const common = { SessionID: 'one', DishAmountInt: 1 };
+  const source = {
+    rows: [
+      {
+        ...common,
+        'UniqOrderId.Id': 'a',
+        DishId: 'coffee',
+        DishName: 'Кофе',
+        DishDiscountSumInt: 990,
+      },
+      {
+        ...common,
+        'UniqOrderId.Id': 'a',
+        DishId: 'large',
+        DishName: 'Кофе большой',
+        DishDiscountSumInt: 1200,
+      },
+      {
+        ...common,
+        'UniqOrderId.Id': 'b',
+        DishId: 'large',
+        DishName: 'Кофе большой',
+        DishDiscountSumInt: 1200,
+      },
+    ],
+  };
+  const exact = buildCashReport(source, { shift: 'one', search: 'Кофе', productId: 'coffee' });
+  assert.deepEqual(exact.summary, { checks: 1, quantity: 1, revenue: 990 });
+  assert.equal(exact.checks[0].items.length, 2);
+  assert.equal(exact.checks[0].total, 2190);
+  assert.deepEqual(buildCashReport(source, { shift: 'one', search: 'Кофе' }).summary, {
+    checks: 2,
+    quantity: 3,
+    revenue: 3390,
+  });
+});
+
+test('cash report contract accepts product selection and preserves free text queries', () => {
+  const input = {
+    serverId: 'astana-chain',
+    from: '2026-09-18',
+    to: '2026-09-19',
+    shift: 'one',
+    search: 'Кофе',
+  };
+  assert.equal(cashReportQuery.parse(input).productId, '');
+  assert.equal(cashReportQuery.parse({ ...input, productId: 'coffee' }).productId, 'coffee');
+  assert.equal(cashReportQuery.safeParse({ ...input, productId: 'a'.repeat(81) }).success, false);
 });
 
 test('cash report never combines different sessions that have the same number', async () => {

@@ -10,6 +10,67 @@
 .id-cash-report .id-report-filters select {
   width: 100%;
 }
+.id-cash-product-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.id-cash-report .id-cash-product-field > label {
+  flex: none;
+}
+.id-cash-suggestions {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  padding: 6px;
+  border: 1px solid var(--id-line);
+  border-radius: 14px;
+  background: var(--id-surface, #fff);
+  box-shadow: 0 12px 28px #35281720;
+}
+.id-cash-suggestions > p,
+.id-cash-suggestions-error {
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--id-muted);
+  font-size: 12px;
+}
+.id-cash-suggestions ul {
+  max-height: 260px;
+  max-height: min(260px, 40dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.id-dashboard .id-cash-suggestions [role='option'] {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--id-ink);
+  text-align: left;
+  font-size: 14px;
+  font-weight: 400;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  box-shadow: none;
+}
+.id-dashboard .id-cash-suggestions [role='option']:hover,
+.id-dashboard .id-cash-suggestions [role='option'][aria-selected='true'] {
+  background: #fff4da;
+  color: #63330d;
+}
+.id-cash-suggestions-error p {
+  margin: 0 0 8px;
+}
 .id-cash-shift-meta {
   display: flex;
   flex-wrap: wrap;

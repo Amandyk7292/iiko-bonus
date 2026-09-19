@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useI18n } from '../../lib/i18n';
 import { loadControls } from './load-controls';
 import { errorKey, type Query } from './model';
+import CashProductSearch from './CashProductSearch';
 import './cash-report.css';
 
 type Item = { id: string; name: string; unit: string; quantity: number; total: number };
@@ -59,7 +60,8 @@ function CashReportContent({ base, department, refresh }: Props) {
   const { t, formatNumber, formatDate } = useI18n();
   const [shift, setShift] = useState('');
   const [search, setSearch] = useState('');
-  const [submitted, setSubmitted] = useState({ text: '', attempt: 0 });
+  const [productId, setProductId] = useState('');
+  const [submitted, setSubmitted] = useState({ text: '', productId: '', attempt: 0 });
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [data, setData] = useState<Result>();
   const [loadingShifts, setLoadingShifts] = useState(true);
@@ -108,7 +110,7 @@ function CashReportContent({ base, department, refresh }: Props) {
     setLoading(true);
     setError('');
     void loadControls<Result>(
-      { ...scope, shift, search: submitted.text },
+      { ...scope, shift, search: submitted.text, productId: submitted.productId },
       controller.signal,
       '/iiko-dashboard/cash-report',
     )
@@ -123,6 +125,15 @@ function CashReportContent({ base, department, refresh }: Props) {
       });
     return () => controller.abort();
   }, [scope, shift, submitted, refresh]);
+  const submitSearch = (text: string, selectedId: string) => {
+    if (!shift || !text.trim()) return;
+    setData(undefined);
+    setSubmitted((current) => ({
+      text: text.trim(),
+      productId: selectedId,
+      attempt: current.attempt + 1,
+    }));
+  };
   const selectedShift = shifts.find((item) => item.id === shift);
   const shiftDate = (item: Shift) => {
     const date = (value: string) =>
@@ -166,9 +177,7 @@ function CashReportContent({ base, department, refresh }: Props) {
         className="id-report-filters"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!shift || !search.trim()) return;
-          setData(undefined);
-          setSubmitted((current) => ({ text: search.trim(), attempt: current.attempt + 1 }));
+          submitSearch(search, productId);
         }}
       >
         <label>
@@ -178,8 +187,10 @@ function CashReportContent({ base, department, refresh }: Props) {
             disabled={loadingShifts && !shifts.length}
             onChange={(e) => {
               setShift(e.target.value);
+              setSearch('');
+              setProductId('');
               setData(undefined);
-              setSubmitted({ text: '', attempt: 0 });
+              setSubmitted({ text: '', productId: '', attempt: 0 });
             }}
           >
             <option value="">
@@ -195,17 +206,22 @@ function CashReportContent({ base, department, refresh }: Props) {
             ))}
           </select>
         </label>
-        <label>
-          <span>Товар</span>
-          <div className="id-search-input">
-            <Search size={16} />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Например, Синнабон"
-            />
-          </div>
-        </label>
+        <CashProductSearch
+          key={shift}
+          scope={scope}
+          shift={shift}
+          refresh={refresh}
+          value={search}
+          onChange={(value) => {
+            setSearch(value);
+            setProductId('');
+          }}
+          onSelect={(product) => {
+            setSearch(product.name);
+            setProductId(product.id);
+            submitSearch(product.name, product.id);
+          }}
+        />
         <button type="submit" disabled={loading || !shift || !search.trim()}>
           Найти
         </button>
@@ -233,7 +249,7 @@ function CashReportContent({ base, department, refresh }: Props) {
             ? 'За выбранный период смены не найдены'
             : !shift
               ? 'Выберите смену по дате и кассе'
-              : 'Введите название товара и нажмите «Найти»'}
+              : 'Начните вводить название и выберите товар из подсказок или нажмите «Найти»'}
         </div>
       )}
       {data && !error && !loading && !data.checks.length && (
@@ -274,7 +290,15 @@ function CashReportContent({ base, department, refresh }: Props) {
                 <tbody>
                   {check.items.map((item, index) => (
                     <tr
-                      className={cashItemMatches(item.name, submitted.text) ? 'id-found-item' : ''}
+                      className={
+                        (
+                          submitted.productId
+                            ? item.id === submitted.productId
+                            : cashItemMatches(item.name, submitted.text)
+                        )
+                          ? 'id-found-item'
+                          : ''
+                      }
                       key={`${item.id}-${index}`}
                     >
                       <td>{item.name}</td>

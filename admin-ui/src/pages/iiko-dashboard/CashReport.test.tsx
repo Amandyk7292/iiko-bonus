@@ -33,8 +33,13 @@ describe('cash report page', () => {
     vi.mocked(loadControls)
       .mockReset()
       .mockImplementation(async (rawQuery) => {
-        const query = rawQuery as { shift?: string; search?: string };
+        const query = rawQuery as { shift?: string; search?: string; productId?: string };
         return {
+          products: [
+            { id: 'coffee', name: 'Кофе Американо' },
+            { id: 'coffee-large', name: 'Кофе Американо большой' },
+            { id: 'bun', name: 'Булочка' },
+          ],
           shifts: [
             {
               id: 'session-106',
@@ -48,7 +53,8 @@ describe('cash report page', () => {
             },
           ],
           checks:
-            query.shift === 'session-106' && query.search === 'кофе'
+            query.shift === 'session-106' &&
+            (query.search === 'кофе' || query.productId === 'coffee')
               ? [
                   {
                     id: 'check-4',
@@ -58,9 +64,16 @@ describe('cash report page', () => {
                     time: '08:18',
                     department: 'Астана',
                     cashier: 'Кассир',
-                    total: 990,
+                    total: 2190,
                     items: [
                       { id: 'coffee', name: 'Кофе Американо', unit: 'шт', quantity: 1, total: 990 },
+                      {
+                        id: 'coffee-large',
+                        name: 'Кофе Американо большой',
+                        unit: 'шт',
+                        quantity: 1,
+                        total: 1200,
+                      },
                     ],
                   },
                 ]
@@ -110,7 +123,7 @@ describe('cash report page', () => {
       ),
     );
     expect(await screen.findByText('Чек № 4')).toBeInTheDocument();
-    expect(screen.getAllByText('990 ₸')).toHaveLength(3);
+    expect(screen.getAllByText('990 ₸')).toHaveLength(2);
   });
 
   it('shows an API error', async () => {
@@ -141,7 +154,7 @@ describe('cash report page', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Найти' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Найти' }));
     expect(await screen.findByText('Чек № 4')).toBeInTheDocument();
-    expect(loadControls).toHaveBeenCalledTimes(3);
+    expect(loadControls).toHaveBeenCalledTimes(4);
   });
 
   it('keeps loaded shifts usable during background refresh', async () => {
@@ -164,7 +177,7 @@ describe('cash report page', () => {
     expect(screen.getByLabelText('Кассовая смена')).toBeEnabled();
     expect(screen.getByLabelText('Кассовая смена')).toHaveValue('session-106');
     expect(screen.getByRole('button', { name: 'Найти' })).toBeEnabled();
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByText('Получаем данные iiko…')).not.toBeInTheDocument();
   });
 
   it('resets the selection and aborts the old search when the city or period changes', async () => {
@@ -206,5 +219,42 @@ describe('cash report page', () => {
     );
     expect(screen.getByLabelText('Кассовая смена')).toHaveValue('');
     expect(screen.getByPlaceholderText('Например, Синнабон')).toHaveValue('');
+  });
+
+  it('opens receipts on suggestion selection and highlights only the selected product', async () => {
+    const view = render(
+      <I18nProvider>
+        <CashReport base={base} department="branch-1" refresh={0} />
+      </I18nProvider>,
+    );
+    await screen.findByRole('option', { name: /18.09.2026/ });
+    fireEvent.change(screen.getByLabelText('Кассовая смена'), { target: { value: 'session-106' } });
+    const input = screen.getByRole('combobox', { name: 'Товар' });
+    fireEvent.change(input, { target: { value: 'коф' } });
+    fireEvent.click(await screen.findByRole('option', { name: 'Кофе Американо' }));
+    expect(await screen.findByText('Чек № 4')).toBeInTheDocument();
+    expect(input).toHaveValue('Кофе Американо');
+    expect(input).toHaveAttribute('aria-expanded', 'false');
+    expect(loadControls).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        shift: 'session-106',
+        search: 'Кофе Американо',
+        productId: 'coffee',
+      }),
+      expect.anything(),
+      '/iiko-dashboard/cash-report',
+    );
+    expect(view.container.querySelectorAll('.id-found-item')).toHaveLength(1);
+    expect(view.container.querySelector('.id-found-item')).toHaveTextContent('Кофе Американо');
+    fireEvent.change(input, { target: { value: 'кофе' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Найти' }));
+    await waitFor(() =>
+      expect(loadControls).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: 'кофе', productId: '' }),
+        expect.anything(),
+        expect.anything(),
+      ),
+    );
+    await waitFor(() => expect(view.container.querySelectorAll('.id-found-item')).toHaveLength(2));
   });
 });

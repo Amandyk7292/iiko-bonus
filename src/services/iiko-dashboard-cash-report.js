@@ -64,10 +64,11 @@ function buildCashReport(report, input) {
     });
   }
   const query = clean(input.search).toLocaleLowerCase('ru');
+  const productId = clean(input.productId);
+  const matches = (item) =>
+    productId ? item.id === productId : !query || item.name.toLocaleLowerCase('ru').includes(query);
   const selected = [...checks.values()].filter(
-    (check) =>
-      (!input.shift || check.shift === input.shift) &&
-      (!query || check.items.some((item) => item.name.toLocaleLowerCase('ru').includes(query))),
+    (check) => (!input.shift || check.shift === input.shift) && check.items.some(matches),
   );
   selected.sort((a, b) => String(b.date + b.time).localeCompare(String(a.date + a.time)));
   return {
@@ -75,24 +76,27 @@ function buildCashReport(report, input) {
     summary: {
       checks: selected.length,
       quantity: selected.reduce(
-        (sum, check) =>
-          sum +
-          check.items
-            .filter((item) => !query || item.name.toLocaleLowerCase('ru').includes(query))
-            .reduce((n, item) => n + item.quantity, 0),
+        (sum, check) => sum + check.items.filter(matches).reduce((n, item) => n + item.quantity, 0),
         0,
       ),
       revenue: selected.reduce(
-        (sum, check) =>
-          sum +
-          check.items
-            .filter((item) => !query || item.name.toLocaleLowerCase('ru').includes(query))
-            .reduce((n, item) => n + item.total, 0),
+        (sum, check) => sum + check.items.filter(matches).reduce((n, item) => n + item.total, 0),
         0,
       ),
     },
     fetchedAt: report.fetchedAt,
   };
+}
+
+function buildCashProducts(report, shift) {
+  const products = new Map();
+  for (const row of report.rows) {
+    if (clean(row.SessionID) !== shift || !clean(row['UniqOrderId.Id'])) continue;
+    const id = clean(row.DishId);
+    const name = clean(row.DishName);
+    if (name) products.set(id || name, { id, name });
+  }
+  return [...products.values()].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
 }
 
 async function cashReport(service, input) {
@@ -117,11 +121,12 @@ async function cashReport(service, input) {
   const shifts = buildCashShifts(shiftReport);
   const empty = {
     shifts,
+    products: [],
     checks: [],
     summary: { checks: 0, quantity: 0, revenue: 0 },
     fetchedAt: shiftReport.fetchedAt,
   };
-  if (!input.shift || !clean(input.search)) return empty;
+  if (!input.shift) return empty;
 
   // Older tabs submit a number. Accept it only when it identifies one shift;
   // numbers repeat between tills and departments, whereas SessionID is unique.
@@ -132,7 +137,7 @@ async function cashReport(service, input) {
   const selected = candidates[0];
 
   // Load the full shift once. The report cache shares this query between product
-  // searches, preserving complete receipts without the old 100/500 item limits.
+  // suggestions and searches, preserving complete receipts without item limits.
   const report = await service.report({
     ...base,
     from: selected.dateFrom || input.from,
@@ -153,8 +158,11 @@ async function cashReport(service, input) {
     ],
     aggregate: ['DishAmountInt', 'DishDiscountSumInt'],
   });
+  const products = buildCashProducts(report, selected.id);
+  if (!clean(input.search) && !clean(input.productId))
+    return { ...empty, products, fetchedAt: report.fetchedAt };
   const result = buildCashReport(report, { ...input, shift: selected.id });
-  return { ...result, shifts };
+  return { ...result, shifts, products };
 }
 
-module.exports = { cashReport, buildCashReport, buildCashShifts };
+module.exports = { cashReport, buildCashReport, buildCashShifts, buildCashProducts };

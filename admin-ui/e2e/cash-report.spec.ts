@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('cash report shows dated shifts and searches complete receipts without loading on selection', async ({
+test('cash report suggests products locally and opens their complete receipts by click or keyboard', async ({
   page,
 }, testInfo) => {
   const department = 'Bulka 16 мкр 85 дом';
@@ -17,7 +17,7 @@ test('cash report shows dated shifts and searches complete receipts without load
       revenue: 597055.7,
     },
   ];
-  const requests: { shift: string; search: string }[] = [];
+  const requests: { shift: string; search: string; productId?: string }[] = [];
   await page.addInitScript(() => {
     localStorage.setItem('adminLocale', 'ru');
     localStorage.setItem('bulka-iiko-dashboard-v1', JSON.stringify({ auto: false }));
@@ -49,6 +49,13 @@ test('cash report shows dated shifts and searches complete receipts without load
       requests.push(query);
       return json({
         shifts,
+        products: query.shift
+          ? [
+              { id: 'bun', name: 'Булочка Лакомка' },
+              { id: 'coffee', name: 'Кофе Американо' },
+              { id: 'latte', name: 'Кофе Латте' },
+            ]
+          : [],
         checks: query.search
           ? [
               {
@@ -90,23 +97,53 @@ test('cash report shows dated shifts and searches complete receipts without load
   await select.selectOption(shiftId);
   await expect(report.locator('.id-cash-shift-meta')).toContainText('19.09.2026 · Смена 1004');
   await expect(report.locator('.id-cash-shift-meta')).toContainText(department);
-  await expect(report.getByText('Введите название товара и нажмите «Найти»')).toBeVisible();
-  await report.getByLabel('Товар', { exact: true }).fill('кофе');
+  await expect(report.getByText(/Начните вводить название/)).toBeVisible();
+  expect(requests.length).toBe(initialRequests);
+  const product = report.getByRole('combobox', { name: 'Товар', exact: true });
+  await product.fill('к');
+  await expect(report.getByRole('option', { name: 'Кофе Американо', exact: true })).toBeVisible();
+  await product.fill('ко');
+  await product.fill('кофе');
+  await expect(report.getByRole('listbox').getByRole('option')).toHaveCount(2);
+  await expect(report.getByRole('option', { name: 'Булочка Лакомка' })).toHaveCount(0);
+  expect(requests.length).toBe(initialRequests + 1);
+  await report.screenshot({ path: testInfo.outputPath('cash-product-suggestions.png') });
   expect(
     await report
       .getByLabel('Товар', { exact: true })
       .evaluate((input) => Number.parseFloat(getComputedStyle(input).paddingLeft)),
   ).toBeGreaterThanOrEqual(32);
-  expect(requests.length).toBe(initialRequests);
-  await report.getByRole('button', { name: 'Найти', exact: true }).click();
+  await report.getByRole('option', { name: 'Кофе Американо', exact: true }).click();
+  await expect(product).toHaveValue('Кофе Американо');
+  await expect(report.getByRole('listbox')).toHaveCount(0);
   await report.getByText('Чек № 4', { exact: true }).click();
   await expect(report.getByText('Булочка Лакомка', { exact: true })).toBeVisible();
   await expect(report.locator('.id-found-item')).toContainText('Кофе Американо');
   await expect(report.locator('.id-check-card summary')).toContainText('19.09.2026 · 08:18');
-  expect(requests.at(-1)).toMatchObject({ shift: shiftId, search: 'кофе', department });
-  expect(requests.length).toBe(initialRequests + 1);
+  expect(requests.at(-1)).toMatchObject({
+    shift: shiftId,
+    search: 'Кофе Американо',
+    productId: 'coffee',
+    department,
+  });
+  expect(requests.length).toBe(initialRequests + 2);
   expect(await report.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(
     true,
   );
   await report.screenshot({ path: testInfo.outputPath('cash-report.png') });
+  await product.fill('кофе');
+  await product.press('ArrowDown');
+  await expect(report.getByRole('option', { name: 'Кофе Американо', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await product.press('Enter');
+  await expect(report.getByText('Чек № 4', { exact: true })).toBeVisible();
+  expect(requests.at(-1)?.productId).toBe('coffee');
+  expect(requests.length).toBe(initialRequests + 3);
+  await product.fill('коф');
+  await product.press('Enter');
+  await expect(report.getByText('Чек № 4', { exact: true })).toBeVisible();
+  expect(requests.at(-1)).toMatchObject({ search: 'коф', productId: '' });
+  expect(requests.length).toBe(initialRequests + 4);
 });
