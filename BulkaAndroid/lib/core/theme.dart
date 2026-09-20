@@ -1,6 +1,18 @@
 part of '../main.dart';
 
 const _bulkaYellow = Color(0xFFFFB300);
+// Highlights blended into brand yellow keep the glass finish fully opaque.
+const _bulkaGlassGradient = LinearGradient(
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+  colors: [
+    Color(0xFFFFD061),
+    Color(0xFFFFBC1F),
+    _bulkaYellow,
+    Color(0xFFFAAE01),
+  ],
+  stops: [0, 0.34, 0.66, 1],
+);
 const _bulkaBrown = Color(0xFF532814);
 const _milkyBackground = Color(0xFFFFFFFF);
 const _lightCard = Color(0xFFFFFFFF);

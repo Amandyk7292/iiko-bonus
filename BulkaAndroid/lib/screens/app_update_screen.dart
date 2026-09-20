@@ -157,6 +157,7 @@ class _UpdateIllustration extends StatelessWidget {
                 height: size * 0.31,
                 decoration: BoxDecoration(
                   color: _bulkaYellow,
+                  gradient: _bulkaGlassGradient,
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 4),
                   boxShadow: BulkaShadows.floatingAction,

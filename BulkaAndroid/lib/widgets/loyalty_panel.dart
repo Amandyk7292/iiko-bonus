@@ -31,6 +31,7 @@ class _LoyaltyPanel extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(BulkaRadii.card),
             color: _bulkaYellow,
+            gradient: _bulkaGlassGradient,
             boxShadow: BulkaShadows.raisedCard,
           ),
           child: Stack(
@@ -457,6 +458,7 @@ class _RewardProgress extends StatelessWidget {
                   height: 8,
                   decoration: BoxDecoration(
                     color: _bulkaYellow,
+                    gradient: _bulkaGlassGradient,
                     borderRadius: BorderRadius.circular(BulkaRadii.pill),
                   ),
                 ),
@@ -544,6 +546,7 @@ class _StampDot extends StatelessWidget {
       height: 42,
       decoration: BoxDecoration(
         color: filled ? _bulkaYellow : Colors.white,
+        gradient: filled ? _bulkaGlassGradient : null,
         shape: BoxShape.circle,
         border: Border.all(
           color: filled ? const Color(0xFFD0AA5A) : const Color(0xFFF0EFED),

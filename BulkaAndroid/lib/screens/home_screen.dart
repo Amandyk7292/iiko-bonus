@@ -678,7 +678,7 @@ class _OrderTypeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final illustrationWidth = tall ? 230.0 : 142.0;
+    final illustrationWidth = tall ? 230.0 : 110.0;
     return BulkaPressScale(
       enabled: onTap != null,
       child: Container(
@@ -689,7 +689,7 @@ class _OrderTypeCard extends StatelessWidget {
         key: ValueKey('order-card-${illustration.name}'),
         height: MediaQuery.textScalerOf(context).scale(1) > 1.3
             ? 80 + MediaQuery.textScalerOf(context).scale(48)
-            : (tall ? 202 : 96),
+            : (tall ? 234 : 112),
         child: Material(
           key: ValueKey('order-card-clip-${illustration.name}'),
           color: Colors.transparent,
@@ -708,6 +708,7 @@ class _OrderTypeCard extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(BulkaRadii.card),
                 color: _bulkaYellow,
+                gradient: _bulkaGlassGradient,
               ),
               child: DecoratedBox(
                 position: DecorationPosition.foreground,
@@ -718,16 +719,15 @@ class _OrderTypeCard extends StatelessWidget {
                   clipBehavior: Clip.hardEdge,
                   children: [
                     Positioned(
-                      // Enlarge the artwork below the heading, keeping the
-                      // lower-left action unobstructed.
-                      right: tall ? -46 : -26,
-                      bottom: tall ? -18 : -30,
+                      // Keep small illustrations below two-line localized titles.
+                      right: tall ? -46 : -12,
+                      bottom: tall ? -18 : -27,
                       child: SizedBox(
                         key: ValueKey(
                           'order-illustration-${illustration.name}',
                         ),
                         width: illustrationWidth,
-                        height: tall ? 198 : 112,
+                        height: tall ? 198 : 84,
                         child: _DeferredOrderIllustration(
                           assetPath: illustration.assetPath,
                           fit: BoxFit.contain,

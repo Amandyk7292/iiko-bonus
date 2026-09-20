@@ -272,6 +272,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         color: _bulkaYellow,
+                        gradient: _bulkaGlassGradient,
                         borderRadius: BorderRadius.circular(BulkaRadii.card),
                       ),
                       child: TextButton(

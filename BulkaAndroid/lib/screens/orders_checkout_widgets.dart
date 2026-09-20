@@ -241,6 +241,7 @@ class _PreorderScheduleField extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             decoration: BoxDecoration(
               color: _bulkaYellow,
+              gradient: _bulkaGlassGradient,
               borderRadius: BorderRadius.circular(BulkaRadii.card),
             ),
             child: Row(

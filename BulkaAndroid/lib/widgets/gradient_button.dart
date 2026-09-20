@@ -57,7 +57,7 @@ class GradientButton extends StatelessWidget {
                 ? const LinearGradient(
                     colors: [Color(0xFFE0E0E0), Color(0xFFBDBDBD)],
                   )
-                : gradient,
+                : gradient ?? _bulkaGlassGradient,
             boxShadow: disabled ? null : shadows ?? BulkaShadows.primaryAction,
           ),
           child: FilledButton(

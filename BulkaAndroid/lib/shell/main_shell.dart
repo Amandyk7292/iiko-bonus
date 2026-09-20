@@ -549,6 +549,7 @@ class _NavButton extends StatelessWidget {
                                 : 44),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
+                        gradient: selected ? _bulkaGlassGradient : null,
                         color: selected
                             ? _bulkaYellow
                             : centerIdle

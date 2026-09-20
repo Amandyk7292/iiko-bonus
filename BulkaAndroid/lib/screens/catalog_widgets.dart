@@ -458,6 +458,7 @@ class _CatalogImageQuantityControl extends StatelessWidget {
         height: 50,
         decoration: BoxDecoration(
           color: _bulkaYellow,
+          gradient: _bulkaGlassGradient,
           borderRadius: BorderRadius.circular(BulkaRadii.card),
           border: Border.all(color: Colors.white, width: 2),
           boxShadow: BulkaShadows.floatingAction,
