@@ -679,8 +679,6 @@ class _OrderTypeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final illustrationWidth = tall ? 230.0 : 142.0;
-    final cacheWidth =
-        (illustrationWidth * MediaQuery.devicePixelRatioOf(context)).ceil();
     return BulkaPressScale(
       enabled: onTap != null,
       child: Container(
@@ -696,7 +694,7 @@ class _OrderTypeCard extends StatelessWidget {
           key: ValueKey('order-card-clip-${illustration.name}'),
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(BulkaRadii.card),
-          clipBehavior: Clip.antiAlias,
+          clipBehavior: Clip.antiAliasWithSaveLayer,
           child: InkWell(
             onTap: onTap == null
                 ? null
@@ -704,11 +702,11 @@ class _OrderTypeCard extends StatelessWidget {
                     BulkaMotion.lightImpact();
                     onTap!();
                   },
-            borderRadius: BorderRadius.circular(BulkaRadii.control),
+            borderRadius: BorderRadius.circular(BulkaRadii.card),
             child: Ink(
               key: ValueKey('order-card-background-${illustration.name}'),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(BulkaRadii.control),
+                borderRadius: BorderRadius.circular(BulkaRadii.card),
                 gradient: _bulkaWarmGradient,
               ),
               child: DecoratedBox(
@@ -742,7 +740,6 @@ class _OrderTypeCard extends StatelessWidget {
                         child: _DeferredOrderIllustration(
                           assetPath: illustration.assetPath,
                           fit: BoxFit.contain,
-                          cacheWidth: cacheWidth,
                         ),
                       ),
                     ),
@@ -781,8 +778,8 @@ class _OrderTypeCard extends StatelessWidget {
 }
 
 enum _OrderIllustrationKind {
-  pickup('assets/order/pickup_clean.png'),
-  preorder('assets/order/preorder_clean.png'),
+  pickup('assets/order/pickup_transparent.png'),
+  preorder('assets/order/preorder_transparent.png'),
   delivery('assets/order/delivery.webp');
 
   const _OrderIllustrationKind(this.assetPath);
@@ -794,12 +791,10 @@ class _DeferredOrderIllustration extends StatefulWidget {
   const _DeferredOrderIllustration({
     required this.assetPath,
     required this.fit,
-    required this.cacheWidth,
   });
 
   final String assetPath;
   final BoxFit fit;
-  final int cacheWidth;
 
   @override
   State<_DeferredOrderIllustration> createState() =>
@@ -828,8 +823,7 @@ class _DeferredOrderIllustrationState
           ? Image.asset(
               widget.assetPath,
               fit: widget.fit,
-              cacheWidth: widget.cacheWidth,
-              filterQuality: FilterQuality.medium,
+              filterQuality: FilterQuality.high,
             )
           : const SizedBox.expand(),
     );
