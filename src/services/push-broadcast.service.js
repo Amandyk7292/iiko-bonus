@@ -30,8 +30,8 @@ async function broadcastCustomerPush(
       .insert(
         customers.map((customer) => ({
           customer_id: customer.id,
-          title: titles[language(customer)],
-          body: bodies[language(customer)],
+          title: (titles[language(customer)] || titles.ru),
+          body: (bodies[language(customer)] || bodies.ru),
           type: 'broadcast',
           payload: { i18n: { titles, bodies } },
         })),
@@ -47,8 +47,8 @@ async function broadcastCustomerPush(
           .map((customer) =>
             send(
               customer.id,
-              titles[language(customer)],
-              bodies[language(customer)],
+              (titles[language(customer)] || titles.ru),
+              (bodies[language(customer)] || bodies.ru),
               { notificationId: String(notificationIds.get(customer.id) || ''), type: 'broadcast' },
               customer.fcm_token,
             ),

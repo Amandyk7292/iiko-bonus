@@ -102,3 +102,11 @@ test('the audience is paginated past the database default row limit', async () =
   assert.equal(new Set(f.calls.map((c) => c[0])).size, 1001);
   assert.equal(f.ranges.length, 5);
 });
+
+
+test('retired English preference receives Russian when only RU and KK are supplied', async () => {
+  const f = fixture([{id: 'old-en', preferred_language: 'en'}]);
+  await broadcastCustomerPush({ru: 'Заголовок', kk: 'Тақырып'}, {ru: 'Текст', kk: 'Мәтін'}, f.deps);
+  assert.equal(f.notifications[0].title, 'Заголовок');
+  assert.equal(f.calls[0][2], 'Текст');
+});
