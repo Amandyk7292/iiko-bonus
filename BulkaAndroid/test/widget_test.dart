@@ -2154,7 +2154,11 @@ void main() {
         find.byKey(ValueKey('order-card-background-$name')),
       );
       final decoration = ink.decoration! as BoxDecoration;
-      expect(decoration.image, isNull);
+      expect(
+        decoration.image?.image,
+        const AssetImage('assets/brand/order_background.png'),
+      );
+      expect(decoration.image?.fit, BoxFit.cover);
     }
     expect(find.byKey(const ValueKey('order-splash-pickup')), findsNothing);
     expect(deliveryArtworkRect.width, closeTo(230, 0.01));

@@ -715,7 +715,10 @@ class _OrderTypeCard extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(BulkaRadii.card),
                 color: _bulkaYellow,
-                gradient: _bulkaGlassGradient,
+                image: const DecorationImage(
+                  image: AssetImage('assets/brand/order_background.png'),
+                  fit: BoxFit.cover,
+                ),
               ),
               child: DecoratedBox(
                 position: DecorationPosition.foreground,
