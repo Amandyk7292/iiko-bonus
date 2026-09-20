@@ -157,7 +157,7 @@ class _StaffWhatsAppState extends State<StaffWhatsApp> {
           'supportedLanguages',
           staffText('Языки', 'Тілдер', 'Languages'),
           type: 'multi',
-          options: {'ru': 'Русский', 'kk': 'Қазақша', 'en': 'English'},
+          options: {'ru': 'Русский', 'kk': 'Қазақша'},
         ),
         StaffField(
           'historyMessages',

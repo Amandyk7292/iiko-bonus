@@ -17,7 +17,7 @@ import { api, type LocalizedText, type LoyaltyTier, type LoyaltyTierInput } from
 import { useI18n, type Locale } from '../lib/i18n';
 
 const emptyLocalized = (): LocalizedText => ({ ru: '', kk: '', en: '' });
-const contentLocales: Locale[] = ['ru', 'kk', 'en'];
+const contentLocales: Locale[] = ['ru', 'kk'];
 type NumericDraftValue = number | '';
 type TierDraft = Omit<LoyaltyTierInput, 'minSpend' | 'cashbackPercent' | 'sortOrder'> & {
   minSpend: NumericDraftValue;

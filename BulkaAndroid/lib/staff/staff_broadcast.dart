@@ -9,12 +9,10 @@ class StaffBroadcast extends StatefulWidget {
 
 class _StaffBroadcastState extends State<StaffBroadcast> {
   final _titles = {
-    for (final language in ['ru', 'kk', 'en'])
-      language: TextEditingController(),
+    for (final language in ['ru', 'kk']) language: TextEditingController(),
   };
   final _bodies = {
-    for (final language in ['ru', 'kk', 'en'])
-      language: TextEditingController(),
+    for (final language in ['ru', 'kk']) language: TextEditingController(),
   };
   String _language = 'ru';
   String? _error, _result;
@@ -25,8 +23,8 @@ class _StaffBroadcastState extends State<StaffBroadcast> {
         _bodies.values.any((c) => c.text.trim().isEmpty)) {
       setState(
         () => _error = staffText(
-          'Заполните заголовок и текст на трёх языках',
-          'Тақырып пен мәтінді үш тілде толтырыңыз',
+          'Заполните заголовок и текст на русском и казахском',
+          'Тақырып пен мәтінді орыс және қазақ тілдерінде толтырыңыз',
           'Enter title and message in all three languages',
         ),
       );
@@ -51,7 +49,7 @@ class _StaffBroadcastState extends State<StaffBroadcast> {
         'Send to all subscribers?',
       ),
       description: [
-        for (final language in ['ru', 'kk', 'en'])
+        for (final language in ['ru', 'kk'])
           '${language.toUpperCase()}\n${title[language]}\n${body[language]}',
       ].join('\n\n'),
       fields: [],
@@ -94,7 +92,7 @@ class _StaffBroadcastState extends State<StaffBroadcast> {
       StaffPicker(
         label: staffText('Язык', 'Тіл', 'Language'),
         value: _language,
-        options: {'ru': 'Русский', 'kk': 'Қазақша', 'en': 'English'},
+        options: {'ru': 'Русский', 'kk': 'Қазақша'},
         onChanged: (v) {
           if (!_busy) setState(() => _language = v);
         },

@@ -177,7 +177,7 @@ const ru: Record<string, string> = {
   'contacts.actionVisible': 'Кнопка видна',
   'contacts.actionHidden': 'Кнопка скрыта',
   'contacts.actionLabel': 'Подпись кнопки',
-  'contacts.validationLanguages': 'Заполните текст на русском, казахском и английском языках.',
+  'contacts.validationLanguages': 'Заполните текст на русском и казахском языках.',
   'contacts.validationTarget': 'Укажите телефон, email или безопасную ссылку.',
   'contacts.validationCompact':
     'У активной компактной группы должна быть хотя бы одна активная кнопка.',
@@ -439,7 +439,7 @@ const ru: Record<string, string> = {
   'broadcast.queued':
     'Передано сервису отправки: {{count}}. Ожидают повторной попытки: {{queuedCount}}.',
   'broadcast.partial': 'Передано сервису отправки: {{count}}. Часть устройств недоступна.',
-  'broadcast.validation': 'Заполните заголовок и текст на русском, казахском и английском.',
+  'broadcast.validation': 'Заполните заголовок и текст на русском и казахском.',
   'customers.export': 'Экспорт CSV',
   'customers.searchPlaceholder': 'Имя или номер телефона',
   'customers.notify': 'Напомнить гостям',
@@ -533,7 +533,7 @@ const ru: Record<string, string> = {
   'tiers.deactivate': 'Деактивировать',
   'tiers.previewSpend': 'Покупки от {{amount}} ₸',
   'tiers.previewCashback': '{{percent}}% кэшбэк',
-  'tiers.validationNames': 'Заполните название на русском, казахском и английском.',
+  'tiers.validationNames': 'Заполните название на русском и казахском.',
   'tiers.validationCode': 'Введите системный код латиницей.',
   'tiers.validationNumbers':
     'Порог не может быть отрицательным, а кэшбэк должен быть от 0 до 100%.',
@@ -652,7 +652,7 @@ const ru: Record<string, string> = {
   'locations.latitude': 'Широта',
   'locations.longitude': 'Долгота',
   'locations.allLanguagesValidation':
-    'Заполните обязательные поля на русском, казахском и английском.',
+    'Заполните обязательные поля на русском и казахском.',
   'locations.saved': 'Локация сохранена',
   'locations.fulfillmentIntro':
     'Настройте доступность филиалов, способы получения, расписание и реальные правила доставки.',

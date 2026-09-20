@@ -270,7 +270,7 @@ class _BulkaPermissionGateState extends State<BulkaPermissionGate> {
       debugShowCheckedModeBanner: false,
       theme: buildBulkaTheme(),
       locale: Locale(AppLang.current),
-      supportedLocales: const [Locale('ru'), Locale('kk'), Locale('en')],
+      supportedLocales: const [Locale('ru'), Locale('kk')],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

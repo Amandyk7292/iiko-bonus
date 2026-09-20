@@ -94,7 +94,8 @@ function validateTierPayload(payload, { existing = null, partial = false } = {})
   const names = {};
   const descriptions = {};
   for (const language of ['ru', 'kk', 'en']) {
-    const nameValue = readLocalized(payload, 'names', language) ?? base?.names?.[language];
+    const nameValue = readLocalized(payload, 'names', language) || base?.names?.[language] ||
+      (language === 'en' ? readLocalized(payload, 'names', 'ru') || base?.names?.ru : undefined);
     if (!partial || readLocalized(payload, 'names', language) !== undefined || payload.names) {
       names[language] = parseText(nameValue, `names.${language}`, { max: 80 });
     } else if (base) {

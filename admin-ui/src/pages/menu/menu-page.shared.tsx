@@ -114,7 +114,6 @@ export type MenuLanguage = 'ru' | 'kk' | 'en';
 export const menuLanguages: ReadonlyArray<{ value: MenuLanguage; label: string }> = [
   { value: 'ru', label: 'Русский' },
   { value: 'kk', label: 'Қазақша' },
-  { value: 'en', label: 'English' },
 ];
 
 export const emptyTranslations = (): Record<MenuLanguage, string> => ({ ru: '', kk: '', en: '' });
@@ -652,7 +651,6 @@ export type OptionLanguage = 'ru' | 'kk' | 'en';
 export const optionLanguages: Array<{ code: OptionLanguage; label: string }> = [
   { code: 'ru', label: 'Название RU' },
   { code: 'kk', label: 'Атауы KZ' },
-  { code: 'en', label: 'Name EN' },
 ];
 
 export const modifierGroupTemplates: Record<string, Record<OptionLanguage, string>> = {

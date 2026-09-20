@@ -83,7 +83,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
             </div>
           ))}
           <p className="page-help">
-            Если KZ или EN не заполнены, приложение использует русское название.
+            Если KZ не заполнен, приложение использует русское название.
           </p>
           <div className="modal-actions">
             <button
@@ -117,7 +117,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
             <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
               <h4 className="text-sm font-semibold text-gray-800">Тексты</h4>
               <div className="flex bg-gray-200 p-1 rounded-lg text-xs font-medium">
-                {(['ru', 'kk', 'en'] as const).map((l) => (
+                {(['ru', 'kk'] as const).map((l) => (
                   <button
                     key={l}
                     type="button"

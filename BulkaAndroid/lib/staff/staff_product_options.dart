@@ -149,20 +149,20 @@ class _StaffProductOptionsState extends State<StaffProductOptions> {
 
   Map<String, dynamic> _localizedInitial(Map<String, dynamic> value) => {
     ...value,
-    for (final language in ['ru', 'kk', 'en'])
+    for (final language in ['ru', 'kk'])
       'title.$language':
           (value['title'] as Map?)?[language] ?? value['name'] ?? '',
   };
   Map<String, dynamic> _localizedValues(Map<String, dynamic> values) {
     values['title'] = {
-      for (final language in ['ru', 'kk', 'en'])
+      for (final language in ['ru', 'kk'])
         language: values.remove('title.$language'),
     };
     return values;
   }
 
   List<StaffField> get _titles => [
-    for (final language in ['ru', 'kk', 'en'])
+    for (final language in ['ru', 'kk'])
       StaffField(
         'title.$language',
         '${staffText('Название', 'Атауы', 'Title')} · ${language.toUpperCase()}',

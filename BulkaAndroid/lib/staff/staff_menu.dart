@@ -120,7 +120,7 @@ class _StaffMenuState extends State<StaffMenu> {
     String label,
     int length,
   ) => [
-    for (final language in ['ru', 'kk', 'en'])
+    for (final language in ['ru', 'kk'])
       StaffField(
         '$prefix.$language',
         '$label · ${language.toUpperCase()}',
@@ -229,7 +229,7 @@ class _StaffMenuState extends State<StaffMenu> {
           override['fulfillment_types'] ?? ['pickup', 'delivery', 'preorder'],
     };
     for (final prefix in ['name_translations', 'description_translations']) {
-      for (final language in ['ru', 'kk', 'en']) {
+      for (final language in ['ru', 'kk']) {
         initial['$prefix.$language'] =
             (override[prefix] as Map?)?[language] ?? '';
       }
@@ -245,7 +245,7 @@ class _StaffMenuState extends State<StaffMenu> {
           if (!category) 'description_translations',
         ]) {
           values[prefix] = {
-            for (final language in ['ru', 'kk', 'en'])
+            for (final language in ['ru', 'kk'])
               language: values.remove('$prefix.$language'),
           };
         }
@@ -347,7 +347,7 @@ class _StaffMenuState extends State<StaffMenu> {
     for (final key in ['allergens', 'dietary_tags', 'search_keywords']) {
       if (row[key] is List) initial[key] = (row[key] as List).join(', ');
     }
-    for (final language in ['ru', 'kk', 'en']) {
+    for (final language in ['ru', 'kk']) {
       initial['ingredients_translations.$language'] =
           (row['ingredients_translations'] as Map?)?[language] ?? '';
     }
@@ -364,7 +364,7 @@ class _StaffMenuState extends State<StaffMenu> {
 
   Map<String, dynamic> _factsValues(Map<String, dynamic> values) {
     values['ingredients_translations'] = {
-      for (final language in ['ru', 'kk', 'en'])
+      for (final language in ['ru', 'kk'])
         language: values.remove('ingredients_translations.$language'),
     };
     for (final key in ['allergens', 'dietary_tags', 'search_keywords']) {

@@ -181,9 +181,9 @@ describe('WhatsApp selected and icon control states', () => {
     );
 
     const russian = screen.getByRole('checkbox', { name: 'Русский' });
-    const english = screen.getByRole('checkbox', { name: 'English' });
+    const english = screen.queryByRole('checkbox', { name: 'English' });
     expect(russian).toBeChecked();
-    expect(english).not.toBeChecked();
+    expect(english).not.toBeInTheDocument();
     expect(russian.closest('label')?.querySelector('.whatsapp-language-check')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Показать API-ключ' })).toHaveAttribute(
       'title',

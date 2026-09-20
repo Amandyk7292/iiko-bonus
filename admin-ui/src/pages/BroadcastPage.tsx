@@ -4,7 +4,7 @@ import { useFeedback } from '../components/Feedback';
 import { api, type LocalizedText } from '../lib/api';
 import { useI18n, type Locale } from '../lib/i18n';
 
-const languages: Locale[] = ['ru', 'kk', 'en'];
+const languages: Locale[] = ['ru', 'kk'];
 const emptyLocalized = (): LocalizedText => ({ ru: '', kk: '', en: '' });
 
 export default function BroadcastPage() {

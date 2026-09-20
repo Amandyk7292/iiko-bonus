@@ -6,7 +6,7 @@ const localizedTextSchema = (maxLength) =>
     .object({
       ru: z.string().trim().min(1).max(maxLength),
       kk: z.string().trim().min(1).max(maxLength),
-      en: z.string().trim().min(1).max(maxLength),
+      en: z.string().trim().max(maxLength).optional(),
     })
     .strict();
 

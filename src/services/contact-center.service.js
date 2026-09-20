@@ -48,9 +48,9 @@ function normalizeLocalizedText(input, field, maxLength) {
   const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   const result = {};
   for (const code of ['ru', 'kk', 'en']) {
-    const value = String(source[code] || '').trim();
+    const value = String(source[code] || (code === 'en' ? source.ru : '') || '').trim();
     if (!value || value.length > maxLength) {
-      throw contactError(`${field} must contain three languages within ${maxLength} characters`);
+      throw contactError(`${field} must contain Russian and Kazakh within ${maxLength} characters`);
     }
     result[code] = value;
   }
