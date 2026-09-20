@@ -50,22 +50,6 @@ class LoyaltyTierCard extends StatelessWidget {
           ),
           child: Stack(
             children: [
-              Positioned.fill(
-                child: Align(
-                  alignment: Alignment.center,
-                  child: IgnorePointer(
-                    child: Opacity(
-                      opacity: 0.16,
-                      child: Image.asset(
-                        'assets/brand/bulka_logo.png',
-                        key: const ValueKey('loyalty-card-logo'),
-                        width: 250,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
                 child: Column(
