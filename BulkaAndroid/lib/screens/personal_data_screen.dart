@@ -188,10 +188,6 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
       selectedKey: _selectedAvatarKey,
     );
     if (!mounted || selected == null) return;
-    if (selected == customerAvatarUploadKey) {
-      await _uploadCustomAvatar();
-      return;
-    }
     if (selected == _selectedAvatarKey) return;
     final previous = _selectedAvatarKey;
     final previousUrl = _selectedAvatarUrl;
@@ -236,118 +232,6 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     _showInfoMessage('avatar_saved'.tr);
     if (mounted) {
       setState(() => _isAvatarSaving = false);
-    }
-  }
-
-  Future<void> _uploadCustomAvatar() async {
-    if (_isAvatarSaving) return;
-    final previousKey = _selectedAvatarKey;
-    final previousUrl = _selectedAvatarUrl;
-    setState(() => _isAvatarSaving = true);
-    try {
-      final file = await ImagePicker().pickImage(source: ImageSource.gallery);
-      if (!mounted || file == null) return;
-      final length = await file.length();
-      if (length > 5 * 1024 * 1024) {
-        throw ApiException('', code: 'CUSTOMER_AVATAR_TOO_LARGE');
-      }
-      if (length <= 0) throw ApiException('', code: 'CUSTOMER_AVATAR_FORMAT');
-      final bytes = await file.readAsBytes();
-      ui.Image image;
-      try {
-        final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
-        try {
-          final descriptor = await ui.ImageDescriptor.encoded(buffer);
-          try {
-            if (descriptor.width * descriptor.height > 32 * 1024 * 1024) {
-              throw ApiException('', code: 'CUSTOMER_AVATAR_RESOLUTION');
-            }
-          } finally {
-            descriptor.dispose();
-          }
-        } finally {
-          buffer.dispose();
-        }
-        final codec = await ui.instantiateImageCodec(
-          bytes,
-          targetWidth: 1600,
-          allowUpscaling: false,
-        );
-        try {
-          image = (await codec.getNextFrame()).image;
-        } finally {
-          codec.dispose();
-        }
-      } on ApiException {
-        rethrow;
-      } catch (_) {
-        throw ApiException('', code: 'CUSTOMER_AVATAR_FORMAT');
-      }
-      List<int>? cropped;
-      try {
-        if (!mounted) return;
-        final route = MaterialPageRoute<List<int>>(
-          builder: (_) => AvatarCropScreen(image: image),
-        );
-        cropped = await Navigator.of(context).push(route);
-        await route.completed;
-      } finally {
-        image.dispose();
-      }
-      if (!mounted || cropped == null) return;
-      final avatar = await widget.api.uploadCustomerAvatar(
-        bytes: cropped,
-        fileName: 'avatar.png',
-        mimeType: 'image/png',
-      );
-      final avatarKey = _asString(avatar['avatarKey']);
-      final avatarUrl = _asString(avatar['avatarUrl']);
-      if (avatarKey != 'custom' || avatarUrl.isEmpty) {
-        throw ApiException('avatar_save_error'.tr);
-      }
-      if (!mounted) return;
-      setState(() {
-        _selectedAvatarKey = avatarKey;
-        _selectedAvatarUrl = avatarUrl;
-      });
-      try {
-        await widget.onAvatarSaved?.call(
-          customerId: widget.customer.id,
-          phone: widget.customer.phone,
-          avatarKey: avatarKey,
-          avatarUrl: avatarUrl,
-        );
-      } catch (error, stackTrace) {
-        debugPrint('Failed to propagate the uploaded customer avatar: $error');
-        debugPrintStack(stackTrace: stackTrace);
-        unawaited(_refreshProfileInBackground());
-      }
-      _showInfoMessage('avatar_saved'.tr);
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          _selectedAvatarKey = previousKey;
-          _selectedAvatarUrl = previousUrl;
-        });
-      }
-      final message = switch (error) {
-        ApiException(code: 'CUSTOMER_AVATAR_TOO_LARGE') =>
-          'avatar_file_too_large'.tr,
-        ApiException(code: 'CUSTOMER_AVATAR_RESOLUTION') =>
-          'avatar_resolution_error'.tr,
-        ApiException(code: 'CUSTOMER_AVATAR_FORMAT') =>
-          'avatar_invalid_format'.tr,
-        ApiException(code: 'CUSTOMER_AVATAR_STORAGE') =>
-          'avatar_storage_error'.tr,
-        ApiException(statusCode: 401) => 'avatar_auth_error'.tr,
-        TimeoutException() => 'avatar_network_error'.tr,
-        http.ClientException() => 'avatar_network_error'.tr,
-        PlatformException() => 'avatar_picker_error'.tr,
-        _ => localizeErrorMessage(error, fallbackKey: 'avatar_save_error'),
-      };
-      _showInfoMessage(message, isError: true);
-    } finally {
-      if (mounted) setState(() => _isAvatarSaving = false);
     }
   }
 
