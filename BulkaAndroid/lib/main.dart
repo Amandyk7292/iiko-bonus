@@ -173,6 +173,7 @@ part 'screens/personal_account_screen.dart';
 part 'screens/promos_screen.dart';
 part 'screens/rewards_screen.dart';
 part 'screens/personal_data_screen.dart';
+part 'screens/avatar_crop_screen.dart';
 part 'screens/locations_screen.dart';
 part 'screens/location_directory_screen.dart';
 part 'screens/catalog_screen.dart';

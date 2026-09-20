@@ -683,7 +683,13 @@ async function updateCustomerInfo(
   if (region !== undefined) updates.region = region;
   if (birth_date !== undefined) updates.birth_date = birth_date || null;
   if (phone !== undefined && phone !== null) updates.phone = phone;
-  if (avatar_key !== undefined) updates.avatar_key = avatar_key || null;
+  if (avatar_key !== undefined) {
+    updates.avatar_key = avatar_key || null;
+    if (avatar_key !== 'custom') {
+      updates.avatar_url = null;
+      updates.avatar_storage_path = null;
+    }
+  }
   const { error } = await supabase.from('customers').update(updates).eq('id', customerId);
   if (error) throw new Error(error.message);
   if (['name', 'phone'].some((key) => key in updates)) {

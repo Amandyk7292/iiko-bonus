@@ -240,43 +240,65 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   }
 
   Future<void> _uploadCustomAvatar() async {
-    final file = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1600,
-      maxHeight: 1600,
-      imageQuality: 90,
-    );
-    if (!mounted || file == null) return;
-
-    const maxBytes = 5 * 1024 * 1024;
-    final length = await file.length();
-    if (!mounted) return;
-    if (length <= 0 || length > maxBytes) {
-      _showInfoMessage('avatar_file_too_large'.tr, isError: true);
-      return;
-    }
-
-    final extension = file.name.split('.').last.toLowerCase();
-    final inferredMime = switch (extension) {
-      'jpg' || 'jpeg' => 'image/jpeg',
-      'png' => 'image/png',
-      'webp' => 'image/webp',
-      _ => '',
-    };
-    final mimeType = (file.mimeType ?? inferredMime).toLowerCase();
-    if (!const {'image/jpeg', 'image/png', 'image/webp'}.contains(mimeType)) {
-      _showInfoMessage('avatar_invalid_format'.tr, isError: true);
-      return;
-    }
-
+    if (_isAvatarSaving) return;
     final previousKey = _selectedAvatarKey;
     final previousUrl = _selectedAvatarUrl;
     setState(() => _isAvatarSaving = true);
     try {
+      final file = await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (!mounted || file == null) return;
+      final length = await file.length();
+      if (length > 5 * 1024 * 1024) {
+        throw ApiException('', code: 'CUSTOMER_AVATAR_TOO_LARGE');
+      }
+      if (length <= 0) throw ApiException('', code: 'CUSTOMER_AVATAR_FORMAT');
+      final bytes = await file.readAsBytes();
+      ui.Image image;
+      try {
+        final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+        try {
+          final descriptor = await ui.ImageDescriptor.encoded(buffer);
+          try {
+            if (descriptor.width * descriptor.height > 32 * 1024 * 1024) {
+              throw ApiException('', code: 'CUSTOMER_AVATAR_RESOLUTION');
+            }
+          } finally {
+            descriptor.dispose();
+          }
+        } finally {
+          buffer.dispose();
+        }
+        final codec = await ui.instantiateImageCodec(
+          bytes,
+          targetWidth: 1600,
+          allowUpscaling: false,
+        );
+        try {
+          image = (await codec.getNextFrame()).image;
+        } finally {
+          codec.dispose();
+        }
+      } on ApiException {
+        rethrow;
+      } catch (_) {
+        throw ApiException('', code: 'CUSTOMER_AVATAR_FORMAT');
+      }
+      List<int>? cropped;
+      try {
+        if (!mounted) return;
+        final route = MaterialPageRoute<List<int>>(
+          builder: (_) => AvatarCropScreen(image: image),
+        );
+        cropped = await Navigator.of(context).push(route);
+        await route.completed;
+      } finally {
+        image.dispose();
+      }
+      if (!mounted || cropped == null) return;
       final avatar = await widget.api.uploadCustomerAvatar(
-        bytes: await file.readAsBytes(),
-        fileName: file.name,
-        mimeType: mimeType,
+        bytes: cropped,
+        fileName: 'avatar.png',
+        mimeType: 'image/png',
       );
       final avatarKey = _asString(avatar['avatarKey']);
       final avatarUrl = _asString(avatar['avatarUrl']);
@@ -311,8 +333,16 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
       final message = switch (error) {
         ApiException(code: 'CUSTOMER_AVATAR_TOO_LARGE') =>
           'avatar_file_too_large'.tr,
+        ApiException(code: 'CUSTOMER_AVATAR_RESOLUTION') =>
+          'avatar_resolution_error'.tr,
         ApiException(code: 'CUSTOMER_AVATAR_FORMAT') =>
           'avatar_invalid_format'.tr,
+        ApiException(code: 'CUSTOMER_AVATAR_STORAGE') =>
+          'avatar_storage_error'.tr,
+        ApiException(statusCode: 401) => 'avatar_auth_error'.tr,
+        TimeoutException() => 'avatar_network_error'.tr,
+        http.ClientException() => 'avatar_network_error'.tr,
+        PlatformException() => 'avatar_picker_error'.tr,
         _ => localizeErrorMessage(error, fallbackKey: 'avatar_save_error'),
       };
       _showInfoMessage(message, isError: true);

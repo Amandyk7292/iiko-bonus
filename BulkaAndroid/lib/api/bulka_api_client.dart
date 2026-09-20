@@ -354,7 +354,26 @@ class BulkaApiClient {
     final streamed = await _client
         .send(request)
         .timeout(const Duration(seconds: 30));
-    final response = await http.Response.fromStream(streamed);
+    final response = await http.Response.fromStream(
+      streamed,
+    ).timeout(const Duration(seconds: 30));
+    if (response.statusCode == 413) {
+      throw ApiException(
+        'avatar_file_too_large'.tr,
+        code: 'CUSTOMER_AVATAR_TOO_LARGE',
+        statusCode: 413,
+      );
+    }
+    if (response.statusCode == 401) {
+      throw ApiException('avatar_auth_error'.tr, statusCode: 401);
+    }
+    if (response.statusCode >= 500 || response.statusCode == 404) {
+      throw ApiException(
+        'avatar_storage_error'.tr,
+        code: 'CUSTOMER_AVATAR_STORAGE',
+        statusCode: response.statusCode,
+      );
+    }
     final json = _decode(response);
     final avatar = _asMap(json['avatar']);
     if (json['success'] != true || avatar.isEmpty) {
