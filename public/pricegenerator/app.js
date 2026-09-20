@@ -522,16 +522,17 @@
   }
   async function loadAccess() {
     try {
-      const response = await fetch('/admin/api/session', { credentials: 'include' });
-      if (!response.ok) return;
-      const data = await response.json();
-      state.isAdmin = ['owner', 'admin'].includes(String(data.user?.role || ''));
+      const data = await window.BulkaPriceAccess.status();
+      state.isAdmin = data.canEdit === true;
       document.body.classList.toggle('admin-mode', state.isAdmin);
       if (state.isAdmin) {
         $('data-help').textContent = 'Excel обрабатывается и не сохраняется';
         $('canvas-help').textContent =
           'Перетаскивайте блоки. Потяните за угол, чтобы изменить размер.';
         loadHistory();
+      } else {
+        $('data-help').textContent = 'Выберите товар и дату для печати';
+        $('canvas-help').textContent = 'Перетаскивайте текст в удобное место.';
       }
     } catch {
       state.isAdmin = false;
@@ -735,7 +736,8 @@
       return;
     }
     const row = e.target.closest('.product-row');
-    if (row && !e.target.matches('input, textarea')) selectProduct(row.dataset.index);
+    if (row && !e.target.matches('input, textarea, select, option, button'))
+      selectProduct(row.dataset.index);
   });
   $('product-list').addEventListener('input', (e) => {
     if (!state.isAdmin || !e.target.dataset.edit) return;
@@ -757,7 +759,7 @@
     if (state.isAdmin && e.target.dataset.edit) {
       state.products[state.selectedProduct][e.target.dataset.edit] = e.target.value;
       dirtyProductIds.add(product().id);
-      renderProducts();
+      // Keep the clicked save button alive when an input loses focus.
       renderStage();
     }
   });
@@ -1036,6 +1038,11 @@
     renderStage();
     recordHistory();
     notice(`Блок «${names[state.selected]}» выровнен по центру по высоте.`);
+  });
+  window.addEventListener('pricegenerator-access-change', async () => {
+    await loadAccess();
+    renderProducts();
+    renderStage();
   });
   loadAccess().finally(() => loadSharedTemplate().finally(loadDefaults));
 })();

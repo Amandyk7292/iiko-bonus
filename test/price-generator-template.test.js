@@ -99,7 +99,7 @@ test('price generator template rejects unsafe or malformed values', async () => 
   assert.equal(validationError?.code, 'VALIDATION_ERROR');
 });
 
-test('price generator mutations require owner or admin role', () => {
+test('price generator private routes enforce the scoped editor guard', () => {
   for (const path of [
     '/admin/api/pricegenerator/template',
     '/admin/api/pricegenerator/import',
@@ -107,19 +107,8 @@ test('price generator mutations require owner or admin role', () => {
     '/admin/api/pricegenerator/history',
   ]) {
     const route = router.stack.find((layer) => layer.route?.path === path).route;
-    const guard = route.stack.find((layer) => layer.handle.name === 'ownerOrAdminOnly').handle;
-    const denied = response();
-    let continued = false;
-    guard({ admin: { role: 'editor' } }, denied, () => {
-      continued = true;
-    });
-    assert.equal(denied.statusCode, 403);
-    assert.equal(continued, false);
-
-    guard({ admin: { role: 'admin' } }, response(), () => {
-      continued = true;
-    });
-    assert.equal(continued, true);
+    assert(route.stack.some((layer) => layer.handle.name === 'priceGeneratorEditor'));
+    if (route.methods.post) assert(route.stack.some((layer) => layer.handle.name === 'sameOrigin'));
   }
 });
 

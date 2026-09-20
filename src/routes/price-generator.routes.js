@@ -3,11 +3,22 @@ const multer = require('multer');
 const path = require('node:path');
 const { z } = require('zod');
 const { supabase } = require('../config/supabase');
-const { adminAuthMiddleware } = require('../middlewares/auth.middleware');
+const {
+  priceGeneratorEditor,
+  accessStatus,
+  sameOrigin,
+  codeLoginLimit,
+  unlockEditor,
+  lockEditor,
+} = require('../middlewares/price-generator-access.middleware');
 const { emptyBodySchema, validateRequest } = require('../middlewares/validation.middleware');
 const { rowsFromWorkbook } = require('../services/price-generator-xlsx.service');
 
 const router = express.Router();
+router.use('/admin/api/pricegenerator', (_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 const root = path.resolve(__dirname, '../../public/pricegenerator');
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -100,14 +111,20 @@ const productSaveSchema = z
       .strict(),
   })
   .strict();
-const ownerOrAdminOnly = (req, res, next) => {
-  if (!['owner', 'admin'].includes(String(req.admin?.role || ''))) {
-    return res
-      .status(403)
-      .json({ success: false, error: 'Доступно только владельцу или администратору.' });
-  }
-  return next();
-};
+router.get('/admin/api/pricegenerator/access', accessStatus);
+router.post(
+  '/admin/api/pricegenerator/access',
+  sameOrigin,
+  codeLoginLimit,
+  validateRequest({ body: z.object({ code: z.string().regex(/^\d{4}$/) }).strict() }),
+  unlockEditor,
+);
+router.delete(
+  '/admin/api/pricegenerator/access',
+  sameOrigin,
+  validateRequest({ body: emptyBodySchema }),
+  lockEditor,
+);
 
 router.get('/api/pricegenerator/template', async (req, res) => {
   try {
@@ -139,33 +156,28 @@ router.get('/api/pricegenerator/products', async (req, res) => {
   }
 });
 
-router.get(
-  '/admin/api/pricegenerator/history',
-  adminAuthMiddleware,
-  ownerOrAdminOnly,
-  async (req, res) => {
-    try {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', citySettingKey(HISTORY_KEY, req))
-        .maybeSingle();
-      if (error) throw error;
-      const history = data?.value ? JSON.parse(data.value) : [];
-      return res.json({
-        success: true,
-        history: Array.isArray(history) ? history.slice(0, 100) : [],
-      });
-    } catch {
-      return res.status(503).json({ success: false, error: 'Не удалось загрузить историю.' });
-    }
-  },
-);
+router.get('/admin/api/pricegenerator/history', priceGeneratorEditor, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', citySettingKey(HISTORY_KEY, req))
+      .maybeSingle();
+    if (error) throw error;
+    const history = data?.value ? JSON.parse(data.value) : [];
+    return res.json({
+      success: true,
+      history: Array.isArray(history) ? history.slice(0, 100) : [],
+    });
+  } catch {
+    return res.status(503).json({ success: false, error: 'Не удалось загрузить историю.' });
+  }
+});
 
 router.post(
   '/admin/api/pricegenerator/template',
-  adminAuthMiddleware,
-  ownerOrAdminOnly,
+  sameOrigin,
+  priceGeneratorEditor,
   validateRequest({ body: templateSchema }),
   async (req, res) => {
     try {
@@ -185,8 +197,8 @@ router.post(
 
 router.post(
   '/admin/api/pricegenerator/products',
-  adminAuthMiddleware,
-  ownerOrAdminOnly,
+  sameOrigin,
+  priceGeneratorEditor,
   validateRequest({ body: productSaveSchema }),
   async (req, res) => {
     try {
@@ -200,7 +212,10 @@ router.post(
       const history = [
         {
           ...req.body.action,
-          username: String(req.admin?.username || req.admin?.sub || 'admin'),
+          username:
+            req.priceGeneratorAccess === 'code'
+              ? 'Вход по коду'
+              : String(req.admin?.username || req.admin?.sub || 'admin'),
           at: new Date().toISOString(),
         },
         ...(Array.isArray(oldHistory) ? oldHistory : []),
@@ -222,8 +237,8 @@ router.post(
 
 router.post(
   '/admin/api/pricegenerator/import',
-  adminAuthMiddleware,
-  ownerOrAdminOnly,
+  sameOrigin,
+  priceGeneratorEditor,
   upload.single('file'),
   validateRequest({ body: emptyBodySchema }),
   (req, res) => {
