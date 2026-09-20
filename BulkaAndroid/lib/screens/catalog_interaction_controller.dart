@@ -232,6 +232,9 @@ extension _CatalogInteractionController on _CatalogScreenState {
     _orderTypeDialogOpen = true;
     final chooseOrderType = await showDialog<bool>(
       context: context,
+      animationStyle: BulkaMotion.reduced(context)
+          ? AnimationStyle.noAnimation
+          : null,
       builder: (dialogContext) => BulkaActionDialog(
         scrollable: true,
         content: SizedBox(
@@ -386,35 +389,33 @@ extension _CatalogInteractionController on _CatalogScreenState {
         replace: !updateClientRoute,
       );
       try {
-        nextProduct = await Navigator.of(context).push<CatalogProduct>(
-          PageRouteBuilder<CatalogProduct>(
-            opaque: false,
-            barrierDismissible: true,
-            barrierColor: Colors.black.withValues(alpha: 0.32),
-            barrierLabel: 'close_tooltip'.tr,
-            pageBuilder: (_, _, _) => ProductDetailsScreen(
-              api: _api,
-              branchId: _selectedBakeryId,
-              product: product,
-              liveProducts: _liveProducts,
-              initialQuantity: context.read<CartProvider>().getQuantity(
-                product.id,
-              ),
-              onQuantityChanged: _setProductQuantity,
-              onOpenRelatedProduct: (related) =>
-                  Navigator.of(context).pop(related),
-              initialFavorite: _favoriteProductIds.contains(product.id),
-              onToggleFavorite: () => _toggleFavorite(product),
-              hasSelectedOrderType: widget.hasSelectedOrderType,
-              onEnsureOrderTypeSelected: () =>
-                  _ensureOrderTypeSelected(product),
+        final route = BulkaPageRoute<CatalogProduct>(
+          reduceMotion: BulkaMotion.reduced(context),
+          builder: (_) => ProductDetailsScreen(
+            api: _api,
+            branchId: _selectedBakeryId,
+            product: product,
+            liveProducts: _liveProducts,
+            initialQuantity: context.read<CartProvider>().getQuantity(
+              product.id,
             ),
+            onQuantityChanged: _setProductQuantity,
+            onOpenRelatedProduct: (related) =>
+                Navigator.of(context).pop(related),
+            initialFavorite: _favoriteProductIds.contains(product.id),
+            onToggleFavorite: () => _toggleFavorite(product),
+            hasSelectedOrderType: widget.hasSelectedOrderType,
+            onEnsureOrderTypeSelected: () => _ensureOrderTypeSelected(product),
           ),
         );
+        nextProduct = await Navigator.of(context).push<CatalogProduct>(route);
+        await route.completed;
       } finally {
         _productRouteOpen = false;
         final current = normalizedClientUri(clientRouteNotifier.value);
-        if (nextProduct == null && productIdFromClientUri(current) != null) {
+        if (_productPendingFulfillment == null &&
+            nextProduct == null &&
+            productIdFromClientUri(current) != null) {
           _pendingClientUri = _CatalogScreenState._categoryClientUri(
             product.category,
           );

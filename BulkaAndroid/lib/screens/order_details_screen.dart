@@ -129,6 +129,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
     if (_cancellationLoading || !_order.canCancel) return;
     final confirmed = await showDialog<bool>(
       context: context,
+      animationStyle: BulkaMotion.reduced(context)
+          ? AnimationStyle.noAnimation
+          : null,
       builder: (dialogContext) => BulkaActionDialog(
         title: Text('order_cancel_title'.tr),
         content: Text('order_cancel_body'.tr),

@@ -216,6 +216,9 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
     setState(() => _sheetOpen = true);
     final selected = await showModalBottomSheet<String>(
       context: context,
+      sheetAnimationStyle: BulkaMotion.reduced(context)
+          ? AnimationStyle.noAnimation
+          : null,
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: Colors.white,
@@ -305,6 +308,9 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
     });
     await showModalBottomSheet<void>(
       context: context,
+      sheetAnimationStyle: BulkaMotion.reduced(context)
+          ? AnimationStyle.noAnimation
+          : null,
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: Colors.white,

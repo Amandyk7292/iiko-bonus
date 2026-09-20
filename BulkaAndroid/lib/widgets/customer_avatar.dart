@@ -113,6 +113,9 @@ Future<String?> showCustomerAvatarPicker(
 }) {
   return showModalBottomSheet<String>(
     context: context,
+    sheetAnimationStyle: BulkaMotion.reduced(context)
+        ? AnimationStyle.noAnimation
+        : null,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Colors.white,

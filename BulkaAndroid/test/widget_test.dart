@@ -2172,7 +2172,7 @@ void main() {
       find.byKey(const ValueKey('order-card-clip-preorder')),
     );
     expect(preorderClip.borderRadius, BorderRadius.circular(BulkaRadii.card));
-    expect(preorderClip.clipBehavior, Clip.antiAliasWithSaveLayer);
+    expect(preorderClip.clipBehavior, Clip.antiAlias);
   });
 
   testWidgets(

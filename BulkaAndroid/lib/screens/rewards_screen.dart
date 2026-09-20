@@ -150,6 +150,9 @@ class _RewardsScreenState extends State<RewardsScreen> {
   Future<void> _purchaseGift() async {
     final result = await showModalBottomSheet<_GiftPurchaseResult>(
       context: context,
+      sheetAnimationStyle: BulkaMotion.reduced(context)
+          ? AnimationStyle.noAnimation
+          : null,
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => _GiftCertificatePurchaseSheet(
@@ -180,6 +183,9 @@ class _RewardsScreenState extends State<RewardsScreen> {
     if (code == null || !mounted) return;
     await showDialog<void>(
       context: context,
+      animationStyle: BulkaMotion.reduced(context)
+          ? AnimationStyle.noAnimation
+          : null,
       builder: (dialogContext) => BulkaActionDialog(
         title: Text('gift_code_ready'.tr),
         content: Column(

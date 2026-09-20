@@ -8,6 +8,9 @@ Future<String?> showLanguageBottomSheet(
 
   return showModalBottomSheet<String>(
     context: context,
+    sheetAnimationStyle: BulkaMotion.reduced(context)
+        ? AnimationStyle.noAnimation
+        : null,
     backgroundColor: Colors.white,
     isScrollControlled: true,
     barrierLabel: 'close_tooltip'.tr,

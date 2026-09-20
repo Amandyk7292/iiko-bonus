@@ -213,6 +213,9 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     if (_busyMethodIds.contains(id)) return;
     final confirmed = await showDialog<bool>(
       context: context,
+      animationStyle: BulkaMotion.reduced(context)
+          ? AnimationStyle.noAnimation
+          : null,
       builder: (context) => BulkaActionDialog(
         title: Text('payment_methods_remove_title'.tr),
         content: Text('payment_methods_remove_message'.tr),

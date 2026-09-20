@@ -83,6 +83,20 @@ double networkImageDevicePixelRatio(
   return devicePixelRatio.clamp(1.0, isWeb ? 2.25 : 3.0);
 }
 
+/// Matches the provider and ResizeImage key used by CachedNetworkImage/OctoImage.
+ImageProvider networkImageCacheProvider(
+  String url, {
+  required int pixelWidth,
+  required int pixelHeight,
+  bool isWeb = kIsWeb,
+}) => isWeb
+    ? NetworkImage(url)
+    : ResizeImage.resizeIfNeeded(
+        pixelWidth,
+        pixelHeight,
+        CachedNetworkImageProvider(url),
+      );
+
 class _PhotoLoadingIndicator extends StatelessWidget {
   const _PhotoLoadingIndicator();
 

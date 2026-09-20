@@ -183,7 +183,7 @@ void main() {
               StoryGroup(
                 id: 'ratio-check',
                 title: 'Banner',
-                coverUrl: '',
+                coverUrl: 'https://example.com/banner.png',
                 stories: [],
               ),
             ],
@@ -200,6 +200,17 @@ void main() {
     expect(size.width / size.height, closeTo(1080 / 480, 0.001));
     expect(size.width, 358);
     expect(size.height, closeTo(358 / (1080 / 480), 0.001));
+    final imageRect = tester.getRect(
+      find.byKey(const ValueKey('promo-image-ratio-check')),
+    );
+    final cardRect = tester.getRect(
+      find.byKey(const ValueKey('promo-card-ratio-check')),
+    );
+    expect(
+      imageRect,
+      cardRect,
+      reason: 'A 1080x480 cover fills the card beneath its border',
+    );
   });
 
   testWidgets('manual banner paging restarts the five second timer', (
@@ -286,23 +297,22 @@ void main() {
     },
   );
 
-  testWidgets('startup keeps one gold surface and a stationary centered logo', (
+  testWidgets('startup surface has no competing logo or spinner', (
     tester,
   ) async {
     await tester.pumpWidget(
       const MaterialApp(home: SplashScreen(text: 'Loading Bulka')),
     );
-    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
-    expect(scaffold.backgroundColor, Colors.white);
-    expect(find.byType(Image), findsOneWidget);
+    expect(
+      tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
+      const Color(0xFFFFB329),
+    );
+    expect(find.byType(Image), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
-    final logo = find.byKey(const ValueKey('splash-clean-logo'));
-    expect(tester.getSize(logo), const Size(256, 256));
-    final center = tester.getCenter(logo);
-    expect(center, tester.getCenter(find.byType(Scaffold)));
-    await tester.pump(const Duration(seconds: 3));
-    expect(tester.getCenter(logo), center);
     expect(find.text('Loading Bulka'), findsNothing);
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.byType(Image), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('story viewer uses one spinner without a loading logo', (

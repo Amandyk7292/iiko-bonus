@@ -150,6 +150,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
   void _showSuccessDialog(BuildContext context) {
     showDialog(
       context: context,
+      animationStyle: BulkaMotion.reduced(context)
+          ? AnimationStyle.noAnimation
+          : null,
       builder: (context) => BulkaActionDialog(
         title: Text(
           'checkout_success_title'.tr,
@@ -244,6 +247,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
   Future<void> _confirmClear(BuildContext context, CartProvider cart) async {
     final shouldClear = await showDialog<bool>(
       context: context,
+      animationStyle: BulkaMotion.reduced(context)
+          ? AnimationStyle.noAnimation
+          : null,
       builder: (dialogContext) => Dialog(
         backgroundColor: Colors.white,
         insetPadding: const EdgeInsets.symmetric(horizontal: 38),

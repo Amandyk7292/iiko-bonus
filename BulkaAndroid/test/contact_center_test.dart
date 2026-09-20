@@ -202,36 +202,33 @@ void main() {
     },
   );
 
-  test(
-    'system notifications localize existing history in all three languages',
-    () {
-      final ready = AppNotification.fromJson({
-        'id': 'notification-ready',
-        'title': 'Заказ готов',
-        'body': 'Заказ №100016 готов к выдаче.',
-        'type': 'order',
-        'payload': {'orderNumber': 100016},
-        'created_at': '2026-07-18T10:00:00Z',
-        'is_read': false,
-      });
-      final bonus = AppNotification.fromJson({
-        'id': 'notification-bonus',
-        'title': 'Начислены бонусы',
-        'body': 'Баланс Bulka пополнен',
-        'type': 'bonus',
-        'payload': const <String, dynamic>{},
-        'created_at': '2026-07-18T10:00:00Z',
-        'is_read': false,
-      });
+  test('system notifications use RU and KK with legacy EN fallback', () {
+    final ready = AppNotification.fromJson({
+      'id': 'notification-ready',
+      'title': 'Заказ готов',
+      'body': 'Заказ №100016 готов к выдаче.',
+      'type': 'order',
+      'payload': {'orderNumber': 100016},
+      'created_at': '2026-07-18T10:00:00Z',
+      'is_read': false,
+    });
+    final bonus = AppNotification.fromJson({
+      'id': 'notification-bonus',
+      'title': 'Начислены бонусы',
+      'body': 'Баланс Bulka пополнен',
+      'type': 'bonus',
+      'payload': const <String, dynamic>{},
+      'created_at': '2026-07-18T10:00:00Z',
+      'is_read': false,
+    });
 
-      expect(ready.titleFor('kk'), 'Тапсырыс дайын');
-      expect(ready.bodyFor('kk'), '№100016 тапсырыс алып кетуге дайын.');
-      expect(ready.titleFor('en'), 'Order is ready');
-      expect(ready.bodyFor('en'), 'Order #100016 is ready for pickup.');
-      expect(bonus.titleFor('kk'), 'Бонустар қосылды');
-      expect(bonus.bodyFor('en'), 'Your Bulka balance was updated');
-    },
-  );
+    expect(ready.titleFor('kk'), 'Тапсырыс дайын');
+    expect(ready.bodyFor('kk'), '№100016 тапсырыс алып кетуге дайын.');
+    expect(ready.titleFor('en'), ready.titleFor('ru'));
+    expect(ready.bodyFor('en'), ready.bodyFor('ru'));
+    expect(bonus.titleFor('kk'), 'Бонустар қосылды');
+    expect(bonus.bodyFor('en'), bonus.bodyFor('ru'));
+  });
 
   test('notification payload translations override the legacy system copy', () {
     final notification = AppNotification.fromJson({
@@ -250,7 +247,7 @@ void main() {
     });
 
     expect(notification.titleFor('kk'), 'KK');
-    expect(notification.bodyFor('en'), 'Text EN');
+    expect(notification.bodyFor('en'), notification.bodyFor('ru'));
   });
 
   testWidgets('guest can open admin-managed contacts without authentication', (

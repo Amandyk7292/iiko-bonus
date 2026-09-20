@@ -137,6 +137,9 @@ class _NotificationSettingsScreenState
         if (didPop || !_dirty || _saving) return;
         final discard = await showDialog<bool>(
           context: context,
+          animationStyle: BulkaMotion.reduced(context)
+              ? AnimationStyle.noAnimation
+              : null,
           builder: (dialogContext) => BulkaActionDialog(
             title: Text('notifications_unsaved_title'.tr),
             content: Text('notifications_unsaved_body'.tr),

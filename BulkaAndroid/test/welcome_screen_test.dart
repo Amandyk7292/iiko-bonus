@@ -1,3 +1,4 @@
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:bulka_bonus/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,7 +13,15 @@ void main() {
   testWidgets(
     'first launch waits for language, saves it, and does not repeat',
     (tester) async {
-      const child = MaterialApp(home: Scaffold(body: Text('customer-home')));
+      const child = MaterialApp(
+        supportedLocales: [Locale('ru'), Locale('kk')],
+        localizationsDelegates: [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Scaffold(body: Text('customer-home')),
+      );
       await tester.pumpWidget(const BulkaWelcomeGate(child: child));
       await tester.pumpAndSettle();
       expect(find.text('customer-home'), findsNothing);
@@ -46,7 +55,7 @@ void main() {
     },
   );
 
-  for (final language in ['ru', 'kk', 'en']) {
+  for (final language in ['ru', 'kk']) {
     testWidgets('welcome is usable on 320px with 200% text: $language', (
       tester,
     ) async {

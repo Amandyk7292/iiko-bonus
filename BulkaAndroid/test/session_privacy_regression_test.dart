@@ -590,14 +590,18 @@ void main() {
     );
   });
 
-  test('startup order art uses compact WebP assets', () {
+  test('startup uses transparent order art and bounded native decoding', () {
     final source = File('lib/screens/home_screen.dart').readAsStringSync();
-    for (final name in ['pickup', 'preorder', 'delivery']) {
-      final asset = File('assets/order/$name.webp');
+    for (final assetPath in [
+      'assets/order/pickup_transparent.png',
+      'assets/order/preorder_transparent.png',
+      'assets/order/delivery.webp',
+    ]) {
+      final asset = File(assetPath);
       expect(asset.existsSync(), isTrue);
-      expect(asset.lengthSync(), lessThan(100 * 1024));
-      expect(source, contains('assets/order/$name.webp'));
-      expect(File('assets/order/$name.png').existsSync(), isFalse);
+      expect(asset.lengthSync(), lessThan(2 * 1024 * 1024));
+      expect(source, contains(assetPath));
     }
+    expect(source, contains('cacheWidth:'));
   });
 }

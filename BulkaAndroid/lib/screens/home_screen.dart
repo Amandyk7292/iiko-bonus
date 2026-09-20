@@ -136,6 +136,9 @@ class _HomeScreenState extends State<HomeScreen> {
       // background disappeared completely instead of being softly dimmed.
       await showDialog<void>(
         context: context,
+        animationStyle: BulkaMotion.reduced(context)
+            ? AnimationStyle.noAnimation
+            : null,
         barrierDismissible: true,
         barrierLabel: 'close_tooltip'.tr,
         barrierColor: kIsWeb
@@ -678,7 +681,9 @@ class _OrderTypeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final illustrationWidth = tall ? 230.0 : 110.0;
+    final illustrationWidth = tall ? 230.0 : 128.0;
+    final smallCardHeight =
+        124.0 + max(0.0, MediaQuery.textScalerOf(context).scale(40) - 40);
     return BulkaPressScale(
       enabled: onTap != null,
       child: Container(
@@ -689,12 +694,14 @@ class _OrderTypeCard extends StatelessWidget {
         key: ValueKey('order-card-${illustration.name}'),
         height: MediaQuery.textScalerOf(context).scale(1) > 1.3
             ? 80 + MediaQuery.textScalerOf(context).scale(48)
-            : (tall ? 234 : 112),
+            : (tall ? smallCardHeight * 2 + 10 : smallCardHeight),
         child: Material(
           key: ValueKey('order-card-clip-${illustration.name}'),
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(BulkaRadii.card),
-          clipBehavior: Clip.antiAliasWithSaveLayer,
+          clipBehavior: defaultTargetPlatform == TargetPlatform.iOS
+              ? Clip.antiAliasWithSaveLayer
+              : Clip.antiAlias,
           child: InkWell(
             onTap: onTap == null
                 ? null
@@ -721,13 +728,13 @@ class _OrderTypeCard extends StatelessWidget {
                     Positioned(
                       // Keep small illustrations below two-line localized titles.
                       right: tall ? -46 : -12,
-                      bottom: tall ? -18 : -27,
+                      bottom: tall ? -18 : -32,
                       child: SizedBox(
                         key: ValueKey(
                           'order-illustration-${illustration.name}',
                         ),
                         width: illustrationWidth,
-                        height: tall ? 198 : 84,
+                        height: tall ? 198 : 104,
                         child: _DeferredOrderIllustration(
                           assetPath: illustration.assetPath,
                           fit: BoxFit.contain,
@@ -808,13 +815,24 @@ class _DeferredOrderIllustrationState
   Widget build(BuildContext context) {
     return AnimatedOpacity(
       opacity: _ready ? 1 : 0,
-      duration: BulkaMotion.fast,
+      duration: BulkaMotion.duration(context, BulkaMotion.fast),
       curve: BulkaMotion.standardCurve,
       child: _ready
-          ? Image.asset(
-              widget.assetPath,
-              fit: widget.fit,
-              filterQuality: FilterQuality.high,
+          ? LayoutBuilder(
+              builder: (context, constraints) => Image.asset(
+                widget.assetPath,
+                fit: widget.fit,
+                cacheWidth: kIsWeb
+                    ? null
+                    : _imagePixelBucket(
+                        constraints.maxWidth *
+                            networkImageDevicePixelRatio(
+                              MediaQuery.devicePixelRatioOf(context),
+                              isWeb: false,
+                            ),
+                      ),
+                filterQuality: FilterQuality.high,
+              ),
             )
           : const SizedBox.expand(),
     );

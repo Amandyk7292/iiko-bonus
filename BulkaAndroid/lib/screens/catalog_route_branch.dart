@@ -70,6 +70,9 @@ extension _CatalogRouteBranch on _CatalogScreenState {
       if (cart.items.isNotEmpty) {
         final accepted = await showDialog<bool>(
           context: context,
+          animationStyle: BulkaMotion.reduced(context)
+              ? AnimationStyle.noAnimation
+              : null,
           builder: (dialogContext) => BulkaActionDialog(
             title: Text(
               'catalog_link_branch_title'.trArgs({

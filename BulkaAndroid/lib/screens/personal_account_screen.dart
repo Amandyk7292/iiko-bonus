@@ -364,7 +364,10 @@ class _PersonalAccountScreenState extends State<PersonalAccountScreen> {
           padding: const EdgeInsets.all(24),
           children: [
             AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
+              duration: BulkaMotion.duration(
+                context,
+                const Duration(milliseconds: 180),
+              ),
               child: account != null || _cachedBalance != null
                   ? Align(
                       key: const ValueKey('personal-account-balance'),

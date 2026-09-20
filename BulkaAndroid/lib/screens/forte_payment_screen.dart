@@ -605,6 +605,9 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
     final shouldClose =
         await showDialog<bool>(
           context: context,
+          animationStyle: BulkaMotion.reduced(context)
+              ? AnimationStyle.noAnimation
+              : null,
           builder: (dialogContext) => BulkaActionDialog(
             title: Text('forte_payment_close_confirm_title'.tr),
             content: Text('forte_payment_close_confirm_hint'.tr),

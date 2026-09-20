@@ -409,7 +409,7 @@ class FloatingNavBar extends StatelessWidget {
     final compact = BulkaLayout.compactNavigation(context);
     final narrow = MediaQuery.sizeOf(context).width < 360;
     final highContrast = MediaQuery.highContrastOf(context);
-    final useBlur = !kIsWeb && !highContrast;
+    final useBlur = !kIsWeb && !highContrast && !BulkaMotion.reduced(context);
     final bar = Container(
       height: BulkaLayout.navigationBarHeight(context) + safeBottom,
       padding: EdgeInsets.only(bottom: safeBottom),

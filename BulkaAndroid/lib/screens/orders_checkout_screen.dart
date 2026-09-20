@@ -438,6 +438,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       if (_isPreorder) {
         selectedDay = await showModalBottomSheet<DateTime>(
           context: context,
+          sheetAnimationStyle: BulkaMotion.reduced(context)
+              ? AnimationStyle.noAnimation
+              : null,
           isScrollControlled: true,
           backgroundColor: Colors.white,
           builder: (sheetContext) => _liveScheduleSheet(calendar: true),
@@ -446,6 +449,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       }
       final selected = await showModalBottomSheet<_PickupSlot>(
         context: context,
+        sheetAnimationStyle: BulkaMotion.reduced(context)
+            ? AnimationStyle.noAnimation
+            : null,
         isScrollControlled: true,
         backgroundColor: Colors.white,
         builder: (sheetContext) => _liveScheduleSheet(day: selectedDay),

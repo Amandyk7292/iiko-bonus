@@ -438,6 +438,9 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
   Future<void> _chooseCard() async {
     final selected = await showModalBottomSheet<String>(
       context: context,
+      sheetAnimationStyle: BulkaMotion.reduced(context)
+          ? AnimationStyle.noAnimation
+          : null,
       isScrollControlled: true,
       backgroundColor: Colors.white,
       builder: (sheetContext) => _CheckoutCardPicker(

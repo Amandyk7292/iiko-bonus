@@ -377,11 +377,14 @@ class _PromoBannerCard extends StatelessWidget {
                 duration: BulkaMotion.duration(context, BulkaMotion.fast),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(BulkaRadii.control),
+                  boxShadow: BulkaShadows.card,
+                ),
+                foregroundDecoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(BulkaRadii.control),
                   border: Border.all(
                     color: const Color(0xFFE0B858),
                     width: 1.8,
                   ),
-                  boxShadow: BulkaShadows.card,
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(BulkaRadii.control),
@@ -404,7 +407,11 @@ class _BannerFullCoverWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (group.coverUrl.startsWith('http')) {
-      return _NetworkImage(url: group.coverUrl, fit: BoxFit.contain);
+      return _NetworkImage(
+        key: ValueKey('promo-image-${group.id}'),
+        url: group.coverUrl,
+        fit: BoxFit.cover,
+      );
     }
     return Container(
       decoration: const BoxDecoration(
