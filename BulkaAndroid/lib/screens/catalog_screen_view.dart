@@ -61,20 +61,6 @@ extension _CatalogScreenView on _CatalogScreenState {
                               fit: BoxFit.cover,
                             ),
                     ),
-                    const DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          stops: [0, 0.42, 0.76],
-                          colors: [
-                            Color(0xF7FFFFFF),
-                            Color(0xA6FFFFFF),
-                            Color(0x00FFFFFF),
-                          ],
-                        ),
-                      ),
-                    ),
                     Positioned(
                       left: 16,
                       top: 16,
