@@ -1,24 +1,13 @@
 part of '../main.dart';
 
-const _bulkaYellow = Color(0xFFFFB814);
+const _bulkaYellow = Color(0xFFFFB300);
 const _bulkaBrown = Color(0xFF532814);
-const _bulkaWarmGradient = LinearGradient(
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
-  colors: [Color(0xFFFFE389), Color(0xFFFFD65C), Color(0xFFFFC32B)],
-  stops: [0, 0.5, 1],
-);
-const _bulkaSoftHighlight = RadialGradient(
-  center: Alignment(0.7, -0.8),
-  radius: 1.2,
-  colors: [Color(0x38FFFFFF), Color(0x00FFFFFF)],
-);
 const _milkyBackground = Color(0xFFFFFFFF);
 const _lightCard = Color(0xFFFFFFFF);
 const _lightCardHighlight = Color(0xFFFFE8C2);
 const _textDark = Color(0xFF532814);
 const _cocoa = Color(0xFF532814);
-const _caramel = Color(0xFFFFB814);
+const _caramel = Color(0xFFFFB300);
 const _cream = Color(0xFFFFFFFF);
 const _almond = Color(0xFFF2DAA9);
 const _sage = Color(0xFF6E7F57);
@@ -120,7 +109,7 @@ abstract final class BulkaShadows {
 
   static const selectedAvatar = [
     BoxShadow(
-      color: Color(0x28FFB814),
+      color: Color(0x28FFB300),
       blurRadius: 22,
       spreadRadius: -2,
       offset: Offset(0, 4),

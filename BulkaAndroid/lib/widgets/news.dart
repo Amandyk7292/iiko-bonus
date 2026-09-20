@@ -231,14 +231,7 @@ class _NewsFallbackBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFE082), Color(0xFFFFD54F), Color(0xFFFFB300)],
-          stops: [0, 0.52, 1],
-        ),
-      ),
+      decoration: const BoxDecoration(color: _bulkaYellow),
       child: Stack(
         children: [
           Positioned(

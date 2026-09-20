@@ -30,7 +30,7 @@ class _LoyaltyPanel extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(BulkaRadii.card),
-            gradient: _bulkaWarmGradient,
+            color: _bulkaYellow,
             boxShadow: BulkaShadows.raisedCard,
           ),
           child: Stack(
@@ -127,7 +127,6 @@ class _LoyaltyPanel extends StatelessWidget {
                 height: 58,
                 child: GradientButton(
                   key: const ValueKey('balance-history-button'),
-                  gradient: _bulkaWarmGradient,
                   foregroundColor: _bulkaBrown,
                   borderColor: Colors.transparent,
                   shadows: BulkaShadows.raisedCard,
@@ -457,9 +456,7 @@ class _RewardProgress extends StatelessWidget {
                 child: Container(
                   height: 8,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFFD54F), Color(0xFFFFB300)],
-                    ),
+                    color: _bulkaYellow,
                     borderRadius: BorderRadius.circular(BulkaRadii.pill),
                   ),
                 ),
@@ -546,14 +543,7 @@ class _StampDot extends StatelessWidget {
       width: 42,
       height: 42,
       decoration: BoxDecoration(
-        color: filled ? null : Colors.white,
-        gradient: filled
-            ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFFFD54F), Color(0xFFFFB300)],
-              )
-            : null,
+        color: filled ? _bulkaYellow : Colors.white,
         shape: BoxShape.circle,
         border: Border.all(
           color: filled ? const Color(0xFFD0AA5A) : const Color(0xFFF0EFED),

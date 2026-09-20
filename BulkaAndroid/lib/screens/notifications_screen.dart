@@ -1141,11 +1141,7 @@ class _ContactBrandBadge extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(height * .28),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFD66B), _bulkaYellow],
-        ),
+        color: _bulkaYellow,
       ),
       child: Image.asset(
         'assets/brand/bulka_logo.png',

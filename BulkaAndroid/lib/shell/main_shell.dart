@@ -549,14 +549,9 @@ class _NavButton extends StatelessWidget {
                                 : 44),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: selected
-                            ? const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [Color(0xFFFFDB70), Color(0xFFFFB300)],
-                              )
-                            : null,
-                        color: centerIdle
+                        color: selected
+                            ? _bulkaYellow
+                            : centerIdle
                             ? colors.brandGold.withValues(alpha: 0.16)
                             : Colors.transparent,
                         border: selected
@@ -575,7 +570,7 @@ class _NavButton extends StatelessWidget {
                         boxShadow: selected
                             ? const [
                                 BoxShadow(
-                                  color: Color(0x2BFFB814),
+                                  color: Color(0x2BFFB300),
                                   blurRadius: 7,
                                   offset: Offset(0, 2),
                                 ),

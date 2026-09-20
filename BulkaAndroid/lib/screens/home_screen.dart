@@ -707,7 +707,7 @@ class _OrderTypeCard extends StatelessWidget {
               key: ValueKey('order-card-background-${illustration.name}'),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(BulkaRadii.card),
-                gradient: _bulkaWarmGradient,
+                color: _bulkaYellow,
               ),
               child: DecoratedBox(
                 position: DecorationPosition.foreground,
@@ -717,15 +717,6 @@ class _OrderTypeCard extends StatelessWidget {
                 child: Stack(
                   clipBehavior: Clip.hardEdge,
                   children: [
-                    const Positioned.fill(
-                      child: IgnorePointer(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: _bulkaSoftHighlight,
-                          ),
-                        ),
-                      ),
-                    ),
                     Positioned(
                       // Enlarge the artwork below the heading, keeping the
                       // lower-left action unobstructed.

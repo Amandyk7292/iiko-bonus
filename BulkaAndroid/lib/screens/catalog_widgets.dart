@@ -457,9 +457,7 @@ class _CatalogImageQuantityControl extends StatelessWidget {
         key: const ValueKey('catalog-quantity'),
         height: 50,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFFD35C), Color(0xFFFFB814)],
-          ),
+          color: _bulkaYellow,
           borderRadius: BorderRadius.circular(BulkaRadii.card),
           border: Border.all(color: Colors.white, width: 2),
           boxShadow: BulkaShadows.floatingAction,
