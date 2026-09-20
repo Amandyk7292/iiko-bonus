@@ -33,10 +33,15 @@ extension _CatalogScreenLayout on _CatalogScreenState {
         !hasSearchQuery &&
         _selectedCategory == _catalogAllCategoryKey &&
         !filterActive;
+    final branchName = _selectedBakeryLocation?.name.trim() ??
+        _selectedBakery.split(',').first.trim();
     final fulfillmentSourceText = _orderType == 'delivery'
         ? (_selectedDeliveryAddress?.displayAddress ??
               'checkout_select_delivery_address'.tr)
-        : (_selectedBakery.isEmpty ? 'catalog_action'.tr : _selectedBakery);
+        : (branchName.isEmpty ? 'catalog_action'.tr : branchName);
+    final sourceCaption = _orderType == 'delivery'
+        ? '$_fulfillmentSourceLabel: $fulfillmentSourceText'
+        : fulfillmentSourceText;
 
     return BulkaMotionSwitcher(
       duration: BulkaMotion.emphasized,
@@ -93,7 +98,7 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                               child: Semantics(
                                 button: true,
                                 label:
-                                    '$_catalogMenuTitle. $_fulfillmentSourceLabel: $fulfillmentSourceText',
+                                    '$_catalogMenuTitle. $sourceCaption',
                                 child: BulkaPressScale(
                                   child: Material(
                                     color: Colors.transparent,
@@ -200,7 +205,7 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                                                           ),
                                                           Expanded(
                                                             child: Text(
-                                                              '$_fulfillmentSourceLabel: $fulfillmentSourceText',
+                                                              sourceCaption,
                                                               softWrap: true,
                                                               style: const TextStyle(
                                                                 fontFamily:
