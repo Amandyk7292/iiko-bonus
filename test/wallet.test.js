@@ -42,7 +42,9 @@ test('Google Wallet object exposes actual balance as loyalty points', () => {
     },
     balance: { double: 1523.5 },
   });
-  assert.equal(object.textModulesData[0].body, 'Бронза 3%');
+  assert.deepEqual(object.textModulesData, []);
+  assert.equal(object.hexBackgroundColor, '#FFB300');
+  assert.equal(buildGoogleLoyaltyObject({...customer, name: null}, tier).accountName, '');
 });
 
 test('Google Wallet balance update requests a visible Wallet notification', () => {
@@ -63,11 +65,11 @@ test('Apple Wallet serial and update tags are stable', () => {
   assert.equal(customerIdFromSerial('bulka-invalid'), null);
   assert.equal(
     customerUpdateTag({ updated_at: '2026-07-15T10:20:30.123Z' }),
-    Date.parse('2026-07-15T16:03:00.000Z'),
+    Date.parse('2026-09-20T00:00:00.000Z'),
   );
   assert.equal(
-    customerUpdateTag({ updated_at: '2026-07-15T16:20:30.123Z' }),
-    Date.parse('2026-07-15T16:20:30.123Z'),
+    customerUpdateTag({ updated_at: '2026-09-20T16:20:30.123Z' }),
+    Date.parse('2026-09-20T16:20:30.123Z'),
   );
 });
 

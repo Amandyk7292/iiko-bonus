@@ -126,7 +126,9 @@ class _MainShellState extends State<MainShell> {
       widget.onTabChanged?.call(routedTab);
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _catalogKey.currentState?.applyClientUri(uri);
+      if (mounted && clientRouteNotifier.value == uri) {
+        _catalogKey.currentState?.applyClientUri(uri);
+      }
     });
   }
 
@@ -186,7 +188,9 @@ class _MainShellState extends State<MainShell> {
     widget.onTabChanged?.call(1);
     publishClientRoute(uri);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _catalogKey.currentState?.applyClientUri(uri);
+      if (mounted && clientRouteNotifier.value == uri) {
+        _catalogKey.currentState?.applyClientUri(uri);
+      }
     });
   }
 

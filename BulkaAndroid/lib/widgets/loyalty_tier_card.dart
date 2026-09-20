@@ -41,7 +41,13 @@ class LoyaltyTierCard extends StatelessWidget {
         key: const ValueKey('loyalty-tier-card'),
         borderRadius: BorderRadius.circular(BulkaRadii.card),
         child: DecoratedBox(
-          decoration: const BoxDecoration(color: Color(0xFFFFB300)),
+          decoration: const BoxDecoration(
+            color: Color(0xFFFFB300),
+            image: DecorationImage(
+              image: AssetImage('assets/brand/loyalty_background.png'),
+              fit: BoxFit.cover,
+            ),
+          ),
           child: Stack(
             children: [
               Positioned.fill(

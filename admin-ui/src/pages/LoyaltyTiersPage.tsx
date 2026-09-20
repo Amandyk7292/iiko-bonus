@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
-import TierBackgroundEditor, { tierArtworkStyle } from '../components/TierBackgroundEditor';
+import { tierArtworkStyle } from '../components/TierBackgroundEditor';
 import { useFeedback } from '../components/Feedback';
 import { api, type LocalizedText, type LoyaltyTier, type LoyaltyTierInput } from '../lib/api';
 import { useI18n, type Locale } from '../lib/i18n';
@@ -49,7 +49,6 @@ export default function LoyaltyTiersPage() {
   const [draft, setDraft] = useState<TierDraft>(() => createDraft(0));
   const [activeLanguage, setActiveLanguage] = useState<Locale>('ru');
   const [submitting, setSubmitting] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [formError, setFormError] = useState('');
 
@@ -120,7 +119,7 @@ export default function LoyaltyTiersPage() {
 
   const saveTier = async (event: FormEvent) => {
     event.preventDefault();
-    if (uploading || submitting) return;
+    if (submitting) return;
     const validation = validate();
     if (validation) {
       setFormError(validation);
@@ -387,7 +386,7 @@ export default function LoyaltyTiersPage() {
 
       <Modal
         open={modalOpen}
-        onClose={() => !submitting && !uploading && setModalOpen(false)}
+        onClose={() => !submitting && setModalOpen(false)}
         title={editingId ? t('tiers.editTitle') : t('tiers.createTitle')}
         size="lg"
       >
@@ -547,45 +546,19 @@ export default function LoyaltyTiersPage() {
             </div>
           </div>
 
-          <TierBackgroundEditor
-            code={draft.code}
-            image={draft.backgroundImageUrl}
-            disabled={submitting || uploading}
-            onChange={(url) => setDraft((current) => ({ ...current, backgroundImageUrl: url }))}
-            onBusyChange={setUploading}
-          />
-          <div
-            className="tier-form-preview tier-artwork"
-            style={tierArtworkStyle(draft.code, draft.backgroundImageUrl)}
-          >
-            <span className="section-eyebrow">{t('common.preview')}</span>
-            <strong>{draft.names[activeLanguage] || t('tiers.name')}</strong>
-            <span>
-              {t('tiers.previewSpend', {
-                amount: formatNumber(draft.minSpend === '' ? 0 : draft.minSpend),
-              })}{' '}
-              ·{' '}
-              {t('tiers.previewCashback', {
-                percent: formatNumber(draft.cashbackPercent === '' ? 0 : draft.cashbackPercent, {
-                  maximumFractionDigits: 2,
-                }),
-              })}
-            </span>
-          </div>
-
           <div className="modal-actions">
             <button
               type="button"
               className="btn-outline px-5"
               onClick={() => setModalOpen(false)}
-              disabled={submitting || uploading}
+              disabled={submitting}
             >
               {t('common.cancel')}
             </button>
             <button
               type="submit"
               className="btn-classic px-5 inline-flex items-center gap-2"
-              disabled={submitting || uploading}
+              disabled={submitting}
             >
               {submitting && <LoaderCircle className="spin" aria-hidden="true" size={18} />}
               {submitting ? t('common.saving') : t('common.save')}

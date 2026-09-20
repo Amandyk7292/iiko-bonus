@@ -181,8 +181,6 @@ async function resolveWalletTier(customer) {
 }
 
 async function buildApplePassBuffer(customer) {
-  const { tier } = await resolveWalletTier(customer);
-
   const signerCert = readSecretBuffer('WALLET_CERT', 'wallet_cert.pem');
   const signerKey = readSecretBuffer('WALLET_KEY', 'wallet_private_key.pem');
   const wwdr = readSecretBuffer('WALLET_WWDR', 'wwdr.pem');
@@ -197,10 +195,11 @@ async function buildApplePassBuffer(customer) {
     webServiceURL: `${getPublicBaseUrl()}/api/wallet`,
     authenticationToken: authToken,
     organizationName: 'Bulka',
+    logoText: 'Bulka',
     description: 'Карта лояльности пекарни Bulka',
-    foregroundColor: 'rgb(255, 250, 242)',
-    backgroundColor: 'rgb(27, 13, 8)',
-    labelColor: 'rgb(242, 190, 73)',
+    foregroundColor: 'rgb(120, 43, 14)',
+    backgroundColor: 'rgb(255, 179, 0)',
+    labelColor: 'rgb(120, 43, 14)',
     suppressStripShine: true,
     barcode: {
       message: getSecretWalletCardNumber(customer),
@@ -225,10 +224,9 @@ async function buildApplePassBuffer(customer) {
         },
       ],
       primaryFields: [
-        { key: 'name', label: 'ГОСТЬ', value: (customer.name || 'Гость').toUpperCase() },
+        { key: 'name', label: '', value: (customer.name || '').toUpperCase() },
       ],
       secondaryFields: [
-        { key: 'status', label: 'СТАТУС', value: `${tier.name} ${tier.percent}%`.toUpperCase() },
         { key: 'phone', label: 'ТЕЛЕФОН', value: customer.phone },
       ],
       backFields: [
@@ -254,13 +252,6 @@ async function buildApplePassBuffer(customer) {
   const pass = new PKPass(
     {
       'pass.json': Buffer.from(JSON.stringify(passJson)),
-      'logo.png': fs.readFileSync(path.join(process.cwd(), 'src/assets/pass.model', 'logo.png')),
-      'logo@2x.png': fs.readFileSync(
-        path.join(process.cwd(), 'src/assets/pass.model', 'logo@2x.png'),
-      ),
-      'logo@3x.png': fs.readFileSync(
-        path.join(process.cwd(), 'src/assets/pass.model', 'logo@3x.png'),
-      ),
       'icon.png': fs.readFileSync(path.join(process.cwd(), 'src/assets/pass.model', 'icon.png')),
       'icon@2x.png': fs.readFileSync(
         path.join(process.cwd(), 'src/assets/pass.model', 'icon@2x.png'),
@@ -268,13 +259,7 @@ async function buildApplePassBuffer(customer) {
       'icon@3x.png': fs.readFileSync(
         path.join(process.cwd(), 'src/assets/pass.model', 'icon@3x.png'),
       ),
-      'strip.png': fs.readFileSync(path.join(process.cwd(), 'src/assets/pass.model', 'strip.png')),
-      'strip@2x.png': fs.readFileSync(
-        path.join(process.cwd(), 'src/assets/pass.model', 'strip@2x.png'),
-      ),
-      'strip@3x.png': fs.readFileSync(
-        path.join(process.cwd(), 'src/assets/pass.model', 'strip@3x.png'),
-      ),
+
     },
     { signerCert, signerKey, wwdr },
   );
@@ -317,7 +302,7 @@ function buildGoogleLoyaltyObject(customer, tier) {
     classId,
     state: 'ACTIVE',
     accountId: String(customer.phone || '').slice(0, 20),
-    accountName: String(customer.name || 'Гость').slice(0, 20),
+    accountName: String(customer.name || '').slice(0, 20),
     loyaltyPoints: {
       label: 'Бонусы',
       localizedLabel: localizedString('ru', 'Бонусы', {
@@ -331,13 +316,8 @@ function buildGoogleLoyaltyObject(customer, tier) {
       value: getSecretWalletCardNumber(customer),
       alternateText: 'Сканируйте на кассе',
     },
-    textModulesData: [
-      {
-        id: 'status',
-        header: 'Статус',
-        body: `${tier.name} ${tier.percent}%`,
-      },
-    ],
+    hexBackgroundColor: '#FFB300',
+    textModulesData: [],
   };
 }
 
@@ -360,6 +340,7 @@ async function getGoogleWalletClient() {
 
 function buildGoogleWalletUpdatePayload(loyaltyObject) {
   return {
+    hexBackgroundColor: loyaltyObject.hexBackgroundColor,
     accountName: loyaltyObject.accountName,
     accountId: loyaltyObject.accountId,
     loyaltyPoints: loyaltyObject.loyaltyPoints,

@@ -781,8 +781,8 @@ class _OrderTypeCard extends StatelessWidget {
 }
 
 enum _OrderIllustrationKind {
-  pickup('assets/order/pickup.webp'),
-  preorder('assets/order/preorder.webp'),
+  pickup('assets/order/pickup_clean.png'),
+  preorder('assets/order/preorder_clean.png'),
   delivery('assets/order/delivery.webp');
 
   const _OrderIllustrationKind(this.assetPath);

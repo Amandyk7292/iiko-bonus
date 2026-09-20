@@ -379,6 +379,8 @@ extension _CatalogInteractionController on _CatalogScreenState {
         properties: {'category': product.category},
       );
       _productRouteOpen = true;
+      // Keep background menu refreshes on the route the user just opened.
+      _pendingClientUri = _routeProductUri(product);
       publishClientRoute(
         _routeProductUri(product),
         replace: !updateClientRoute,
@@ -413,10 +415,10 @@ extension _CatalogInteractionController on _CatalogScreenState {
         _productRouteOpen = false;
         final current = normalizedClientUri(clientRouteNotifier.value);
         if (nextProduct == null && productIdFromClientUri(current) != null) {
-          publishClientRoute(
-            _CatalogScreenState._categoryClientUri(product.category),
-            replace: true,
+          _pendingClientUri = _CatalogScreenState._categoryClientUri(
+            product.category,
           );
+          publishClientRoute(_pendingClientUri!, replace: true);
         }
       }
     });
