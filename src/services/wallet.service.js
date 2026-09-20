@@ -1,3 +1,4 @@
+const { getWalletArtwork } = require('./wallet-artwork');
 const apn = require('@parse/node-apn');
 const jwt = require('jsonwebtoken');
 const { auth } = require('google-auth-library');
@@ -195,7 +196,6 @@ async function buildApplePassBuffer(customer) {
     webServiceURL: `${getPublicBaseUrl()}/api/wallet`,
     authenticationToken: authToken,
     organizationName: 'Bulka',
-    logoText: 'Bulka',
     description: 'Карта лояльности пекарни Bulka',
     foregroundColor: 'rgb(120, 43, 14)',
     backgroundColor: 'rgb(255, 179, 0)',
@@ -223,10 +223,9 @@ async function buildApplePassBuffer(customer) {
           changeMessage: 'Бонусный баланс обновлён: %@',
         },
       ],
-      primaryFields: [
-        { key: 'name', label: '', value: (customer.name || '').toUpperCase() },
-      ],
+      primaryFields: [],
       secondaryFields: [
+        { key: 'name', label: '', value: customer.name || '' },
         { key: 'phone', label: 'ТЕЛЕФОН', value: customer.phone },
       ],
       backFields: [
@@ -252,6 +251,7 @@ async function buildApplePassBuffer(customer) {
   const pass = new PKPass(
     {
       'pass.json': Buffer.from(JSON.stringify(passJson)),
+      ...await getWalletArtwork(),
       'icon.png': fs.readFileSync(path.join(process.cwd(), 'src/assets/pass.model', 'icon.png')),
       'icon@2x.png': fs.readFileSync(
         path.join(process.cwd(), 'src/assets/pass.model', 'icon@2x.png'),

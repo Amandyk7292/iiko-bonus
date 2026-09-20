@@ -65,11 +65,11 @@ test('Apple Wallet serial and update tags are stable', () => {
   assert.equal(customerIdFromSerial('bulka-invalid'), null);
   assert.equal(
     customerUpdateTag({ updated_at: '2026-07-15T10:20:30.123Z' }),
-    Date.parse('2026-09-20T00:00:00.000Z'),
+    Date.parse('2026-09-20T16:25:00.000Z'),
   );
   assert.equal(
-    customerUpdateTag({ updated_at: '2026-09-20T16:20:30.123Z' }),
-    Date.parse('2026-09-20T16:20:30.123Z'),
+    customerUpdateTag({ updated_at: '2026-09-20T16:30:30.123Z' }),
+    Date.parse('2026-09-20T16:30:30.123Z'),
   );
 });
 
@@ -84,4 +84,21 @@ test('Wallet amount keeps real decimals without trailing zero noise', () => {
   assert.equal(formatWalletAmount(100), '100');
   assert.equal(formatWalletAmount(100.5), '100.5');
   assert.equal(formatWalletAmount(100.25), '100.25');
+});
+
+
+test('Apple artwork fits PassKit at every display scale', async () => {
+  const sharp = require('sharp');
+  const { getWalletArtwork } = require('../src/services/wallet-artwork');
+  const assets = await getWalletArtwork();
+  for (const scale of [1, 2, 3]) {
+    const suffix = scale === 1 ? '' : `@${scale}x`;
+    const strip = await sharp(assets[`strip${suffix}.png`]).metadata();
+    const logo = await sharp(assets[`logo${suffix}.png`]).metadata();
+    assert.equal(strip.width, 375 * scale);
+    assert.equal(strip.height, 144 * scale);
+    assert.ok(logo.width <= 160 * scale);
+    assert.equal(logo.height, 50 * scale);
+    assert.equal(logo.hasAlpha, true);
+  }
 });
