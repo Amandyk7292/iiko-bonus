@@ -634,7 +634,20 @@ void main() {
   testWidgets('late pickup response cannot replace the delivery catalog', (
     tester,
   ) async {
+    const address = DeliveryAddress(
+      id: 'delivery-home',
+      house: '1',
+      title: 'Дом',
+      location: DeliveryLocation(
+        city: 'Актау',
+        address: 'Адрес',
+        latitude: 43.65,
+        longitude: 51.16,
+      ),
+    );
     SharedPreferences.setMockInitialValues({
+      'delivery_addresses_guest': [jsonEncode(address.toJson())],
+      'selected_delivery_address_id_guest': address.id,
       'selected_bakery_location_id_pickup': 'branch-one',
       'selected_bakery_location_pickup': 'Филиал',
       'selected_bakery_location_id_delivery': 'branch-one',
@@ -643,9 +656,6 @@ void main() {
     final pickupResponse = Completer<http.Response>();
     final requestedTypes = <String>[];
     final client = MockClient((request) async {
-      if (request.url.path.endsWith('/api/guest/locations')) {
-        return selectedBakeryLocationsResponse();
-      }
       if (request.url.path.endsWith('/api/guest/locations')) {
         return http.Response(
           jsonEncode({
@@ -657,6 +667,8 @@ void main() {
                 'address': 'Адрес',
                 'city': 'Актау',
                 'deliveryEnabled': true,
+                'latitude': 43.65,
+                'longitude': 51.16,
               },
             ],
           }),
