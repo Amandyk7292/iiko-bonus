@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { Building2, Clock3, LoaderCircle, MapPin, Pencil, Plus, RefreshCw } from 'lucide-react';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
-import BranchPosCredentialPanel from '../components/BranchPosCredentialPanel';
 import YandexLocationMap, { type MapPointDetails } from '../components/YandexLocationMap';
 import { useFeedback } from '../components/Feedback';
 import { api, type AdminLocationCity, type AdminUser } from '../lib/api';
@@ -71,10 +70,6 @@ type Draft = {
   longitude: string;
   open: string;
   close: string;
-  slotMinutes: string;
-  pickupSlotCapacity: string;
-  preorderSlotCapacity: string;
-  deliverySlotCapacity: string;
 };
 
 const emptyDraft: Draft = {
@@ -88,10 +83,6 @@ const emptyDraft: Draft = {
   longitude: '',
   open: '08:00',
   close: '21:00',
-  slotMinutes: '60',
-  pickupSlotCapacity: '20',
-  preorderSlotCapacity: '10',
-  deliverySlotCapacity: '15',
 };
 const emptyCityDraft = (): CityDraft => ({
   name: '',
@@ -192,10 +183,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
       longitude: location.longitude == null ? '' : String(location.longitude),
       open: daily?.open || '08:00',
       close: daily?.close || '21:00',
-      slotMinutes: String(location.slotMinutes || 60),
-      pickupSlotCapacity: String(location.pickupSlotCapacity || 20),
-      preorderSlotCapacity: String(location.preorderSlotCapacity || 10),
-      deliverySlotCapacity: String(location.deliverySlotCapacity || 15),
     });
     setFormError('');
   };
@@ -399,21 +386,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
       setFormError(t('locations.hoursInvalid'));
       return;
     }
-    const slotMinutes = numeric(draft.slotMinutes);
-    const pickupSlotCapacity = numeric(draft.pickupSlotCapacity);
-    const preorderSlotCapacity = numeric(draft.preorderSlotCapacity);
-    const deliverySlotCapacity = numeric(draft.deliverySlotCapacity);
-    if (
-      !Number.isInteger(slotMinutes) ||
-      slotMinutes < 15 ||
-      slotMinutes > 240 ||
-      [pickupSlotCapacity, preorderSlotCapacity, deliverySlotCapacity].some(
-        (value) => !Number.isInteger(value) || value < 1 || value > 500,
-      )
-    ) {
-      setFormError(t('locations.capacityInvalid'));
-      return;
-    }
     setSubmitting(true);
     setFormError('');
     try {
@@ -427,10 +399,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
         latitude,
         longitude,
         hours: { ...(editing.hours ?? {}), daily: { open: draft.open, close: draft.close } },
-        slotMinutes,
-        pickupSlotCapacity,
-        preorderSlotCapacity,
-        deliverySlotCapacity,
       });
       setLocations((current) =>
         current.map((item) => (item.id === editing.id ? result.location : item)),
@@ -640,12 +608,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
                             {location.hours?.daily?.open || '—'}–
                             {location.hours?.daily?.close || '—'}
                           </span>
-                          <small className="location-meta">
-                            {t('locations.slotSummary', {
-                              minutes: location.slotMinutes || 60,
-                              capacity: location.pickupSlotCapacity || 20,
-                            })}
-                          </small>
                         </td>
                         <td data-label={t('common.actions')}>
                           <div className="row-actions justify-end">
@@ -1209,59 +1171,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
               </div>
             </div>
           </fieldset>
-          <fieldset className="form-section">
-            <legend>{t('locations.slotCapacity')}</legend>
-            <p className="page-help">{t('locations.slotCapacityHint')}</p>
-            <div className="form-grid form-grid-2">
-              <div className="field-group">
-                <label className="field-label" htmlFor="slot-minutes">
-                  {t('locations.slotMinutes')}
-                </label>
-                <input
-                  id="slot-minutes"
-                  type="number"
-                  min="15"
-                  max="240"
-                  step="15"
-                  className="input-classic"
-                  value={draft.slotMinutes}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, slotMinutes: event.target.value }))
-                  }
-                  required
-                />
-              </div>
-              {(
-                [
-                  ['pickupSlotCapacity', 'locations.pickupCapacity'],
-                  ['preorderSlotCapacity', 'locations.preorderCapacity'],
-                  ['deliverySlotCapacity', 'locations.deliveryCapacity'],
-                ] as const
-              ).map(([key, label]) => (
-                <div className="field-group" key={key}>
-                  <label className="field-label" htmlFor={key}>
-                    {t(label)}
-                  </label>
-                  <input
-                    id={key}
-                    type="number"
-                    min="1"
-                    max="500"
-                    step="1"
-                    className="input-classic"
-                    value={draft[key]}
-                    onChange={(event) =>
-                      setDraft((current) => ({ ...current, [key]: event.target.value }))
-                    }
-                    required
-                  />
-                </div>
-              ))}
-            </div>
-          </fieldset>
-          {editing && (
-            <BranchPosCredentialPanel locationId={editing.id} canRotate={canManageStructure} />
-          )}
           <div className="modal-actions">
             <button
               type="button"

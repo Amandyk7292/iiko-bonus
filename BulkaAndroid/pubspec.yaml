@@ -65,6 +65,7 @@ dependencies:
   path_provider: ^2.1.6
   file_selector: ^1.1.0
   pdf: ^3.12.0
+  video_player: ^2.11.1
 
 dev_dependencies:
   integration_test:
@@ -171,9 +172,7 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
 flutter_native_splash:
-  color: "#FFB300"
-  image: "assets/brand/app_icon_foreground.png"
+  color: "#FFB329"
   web: false
   android_12:
-    color: "#FFB300"
-    image: "assets/brand/app_icon_foreground.png"
+    color: "#FFB329"

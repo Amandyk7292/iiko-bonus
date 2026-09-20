@@ -167,7 +167,7 @@ void main() {
       );
 
       expect(emptyProduct.hasNutrition, isFalse);
-      expect(emptyProduct.hasComposition, isFalse);
+      expect(emptyProduct.hasAllergens, isFalse);
       expect(emptyProduct.hasProductDetails, isFalse);
       expect(partialProduct.hasNutrition, isTrue);
       expect(partialProduct.hasProductDetails, isTrue);
@@ -188,16 +188,12 @@ void main() {
     expect(missing, isEmpty);
   });
 
-  test(
-    'web loader stays visible until Flutter renders or retry is offered',
-    () {
-      final source = File('web/index.html').readAsStringSync();
-      expect(source, contains('flutter-first-frame'));
-      expect(source, contains('app-loading-error'));
-      expect(source, contains('app-loading-retry'));
-      expect(source, isNot(contains('setTimeout(hideLoading')));
-    },
-  );
+  test('web starts Flutter without a preloader overlay', () {
+    final source = File('web/index.html').readAsStringSync();
+    expect(source, isNot(contains('id="app-loading"')));
+    expect(source, isNot(contains('app-loading-error')));
+    expect(source, contains('app_bootstrap.js?v=__BULKA_RELEASE_VERSION__'));
+  });
 
   test('client UI has no hardcoded Cyrillic labels', () {
     final violations = <String>[];
@@ -1404,16 +1400,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(SplashScreen), findsOneWidget);
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is Image &&
-            widget.image is AssetImage &&
-            (widget.image as AssetImage).assetName ==
-                'assets/brand/app_icon_foreground.png',
-      ),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('splash-clean-logo')), findsNothing);
 
     await tester.pump(const Duration(milliseconds: 699));
     expect(find.byType(SplashScreen), findsOneWidget);
@@ -1797,7 +1784,7 @@ void main() {
     expect(find.textContaining('Готовим'), findsNothing);
     expect(find.text('Выбрать дату готовности'), findsNothing);
     final ingredientsButton = find.byKey(
-      const ValueKey('product-show-ingredients'),
+      const ValueKey('product-show-allergens'),
     );
     await tester.scrollUntilVisible(
       ingredientsButton,
@@ -1806,10 +1793,10 @@ void main() {
     );
     await tester.tap(ingredientsButton);
     await tester.pumpAndSettle();
-    expect(find.text('Состав'), findsOneWidget);
+    expect(find.text('Состав'), findsNothing);
     expect(
       find.text('Пшеничная мука, сливочное масло, яблоко, вишня'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.text('Глютен'), findsOneWidget);
     expect(find.text('Молоко'), findsOneWidget);
@@ -1859,10 +1846,7 @@ void main() {
 
     expect(find.text('О продукте'), findsNothing);
     expect(find.text('Информация скоро появится'), findsNothing);
-    expect(
-      find.byKey(const ValueKey('product-show-ingredients')),
-      findsNothing,
-    );
+    expect(find.byKey(const ValueKey('product-show-allergens')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('catalog-image-add')));
     await tester.pumpAndSettle();
     expect(selectedQuantity, 1);
@@ -2445,7 +2429,7 @@ void main() {
   });
 
   testWidgets(
-    'home delivery lists eligible branches and preserves selected branch',
+    'home delivery opens address selection instead of a branch picker',
     (tester) async {
       String? openedType;
       await tester.pumpWidget(
@@ -2473,21 +2457,26 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('order-card-delivery')));
       await tester.pumpAndSettle();
-      expect(find.text('Филиалы с доставкой'), findsOneWidget);
-      expect(find.byType(AddressSelectionScreen), findsNothing);
-      expect(find.byType(SnackBar), findsNothing);
-      expect(find.text('Bulka'), findsOneWidget);
-      expect(find.text('Только самовывоз'), findsNothing);
-      expect(find.text('Закрытый филиал'), findsNothing);
-      expect(find.text('Без зоны доставки'), findsOneWidget);
-      await tester.tap(find.text('Bulka'));
+      expect(find.byType(AddressSelectionScreen), findsOneWidget);
+      expect(find.byType(LocationsScreen), findsNothing);
+      expect(openedType, isNull);
+      Navigator.of(tester.element(find.byType(AddressSelectionScreen))).pop(
+        const DeliveryAddress(
+          id: 'chosen-address',
+          title: 'Home',
+          house: '1',
+          location: DeliveryLocation(
+            city: 'Астана',
+            address: 'Street 1',
+            latitude: 51.16,
+            longitude: 71.43,
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(openedType, 'delivery');
       final prefs = await SharedPreferences.getInstance();
-      expect(
-        prefs.getString('selected_bakery_location_id_delivery'),
-        'astana-1',
-      );
+      expect(prefs.getString('selected_bakery_location_id_delivery'), isNull);
       expect(prefs.getString('selected_order_type'), 'delivery');
     },
   );

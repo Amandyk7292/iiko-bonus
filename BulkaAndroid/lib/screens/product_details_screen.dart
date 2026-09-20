@@ -726,9 +726,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  Future<void> _showIngredientsSheet(CatalogProduct product) async {
+  Future<void> _showAllergensSheet(CatalogProduct product) async {
     final colors = context.bulkaColors;
-    final ingredients = product.ingredients.trim();
     await _sheetGate.run(() async {
       await showModalBottomSheet<void>(
         context: context,
@@ -766,7 +765,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                         ),
                       ),
                       IconButton(
-                        key: const ValueKey('product-ingredients-close'),
+                        key: const ValueKey('product-allergens-close'),
                         onPressed: () => Navigator.pop(sheetContext),
                         tooltip: 'close_tooltip'.tr,
                         style: IconButton.styleFrom(
@@ -790,29 +789,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (ingredients.isNotEmpty) ...[
-                          Text(
-                            'catalog_ingredients'.tr,
-                            style: const TextStyle(
-                              fontFamily: _headingFont,
-                              fontSize: BulkaTypeScale.title,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 22),
-                          Text(
-                            ingredients,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurface,
-                              fontSize: BulkaTypeScale.body,
-                              height: 1.55,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
                         if (product.allergens.isNotEmpty) ...[
-                          if (ingredients.isNotEmpty)
-                            const SizedBox(height: 28),
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.all(18),
@@ -1061,7 +1038,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                         ),
                                       ),
                                     if (product.hasNutrition ||
-                                        product.hasComposition) ...[
+                                        product.hasAllergens) ...[
                                       if (product.description.trim().isNotEmpty)
                                         const SizedBox(height: 14),
                                       Container(
@@ -1111,17 +1088,17 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                               _nutritionGrid(product),
                                             ],
                                             if (product.hasNutrition &&
-                                                product.hasComposition)
+                                                product.hasAllergens)
                                               const SizedBox(height: 18),
-                                            if (product.hasComposition)
+                                            if (product.hasAllergens)
                                               SizedBox(
                                                 width: double.infinity,
                                                 child: OutlinedButton(
                                                   key: const ValueKey(
-                                                    'product-show-ingredients',
+                                                    'product-show-allergens',
                                                   ),
                                                   onPressed: () =>
-                                                      _showIngredientsSheet(
+                                                      _showAllergensSheet(
                                                         product,
                                                       ),
                                                   style: OutlinedButton.styleFrom(
@@ -1140,8 +1117,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                                         const StadiumBorder(),
                                                   ),
                                                   child: Text(
-                                                    'catalog_view_ingredients'
-                                                        .tr,
+                                                    'catalog_allergens'.tr,
                                                     style: const TextStyle(
                                                       fontFamily: _headingFont,
                                                       fontSize:
@@ -1163,7 +1139,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                               .trim()
                                               .isNotEmpty ||
                                           product.hasNutrition ||
-                                          product.hasComposition)
+                                          product.hasAllergens)
                                         const SizedBox(height: 14),
                                       Container(
                                         width: double.infinity,
@@ -1202,7 +1178,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                               .trim()
                                               .isNotEmpty ||
                                           product.hasNutrition ||
-                                          product.hasComposition ||
+                                          product.hasAllergens ||
                                           product.storageConditions.isNotEmpty)
                                         const SizedBox(height: 14),
                                       Container(

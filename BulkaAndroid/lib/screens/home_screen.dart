@@ -70,6 +70,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openBakeryLocations(String orderType) async {
     await _navigationGate.run(() async {
+      if (orderType == 'delivery') {
+        final address = await Navigator.of(context).push<DeliveryAddress>(
+          MaterialPageRoute(
+            builder: (_) => AddressSelectionScreen(api: widget.api),
+          ),
+        );
+        if (!mounted || address == null) return;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('selected_order_type', orderType);
+        if (!mounted) return;
+        await widget.onOpenCatalog(orderType);
+        return;
+      }
       final location = await Navigator.of(context).push<String>(
         MaterialPageRoute(
           builder: (_) =>

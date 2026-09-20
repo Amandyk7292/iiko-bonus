@@ -98,7 +98,7 @@ const resolveBranch = (
 
   let selected;
   const normalizedBranchId = String(branchId || '').trim();
-  if (normalizedBranchId) {
+  if (orderType !== 'delivery' && normalizedBranchId) {
     if (
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
         normalizedBranchId,
@@ -109,7 +109,7 @@ const resolveBranch = (
     selected = branches.find((point) => String(point.id) === normalizedBranchId);
   }
   const normalizedBranch = boundedText(branch, 160).toLocaleLowerCase('ru-RU');
-  if (!selected && normalizedBranch) {
+  if (orderType !== 'delivery' && !selected && normalizedBranch) {
     selected = branches.find(
       (point) =>
         point.label.toLocaleLowerCase('ru-RU') === normalizedBranch ||
@@ -128,15 +128,13 @@ const resolveBranch = (
     if (configured.length === 0) {
       throw checkoutError('Доставка пока не настроена ни для одного филиала', 503);
     }
-    if (selected) {
-      if (!configured.includes(selected)) {
-        throw checkoutError('Доставка из выбранного филиала сейчас недоступна');
-      }
-    } else {
-      selected = configured
-        .map((point) => ({ point, distance: haversineDistance(deliveryAddress, point) }))
-        .sort((left, right) => left.distance - right.distance)[0].point;
-    }
+    selected = configured
+      .map((point) => ({ point, distance: haversineDistance(deliveryAddress, point) }))
+      .sort(
+        (left, right) =>
+          left.distance - right.distance ||
+          String(left.point.id).localeCompare(String(right.point.id)),
+      )[0].point;
     selected = {
       ...selected,
       deliveryDistanceKm: Number(haversineDistance(deliveryAddress, selected).toFixed(3)),

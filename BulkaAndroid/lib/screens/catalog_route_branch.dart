@@ -9,7 +9,8 @@ extension _CatalogRouteBranch on _CatalogScreenState {
       );
 
   String get _requestedRouteBranch =>
-      _pendingClientUri == null ||
+      _orderType == 'delivery' ||
+          _pendingClientUri == null ||
           productIdFromClientUri(_pendingClientUri!) == null
       ? ''
       : _pendingClientUri!.queryParameters['branch']?.trim() ?? '';

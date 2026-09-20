@@ -253,13 +253,11 @@ void main() {
               .onPressed,
           isNull,
         );
-        final composition = find.byKey(
-          const ValueKey('product-show-ingredients'),
+        expect(
+          find.byKey(const ValueKey('product-show-allergens')),
+          findsNothing,
         );
-        await tester.ensureVisible(composition);
-        await tester.tap(composition);
-        await tester.pumpAndSettle();
-        expect(find.text('Мука, масло, сахар'), findsOneWidget);
+        expect(find.text('Мука, масло, сахар'), findsNothing);
         expect(cart.items, isEmpty);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox.shrink());

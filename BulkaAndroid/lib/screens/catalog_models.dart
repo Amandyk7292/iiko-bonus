@@ -150,13 +150,12 @@ class CatalogProduct {
       fatGrams != null ||
       carbsGrams != null;
 
-  bool get hasComposition =>
-      ingredients.trim().isNotEmpty || allergens.isNotEmpty;
+  bool get hasAllergens => allergens.isNotEmpty;
 
   bool get hasProductDetails =>
       description.trim().isNotEmpty ||
       hasNutrition ||
-      hasComposition ||
+      hasAllergens ||
       storageConditions.isNotEmpty ||
       dietaryTags.isNotEmpty;
 }

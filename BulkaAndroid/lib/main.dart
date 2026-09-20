@@ -35,6 +35,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:pinput/pinput.dart';
 import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:video_player/video_player.dart';
 
 import 'core/cart_provider.dart';
 import 'core/api_origin.dart';
@@ -209,6 +210,7 @@ part 'widgets/bulka_nav_icon.dart';
 part 'widgets/customer_avatar.dart';
 part 'widgets/desktop_phone_viewport.dart';
 part 'widgets/input_dismissal.dart';
+part 'widgets/native_launch_video.dart';
 part 'widgets/branch_closed_sheet.dart';
 part 'models/payment_receipt.dart';
 part 'core/catalog_copy.dart';
@@ -341,6 +343,7 @@ class _BulkaBootstrapState extends State<_BulkaBootstrap> {
   @override
   void initState() {
     super.initState();
+    unawaited(_initialization);
     _browserRouteSubscription = clientPopStateUris().listen(
       applyExternalClientRoute,
     );
@@ -382,33 +385,17 @@ class _BulkaBootstrapState extends State<_BulkaBootstrap> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<void>(
+    final app = FutureBuilder<void>(
       future: _initialization,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.done) {
-          return kIsWeb
-              ? const BulkaBonusApp()
-              : const BulkaWelcomeGate(child: BulkaBonusApp());
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const SizedBox.shrink();
         }
-        return ValueListenableBuilder<String>(
-          valueListenable: appLanguageNotifier,
-          builder: (context, lang, child) => MaterialApp(
-            debugShowCheckedModeBanner: false,
-            title: 'app_title'.tr,
-            locale: Locale(lang),
-            supportedLocales: const [Locale('ru'), Locale('kk'), Locale('en')],
-            localizationsDelegates: const [
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            builder: _buildBulkaAppViewport,
-            theme: buildBulkaTheme(),
-            themeMode: ThemeMode.light,
-            home: SplashScreen(text: 'splash_loading'.tr),
-          ),
-        );
+        return kIsWeb
+            ? const BulkaBonusApp()
+            : const BulkaWelcomeGate(child: BulkaBonusApp());
       },
     );
+    return kIsWeb ? app : NativeLaunchVideoGate(child: app);
   }
 }
