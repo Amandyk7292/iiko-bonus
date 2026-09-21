@@ -11,6 +11,40 @@ const MAX_PROMOTION_AMOUNT = 10000000;
 const MAX_PROMOTION_AUDIENCE = 500;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const normalizeMarketingLanguage = (value) =>
+  ['kk', 'kz'].includes(String(value || '').toLowerCase())
+    ? 'kk'
+    : String(value || '').toLowerCase() === 'en'
+      ? 'en'
+      : 'ru';
+
+function renderAutomationCopy(automation = {}, payload = {}, requestedLanguage = 'ru') {
+  const language = normalizeMarketingLanguage(requestedLanguage);
+  const productNames = payload.productNames || {};
+  const variables = {
+    productName:
+      productNames[language] ||
+      productNames.ru ||
+      payload.productName ||
+      (language === 'kk' ? 'өнім' : language === 'en' ? 'item' : 'товар'),
+    quantity: Number(payload.quantity || 1),
+    inactiveHours: Number(payload.inactiveHours || 0),
+  };
+  const render = (value) =>
+    String(value || '').replace(/\{\{(productName|quantity|inactiveHours)\}\}/g, (_, key) =>
+      String(variables[key]),
+    );
+  return {
+    language,
+    title: render(
+      automation.title_translations?.[language] || automation.title_translations?.ru || 'Bulka',
+    ),
+    body: render(
+      automation.body_translations?.[language] || automation.body_translations?.ru || '',
+    ),
+  };
+}
+
 const normalizeCode = (value) =>
   String(value || '')
     .trim()
@@ -482,7 +516,6 @@ async function enqueueAutomatedMessages() {
   if (error) throw error;
   let enqueued = 0;
   let customerCache = null;
-  let orderCache = null;
   let transactionCache = null;
 
   const customers = async () => {
@@ -495,19 +528,6 @@ async function enqueueAutomatedMessages() {
     if (customerError) throw customerError;
     customerCache = data || [];
     return customerCache;
-  };
-  const recentOrders = async () => {
-    if (orderCache) return orderCache;
-    const { data, error: orderError } = await supabase
-      .from('kaspi_orders')
-      .select('customer_id,created_at')
-      .in('status', ['paid', 'refunded'])
-      .not('customer_id', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(10000);
-    if (orderError) throw orderError;
-    orderCache = data || [];
-    return orderCache;
   };
   const recentTransactions = async () => {
     if (transactionCache) return transactionCache;
@@ -597,21 +617,19 @@ async function enqueueAutomatedMessages() {
     }
 
     if (automation.trigger_type === 'inactive') {
-      const inactiveDays = Math.max(1, Number(automation.config?.inactiveDays || 45));
-      const cooldownDays = Math.max(1, Number(automation.config?.cooldownDays || 30));
-      const cutoff = now.getTime() - inactiveDays * 86400000;
-      const latest = new Map();
-      for (const order of await recentOrders()) {
-        if (!latest.has(String(order.customer_id)))
-          latest.set(String(order.customer_id), order.created_at);
-      }
-      const cooldownBucket = Math.floor(now.getTime() / (cooldownDays * 86400000));
-      for (const customer of await customers()) {
-        const activity = latest.get(String(customer.id)) || customer.created_at;
-        if (activity && new Date(activity).getTime() <= cutoff) {
-          await enqueue(automation, customer.id, `inactive:${cooldownBucket}`, { inactiveDays });
-        }
-      }
+      const inactiveHours = Math.max(
+        1,
+        Math.min(8760, Number(automation.config?.inactiveHours || 48)),
+      );
+      const { data: inserted, error: inactiveError } = await supabase.rpc(
+        'enqueue_inactive_order_reminders',
+        {
+          p_automation_id: automation.id,
+          p_inactive_hours: inactiveHours,
+        },
+      );
+      if (inactiveError) throw inactiveError;
+      enqueued += Number(inserted || 0);
       continue;
     }
 
@@ -670,18 +688,20 @@ async function deliverAutomatedMessages(limit = 100) {
           .eq('id', delivery.id);
         continue;
       }
-      const language = customer.preferred_language || 'ru';
       const automation = delivery.marketing_automations || {};
-      const title =
-        automation.title_translations?.[language] || automation.title_translations?.ru || 'Bulka';
-      const body =
-        automation.body_translations?.[language] || automation.body_translations?.ru || '';
+      const { title, body, language } = renderAutomationCopy(
+        automation,
+        delivery.payload || {},
+        customer.preferred_language,
+      );
       const pushResult = await sendPushToCustomer(
         delivery.customer_id,
         title,
         body,
         {
-          type: automation.trigger_type,
+          type: `marketing_${automation.trigger_type}`,
+          language,
+          deepLink: '/app/',
         },
         customer.fcm_token,
       );
@@ -724,6 +744,7 @@ module.exports = {
   listGiftCards,
   listPromotions,
   matchesPromotionAudience,
+  renderAutomationCopy,
   qualifyReferralForOrder,
   consumePromotionReservation,
   releasePromotionReservation,
