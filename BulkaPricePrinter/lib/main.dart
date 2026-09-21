@@ -16,6 +16,7 @@ class BulkaPrinterApp extends StatelessWidget {
     debugShowCheckedModeBanner: false,
     title: 'Bulka — печать этикеток',
     theme: ThemeData(
+      fontFamily: 'Segoe UI',
       colorScheme: ColorScheme.fromSeed(
         seedColor: const Color(0xffffb300),
         primary: const Color(0xff782b0e),
@@ -228,31 +229,21 @@ class _PrinterHomeState extends State<PrinterHome> {
                               drawText: true,
                               color: textColor,
                               style: TextStyle(
-                                fontSize: entry.value.fontSize * scale / 6,
+                                fontFamily: 'Segoe UI',
+                                fontSize:
+                                    entry.value.fontSize * scale / 6 * 4 / 3,
                                 letterSpacing: scale / 2,
                               ),
                             )
                           : Align(
                               alignment: _fieldAlignment(entry.value.align),
-                              child: Text(
-                                entry.key == 'barcode'
-                                    ? (product.barcode.isEmpty
-                                          ? 'Штрихкод не указан'
-                                          : product.barcode)
-                                    : content[entry.key] ?? '',
-                                maxLines: entry.key == 'name' ? 2 : null,
-                                overflow: TextOverflow.clip,
-                                textAlign: _fieldTextAlign(entry.value.align),
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: entry.value.fontSize * scale / 6,
-                                  fontWeight: entry.value.weight >= 700
-                                      ? FontWeight.w700
-                                      : entry.value.weight >= 600
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
-                                  height: entry.value.lineHeight,
-                                ),
+                              child: _previewText(
+                                entry.key,
+                                entry.value,
+                                product,
+                                content[entry.key] ?? '',
+                                textColor,
+                                scale,
                               ),
                             ),
                     ),
@@ -279,6 +270,42 @@ class _PrinterHomeState extends State<PrinterHome> {
     'right' => TextAlign.right,
     _ => TextAlign.left,
   };
+
+  Widget _previewText(
+    String key,
+    LabelField field,
+    Product product,
+    String text,
+    Color color,
+    double scale,
+  ) {
+    final node = Text(
+      key == 'barcode'
+          ? (product.barcode.isEmpty ? 'Штрихкод не указан' : product.barcode)
+          : text,
+      maxLines: key == 'name' ? 2 : null,
+      overflow: TextOverflow.clip,
+      textAlign: _fieldTextAlign(field.align),
+      style: TextStyle(
+        fontFamily: 'Segoe UI',
+        color: color,
+        fontSize: field.fontSize * scale / 6 * 4 / 3,
+        fontWeight: field.weight >= 700
+            ? FontWeight.w700
+            : field.weight >= 600
+            ? FontWeight.w600
+            : FontWeight.w400,
+        height: field.lineHeight,
+      ),
+    );
+    return key == 'composition'
+        ? node
+        : FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: _fieldAlignment(field.align),
+            child: node,
+          );
+  }
 
   Future<void> _editCopies() async {
     var value = '$_copies';

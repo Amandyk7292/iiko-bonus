@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -16,11 +17,13 @@ Future<Uint8List> buildLabelPdf(
   DateTime madeAt,
   LabelTemplate template,
 ) async {
-  final regular = pw.Font.ttf(
-    await rootBundle.load('assets/fonts/Roboto-Regular.ttf'),
+  final regular = await _font(
+    r'C:\Windows\Fonts\segoeui.ttf',
+    'assets/fonts/Roboto-Regular.ttf',
   );
-  final bold = pw.Font.ttf(
-    await rootBundle.load('assets/fonts/Roboto-Bold.ttf'),
+  final bold = await _font(
+    r'C:\Windows\Fonts\segoeuib.ttf',
+    'assets/fonts/Roboto-Bold.ttf',
   );
   final document = pw.Document(
     theme: pw.ThemeData.withFont(base: regular, bold: bold),
@@ -108,22 +111,55 @@ pw.Widget _field(
           )
         : pw.Container(
             alignment: _alignment(field.align),
-            child: pw.Text(
-              key == 'barcode' && barcode.isEmpty
-                  ? 'Нет штрихкода'
-                  : (key == 'barcode' ? barcode : text),
-              textAlign: _textAlign(field.align),
-              maxLines: key == 'name' ? 2 : null,
-              style: pw.TextStyle(
-                font: field.weight >= 600 ? bold : regular,
-                fontSize: field.fontSize,
-                color: PdfColor.fromHex(color),
-                lineSpacing: field.fontSize * (field.lineHeight - 1),
-              ),
-            ),
+            child: key == 'composition'
+                ? _textWidget(key, field, text, barcode, regular, bold, color)
+                : pw.FittedBox(
+                    fit: pw.BoxFit.scaleDown,
+                    alignment: _alignment(field.align),
+                    child: _textWidget(
+                      key,
+                      field,
+                      text,
+                      barcode,
+                      regular,
+                      bold,
+                      color,
+                    ),
+                  ),
           ),
   ),
 );
+
+pw.Widget _textWidget(
+  String key,
+  LabelField field,
+  String text,
+  String barcode,
+  pw.Font regular,
+  pw.Font bold,
+  String color,
+) => pw.Text(
+  key == 'barcode' && barcode.isEmpty
+      ? 'Нет штрихкода'
+      : (key == 'barcode' ? barcode : text),
+  textAlign: _textAlign(field.align),
+  maxLines: key == 'name' ? 2 : null,
+  style: pw.TextStyle(
+    font: field.weight >= 600 ? bold : regular,
+    fontSize: field.fontSize,
+    color: PdfColor.fromHex(color),
+    lineSpacing: field.fontSize * (field.lineHeight - 1),
+  ),
+);
+
+Future<pw.Font> _font(String systemPath, String fallbackAsset) async {
+  try {
+    final bytes = await File(systemPath).readAsBytes();
+    return pw.Font.ttf(ByteData.sublistView(bytes));
+  } catch (_) {
+    return pw.Font.ttf(await rootBundle.load(fallbackAsset));
+  }
+}
 
 pw.Alignment _alignment(String value) => switch (value) {
   'center' => pw.Alignment.center,
