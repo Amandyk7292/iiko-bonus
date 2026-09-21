@@ -150,7 +150,9 @@ test('avatar-only profile update persists and is returned by the profile seriali
 
   assert.equal(updateResponse.statusCode, 200);
   assert.deepEqual(updateResponse.body, { success: true });
-  assert.deepEqual(updates, [{ avatar_key: nextAvatarKey }]);
+  assert.deepEqual(updates, [
+    { avatar_key: nextAvatarKey, avatar_url: null, avatar_storage_path: null },
+  ]);
   assert.deepEqual(updateFilters, [['id', customerId]]);
   assert.equal(loyaltySyncCalls, 0);
   assert.equal((await customerService.getCustomerById(customerId)).avatar_key, nextAvatarKey);
