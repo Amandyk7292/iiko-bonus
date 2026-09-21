@@ -251,7 +251,7 @@ async function buildApplePassBuffer(customer) {
   const pass = new PKPass(
     {
       'pass.json': Buffer.from(JSON.stringify(passJson)),
-      ...await getWalletArtwork(),
+      ...(await getWalletArtwork()),
       'icon.png': fs.readFileSync(path.join(process.cwd(), 'src/assets/pass.model', 'icon.png')),
       'icon@2x.png': fs.readFileSync(
         path.join(process.cwd(), 'src/assets/pass.model', 'icon@2x.png'),
@@ -259,7 +259,6 @@ async function buildApplePassBuffer(customer) {
       'icon@3x.png': fs.readFileSync(
         path.join(process.cwd(), 'src/assets/pass.model', 'icon@3x.png'),
       ),
-
     },
     { signerCert, signerKey, wwdr },
   );
