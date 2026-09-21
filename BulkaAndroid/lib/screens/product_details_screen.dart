@@ -109,16 +109,20 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         product.id.toLowerCase(): product,
     };
     final seen = <String>{current.id.toLowerCase()};
-    final products = _boughtTogetherIds
+    final candidates = _boughtTogetherIds
         .map((id) => available[id.toLowerCase()])
         .whereType<CatalogProduct>()
         .where(
           (p) =>
-              !p.isStopListed &&
               p.catalogAvailable != false &&
               p.price > 0 &&
               seen.add(p.id.toLowerCase()),
         )
+        .toList();
+    final orderable = candidates
+        .where((product) => !product.isStopListed)
+        .toList();
+    final products = (orderable.isNotEmpty ? orderable : candidates)
         .take(6)
         .toList();
     if (products.isEmpty) return const SizedBox.shrink();
