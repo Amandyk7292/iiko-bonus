@@ -11,10 +11,11 @@ class AddressRepository {
       customerPreferenceKey('delivery_addresses', _scope);
   String get _selectedAddressKey =>
       customerPreferenceKey('selected_delivery_address_id', _scope);
+  bool get _syncWithAccount => api?.isAuthenticated == true;
 
   Future<List<DeliveryAddress>> loadAddresses() async {
     final prefs = await SharedPreferences.getInstance();
-    if (api != null) {
+    if (_syncWithAccount) {
       try {
         final remote = await api!.getCustomerAddresses();
         await _cacheAddresses(prefs, remote);
@@ -79,9 +80,9 @@ class AddressRepository {
 
   Future<DeliveryAddress> saveAddress(DeliveryAddress address) async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = api == null
-        ? address
-        : await api!.createCustomerAddress(address);
+    final saved = _syncWithAccount
+        ? await api!.createCustomerAddress(address)
+        : address;
     final cached = _readCachedAddresses(prefs);
     final next = [saved, ...cached.where((item) => item.id != saved.id)];
     await _cacheAddresses(prefs, next);
@@ -91,9 +92,9 @@ class AddressRepository {
 
   Future<DeliveryAddress> updateAddress(DeliveryAddress address) async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = api == null
-        ? address
-        : await api!.updateCustomerAddress(address);
+    final saved = _syncWithAccount
+        ? await api!.updateCustomerAddress(address)
+        : address;
     final cached = _readCachedAddresses(prefs);
     final next = [saved, ...cached.where((item) => item.id != saved.id)];
     await _cacheAddresses(prefs, next);
@@ -101,13 +102,13 @@ class AddressRepository {
   }
 
   Future<void> selectAddress(String id) async {
-    if (api != null) await api!.setDefaultCustomerAddress(id);
+    if (_syncWithAccount) await api!.setDefaultCustomerAddress(id);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_selectedAddressKey, id);
   }
 
   Future<void> deleteAddress(String id) async {
-    if (api != null) await api!.deleteCustomerAddress(id);
+    if (_syncWithAccount) await api!.deleteCustomerAddress(id);
     final prefs = await SharedPreferences.getInstance();
     final cached = _readCachedAddresses(prefs);
     final remaining = cached.where((item) => item.id != id).toList();

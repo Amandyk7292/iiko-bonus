@@ -481,6 +481,42 @@ void main() {
     );
   });
 
+  test(
+    'guest addresses stay local and do not call account endpoints',
+    () async {
+      var requests = 0;
+      final client = MockClient((request) async {
+        requests++;
+        return http.Response('{"message":"Unauthorized"}', 401);
+      });
+      addTearDown(client.close);
+      final api = BulkaApiClient(client: client);
+      addTearDown(api.dispose);
+      final repository = AddressRepository(api: api);
+      const address = DeliveryAddress(
+        id: 'guest-address',
+        title: 'Дом',
+        location: DeliveryLocation(
+          city: 'Актау',
+          address: '19А микрорайон, 11 дом',
+          latitude: 43.64,
+          longitude: 51.17,
+        ),
+        house: '11',
+      );
+
+      expect(await repository.loadAddresses(), isEmpty);
+      await repository.saveAddress(address);
+      expect((await repository.loadSelectedAddress())?.id, address.id);
+      await repository.updateAddress(address);
+      await repository.selectAddress(address.id);
+      await repository.deleteAddress(address.id);
+
+      expect(await repository.loadAddresses(), isEmpty);
+      expect(requests, 0);
+    },
+  );
+
   test('logout cleanup removes scoped customer data only', () async {
     SharedPreferences.setMockInitialValues({
       'phone': '+77001234567',
