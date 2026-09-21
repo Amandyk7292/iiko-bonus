@@ -348,17 +348,17 @@ const widgetCheckoutAvailability = (payload = {}) => {
 };
 
 const mapWidgetStatus = (normalized = {}) => {
-  if (normalized.expired) return 'expired';
   const transactionStatus = String(normalized.transactionStatus || '').toLowerCase();
   const status = String(normalized.status || '').toLowerCase();
   if (['successful', 'succeeded'].includes(transactionStatus) || status === 'successful') {
     return 'paid';
   }
+  if (normalized.expired) return 'expired';
   if (
-    ['failed', 'declined', 'error', 'rejected', 'canceled', 'cancelled', 'expired'].includes(
+    normalized.finished &&
+    (['failed', 'declined', 'error', 'rejected', 'canceled', 'cancelled', 'expired'].includes(
       transactionStatus,
     ) ||
-    (normalized.finished &&
       ['failed', 'declined', 'error', 'rejected', 'canceled', 'cancelled'].includes(status))
   ) {
     return status === 'expired' ? 'expired' : 'failed';
@@ -525,9 +525,8 @@ class ForteWidgetService {
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
-    let response;
     try {
-      response = await this.fetchImpl(url.toString(), {
+      const response = await this.fetchImpl(url.toString(), {
         method,
         signal: controller.signal,
         headers: {
@@ -539,6 +538,16 @@ class ForteWidgetService {
         },
         ...(body && { body: JSON.stringify(body) }),
       });
+      const text = await response.text();
+      let payload = {};
+      if (text) {
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          payload = {};
+        }
+      }
+      return { response, body: payload };
     } catch {
       throw widgetError(
         'Ответ ForteBank не получен. Проверьте операцию перед повторной попыткой.',
@@ -549,16 +558,6 @@ class ForteWidgetService {
     } finally {
       clearTimeout(timeout);
     }
-    const text = await response.text().catch(() => '');
-    let payload = {};
-    if (text) {
-      try {
-        payload = JSON.parse(text);
-      } catch {
-        payload = {};
-      }
-    }
-    return { response, body: payload };
   }
 
   async probeCheckout() {
@@ -782,7 +781,7 @@ class ForteWidgetService {
     return Array.isArray(data) ? data[0] : data;
   }
 
-  async savePaymentMethod(customerId, card, { replaceMethodId } = {}) {
+  async savePaymentMethod(customerId, card, { replaceMethodId, relinkStartedAt } = {}) {
     if (!normalizeProviderToken(card?.token) || !/^\d{4}$/.test(String(card?.lastFour || ''))) {
       return null;
     }
@@ -795,6 +794,14 @@ class ForteWidgetService {
       .eq('token_fingerprint', fingerprint)
       .maybeSingle();
     if (existingError) throw existingError;
+    // An old payment notification cannot undo a customer's later revocation.
+    // Only a new explicit card-linking session started after deletion may relink it.
+    const mayUse = (method) =>
+      !method ||
+      method.status !== 'revoked' ||
+      (Number.isFinite(Date.parse(relinkStartedAt)) &&
+        Date.parse(relinkStartedAt) > Date.parse(method.revoked_at));
+    if (!mayUse(existing)) return null;
     let replacement = null;
     if (
       (!existing || existing.status !== 'active') &&
@@ -806,9 +813,9 @@ class ForteWidgetService {
         .eq('id', String(replaceMethodId))
         .eq('customer_id', customerId)
         .eq('provider', FORTE_WIDGET_INTEGRATION)
-        .eq('status', 'active')
         .maybeSingle();
       if (error) throw error;
+      if (!mayUse(data)) return null;
       replacement = data || null;
     }
     const target = existing?.status === 'active' ? existing : replacement || existing;
@@ -845,13 +852,15 @@ class ForteWidgetService {
       last_used_at: new Date().toISOString(),
     };
     if (target) {
-      const { data, error } = await this.db
+      let update = this.db
         .from('customer_payment_methods')
         .update(values)
         .eq('id', id)
         .eq('customer_id', customerId)
-        .select('*')
-        .single();
+        .eq('status', target.status);
+      if (target.updated_at) update = update.eq('updated_at', target.updated_at);
+      const { data, error } = await update.select('*').single();
+      if (error?.code === 'PGRST116') return null;
       if (error) throw error;
       return data;
     }
@@ -879,6 +888,7 @@ class ForteWidgetService {
         .maybeSingle();
       if (collisionReadError) throw collisionReadError;
       if (collided?.id) {
+        if (!mayUse(collided)) return null;
         const collidedValues = {
           ...values,
           token_ciphertext: encryptProviderToken(
@@ -888,13 +898,15 @@ class ForteWidgetService {
             this.env,
           ),
         };
-        const retry = await this.db
+        let update = this.db
           .from('customer_payment_methods')
           .update(collidedValues)
           .eq('id', collided.id)
           .eq('customer_id', customerId)
-          .select('*')
-          .single();
+          .eq('status', collided.status);
+        if (collided.updated_at) update = update.eq('updated_at', collided.updated_at);
+        const retry = await update.select('*').single();
+        if (retry.error?.code === 'PGRST116') return null;
         if (retry.error) throw retry.error;
         return retry.data;
       }
@@ -1055,6 +1067,20 @@ class ForteWidgetService {
   }
 
   async paymentResponse(order, language = 'ru') {
+    const status = order.status || 'pending';
+    if (FINAL_PAYMENT_STATUSES.has(status)) {
+      return {
+        success: true,
+        method: FORTE_PAYMENT_METHOD,
+        integration: FORTE_WIDGET_INTEGRATION,
+        operationId: String(order.operation_id),
+        orderId: String(order.id),
+        amount: Number(order.amount),
+        status,
+        paymentStatus: status,
+        fulfillmentStatus: order.fulfillment_status || 'pending',
+      };
+    }
     const token = decryptProviderToken(
       order.provider_checkout_token_ciphertext,
       'checkout',
@@ -1064,6 +1090,8 @@ class ForteWidgetService {
     const config = this.assertConfigured();
     return {
       success: true,
+      status,
+      paymentStatus: status,
       method: FORTE_PAYMENT_METHOD,
       integration: FORTE_WIDGET_INTEGRATION,
       operationId: String(order.operation_id),
@@ -1455,6 +1483,7 @@ class ForteWidgetService {
       allowMissingShop,
     });
     const providerStatus = mapWidgetStatus(normalized);
+    if (setup.status === 'paid') return { setup, status: 'paid' };
     const requiresRefund = providerStatus === 'paid' && Number(setup.amount) > 0;
     const hasReusableToken =
       providerStatus === 'paid' &&
@@ -1492,8 +1521,10 @@ class ForteWidgetService {
       } catch (refundError) {
         if (hasReusableToken) {
           try {
-            await this.savePaymentMethod(setup.customer_id, normalized.card);
-            cardSaved = true;
+            const method = await this.savePaymentMethod(setup.customer_id, normalized.card, {
+              relinkStartedAt: setup.created_at,
+            });
+            cardSaved = Boolean(method);
           } catch (saveError) {
             console.error('Не удалось сохранить токен карты ForteBank:', saveError.message);
           }
@@ -1527,18 +1558,23 @@ class ForteWidgetService {
     const refundSucceeded =
       !requiresRefund || currentSetup.refund_status === 'succeeded' || Boolean(refundResult);
     if (hasReusableToken && refundSucceeded) {
-      await this.savePaymentMethod(setup.customer_id, normalized.card);
-      cardSaved = true;
+      const method = await this.savePaymentMethod(setup.customer_id, normalized.card, {
+        relinkStartedAt: setup.created_at,
+      });
+      cardSaved = Boolean(method);
     }
-    const nextStatus = resolveCardSetupStatus(providerStatus, cardSaved);
+    const canRetry = providerStatus === 'failed' && Date.parse(setup.expires_at) > Date.now();
+    const nextStatus =
+      hasReusableToken && !cardSaved
+        ? 'failed'
+        : resolveCardSetupStatus(canRetry ? 'pending' : providerStatus, cardSaved);
 
     const { data, error } = await this.db
       .from('customer_payment_method_setups')
       .update({
         status: nextStatus,
-        checkout_token_ciphertext: FINAL_PAYMENT_STATUSES.has(nextStatus)
-          ? null
-          : currentSetup.checkout_token_ciphertext,
+        checkout_token_ciphertext:
+          nextStatus === 'paid' ? null : currentSetup.checkout_token_ciphertext,
         provider_status:
           providerStatus === 'paid' && !hasReusableToken
             ? 'successful_awaiting_card_token'
@@ -1558,15 +1594,13 @@ class ForteWidgetService {
       .eq('id', setup.id)
       .eq('customer_id', setup.customer_id)
       .eq('provider', FORTE_WIDGET_INTEGRATION)
+      .eq('status', setup.status)
       .select('*')
       .maybeSingle();
     if (error) throw error;
     if (!data) {
-      throw widgetError(
-        'Операция привязки изменилась во время сверки',
-        409,
-        'FORTE_WIDGET_CARD_SETUP_CONFLICT',
-      );
+      const current = await this.findCardSetup(setup.id, setup.customer_id);
+      return { setup: current, status: current.status };
     }
     return { setup: data, status: nextStatus };
   }
@@ -1822,7 +1856,7 @@ class ForteWidgetService {
       );
       return { ignored: true };
     }
-    if (FINAL_PAYMENT_STATUSES.has(setup.status)) {
+    if (setup.status === 'paid') {
       return { ignored: true, status: setup.status };
     }
     const expectedToken = decryptProviderToken(

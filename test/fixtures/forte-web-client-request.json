@@ -1,0 +1,32 @@
+{
+  "body": {
+    "paymentMethod": "forte_card",
+    "expectedTotal": 600.0,
+    "useBonuses": false,
+    "expectedBonusSpent": 0,
+    "deliveryQuoteVersion": 1,
+    "deliveryQuoteToken": null,
+    "items": [
+      {
+        "id": "audit-bun",
+        "quantity": 1
+      }
+    ],
+    "orderType": "pickup",
+    "preorderFulfillmentType": null,
+    "branch": null,
+    "branchId": "62fa7ada-3d67-4f85-bb37-5b13f0e1345c",
+    "scheduledAt": null,
+    "pickupTime": null,
+    "deliveryAddress": null,
+    "checkoutId": "117615f9-b35f-4eb4-9f6d-777f2236bb25",
+    "savedPaymentMethodId": "417615f9-b35f-4eb4-9f6d-777f2236bb25",
+    "additionalPhone": null,
+    "promoCode": null,
+    "comment": null,
+    "substitutionPreference": "call_customer",
+    "language": "ru"
+  },
+  "recoveryPath": "/api/customer/forte-pay/checkout/117615f9-b35f-4eb4-9f6d-777f2236bb25",
+  "recoveryErrorType": "FormatException"
+}

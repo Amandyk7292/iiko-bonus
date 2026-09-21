@@ -7,6 +7,12 @@ String _paymentMethodAddErrorMessage(Object error) {
       error.code == 'FORTE_WIDGET_PAYMENT_METHOD_LIMIT') {
     return 'payment_methods_limit_reached'.tr;
   }
+  if (error is ApiException && error.code == 'FORTE_WIDGET_CHECKOUT_DISABLED') {
+    return 'payment_methods_add_unavailable'.tr;
+  }
+  if (error is ApiException && error.code == 'CARD_SETUP_CLOSED') {
+    return 'card_setup_failed_hint'.tr;
+  }
   return 'payment_methods_add_error'.tr;
 }
 
@@ -207,11 +213,17 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
     setState(() => _adding = true);
     try {
       final session = widget.api.sessionCacheScope;
-      final result = await widget.api.createForteCardSetup();
+      final result = await PendingCardSetupStore.createOrResume(widget.api);
       if (!mounted || session != widget.api.sessionCacheScope) return;
       if (result['paymentStatus'] == 'paid') {
         await _load();
         return;
+      }
+      if (isTerminalForteFailure((result['paymentStatus'] ?? '').toString())) {
+        throw ApiException(
+          'card_setup_failed_hint'.tr,
+          code: 'CARD_SETUP_CLOSED',
+        );
       }
       final operationId = (result['operationId'] ?? '').toString();
       final redirectUrl = (result['redirectUrl'] ?? '').toString();
@@ -229,6 +241,10 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
           ),
         ),
       );
+      if (setupResult != null &&
+          setupResult.outcome != FortePaymentOutcome.pending) {
+        await PendingCardSetupStore.clear(widget.api, operationId);
+      }
       if (setupResult?.paid != true || !mounted) return;
       await _load();
       if (!mounted) return;
@@ -244,10 +260,10 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
       if (selectedId != null && selectedId.isNotEmpty) {
         widget.onSelect(selectedId);
       }
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          bulkaSnackBar(content: Text('payment_methods_add_error'.tr)),
+          bulkaSnackBar(content: Text(_paymentMethodAddErrorMessage(error))),
         );
       }
     } finally {
@@ -347,6 +363,20 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
       );
     }
 
+    if (widget.available == true && !widget.api.forteCardSetupAvailable) {
+      return Padding(
+        key: const ValueKey('checkout-hosted-payment'),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(Icons.credit_card_outlined, color: colors.brandBrown),
+            const SizedBox(width: 12),
+            Expanded(child: Text('checkout_hosted_payment_hint'.tr)),
+          ],
+        ),
+      );
+    }
+
     if (_error != null && _methods.isEmpty) {
       return _CheckoutSavedCardsNotice(
         key: const ValueKey('checkout-saved-cards-error'),
@@ -362,6 +392,7 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
         key: const ValueKey('checkout-saved-cards-empty'),
         icon: Icons.credit_card_off_rounded,
         message: 'payment_methods_empty'.tr,
+        hint: 'payment_methods_verification_hint'.tr,
         actionLabel: 'payment_methods_add'.tr,
         actionLoading: _adding,
         onAction: _addCard,
@@ -503,6 +534,7 @@ class _CheckoutSavedCardsNotice extends StatelessWidget {
     required this.actionLabel,
     required this.onAction,
     this.actionLoading = false,
+    this.hint,
   });
 
   final IconData icon;
@@ -510,6 +542,7 @@ class _CheckoutSavedCardsNotice extends StatelessWidget {
   final String actionLabel;
   final VoidCallback onAction;
   final bool actionLoading;
+  final String? hint;
 
   @override
   Widget build(BuildContext context) {
@@ -538,6 +571,17 @@ class _CheckoutSavedCardsNotice extends StatelessWidget {
               height: 1.35,
             ),
           ),
+          if (hint != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              hint!,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: colors.mutedText,
+                fontSize: BulkaTypeScale.bodySmall,
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,

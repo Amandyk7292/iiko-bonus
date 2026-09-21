@@ -209,6 +209,15 @@ const createPayment = async (req, res) => {
         { phase: 'payment' },
       );
       try {
+        if (
+          req.body?.expectedTotal != null &&
+          Math.round(Number(req.body.expectedTotal) * 100) !== Math.round(pricing.total * 100)
+        ) {
+          throw Object.assign(new Error('Сумма заказа изменилась. Проверьте обновлённый итог.'), {
+            statusCode: 409,
+            code: 'CHECKOUT_QUOTE_CHANGED',
+          });
+        }
         await reservePromotionForCheckout(pricing, {
           customerId,
           requestId: checkoutId,
@@ -327,13 +336,13 @@ const checkStatus = async (req, res) => {
     }
     const customerId = req.customerAuth.id;
     const service = isWidgetOperation ? forteWidgetService : forteService;
-    if (!service.availability()) {
-      return res.status(503).json({ error: 'Оплата картой временно недоступна' });
-    }
     let order = await service.getOrderStatus(operationId, customerId);
     if (order.status === 'paid') {
       order = (await service.orderService.recordPaidOrder(operationId)) || order;
-    } else if (!['failed', 'expired', 'refunded'].includes(order.status)) {
+    } else if (
+      service.availability() &&
+      !['failed', 'expired', 'refunded'].includes(order.status)
+    ) {
       try {
         await service.syncOrder(order, customerId);
         order = await service.getOrderStatus(operationId, customerId);
@@ -342,7 +351,11 @@ const checkStatus = async (req, res) => {
       }
     }
     return res.json({
+      ...(req.query?.resume === '1' && order.status === 'pending'
+        ? await service.paymentResponse(order, req.query.language || 'ru')
+        : {}),
       success: true,
+      operationId: String(order.operation_id),
       status: order.status || 'pending',
       paymentStatus: order.status || 'pending',
       fulfillmentStatus: order.fulfillment_status || 'pending',
@@ -351,6 +364,34 @@ const checkStatus = async (req, res) => {
     return res
       .status(error.statusCode || 500)
       .json({ error: publicError(error, 'Не удалось проверить статус ForteBank') });
+  }
+};
+
+const checkCheckoutStatus = async (req, res) => {
+  try {
+    const checkoutId = String(req.params.checkoutId || '');
+    if (!CHECKOUT_ID_PATTERN.test(checkoutId)) {
+      return res
+        .status(400)
+        .json({ code: 'INVALID_CHECKOUT_ID', error: 'Некорректное оформление' });
+    }
+    const order = await forteWidgetService.existingRequest(req.customerAuth.id, checkoutId);
+    if (!order) {
+      return res
+        .status(404)
+        .json({ code: 'PAYMENT_CHECKOUT_NOT_FOUND', error: 'Оплата не найдена' });
+    }
+    if (order.payment_method !== 'forte_card') {
+      return res
+        .status(409)
+        .json({ code: 'PAYMENT_REQUEST_ALREADY_USED', error: 'Другой способ оплаты' });
+    }
+    return checkStatus({ ...req, params: { operationId: String(order.operation_id) } }, res);
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      error: publicError(error, 'Не удалось проверить оплату'),
+      code: error.code || 'PAYMENT_CHECKOUT_CHECK_FAILED',
+    });
   }
 };
 
@@ -398,11 +439,12 @@ const checkCardSetupStatus = async (req, res) => {
     if (!UUID_PATTERN.test(operationId)) {
       return res.status(400).json({ error: 'Некорректный идентификатор привязки карты' });
     }
-    if (!forteWidgetService.availability()) {
-      return res.status(503).json({ error: 'Привязка карты временно недоступна' });
-    }
     let setup = await forteWidgetService.getCardSetupStatus(operationId, req.customerAuth.id);
-    if (!['paid', 'failed', 'expired'].includes(setup.status)) {
+    if (
+      forteWidgetService.availability() &&
+      setup.status !== 'paid' &&
+      setup.checkout_token_ciphertext
+    ) {
       try {
         await forteWidgetService.syncCardSetup(setup, req.customerAuth.id);
         setup = await forteWidgetService.getCardSetupStatus(operationId, req.customerAuth.id);
@@ -411,7 +453,11 @@ const checkCardSetupStatus = async (req, res) => {
       }
     }
     return res.json({
+      ...(req.query?.resume === '1' && setup.status === 'pending'
+        ? await forteWidgetService.cardSetupResponse(setup, req.query.language || 'ru')
+        : {}),
       success: true,
+      operationId: String(setup.id),
       status: setup.status || 'pending',
       paymentStatus: setup.status || 'pending',
       purpose: 'card-setup',
@@ -422,7 +468,7 @@ const checkCardSetupStatus = async (req, res) => {
   } catch (error) {
     return res
       .status(error.statusCode || 500)
-      .json({ error: publicError(error, 'Не удалось проверить привязку карты') });
+      .json({ error: publicError(error, 'Не удалось проверить привязку карты'), code: error.code });
   }
 };
 
@@ -471,6 +517,7 @@ const handleWidgetWebhook = async (req, res) => {
 module.exports = {
   availability,
   checkCardSetupStatus,
+  checkCheckoutStatus,
   checkStatus,
   createCardSetup,
   createPayment,

@@ -154,7 +154,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       !_onlineOrderingDisabled &&
       (_usePersonalAccount
           ? _personalAccountAvailable
-          : _forteAvailable == true && _selectedPaymentMethodId != null);
+          : _forteAvailable == true &&
+                (_selectedPaymentMethodId != null ||
+                    !widget.api.forteCardSetupAvailable));
 
   void _refreshPromoButton() {
     // TextEditingController also notifies about cursor/focus changes.

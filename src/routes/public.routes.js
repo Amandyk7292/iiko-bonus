@@ -64,6 +64,7 @@ const {
   favoriteMutationBodySchema,
   forteCardSetupBodySchema,
   forteOperationParamsSchema,
+  forteCheckoutParamsSchema,
   fortePaymentMethodParamsSchema,
   forteWidgetWebhookBodySchema,
   giftCardRedeemBodySchema,
@@ -862,6 +863,10 @@ router.patch(
 
 // ForteBank PaymentGateway: HPP redirect plus server-side status polling.
 const forteController = require('../controllers/forte.controller');
+router.use('/api/customer/forte-pay', (_req, res, next) => {
+  res.set('Cache-Control', 'private, no-store');
+  next();
+});
 router.get('/api/customer/forte-pay/availability', forteController.availability);
 router.post(
   '/api/customer/forte-pay/create',
@@ -876,6 +881,11 @@ router.post(
   forteController.quotePayment,
 );
 router.get('/api/customer/forte-pay/status/:operationId', forteController.checkStatus);
+router.get(
+  '/api/customer/forte-pay/checkout/:checkoutId',
+  validateRequest({ params: forteCheckoutParamsSchema }),
+  forteController.checkCheckoutStatus,
+);
 router.get('/api/customer/forte-pay/methods', forteController.listPaymentMethods);
 router.post(
   '/api/customer/forte-pay/card-setup',

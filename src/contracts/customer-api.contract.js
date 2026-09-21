@@ -24,6 +24,7 @@ const timeSchema = z
   .trim()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const forteOperationParamsSchema = z.object({ operationId: z.string().trim().uuid() }).strict();
+const forteCheckoutParamsSchema = z.object({ checkoutId: z.string().trim().uuid() }).strict();
 const fortePaymentMethodParamsSchema = z.object({ methodId: z.string().trim().uuid() }).strict();
 const forteCardSetupBodySchema = z
   .object({ language: z.enum(['ru', 'kk', 'en']).optional().default('ru') })
@@ -81,6 +82,8 @@ const checkoutQuoteBodySchema = z
 const checkoutPaymentBodySchema = checkoutQuoteBodySchema
   .extend({
     checkoutId: z.string().trim().uuid(),
+    paymentMethod: z.literal('forte_card').optional().default('forte_card'),
+    expectedTotal: z.number().finite().nonnegative().max(100000000).optional(),
     savedPaymentMethodId: nullableText(200),
     deliveryQuoteToken: nullableText(2048),
     expectedBonusSpent: z.number().int().min(0).max(100000000).optional(),
@@ -702,6 +705,7 @@ module.exports = {
   courierOrderStatusBodySchema,
   forteCardSetupBodySchema,
   forteOperationParamsSchema,
+  forteCheckoutParamsSchema,
   fortePaymentMethodParamsSchema,
   customerAddressBodySchema,
   customerAddressParamsSchema,

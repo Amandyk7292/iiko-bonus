@@ -86,6 +86,7 @@ class _CheckoutCardPicker extends StatelessWidget {
                       ),
                       leading: const _CheckoutCardBrand(brand: '', add: true),
                       title: Text('checkout_add_new_card'.tr),
+                      subtitle: Text('payment_methods_verification_hint'.tr),
                       onTap: () => Navigator.of(context).pop('add'),
                     )
                   else

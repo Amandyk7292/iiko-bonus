@@ -633,11 +633,15 @@ class BulkaApiClient {
       _get('/api/customer/personal-account/topups/${Uri.encodeComponent(id)}');
   String? get forteSavedCardLabel => _forteSavedCardLabel;
   bool _onlineOrderingDisabled = false;
+  bool _forteCardSetupAvailable = true;
+  bool get forteCardSetupAvailable => _forteCardSetupAvailable;
   bool get onlineOrderingDisabled => _onlineOrderingDisabled;
 
   Future<bool> isFortePaymentAvailable() async {
     final json = await _get('/api/customer/forte-pay/availability');
     _onlineOrderingDisabled = json['onlineOrderingDisabled'] == true;
+    _forteCardSetupAvailable =
+        json['cardSetup'] != false && json['integration'] != 'hosted_page';
     final savedCard = json['savedCard'];
     if (savedCard is Map) {
       final brand = (savedCard['brand'] ?? 'card').toString().trim();
@@ -666,7 +670,10 @@ class BulkaApiClient {
       'language': AppLang.current,
     });
     if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'payment_methods_add_error'.tr));
+      throw ApiException(
+        _messageFrom(json, 'payment_methods_add_error'.tr),
+        code: _nullableString(json['code']),
+      );
     }
     return json;
   }
@@ -686,6 +693,11 @@ class BulkaApiClient {
     }
     return json;
   }
+
+  Future<Map<String, dynamic>> resumeForteCardSetup(String operationId) => _get(
+    '/api/customer/forte-pay/card-setup/${Uri.encodeComponent(operationId)}'
+    '?resume=1&language=${Uri.encodeComponent(AppLang.current)}',
+  );
 
   Future<void> removeFortePaymentMethod(String methodId) async {
     final json = await _delete(
@@ -1952,7 +1964,16 @@ class BulkaApiClient {
 
   Map<String, dynamic> _decode(http.Response response) {
     final text = utf8.decode(response.bodyBytes);
-    final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
+    dynamic decoded;
+    try {
+      decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
+    } on FormatException {
+      throw ApiException(
+        'error_network'.tr,
+        statusCode: response.statusCode,
+        code: 'INVALID_API_RESPONSE',
+      );
+    }
     final json = _asMap(decoded);
     final responseRequestId =
         _requestIdFrom(json) ??

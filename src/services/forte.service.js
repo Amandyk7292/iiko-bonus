@@ -304,9 +304,8 @@ class ForteService {
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
-    let response;
     try {
-      response = await this.fetchImpl(url.toString(), {
+      const response = await this.fetchImpl(url.toString(), {
         method,
         signal: controller.signal,
         headers: {
@@ -319,6 +318,16 @@ class ForteService {
         },
         ...(body && { body: JSON.stringify(body) }),
       });
+      const text = await response.text();
+      let payload = {};
+      if (text) {
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          payload = {};
+        }
+      }
+      return { response, body: payload };
     } catch {
       throw forteError(
         'Ответ ForteBank не получен. Проверьте операцию перед повторной попыткой.',
@@ -329,17 +338,6 @@ class ForteService {
     } finally {
       clearTimeout(timeout);
     }
-
-    const text = await response.text().catch(() => '');
-    let payload = {};
-    if (text) {
-      try {
-        payload = JSON.parse(text);
-      } catch {
-        payload = {};
-      }
-    }
-    return { response, body: payload };
   }
 
   async probeConnection() {
@@ -387,6 +385,19 @@ class ForteService {
   }
 
   async paymentResponse(order) {
+    const status = order.status || 'pending';
+    if (FINAL_PAYMENT_STATUSES.has(status)) {
+      return {
+        success: true,
+        method: FORTE_PAYMENT_METHOD,
+        operationId: String(order.operation_id),
+        orderId: String(order.id),
+        amount: Number(order.amount),
+        status,
+        paymentStatus: status,
+        fulfillmentStatus: order.fulfillment_status || 'pending',
+      };
+    }
     const password = decryptOrderPassword(
       order.provider_auth_ciphertext,
       order.id,
@@ -395,6 +406,8 @@ class ForteService {
     );
     return {
       success: true,
+      status,
+      paymentStatus: status,
       method: FORTE_PAYMENT_METHOD,
       operationId: String(order.operation_id),
       redirectUrl: buildHostedPaymentUrl(order.provider_redirect_url, order.operation_id, password),

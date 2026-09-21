@@ -24,6 +24,7 @@ IikoBonusPlugin/obj/
 !BulkaAndroid/ios/Runner/Assets.xcassets/**/Contents.json
 !admin-ui/tsconfig.json
 !test/fixtures/flutter-app/release-version.json
+!test/fixtures/forte-web-client-request.json
 render_env.txt
 generate-csr.js
 setup-pass.js

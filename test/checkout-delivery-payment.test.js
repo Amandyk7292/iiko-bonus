@@ -192,6 +192,19 @@ test('a valid quoted payment cannot charge a saved card after other orders reser
   assert.equal(state.charges.length, 0);
 });
 
+test('a changed displayed total stops checkout before any bank payment is created', async (t) => {
+  const { state, controller, request } = controllerHarness(t);
+  const quote = response();
+  await controller.quotePayment(request, quote);
+  request.body.deliveryQuoteToken = quote.body.deliveryQuoteToken;
+  request.body.expectedTotal = quote.body.total - 1;
+  const payment = response();
+  await controller.createPayment(request, payment);
+  assert.equal(payment.statusCode, 409);
+  assert.equal(payment.body.code, 'CHECKOUT_QUOTE_CHANGED');
+  assert.equal(state.charges.length, 0);
+});
+
 test('a failed payment preflight releases the unused delivery reservation', async (t) => {
   const { state, controller, request } = controllerHarness(t);
   const quote = response();
