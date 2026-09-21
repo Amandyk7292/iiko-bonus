@@ -496,7 +496,6 @@ class _NavButton extends StatelessWidget {
     final colors = context.bulkaColors;
     final color = selected ? colors.brandBrown : colors.mutedText;
     final isCenter = item.prominent;
-    final centerIdle = isCenter && !selected;
     final labelFontSize = BulkaTypeScale.caption;
     return Semantics(
       button: true,
@@ -552,19 +551,12 @@ class _NavButton extends StatelessWidget {
                         gradient: selected ? _bulkaGlassGradient : null,
                         color: selected
                             ? _bulkaYellow
-                            : centerIdle
-                            ? colors.brandGold.withValues(alpha: 0.16)
                             : Colors.transparent,
                         border: selected
                             ? Border.all(
                                 color: colors.brandBrown.withValues(
                                   alpha: 0.72,
                                 ),
-                                width: BulkaStrokes.hairline,
-                              )
-                            : centerIdle
-                            ? Border.all(
-                                color: colors.brandGold.withValues(alpha: 0.58),
                                 width: BulkaStrokes.hairline,
                               )
                             : null,
