@@ -85,6 +85,22 @@
 .id-cash-shift-meta span {
   color: var(--id-muted);
 }
+.id-cash-report .id-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.id-cash-report .id-empty strong {
+  color: var(--id-ink);
+  font-size: 16px;
+}
+.id-cash-report .id-empty span {
+  max-width: 680px;
+}
+.id-cash-report .id-empty button {
+  margin-top: 8px;
+}
 @media (max-width: 700px) {
   .id-cash-report .id-report-filters {
     grid-template-columns: minmax(0, 1fr);

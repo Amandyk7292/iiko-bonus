@@ -509,7 +509,14 @@ export default function IikoDashboardPage() {
         />
       )}
       {tab === 'revision' && <Revision base={base} department={department} refresh={refresh} />}
-      {tab === 'cashReport' && <CashReport base={base} department={department} refresh={refresh} />}
+      {tab === 'cashReport' && (
+        <CashReport
+          base={base}
+          department={department}
+          refresh={refresh}
+          onDepartmentChange={setDepartment}
+        />
+      )}
       {tab === 'operations' && (
         <Controls
           key="operations"

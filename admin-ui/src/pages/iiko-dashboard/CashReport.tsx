@@ -43,6 +43,7 @@ type Props = {
   base: Query;
   department: string;
   refresh: number;
+  onDepartmentChange?: (department: string) => void;
 };
 
 export default function CashReport(props: Props) {
@@ -56,7 +57,7 @@ export default function CashReport(props: Props) {
   );
 }
 
-function CashReportContent({ base, department, refresh }: Props) {
+function CashReportContent({ base, department, refresh, onDepartmentChange }: Props) {
   const { t, formatNumber, formatDate } = useI18n();
   const [shift, setShift] = useState('');
   const [search, setSearch] = useState('');
@@ -194,7 +195,11 @@ function CashReportContent({ base, department, refresh }: Props) {
             }}
           >
             <option value="">
-              {loadingShifts && !shifts.length ? 'Загружаем смены…' : 'Выберите смену'}
+              {loadingShifts && !shifts.length
+                ? 'Загружаем смены…'
+                : !shifts.length
+                  ? 'Нет смен за выбранный период'
+                  : 'Выберите смену'}
             </option>
             {shifts.map((item) => (
               <option key={item.id} value={item.id}>
@@ -245,11 +250,29 @@ function CashReportContent({ base, department, refresh }: Props) {
       )}
       {!error && !shiftError && !loading && !loadingShifts && !data && (
         <div className="id-empty">
-          {!shifts.length
-            ? 'За выбранный период смены не найдены'
-            : !shift
-              ? 'Выберите смену по дате и кассе'
-              : 'Начните вводить название и выберите товар из подсказок или нажмите «Найти»'}
+          {!shifts.length ? (
+            <>
+              <strong>
+                {department
+                  ? `iiko не передала продажи по подразделению «${department}» за выбранный период`
+                  : 'За выбранный период iiko не передала кассовые смены'}
+              </strong>
+              <span>
+                {department
+                  ? 'Возможно, смены записаны на другое подразделение. Проверьте их по всем подразделениям.'
+                  : 'Измените период или проверьте, что кассовые смены закрыты и выгружены в iiko.'}
+              </span>
+              {department && onDepartmentChange && (
+                <button type="button" onClick={() => onDepartmentChange('')}>
+                  Показать смены всех подразделений
+                </button>
+              )}
+            </>
+          ) : !shift ? (
+            'Выберите смену по дате и кассе'
+          ) : (
+            'Начните вводить название и выберите товар из подсказок или нажмите «Найти»'
+          )}
         </div>
       )}
       {data && !error && !loading && !data.checks.length && (

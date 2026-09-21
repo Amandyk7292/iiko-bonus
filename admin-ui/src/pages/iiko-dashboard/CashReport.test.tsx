@@ -137,6 +137,36 @@ describe('cash report page', () => {
     expect(screen.queryByText(/Чеки с таким товаром/)).not.toBeInTheDocument();
   });
 
+  it('explains an empty department and offers shifts from all departments', async () => {
+    vi.mocked(loadControls).mockResolvedValueOnce({
+      products: [],
+      shifts: [],
+      checks: [],
+      summary: { checks: 0, quantity: 0, revenue: 0 },
+    });
+    const onDepartmentChange = vi.fn();
+    render(
+      <I18nProvider>
+        <CashReport
+          base={base}
+          department="Bulka 19А мкр 11дом"
+          refresh={0}
+          onDepartmentChange={onDepartmentChange}
+        />
+      </I18nProvider>,
+    );
+    expect(
+      await screen.findByText(
+        'iiko не передала продажи по подразделению «Bulka 19А мкр 11дом» за выбранный период',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Кассовая смена')).toHaveDisplayValue(
+      'Нет смен за выбранный период',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Показать смены всех подразделений' }));
+    expect(onDepartmentChange).toHaveBeenCalledWith('');
+  });
+
   it('can retry the same search after an error without changing the text', async () => {
     render(
       <I18nProvider>
