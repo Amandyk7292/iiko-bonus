@@ -544,42 +544,16 @@ class _CashierCatalogState extends State<CashierCatalog> {
                 ],
               ),
               SizedBox(
-                height: 48,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${staffText('Найдено', 'Табылды', 'Found')}: ${visible.length}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF746B63),
-                        ),
-                      ),
+                height: 42,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '${staffText('Найдено', 'Табылды', 'Found')}: ${visible.length}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF746B63),
                     ),
-                    if (!_preorders)
-                      SizedBox(
-                        width: 68,
-                        child: Text(
-                          staffText('Остаток', 'Қалдық', 'Stock'),
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFF746B63),
-                          ),
-                        ),
-                      ),
-                    SizedBox(
-                      width: 52,
-                      child: Text(
-                        staffText('Стоп', 'Стоп', 'Stop'),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF746B63),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ],
@@ -593,39 +567,68 @@ class _CashierCatalogState extends State<CashierCatalog> {
           ),
         const Divider(height: 1),
         Expanded(
-          child: RefreshIndicator(
-            onRefresh: _load,
-            child: ListView.builder(
-              controller: _scroll,
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-              itemCount: visible.isEmpty ? 1 : visible.length,
-              itemBuilder: (context, index) => visible.isEmpty
-                  ? (_loading
-                        ? const SizedBox.shrink()
-                        : StaffEmptyState(
-                            icon: Icons.search_off_rounded,
-                            title: staffText(
-                              'Товары не найдены',
-                              'Тауарлар табылмады',
-                              'No products found',
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final tablet = constraints.maxWidth >= 700;
+              final empty = _loading
+                  ? const SizedBox.shrink()
+                  : StaffEmptyState(
+                      icon: Icons.search_off_rounded,
+                      title: staffText(
+                        'Товары не найдены',
+                        'Тауарлар табылмады',
+                        'No products found',
+                      ),
+                      description: staffText(
+                        'Измените название или категорию.',
+                        'Атауын немесе санатын өзгертіңіз.',
+                        'Try another name or category.',
+                      ),
+                    );
+              return RefreshIndicator(
+                onRefresh: _load,
+                child: tablet
+                    ? GridView.builder(
+                        controller: _scroll,
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              mainAxisExtent: 268,
+                              crossAxisSpacing: 14,
+                              mainAxisSpacing: 14,
                             ),
-                            description: staffText(
-                              'Измените название или категорию.',
-                              'Атауын немесе санатын өзгертіңіз.',
-                              'Try another name or category.',
-                            ),
-                          ))
-                  : _tile(visible[index]),
-            ),
+                        itemCount: visible.isEmpty ? 1 : visible.length,
+                        itemBuilder: (context, index) => visible.isEmpty
+                            ? empty
+                            : _tile(visible[index], tablet: true),
+                      )
+                    : ListView.builder(
+                        controller: _scroll,
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                        itemCount: visible.isEmpty ? 1 : visible.length,
+                        itemBuilder: (context, index) => visible.isEmpty
+                            ? empty
+                            : Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: _tile(visible[index]),
+                              ),
+                      ),
+              );
+            },
           ),
         ),
       ],
     );
   }
 
-  Widget _tile(Map<String, dynamic> p) {
+  Widget _tile(Map<String, dynamic> p, {bool tablet = false}) {
     final blocked = p['blockedBy'] != null,
         busy = _saving.contains('${p['id']}');
     final stopped = _stopped(p);
@@ -649,84 +652,80 @@ class _CashierCatalogState extends State<CashierCatalog> {
             'Quantity not set',
           )
         : '${staffText('Доступно', 'Қолжетімді', 'Available')}: ${p['availableQuantity']}';
-    return Container(
-      key: ValueKey('stock-${p['id']}'),
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Color(0xFFECE6DF))),
+    final photo = Container(
+      width: tablet ? 148 : 92,
+      height: tablet ? double.infinity : 112,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F4EF),
+        borderRadius: BorderRadius.circular(14),
       ),
-      child: Row(
+      clipBehavior: Clip.antiAlias,
+      child: image.isEmpty
+          ? const Icon(
+              Icons.inventory_2_outlined,
+              size: 34,
+              color: Color(0xFF917D6B),
+            )
+          : _NetworkImage(
+              url: image,
+              fit: BoxFit.contain,
+              semanticLabel: '${p['name']}',
+              errorPlaceholder: const Icon(
+                Icons.inventory_2_outlined,
+                size: 34,
+                color: Color(0xFF917D6B),
+              ),
+            ),
+    );
+    final details = Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            '${p['name']}',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: tablet ? 16 : 14,
+              fontWeight: FontWeight.w700,
+              height: 1.25,
+              color: const Color(0xFF492416),
+            ),
+          ),
+          const SizedBox(height: 7),
           Container(
-            width: 38,
-            height: 42,
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
             decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFFF0EAE3)),
-              borderRadius: BorderRadius.circular(8),
+              color: stopped
+                  ? const Color(0xFFFFE8E5)
+                  : const Color(0xFFE8F5EC),
+              borderRadius: BorderRadius.circular(99),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: image.isEmpty
-                ? const Icon(
-                    Icons.inventory_2_outlined,
-                    size: 19,
-                    color: Color(0xFF917D6B),
-                  )
-                : Image.network(
-                    image,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) =>
-                        const Icon(Icons.inventory_2_outlined, size: 19),
-                  ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${p['name']}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    height: 1.35,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  status,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: stopped
-                        ? const Color(0xFFA33C34)
-                        : const Color(0xFF34714F),
-                  ),
-                ),
-                if ((p['reserved'] as num? ?? 0) > 0)
-                  Text(
-                    '${staffText('В заказах', 'Тапсырыстарда', 'Reserved')}: ${p['reserved']}',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Color(0xFF746B63),
-                    ),
-                  ),
-                if (p['preorder'] != true && p['stockSource'] == 'manual')
-                  Text(
-                    staffText('Вручную', 'Қолмен', 'Manual'),
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Color(0xFF746B63),
-                    ),
-                  ),
-              ],
+            child: Text(
+              status,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: stopped
+                    ? const Color(0xFFA33C34)
+                    : const Color(0xFF34714F),
+              ),
             ),
           ),
-          const SizedBox(width: 6),
+          if ((p['reserved'] as num? ?? 0) > 0) ...[
+            const SizedBox(height: 5),
+            Text(
+              '${staffText('В заказах', 'Тапсырыстарда', 'Reserved')}: ${p['reserved']}',
+              style: const TextStyle(fontSize: 11, color: Color(0xFF746B63)),
+            ),
+          ],
+          const Spacer(),
           if (p['preorder'] != true)
             SizedBox(
-              width: 62,
+              width: double.infinity,
+              height: 46,
               child: Tooltip(
                 message: staffText(
                   'Изменить остаток',
@@ -735,40 +734,106 @@ class _CashierCatalogState extends State<CashierCatalog> {
                 ),
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    minimumSize: const Size(48, 44),
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    side: const BorderSide(color: Color(0xFFD9C8B9)),
                   ),
                   onPressed: blocked || busy ? null : () => _edit(p),
-                  child: Text(
-                    p['sourceQuantity'] == null
-                        ? '—'
-                        : '${p['sourceQuantity']}',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.edit_outlined, size: 18),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(
+                          staffText('Остаток', 'Қалдық', 'Stock'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        p['sourceQuantity'] == null
+                            ? '—'
+                            : '${p['sourceQuantity']}',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
-          const SizedBox(width: 6),
+          const SizedBox(height: 8),
           SizedBox(
-            width: 46,
-            height: 48,
-            child: FittedBox(
-              child: Semantics(
-                label:
-                    '${staffText('Стоп-лист', 'Стоп-тізім', 'Stop list')}: ${p['name']}',
-                child: Switch.adaptive(
-                  value: p['manualStop'] == true,
-                  onChanged: blocked || busy
-                      ? null
-                      : (value) => _stop(p, value),
-                ),
-              ),
-            ),
+            width: double.infinity,
+            height: 46,
+            child: stopped
+                ? OutlinedButton.icon(
+                    onPressed: blocked || busy ? null : () => _stop(p, false),
+                    icon: busy
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(
+                            Icons.play_circle_outline_rounded,
+                            size: 19,
+                          ),
+                    label: Text(
+                      staffText(
+                        'Вернуть в продажу',
+                        'Сатылымға қайтару',
+                        'Return to sale',
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  )
+                : FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF782B0E),
+                    ),
+                    onPressed: blocked || busy ? null : () => _stop(p, true),
+                    icon: busy
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.block_rounded, size: 18),
+                    label: Text(
+                      staffText(
+                        'В стоп-лист',
+                        'Стоп-тізімге',
+                        'Add to stop list',
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
           ),
         ],
+      ),
+    );
+    return Container(
+      key: ValueKey('stock-${p['id']}'),
+      height: tablet ? null : 204,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFE8DED4)),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A2E160C),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [photo, const SizedBox(width: 12), details],
       ),
     );
   }

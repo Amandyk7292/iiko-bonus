@@ -444,10 +444,18 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final positions = ['available', 'zero', 'stopped', 'unknown']
-        .map((id) => tester.getTopLeft(find.byKey(ValueKey('stock-$id'))).dy)
-        .toList();
-    expect(positions, orderedEquals([...positions]..sort()));
+    expect(find.byKey(const ValueKey('stock-available')), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('stock-unknown')),
+      120,
+      scrollable: find
+          .descendant(
+            of: find.byType(CashierCatalog),
+            matching: find.byType(Scrollable),
+          )
+          .last,
+    );
+    expect(find.byKey(const ValueKey('stock-unknown')), findsOneWidget);
   });
   testWidgets(
     '120 products use a lazy list with pinned search and category selection',
@@ -534,4 +542,35 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }
+
+  testWidgets('tablet stock list uses photo-first cards with direct actions', (
+    tester,
+  ) async {
+    final api = StockApi(largeCatalog: true);
+    addTearDown(() {
+      api.eventsFeed.close();
+      api.close();
+    });
+    tester.view.physicalSize = const Size(1024, 768);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: staffTheme(),
+        home: Scaffold(body: CashierCatalog(api: api)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(GridView), findsOneWidget);
+    expect(find.text('Остаток'), findsWidgets);
+    expect(find.text('В стоп-лист'), findsWidgets);
+    final first = tester.getRect(find.byKey(const ValueKey('stock-product-0')));
+    final second = tester.getRect(
+      find.byKey(const ValueKey('stock-product-1')),
+    );
+    expect(first.top, second.top);
+    expect(first.width, greaterThan(400));
+    expect(tester.takeException(), isNull);
+  });
 }
