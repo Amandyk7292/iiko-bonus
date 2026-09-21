@@ -552,7 +552,7 @@ const ru: Record<string, string> = {
   'stories.createTitle': 'Создать баннер акции',
   'stories.editTitle': 'Редактировать акцию',
   'stories.formHint':
-    'Обязательны заголовок и два изображения RU. Пустые поля KZ и EN используют RU-версию.',
+    'Обязательны заголовок и вертикальная история RU 1080×1920. Пустые поля KZ и EN используют RU-версию.',
   'stories.promoTitle': 'Заголовок акции',
   'stories.promoDescription': 'Краткое описание',
   'stories.promoDetails': 'Подробное описание',
@@ -574,7 +574,7 @@ const ru: Record<string, string> = {
   'stories.qrValueHint': 'Если заполнить, клиент сможет открыть QR-код из карточки акции.',
   'stories.fallbackText': 'Если оставить пустым, клиент увидит текст RU.',
   'stories.horizontal': 'Горизонтальный баннер (1080×480)',
-  'stories.vertical': 'Вертикальная история (1080×1920)',
+  'stories.vertical': 'История (1080×1920)',
   'stories.coverDimensions': 'Обложка должна быть ровно 1080×480 px.',
   'stories.contentDimensions': 'Изображение внутри должно быть ровно 1080×1920 px.',
   'stories.chooseImage': 'Выбрать изображение',

@@ -1,7 +1,7 @@
 part of '../main.dart';
 
 const Map<String, Map<String, String>> _locationTranslations = {
-  'nav_locations': {'ru': 'Локации', 'kk': 'Орындар', 'en': 'Locations'},
+  'nav_locations': {'ru': 'Локации', 'kk': 'Нүктелер', 'en': 'Locations'},
   'directory_city': {
     'ru': 'Выберите город',
     'kk': 'Қаланы таңдаңыз',

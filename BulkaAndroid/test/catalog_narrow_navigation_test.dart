@@ -32,7 +32,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final labels = ['Басты бет', 'Мәзір', 'Себет', 'Орындар', 'Профиль'];
+    final labels = ['Басты бет', 'Мәзір', 'Себет', 'Нүктелер', 'Профиль'];
     for (var index = 0; index < labels.length; index++) {
       final label = labels[index];
       final text = tester.widget<Text>(find.text(label));
@@ -85,7 +85,7 @@ void main() {
     );
     expect(selectedDecoration.boxShadow!.single.blurRadius, 7);
     expect((idleCartIndicator.decoration! as BoxDecoration).gradient, isNull);
-    expect((idleCartIndicator.decoration! as BoxDecoration).border, isNotNull);
+    expect((idleCartIndicator.decoration! as BoxDecoration).border, isNull);
     expect(tester.takeException(), isNull);
   });
 }

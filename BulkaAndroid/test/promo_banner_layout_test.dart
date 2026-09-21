@@ -169,7 +169,9 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets('promo cover keeps the 1080 by 480 aspect ratio', (tester) async {
+  testWidgets('story preview keeps the 1080 by 1920 aspect ratio', (
+    tester,
+  ) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -197,9 +199,9 @@ void main() {
     final size = tester.getSize(
       find.byKey(const ValueKey('promo-card-ratio-check')),
     );
-    expect(size.width / size.height, closeTo(1080 / 480, 0.001));
-    expect(size.width, 358);
-    expect(size.height, closeTo(358 / (1080 / 480), 0.001));
+    expect(size.width / size.height, closeTo(1080 / 1920, 0.001));
+    expect(size.width, 112);
+    expect(size.height, closeTo(112 / (1080 / 1920), 0.001));
     final imageRect = tester.getRect(
       find.byKey(const ValueKey('promo-image-ratio-check')),
     );
@@ -209,13 +211,11 @@ void main() {
     expect(
       imageRect,
       cardRect,
-      reason: 'A 1080x480 cover fills the card beneath its border',
+      reason: 'A 1080x1920 story fills the preview beneath its border',
     );
   });
 
-  testWidgets('manual banner paging restarts the five second timer', (
-    tester,
-  ) async {
+  testWidgets('stories use a horizontal scrolling list', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -233,21 +233,51 @@ void main() {
         ),
       ),
     );
-    await tester.pump(const Duration(seconds: 1));
-    await tester.fling(find.byType(PageView), const Offset(-330, 0), 1200);
-    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('home-stories-list')), findsOneWidget);
+    expect(find.byType(PageView), findsNothing);
+    expect(find.byType(ListView), findsOneWidget);
+  });
 
-    final controller = tester
-        .widget<PageView>(find.byType(PageView))
-        .controller!;
-    expect(controller.page, closeTo(1, 0.01));
+  testWidgets('viewed stories use a gray border', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PromoBannerSlider(
+            groups: const [
+              StoryGroup(id: 'new', title: 'New', coverUrl: '', stories: []),
+              StoryGroup(
+                id: 'viewed',
+                title: 'Viewed',
+                coverUrl: '',
+                stories: [],
+                viewed: true,
+              ),
+            ],
+            onGroupTap: (_) {},
+          ),
+        ),
+      ),
+    );
 
-    await tester.pump(const Duration(milliseconds: 4400));
-    expect(controller.page, closeTo(1, 0.01));
+    BoxDecoration decoration(String id) =>
+        tester
+                .widget<AnimatedContainer>(
+                  find.descendant(
+                    of: find.byKey(ValueKey('promo-card-$id')),
+                    matching: find.byType(AnimatedContainer),
+                  ),
+                )
+                .foregroundDecoration!
+            as BoxDecoration;
 
-    await tester.pump(const Duration(milliseconds: 700));
-    await tester.pump(BulkaMotion.emphasized);
-    expect(controller.page, closeTo(2, 0.01));
+    expect(
+      (decoration('new').border! as Border).top.color,
+      const Color(0xFF782B0E),
+    );
+    expect(
+      (decoration('viewed').border! as Border).top.color,
+      const Color(0xFFB8B8B8),
+    );
   });
 
   testWidgets(
@@ -281,17 +311,13 @@ void main() {
         ),
       );
       await tester.pump();
-      final pageView = tester.widget<PageView>(find.byType(PageView));
-      expect(pageView.clipBehavior, Clip.none);
-      pageView.controller!.jumpTo(180);
-      await tester.pump();
       final first = tester.getRect(
         find.byKey(const ValueKey('promo-card-gap-one')),
       );
       final second = tester.getRect(
         find.byKey(const ValueKey('promo-card-gap-two')),
       );
-      expect(second.left - first.right, closeTo(16, 0.01));
+      expect(second.left - first.right, closeTo(10, 0.01));
       expect(first.top, second.top);
       expect(tester.takeException(), isNull);
     },

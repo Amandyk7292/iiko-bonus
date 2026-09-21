@@ -198,7 +198,7 @@ class _StaffContentEditorState extends State<_StaffContentEditor> {
     'title',
     'description',
     if (widget.stories) 'details',
-    if (widget.stories) ...['coverUrl', 'contentUrl'] else 'imageUrl',
+    if (widget.stories) 'contentUrl' else 'imageUrl',
   ];
   TextEditingController _c(String name) => _controllers[name]!;
   @override
@@ -213,7 +213,11 @@ class _StaffContentEditorState extends State<_StaffContentEditor> {
       for (final field in _localized) {
         _controllers['$language.$field'] = TextEditingController(
           text:
-              '${data[field] ?? (language == 'ru' ? (item[field] ?? (field == 'imageUrl' ? item['imageurl'] : null)) : null) ?? ''}',
+              '${data[field] ?? (language == 'ru' ? (item[field] ?? (field == 'contentUrl'
+                                ? item['coverUrl']
+                                : field == 'imageUrl'
+                                ? item['imageurl']
+                                : null)) : null) ?? ''}',
         );
       }
     }
@@ -320,8 +324,7 @@ class _StaffContentEditorState extends State<_StaffContentEditor> {
           ),
         );
       }
-      for (final field
-          in widget.stories ? ['coverUrl', 'contentUrl'] : ['imageUrl']) {
+      for (final field in widget.stories ? ['contentUrl'] : ['imageUrl']) {
         final uri = Uri.tryParse('${ru[field]}');
         if (uri?.scheme != 'https' || uri!.host.isEmpty) {
           throw Exception(
@@ -331,6 +334,7 @@ class _StaffContentEditorState extends State<_StaffContentEditor> {
       }
       final body = <String, dynamic>{...ru, 'i18n': i18n};
       if (widget.stories) {
+        body['coverUrl'] = ru['contentUrl'];
         int integer(String key, int minimum, int maximum) {
           final value = int.tryParse(_c(key).text);
           if (value == null || value < minimum || value > maximum) {

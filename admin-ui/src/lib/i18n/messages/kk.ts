@@ -540,7 +540,7 @@ const kk: Record<string, string> = {
   'stories.createTitle': 'Акция баннерін құру',
   'stories.editTitle': 'Акцияны өңдеу',
   'stories.formHint':
-    'RU тақырыбы мен екі RU суреті міндетті. Бос KZ және EN өрістері RU нұсқасын пайдаланады.',
+    'RU тақырыбы және 1080×1920 тік хикая міндетті. Бос KZ және EN өрістері RU нұсқасын пайдаланады.',
   'stories.promoTitle': 'Акция тақырыбы',
   'stories.promoDescription': 'Қысқаша сипаттама',
   'stories.promoDetails': 'Толық сипаттама',
@@ -562,7 +562,7 @@ const kk: Record<string, string> = {
   'stories.qrValueHint': 'Толтырылса, клиент акция карточкасынан QR-кодты аша алады.',
   'stories.fallbackText': 'Бос қалдырылса, клиент RU мәтінін көреді.',
   'stories.horizontal': 'Көлденең баннер (1080×480)',
-  'stories.vertical': 'Тік хикая (1080×1920)',
+  'stories.vertical': 'Хикая (1080×1920)',
   'stories.coverDimensions': 'Мұқаба дәл 1080×480 px болуы керек.',
   'stories.contentDimensions': 'Ішкі сурет дәл 1080×1920 px болуы керек.',
   'stories.chooseImage': 'Сурет таңдау',

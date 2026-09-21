@@ -305,6 +305,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ? first.localizedGroupCoverUrl
                   : first.localizedImageUrl,
               stories: items,
+              viewed: _viewedStoryGroups.contains(entry.key),
             );
           }).toList()
           ..sort((a, b) => a.stories.first.id.compareTo(b.stories.first.id));

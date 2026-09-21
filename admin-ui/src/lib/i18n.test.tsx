@@ -26,10 +26,11 @@ describe('admin interface locale', () => {
     expect(document.documentElement.lang).toBe('kk');
   });
 
-  it('uses a localized unknown label for a missing translated key', () => {
+  it('falls back obsolete English preferences to Russian', () => {
     localStorage.setItem('adminLocale', 'en');
     const { result } = renderHook(() => useI18n(), { wrapper });
-    expect(result.current.t('common.save')).toBe('Save');
-    expect(result.current.t('missing.key')).toBe('Unknown');
+    expect(result.current.locale).toBe('ru');
+    expect(result.current.t('common.save')).toBe('Сохранить');
+    expect(result.current.t('missing.key')).toBe('Неизвестно');
   });
 });

@@ -542,7 +542,7 @@ const en: Record<string, string> = {
   'stories.createTitle': 'Create promotion banner',
   'stories.editTitle': 'Edit promotion',
   'stories.formHint':
-    'The RU title and both RU images are required. Empty KZ and EN fields use the RU version.',
+    'The RU title and one 1080×1920 vertical story are required. Empty KZ and EN fields use the RU version.',
   'stories.promoTitle': 'Promotion title',
   'stories.promoDescription': 'Short description',
   'stories.promoDetails': 'Full description',
@@ -564,7 +564,7 @@ const en: Record<string, string> = {
   'stories.qrValueHint': 'When filled in, customers can open a QR code from the promotion card.',
   'stories.fallbackText': 'Leave blank to show the RU text to customers.',
   'stories.horizontal': 'Horizontal banner (1080×480)',
-  'stories.vertical': 'Vertical story (1080×1920)',
+  'stories.vertical': 'Story (1080×1920)',
   'stories.coverDimensions': 'The cover must be exactly 1080×480 px.',
   'stories.contentDimensions': 'The inside image must be exactly 1080×1920 px.',
   'stories.chooseImage': 'Choose image',
