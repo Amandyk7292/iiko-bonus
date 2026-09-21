@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_version:
-        description: Installed Shorebird release (for example 1.0.6+41)
+        description: Installed Shorebird release (for example 1.0.7+42)
         required: true
         type: string
       track:

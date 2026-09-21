@@ -165,6 +165,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 
   Future<void> _loadOptions({bool preserveSelection = false}) async {
+    if (preserveSelection) {
+      widget.api.invalidateProductOptions(widget.product.id);
+    }
     if (mounted) setState(() => _loadingOptions = true);
     try {
       final options = await widget.api.getProductOptions(widget.product.id);
@@ -218,7 +221,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         });
       }
       if (preserveSelection) rethrow;
-      _live.request();
     }
   }
 

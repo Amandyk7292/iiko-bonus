@@ -39,6 +39,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:video_player/video_player.dart';
 
 import 'core/cart_provider.dart';
+import 'core/product_image_cache.dart';
 import 'core/api_origin.dart';
 import 'core/browser_form_factor.dart';
 import 'core/http_client_backend.dart';

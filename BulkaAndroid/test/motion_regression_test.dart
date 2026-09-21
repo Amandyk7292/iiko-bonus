@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'package:bulka_bonus/core/product_image_cache.dart';
+import 'package:flutter/services.dart';
 import 'package:bulka_bonus/main.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
@@ -5,6 +8,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  late Directory cacheDirectory;
+  setUpAll(() async {
+    cacheDirectory = await Directory.systemTemp.createTemp(
+      'bulka-motion-cache-',
+    );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (_) async => cacheDirectory.path,
+        );
+  });
+  tearDownAll(() async {
+    await productImageCache.dispose();
+    await cacheDirectory.delete(recursive: true);
+  });
   test('story prefetch shares the native decoded image cache key', () async {
     const url = 'https://example.com/story.png';
     final prefetched = networkImageCacheProvider(

@@ -451,10 +451,11 @@ extension _CatalogDataController on _CatalogScreenState {
           pixelHeight: pixelSize,
           resizeMode: 'cover',
         );
-        final source = NetworkImage(effectiveUrl);
-        final ImageProvider<Object> provider = kIsWeb
-            ? source
-            : ResizeImage.resizeIfNeeded(pixelSize, pixelSize, source);
+        final provider = networkImageCacheProvider(
+          effectiveUrl,
+          pixelWidth: pixelSize,
+          pixelHeight: pixelSize,
+        );
         try {
           await precacheImage(provider, context);
         } catch (_) {

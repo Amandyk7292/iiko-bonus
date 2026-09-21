@@ -98,7 +98,10 @@ void main() {
       (request) async =>
           request.url.path == '/api/public/product-options' && failOptions
           ? http.Response('{}', 503)
-          : http.Response('{"ready":true,"productIds":[]}', 200),
+          : http.Response(
+              '{"ready":true,"productIds":[],"products":{"configured":{"configuration":null,"modifierGroups":[]}}}',
+              200,
+            ),
     );
     final api = BulkaApiClient(client: client);
     final cart = CartProvider();

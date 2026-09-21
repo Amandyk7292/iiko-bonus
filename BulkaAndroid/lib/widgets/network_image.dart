@@ -94,7 +94,7 @@ ImageProvider networkImageCacheProvider(
     : ResizeImage.resizeIfNeeded(
         pixelWidth,
         pixelHeight,
-        CachedNetworkImageProvider(url),
+        CachedNetworkImageProvider(url, cacheManager: productImageCache),
       );
 
 class _PhotoLoadingIndicator extends StatelessWidget {
@@ -226,6 +226,7 @@ class _NetworkImage extends StatelessWidget {
               )
             : CachedNetworkImage(
                 imageUrl: effectiveUrl,
+                cacheManager: productImageCache,
                 fit: fit,
                 memCacheWidth: pixelWidth,
                 memCacheHeight: pixelHeight,
@@ -237,10 +238,13 @@ class _NetworkImage extends StatelessWidget {
                 useOldImageOnUrlChange: true,
                 placeholder: (_, _) =>
                     loadingPlaceholder ?? const _PhotoLoadingIndicator(),
-                errorWidget: (_, _, _) => effectiveUrl == url
+                errorWidget: (_, _, _) =>
+                    effectiveUrl == url ||
+                        originalProductImageUri(Uri.parse(effectiveUrl)) != null
                     ? _failedImage()
                     : CachedNetworkImage(
                         imageUrl: url,
+                        cacheManager: productImageCache,
                         fit: fit,
                         placeholder: (_, _) =>
                             loadingPlaceholder ??

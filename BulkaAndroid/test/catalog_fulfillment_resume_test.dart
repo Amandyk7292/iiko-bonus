@@ -290,7 +290,12 @@ void main() {
                     price: isBranch ? 650 : 500,
                     available: !isBranch || available,
                   )
-                : {'success': true},
+                : {
+                    'success': true,
+                    'products': {
+                      'bun-1': {'configuration': null, 'modifierGroups': []},
+                    },
+                  },
           );
         });
         addTearDown(client.close);
@@ -499,7 +504,12 @@ void main() {
           : _response(
               request.url.path.endsWith('/api/guest/menu')
                   ? _menu()
-                  : {'success': true},
+                  : {
+                      'success': true,
+                      'products': {
+                        'bun-1': {'configuration': null, 'modifierGroups': []},
+                      },
+                    },
             ),
     );
     addTearDown(client.close);

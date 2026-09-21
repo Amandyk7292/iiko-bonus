@@ -956,11 +956,50 @@ class BulkaApiClient {
     return OrderSubstitution.fromJson(substitution);
   }
 
+  final Map<String, ({DateTime expires, Map<String, dynamic> value})>
+  _productOptionsCache = {};
+  final Map<String, Future<Map<String, dynamic>>> _productOptionsPending = {};
+
+  void invalidateProductOptions(String productId) {
+    _productOptionsCache.remove(productId);
+  }
+
   Future<Map<String, dynamic>> getProductOptions(String productId) async {
-    final json = await _get(
+    final cached = _productOptionsCache[productId];
+    if (cached != null && DateTime.now().isBefore(cached.expires)) {
+      return cached.value;
+    }
+    final pending = _productOptionsPending[productId];
+    if (pending != null) return pending;
+    final request = _fetchProductOptions(productId);
+    _productOptionsPending[productId] = request;
+    try {
+      return await request;
+    } finally {
+      _productOptionsPending.remove(productId);
+    }
+  }
+
+  Future<Map<String, dynamic>> _fetchProductOptions(String productId) async {
+    final json = await _request(
+      'GET',
       '/api/public/product-options?ids=${Uri.encodeQueryComponent(productId)}',
+      allowRefresh: false,
+      timeout: const Duration(seconds: 8),
     );
-    return _asMap(_asMap(json['products'])[productId]);
+    final products = _asMap(json['products']);
+    if (products[productId] is! Map) {
+      throw const FormatException('Missing product options');
+    }
+    final options = _asMap(products[productId]);
+    if (_productOptionsCache.length >= 200) {
+      _productOptionsCache.remove(_productOptionsCache.keys.first);
+    }
+    _productOptionsCache[productId] = (
+      expires: DateTime.now().add(const Duration(seconds: 30)),
+      value: options,
+    );
+    return options;
   }
 
   Future<Map<String, Map<String, dynamic>>> getProductOptionsBatch(
@@ -1725,6 +1764,7 @@ class BulkaApiClient {
     Map<String, dynamic>? body,
     String? bearerToken,
     bool allowRefresh = true,
+    Duration timeout = const Duration(seconds: 15),
   }) async {
     final requestRevision = _sessionRevision;
     final requestAccessToken = _accessToken;
@@ -1739,7 +1779,7 @@ class BulkaApiClient {
         'PATCH' => _client.patch(uri, headers: headers, body: encodedBody),
         'DELETE' => _client.delete(uri, headers: headers, body: encodedBody),
         _ => throw ArgumentError.value(method, 'method'),
-      }.timeout(const Duration(seconds: 15));
+      }.timeout(timeout);
     }
 
     var response = await send();
