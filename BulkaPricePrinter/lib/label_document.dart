@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'label_template.dart';
 import 'product.dart';
 
 String formatLabelDate(DateTime date) =>
@@ -10,7 +11,11 @@ DateTime expiryFor(Product product, DateTime madeAt) =>
     ? madeAt.add(Duration(hours: product.expiry))
     : madeAt.add(Duration(days: product.expiry));
 
-Future<Uint8List> buildLabelPdf(Product product, DateTime madeAt) async {
+Future<Uint8List> buildLabelPdf(
+  Product product,
+  DateTime madeAt,
+  LabelTemplate template,
+) async {
   final regular = pw.Font.ttf(
     await rootBundle.load('assets/fonts/Roboto-Regular.ttf'),
   );
@@ -21,81 +26,112 @@ Future<Uint8List> buildLabelPdf(Product product, DateTime madeAt) async {
     theme: pw.ThemeData.withFont(base: regular, bold: bold),
   );
   final expires = expiryFor(product, madeAt);
-  final expiryText = product.expiryUnit == 'hours'
-      ? '${formatLabelDate(expires)} ${expires.hour.toString().padLeft(2, '0')}:${expires.minute.toString().padLeft(2, '0')}'
-      : formatLabelDate(expires);
+  String time(DateTime value) =>
+      '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+  final withTime = product.expiryUnit == 'hours';
+  final dates =
+      'ИЗГОТОВЛЕНО: ${formatLabelDate(madeAt)}${withTime ? ' ${time(madeAt)}' : ''}\nГОДЕН ДО: ${formatLabelDate(expires)}${withTime ? ' ${time(expires)}' : ''}';
+  final composition = template.fields['composition']!.breakLanguages
+      ? product.composition.replaceFirst(
+          RegExp(r'\s+(Состав:)', caseSensitive: false),
+          '\nСостав:',
+        )
+      : product.composition;
+  final content = <String, String>{
+    'name': product.name,
+    'composition': composition,
+    'dates': dates,
+    'price': 'ЦЕНА:${product.price} ₸',
+  };
+  final pageWidth = template.width * PdfPageFormat.mm;
+  final pageHeight = template.height * PdfPageFormat.mm;
   document.addPage(
     pw.Page(
-      pageFormat: PdfPageFormat(
-        70 * PdfPageFormat.mm,
-        50 * PdfPageFormat.mm,
-        marginAll: 0,
-      ),
-      build: (_) => pw.Padding(
-        padding: pw.EdgeInsets.fromLTRB(
-          7 * PdfPageFormat.mm,
-          3 * PdfPageFormat.mm,
-          6 * PdfPageFormat.mm,
-          3 * PdfPageFormat.mm,
+      pageFormat: PdfPageFormat(pageWidth, pageHeight, marginAll: 0),
+      build: (_) => pw.Container(
+        width: pageWidth,
+        height: pageHeight,
+        decoration: pw.BoxDecoration(
+          color: PdfColor.fromHex(template.background),
+          borderRadius: pw.BorderRadius.circular(
+            template.radius * PdfPageFormat.mm,
+          ),
         ),
-        child: pw.Column(
-          children: [
-            pw.SizedBox(
-              height: 8 * PdfPageFormat.mm,
-              child: pw.Center(
-                child: pw.Text(
-                  product.name,
-                  textAlign: pw.TextAlign.center,
-                  maxLines: 2,
-                  style: pw.TextStyle(font: bold, fontSize: 14),
-                ),
-              ),
-            ),
-            pw.SizedBox(
-              height: 12 * PdfPageFormat.mm,
-              child: pw.Text(
-                product.composition,
-                maxLines: 5,
-                style: const pw.TextStyle(fontSize: 6.3, lineSpacing: 0.7),
-              ),
-            ),
-            pw.SizedBox(
-              height: 13 * PdfPageFormat.mm,
-              child: product.barcode.length == 13
-                  ? pw.BarcodeWidget(
-                      barcode: pw.Barcode.ean13(),
-                      data: product.barcode,
-                      drawText: true,
-                      textStyle: const pw.TextStyle(fontSize: 7),
-                    )
-                  : pw.Center(
-                      child: pw.Text(
-                        product.barcode.isEmpty
-                            ? 'Нет штрихкода'
-                            : product.barcode,
-                      ),
-                    ),
-            ),
-            pw.Spacer(),
-            pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.end,
-              children: [
-                pw.Expanded(
-                  child: pw.Text(
-                    'ИЗГОТОВЛЕНО: ${formatLabelDate(madeAt)}${product.expiryUnit == 'hours' ? ' ${madeAt.hour.toString().padLeft(2, '0')}:${madeAt.minute.toString().padLeft(2, '0')}' : ''}\nГОДЕН ДО: $expiryText',
-                    style: const pw.TextStyle(fontSize: 6.8),
+        child: pw.Transform.translate(
+          offset: PdfPoint(
+            template.offsetX * PdfPageFormat.mm,
+            -template.offsetY * PdfPageFormat.mm,
+          ),
+          child: pw.Stack(
+            children: [
+              for (final entry in template.fields.entries)
+                if (entry.value.visible)
+                  _field(
+                    entry.key,
+                    entry.value,
+                    content[entry.key] ?? '',
+                    product.barcode,
+                    regular,
+                    bold,
+                    template.foreground,
                   ),
-                ),
-                pw.Text(
-                  'ЦЕНА:${product.price} ₸',
-                  style: pw.TextStyle(font: bold, fontSize: 11),
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     ),
   );
   return document.save();
 }
+
+pw.Widget _field(
+  String key,
+  LabelField field,
+  String text,
+  String barcode,
+  pw.Font regular,
+  pw.Font bold,
+  String color,
+) => pw.Positioned(
+  left: field.x * PdfPageFormat.mm,
+  top: field.y * PdfPageFormat.mm,
+  child: pw.SizedBox(
+    width: field.width * PdfPageFormat.mm,
+    height: field.height * PdfPageFormat.mm,
+    child: key == 'barcode' && barcode.length == 13
+        ? pw.BarcodeWidget(
+            barcode: pw.Barcode.ean13(),
+            data: barcode,
+            drawText: true,
+            color: PdfColor.fromHex(color),
+            textStyle: pw.TextStyle(font: regular, fontSize: field.fontSize),
+          )
+        : pw.Container(
+            alignment: _alignment(field.align),
+            child: pw.Text(
+              key == 'barcode' && barcode.isEmpty
+                  ? 'Нет штрихкода'
+                  : (key == 'barcode' ? barcode : text),
+              textAlign: _textAlign(field.align),
+              maxLines: key == 'name' ? 2 : null,
+              style: pw.TextStyle(
+                font: field.weight >= 600 ? bold : regular,
+                fontSize: field.fontSize,
+                color: PdfColor.fromHex(color),
+                lineSpacing: field.fontSize * (field.lineHeight - 1),
+              ),
+            ),
+          ),
+  ),
+);
+
+pw.Alignment _alignment(String value) => switch (value) {
+  'center' => pw.Alignment.center,
+  'right' => pw.Alignment.centerRight,
+  _ => pw.Alignment.centerLeft,
+};
+pw.TextAlign _textAlign(String value) => switch (value) {
+  'center' => pw.TextAlign.center,
+  'right' => pw.TextAlign.right,
+  _ => pw.TextAlign.left,
+};

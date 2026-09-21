@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'catalog_service.dart';
 import 'printer_service.dart';
 import 'product.dart';
+import 'label_template.dart';
 
 void main() => runApp(const BulkaPrinterApp());
 
@@ -43,6 +44,7 @@ class _PrinterHomeState extends State<PrinterHome> {
   final _search = TextEditingController();
   List<Product> _products = const [];
   List<Printer> _printers = const [];
+  LabelTemplate _template = LabelTemplate.defaults;
   Product? _selected;
   Printer? _printer;
   String _city = 'aktau';
@@ -74,7 +76,12 @@ class _PrinterHomeState extends State<PrinterHome> {
       _error = null;
     });
     try {
-      final products = await _catalog.load(_city);
+      final loaded = await Future.wait([
+        _catalog.load(_city),
+        _catalog.loadTemplate(_city),
+      ]);
+      final products = loaded[0] as List<Product>;
+      final template = loaded[1] as LabelTemplate;
       final printers = await _printerService.printers();
       final wanted =
           savedPrinter ??
@@ -91,6 +98,7 @@ class _PrinterHomeState extends State<PrinterHome> {
       if (!mounted) return;
       setState(() {
         _products = products;
+        _template = template;
         _selected = products.firstOrNull;
         _printers = printers;
         _printer = chosen;
@@ -126,6 +134,7 @@ class _PrinterHomeState extends State<PrinterHome> {
         product: _selected!,
         madeAt: DateTime.now(),
         copies: _copies,
+        template: _template,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -165,6 +174,111 @@ class _PrinterHomeState extends State<PrinterHome> {
     return 'ИЗГОТОВЛЕНО: ${date(madeAt)}${withTime ? ' ${time(madeAt)}' : ''}\n'
         'ГОДЕН ДО: ${date(expires)}${withTime ? ' ${time(expires)}' : ''}';
   }
+
+  Widget _templatePreview(Product product) => AspectRatio(
+    aspectRatio: _template.width / _template.height,
+    child: LayoutBuilder(
+      builder: (context, box) {
+        final scale = box.maxWidth / _template.width;
+        final textColor = _hexColor(_template.foreground);
+        final content = <String, String>{
+          'name': product.name,
+          'composition': _template.fields['composition']!.breakLanguages
+              ? product.composition.replaceFirst(
+                  RegExp(r'\s+(Состав:)', caseSensitive: false),
+                  '\nСостав:',
+                )
+              : product.composition,
+          'dates': _previewDates(product),
+          'price': 'ЦЕНА:${product.price} ₸',
+        };
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: _hexColor(_template.background),
+            borderRadius: BorderRadius.circular(_template.radius * scale),
+            border: Border.all(color: const Color(0xffead9bd)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x16000000),
+                blurRadius: 22,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Transform.translate(
+            offset: Offset(
+              _template.offsetX * scale,
+              _template.offsetY * scale,
+            ),
+            child: Stack(
+              children: [
+                for (final entry in _template.fields.entries)
+                  if (entry.value.visible)
+                    Positioned(
+                      left: entry.value.x * scale,
+                      top: entry.value.y * scale,
+                      width: entry.value.width * scale,
+                      height: entry.value.height * scale,
+                      child:
+                          entry.key == 'barcode' && product.barcode.length == 13
+                          ? BarcodeWidget(
+                              barcode: Barcode.ean13(),
+                              data: product.barcode,
+                              drawText: true,
+                              color: textColor,
+                              style: TextStyle(
+                                fontSize: entry.value.fontSize * scale / 6,
+                                letterSpacing: scale / 2,
+                              ),
+                            )
+                          : Align(
+                              alignment: _fieldAlignment(entry.value.align),
+                              child: Text(
+                                entry.key == 'barcode'
+                                    ? (product.barcode.isEmpty
+                                          ? 'Штрихкод не указан'
+                                          : product.barcode)
+                                    : content[entry.key] ?? '',
+                                maxLines: entry.key == 'name' ? 2 : null,
+                                overflow: TextOverflow.clip,
+                                textAlign: _fieldTextAlign(entry.value.align),
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontSize: entry.value.fontSize * scale / 6,
+                                  fontWeight: entry.value.weight >= 700
+                                      ? FontWeight.w700
+                                      : entry.value.weight >= 600
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                  height: entry.value.lineHeight,
+                                ),
+                              ),
+                            ),
+                    ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+
+  Color _hexColor(String value) {
+    final clean = value.replaceFirst('#', '');
+    return Color(int.tryParse('ff$clean', radix: 16) ?? 0xff222222);
+  }
+
+  Alignment _fieldAlignment(String value) => switch (value) {
+    'center' => Alignment.center,
+    'right' => Alignment.centerRight,
+    _ => Alignment.centerLeft,
+  };
+  TextAlign _fieldTextAlign(String value) => switch (value) {
+    'center' => TextAlign.center,
+    'right' => TextAlign.right,
+    _ => TextAlign.left,
+  };
 
   Future<void> _editCopies() async {
     var value = '$_copies';
@@ -456,97 +570,9 @@ class _PrinterHomeState extends State<PrinterHome> {
         const SizedBox(height: 22),
         Expanded(
           child: Center(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 630, maxHeight: 450),
-              padding: const EdgeInsets.fromLTRB(44, 24, 44, 22),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: const Color(0xffead9bd)),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x14000000),
-                    blurRadius: 24,
-                    offset: Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: _selected == null
-                  ? const Text('Выберите товар слева')
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _selected!.name,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 25,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          height: 82,
-                          child: Center(
-                            child: Text(
-                              _selected!.composition,
-                              maxLines: 5,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                height: 1.05,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: 360,
-                          height: 105,
-                          child: _selected!.barcode.length == 13
-                              ? BarcodeWidget(
-                                  barcode: Barcode.ean13(),
-                                  data: _selected!.barcode,
-                                  drawText: true,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    letterSpacing: 4,
-                                  ),
-                                )
-                              : Center(
-                                  child: Text(
-                                    _selected!.barcode.isEmpty
-                                        ? 'Штрихкод не указан'
-                                        : 'Некорректный штрихкод: ${_selected!.barcode}',
-                                    style: const TextStyle(color: Colors.red),
-                                  ),
-                                ),
-                        ),
-                        const Spacer(),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              _previewDates(_selected!),
-                              style: const TextStyle(
-                                fontSize: 11,
-                                height: 1.05,
-                              ),
-                            ),
-                            Text(
-                              'ЦЕНА: ${_selected!.price} ₸',
-                              style: const TextStyle(
-                                fontSize: 19,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-            ),
+            child: _selected == null
+                ? const Text('Выберите товар слева')
+                : SizedBox(width: 630, child: _templatePreview(_selected!)),
           ),
         ),
         const SizedBox(height: 22),
