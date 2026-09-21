@@ -595,6 +595,8 @@ const en: Record<string, string> = {
   'news.deleteBody': 'The post will be permanently deleted.',
   'news.validation': 'Enter a title and upload a photo.',
   'news.saved': 'News item saved',
+  'access.searchAccounts': 'Search staff',
+  'access.searchAccountsHint': 'Name, login or role',
   'locations.heading': 'Cities and branches',
   'locations.intro': 'Manage locations and their translations.',
   'locations.addCity': 'Add city',

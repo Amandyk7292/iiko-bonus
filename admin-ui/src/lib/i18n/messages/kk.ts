@@ -593,6 +593,8 @@ const kk: Record<string, string> = {
   'news.deleteBody': 'Жарияланым қайтарымсыз жойылады.',
   'news.validation': 'Тақырыпты енгізіп, фото жүктеңіз.',
   'news.saved': 'Жаңалық сақталды',
+  'access.searchAccounts': 'Қызметкерлерді іздеу',
+  'access.searchAccountsHint': 'Аты, логині немесе лауазымы',
   'locations.heading': 'Қалалар мен филиалдар',
   'locations.intro': 'Мекенжайлар мен олардың аудармаларын басқарыңыз.',
   'locations.addCity': 'Қала қосу',

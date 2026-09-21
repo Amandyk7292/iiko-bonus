@@ -605,6 +605,8 @@ const ru: Record<string, string> = {
   'news.deleteBody': 'Публикация будет удалена безвозвратно.',
   'news.validation': 'Укажите заголовок и загрузите фото.',
   'news.saved': 'Новость сохранена',
+  'access.searchAccounts': 'Поиск сотрудников',
+  'access.searchAccountsHint': 'Имя, логин или должность',
   'locations.heading': 'Города и филиалы',
   'locations.intro': 'Управляйте локациями и их переводами.',
   'locations.addCity': 'Добавить город',
@@ -651,8 +653,7 @@ const ru: Record<string, string> = {
   'locations.deletePointBody': 'Филиал будет удалён безвозвратно.',
   'locations.latitude': 'Широта',
   'locations.longitude': 'Долгота',
-  'locations.allLanguagesValidation':
-    'Заполните обязательные поля на русском и казахском.',
+  'locations.allLanguagesValidation': 'Заполните обязательные поля на русском и казахском.',
   'locations.saved': 'Локация сохранена',
   'locations.fulfillmentIntro':
     'Настройте доступность филиалов, способы получения, расписание и реальные правила доставки.',

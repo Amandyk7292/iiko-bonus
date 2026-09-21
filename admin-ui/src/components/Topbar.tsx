@@ -40,7 +40,6 @@ const routeKeys: Record<string, string> = {
   '/orders': 'orders',
   '/settings': 'settings',
   '/stories': 'stories',
-  '/news': 'news',
   '/taplink': 'taplink',
   '/bonus': 'bonus',
   '/tiers': 'tiers',
