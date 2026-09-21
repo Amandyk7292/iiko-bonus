@@ -1,7 +1,7 @@
 part of '../main.dart';
 
 const _storyPreviewWidth = 104.0;
-const _storyPreviewHeight = 148.0;
+const _storyPreviewHeight = 116.0;
 const _promoCoverAspectRatio = 1080 / 480;
 
 class StoryGroup {

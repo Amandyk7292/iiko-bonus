@@ -198,7 +198,7 @@ void main() {
       find.byKey(const ValueKey('promo-card-ratio-check')),
     );
     expect(size.width, 104);
-    expect(size.height, 148);
+    expect(size.height, 116);
     final imageRect = tester.getRect(
       find.byKey(const ValueKey('promo-image-ratio-check')),
     );
