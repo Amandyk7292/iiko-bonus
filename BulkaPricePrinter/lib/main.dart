@@ -1,3 +1,4 @@
+import 'package:barcode_widget/barcode_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -149,6 +150,120 @@ class _PrinterHomeState extends State<PrinterHome> {
     } finally {
       if (mounted) setState(() => _printing = false);
     }
+  }
+
+  String _previewDates(Product product) {
+    final madeAt = DateTime.now();
+    final expires = product.expiryUnit == 'hours'
+        ? madeAt.add(Duration(hours: product.expiry))
+        : madeAt.add(Duration(days: product.expiry));
+    String date(DateTime value) =>
+        '${value.day.toString().padLeft(2, '0')}.${value.month.toString().padLeft(2, '0')}.${value.year}';
+    String time(DateTime value) =>
+        '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+    final withTime = product.expiryUnit == 'hours';
+    return 'ИЗГОТОВЛЕНО: ${date(madeAt)}${withTime ? ' ${time(madeAt)}' : ''}\n'
+        'ГОДЕН ДО: ${date(expires)}${withTime ? ' ${time(expires)}' : ''}';
+  }
+
+  Future<void> _editCopies() async {
+    var value = '$_copies';
+    final selected = await showDialog<int>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) {
+          void digit(String digit) => update(() {
+            final next = value == '0' ? digit : '$value$digit';
+            if ((int.tryParse(next) ?? 0) <= 999) value = next;
+          });
+          return AlertDialog(
+            title: const Text('Количество этикеток'),
+            content: SizedBox(
+              width: 330,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xfffff3d1),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      value,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  GridView.count(
+                    shrinkWrap: true,
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 1.7,
+                    children: [
+                      for (final number in [
+                        '1',
+                        '2',
+                        '3',
+                        '4',
+                        '5',
+                        '6',
+                        '7',
+                        '8',
+                        '9',
+                      ])
+                        FilledButton.tonal(
+                          onPressed: () => digit(number),
+                          child: Text(
+                            number,
+                            style: const TextStyle(fontSize: 24),
+                          ),
+                        ),
+                      FilledButton.tonal(
+                        onPressed: () => update(() => value = ''),
+                        child: const Text('C', style: TextStyle(fontSize: 22)),
+                      ),
+                      FilledButton.tonal(
+                        onPressed: () => digit('0'),
+                        child: const Text('0', style: TextStyle(fontSize: 24)),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: () => update(() {
+                          if (value.isNotEmpty) {
+                            value = value.substring(0, value.length - 1);
+                          }
+                        }),
+                        icon: const Icon(Icons.backspace_outlined),
+                        label: const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Отмена'),
+              ),
+              FilledButton(
+                onPressed: (int.tryParse(value) ?? 0) > 0
+                    ? () => Navigator.pop(context, int.parse(value))
+                    : null,
+                child: const Text('Готово'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (selected != null && mounted) setState(() => _copies = selected);
   }
 
   @override
@@ -342,8 +457,8 @@ class _PrinterHomeState extends State<PrinterHome> {
         Expanded(
           child: Center(
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 630),
-              padding: const EdgeInsets.all(30),
+              constraints: const BoxConstraints(maxWidth: 630, maxHeight: 450),
+              padding: const EdgeInsets.fromLTRB(44, 24, 44, 22),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(24),
@@ -365,37 +480,65 @@ class _PrinterHomeState extends State<PrinterHome> {
                           _selected!.name,
                           textAlign: TextAlign.center,
                           style: const TextStyle(
-                            fontSize: 30,
+                            fontSize: 25,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _selected!.composition,
-                          maxLines: 5,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        const SizedBox(height: 24),
-                        const Icon(Icons.view_week, size: 70),
-                        Text(
-                          _selected!.barcode,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            letterSpacing: 4,
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 82,
+                          child: Center(
+                            child: Text(
+                              _selected!.composition,
+                              maxLines: 5,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                height: 1.05,
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: 360,
+                          height: 105,
+                          child: _selected!.barcode.length == 13
+                              ? BarcodeWidget(
+                                  barcode: Barcode.ean13(),
+                                  data: _selected!.barcode,
+                                  drawText: true,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    letterSpacing: 4,
+                                  ),
+                                )
+                              : Center(
+                                  child: Text(
+                                    _selected!.barcode.isEmpty
+                                        ? 'Штрихкод не указан'
+                                        : 'Некорректный штрихкод: ${_selected!.barcode}',
+                                    style: const TextStyle(color: Colors.red),
+                                  ),
+                                ),
+                        ),
+                        const Spacer(),
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Годен: ${_selected!.expiry} ${_selected!.expiryUnit == 'hours' ? 'ч.' : 'дн.'}',
+                              _previewDates(_selected!),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                height: 1.05,
+                              ),
                             ),
                             Text(
                               'ЦЕНА: ${_selected!.price} ₸',
                               style: const TextStyle(
-                                fontSize: 23,
+                                fontSize: 19,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
@@ -418,19 +561,29 @@ class _PrinterHomeState extends State<PrinterHome> {
               onPressed: _copies > 1 ? () => setState(() => _copies--) : null,
               icon: const Icon(Icons.remove),
             ),
-            SizedBox(
-              width: 54,
-              child: Text(
-                '$_copies',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
+            InkWell(
+              onTap: _editCopies,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: 72,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: const Color(0xffd9bc86)),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                ),
+                child: Text(
+                  '$_copies',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ),
             IconButton.filledTonal(
-              onPressed: _copies < 99 ? () => setState(() => _copies++) : null,
+              onPressed: _copies < 999 ? () => setState(() => _copies++) : null,
               icon: const Icon(Icons.add),
             ),
             const Spacer(),
