@@ -190,7 +190,8 @@ extension _CatalogInteractionController on _CatalogScreenState {
     _updateCatalogState(() {
       _openedCategory = null;
     });
-    publishClientRoute(Uri(path: '/catalog'), replace: true);
+    _pendingClientUri = Uri(path: '/catalog');
+    publishClientRoute(_pendingClientUri!, replace: true);
     return true;
   }
 
@@ -200,7 +201,8 @@ extension _CatalogInteractionController on _CatalogScreenState {
     _updateCatalogState(() {
       _openedCategory = category;
     });
-    publishClientRoute(_CatalogScreenState._categoryClientUri(category));
+    _pendingClientUri = _CatalogScreenState._categoryClientUri(category);
+    publishClientRoute(_pendingClientUri!);
   }
 
   List<MapEntry<String, List<CatalogProduct>>> get _categoryGroups {
@@ -409,18 +411,20 @@ extension _CatalogInteractionController on _CatalogScreenState {
           ),
         );
         nextProduct = await Navigator.of(context).push<CatalogProduct>(route);
-        await route.completed;
-      } finally {
-        _productRouteOpen = false;
-        final current = normalizedClientUri(clientRouteNotifier.value);
+        // Retire the product intent as soon as pop starts. Browser history is
+        // not updated on native platforms and must not be our source of truth.
         if (_productPendingFulfillment == null &&
             nextProduct == null &&
-            productIdFromClientUri(current) != null) {
+            _pendingClientUri != null &&
+            productIdFromClientUri(_pendingClientUri!) == product.id) {
           _pendingClientUri = _CatalogScreenState._categoryClientUri(
             product.category,
           );
           publishClientRoute(_pendingClientUri!, replace: true);
         }
+        await route.completed;
+      } finally {
+        _productRouteOpen = false;
       }
     });
     if (mounted && nextProduct != null) {

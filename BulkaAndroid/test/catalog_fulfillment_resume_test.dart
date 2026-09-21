@@ -370,6 +370,126 @@ void main() {
     );
   }
 
+  testWidgets('closed product does not reopen after menu refresh', (
+    tester,
+  ) async {
+    final client = MockClient(
+      (request) async => request.url.path.endsWith('/api/guest/locations')
+          ? selectedBakeryLocationsResponse()
+          : _response(
+              request.url.path.endsWith('/api/guest/menu')
+                  ? _menu()
+                  : {'success': true},
+            ),
+    );
+    addTearDown(client.close);
+    await tester.pumpWidget(
+      ChangeNotifierProvider(
+        create: (_) => CartProvider(),
+        child: MaterialApp(
+          theme: buildBulkaTheme(),
+          home: CatalogScreen(api: BulkaApiClient(client: client)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('catalog-category-card-Булочки')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Плюшка'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('product-close')));
+    await tester.pumpAndSettle();
+    expect(find.byType(ProductDetailsScreen), findsNothing);
+    await tester.pump(const Duration(seconds: 65));
+    await tester.pumpAndSettle();
+    expect(find.byType(ProductDetailsScreen), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('category and product selection survives background refresh', (
+    tester,
+  ) async {
+    final client = MockClient((request) async {
+      if (request.url.path.endsWith('/api/guest/locations')) {
+        return selectedBakeryLocationsResponse();
+      }
+      final menu = _menu();
+      (menu['categories'] as List).add({
+        'id': 'drinks',
+        'name': 'Напитки',
+        'imageUrl': '',
+      });
+      (menu['products'] as List).add({
+        'id': 'coffee',
+        'categoryId': 'drinks',
+        'name': 'Кофе',
+        'price': 700,
+        'imageUrl': '',
+        'onlineOrderable': true,
+      });
+      return _response(
+        request.url.path.endsWith('/api/guest/menu') ? menu : {'success': true},
+      );
+    });
+    addTearDown(client.close);
+    await tester.pumpWidget(
+      ChangeNotifierProvider(
+        create: (_) => CartProvider(),
+        child: MaterialApp(
+          theme: buildBulkaTheme(),
+          home: CatalogScreen(
+            api: BulkaApiClient(client: client),
+            initialClientUri: Uri(path: '/catalog'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('catalog-category-card-Булочки')),
+    );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 65));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('catalog-category-back')), findsOneWidget);
+    await tester.tap(find.text('Плюшка'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('product-close')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('catalog-category-back')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('catalog-category-card-Напитки')),
+    );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 65));
+    await tester.pumpAndSettle();
+    expect(find.byType(ProductDetailsScreen), findsNothing);
+    await tester.tap(find.text('Кофе'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<ProductDetailsScreen>(find.byType(ProductDetailsScreen))
+          .product
+          .id,
+      'coffee',
+    );
+    await tester.pump(const Duration(seconds: 65));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<ProductDetailsScreen>(find.byType(ProductDetailsScreen))
+          .product
+          .id,
+      'coffee',
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('declining fulfillment selection keeps the open product', (
     tester,
   ) async {

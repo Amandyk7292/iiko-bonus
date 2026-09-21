@@ -46,7 +46,8 @@ extension _CatalogRouteController on _CatalogScreenState {
         }
       }
       if (product == null) {
-        publishClientRoute(Uri(path: '/catalog'), replace: true);
+        _pendingClientUri = Uri(path: '/catalog');
+        publishClientRoute(_pendingClientUri!, replace: true);
         if (_openedCategory != null) {
           _updateCatalogState(() => _openedCategory = null);
         }
@@ -57,7 +58,7 @@ extension _CatalogRouteController on _CatalogScreenState {
       }
       if (!_productRouteOpen) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && !_productRouteOpen) {
+          if (mounted && !_productRouteOpen && _pendingClientUri == uri) {
             unawaited(_openProductDetails(product!, updateClientRoute: false));
           }
         });
