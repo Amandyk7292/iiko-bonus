@@ -2136,8 +2136,14 @@ void main() {
     expect(find.text('Тут много интересного'), findsNothing);
     expect(promoRect.top - headerRect.bottom, closeTo(16, 0.01));
     expect(promoRect.left, closeTo(16, 0.01));
-    expect(promoRect.width, closeTo(358, 0.01));
-    expect(promoRect.width / promoRect.height, closeTo(1080 / 480, 0.001));
+    expect(promoRect.width, closeTo(104, 0.01));
+    expect(promoRect.height, closeTo(116, 0.01));
+    expect(
+      tester
+          .widget<ListView>(find.byKey(const ValueKey('home-stories-list')))
+          .scrollDirection,
+      Axis.horizontal,
+    );
     expect(pickupRect.left, closeTo(16, 0.01));
     expect(deliveryRect.right, closeTo(374, 0.01));
     expect(deliveryRect.left - pickupRect.right, closeTo(12, 0.01));
@@ -2374,7 +2380,7 @@ void main() {
     expect(find.text('Накопительная'), findsOneWidget);
   });
 
-  testWidgets('tablet uses promo grid and honors reduced motion', (
+  testWidgets('tablet uses compact stories and honors reduced motion', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -2404,10 +2410,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final grid = tester.widget<GridView>(find.byType(GridView));
-    final delegate =
-        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
-    expect(delegate.crossAxisCount, 2);
+    final stories = tester.widget<ListView>(
+      find.byKey(const ValueKey('home-stories-list')),
+    );
+    expect(stories.scrollDirection, Axis.horizontal);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('promo-card-new'))),
+      const Size(104, 116),
+    );
     expect(BulkaMotion.reduced(tester.element(find.byType(MainShell))), isTrue);
     expect(find.byType(NavigationRail), findsOneWidget);
 

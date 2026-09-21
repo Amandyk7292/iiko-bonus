@@ -274,7 +274,7 @@ class _BannerFullCoverWidget extends StatelessWidget {
           colors: [Color(0xFF4A2210), Color(0xFF231007)],
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       child: Row(
         children: [
           Expanded(
@@ -288,7 +288,7 @@ class _BannerFullCoverWidget extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontFamily: _headingFont,
-                    fontSize: BulkaTypeScale.title,
+                    fontSize: 16,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFFEADBBE),
                   ),
