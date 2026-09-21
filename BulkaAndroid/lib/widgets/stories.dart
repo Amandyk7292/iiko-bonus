@@ -1,7 +1,7 @@
 part of '../main.dart';
 
-const _storyPreviewAspectRatio = 9 / 16;
-const _storyPreviewWidth = 112.0;
+const _storyPreviewWidth = 104.0;
+const _storyPreviewHeight = 148.0;
 const _promoCoverAspectRatio = 1080 / 480;
 
 class StoryGroup {
@@ -67,7 +67,7 @@ class _PromoBannerShimmerState extends State<PromoBannerShimmer>
   Widget build(BuildContext context) {
     final shimmer = _reduceMotion ? null : _controller;
     return SizedBox(
-      height: _storyPreviewWidth / _storyPreviewAspectRatio,
+      height: _storyPreviewHeight,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
@@ -126,8 +126,7 @@ class _PromoBannerShimmerState extends State<PromoBannerShimmer>
       child: child,
     );
 
-    return AspectRatio(
-      aspectRatio: _storyPreviewAspectRatio,
+    return SizedBox.expand(
       child: ClipRRect(
         borderRadius: BorderRadius.circular(BulkaRadii.card),
         clipBehavior: Clip.antiAlias,
@@ -179,7 +178,7 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
     if (widget.groups.isEmpty) return const SizedBox.shrink();
 
     return SizedBox(
-      height: _storyPreviewWidth / _storyPreviewAspectRatio,
+      height: _storyPreviewHeight,
       child: ListView.separated(
         key: const ValueKey('home-stories-list'),
         padding: const EdgeInsets.symmetric(horizontal: 16),

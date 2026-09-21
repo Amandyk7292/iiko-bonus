@@ -169,9 +169,7 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets('story preview keeps the 1080 by 1920 aspect ratio', (
-    tester,
-  ) async {
+  testWidgets('story preview stays compact on the home screen', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -199,9 +197,8 @@ void main() {
     final size = tester.getSize(
       find.byKey(const ValueKey('promo-card-ratio-check')),
     );
-    expect(size.width / size.height, closeTo(1080 / 1920, 0.001));
-    expect(size.width, 112);
-    expect(size.height, closeTo(112 / (1080 / 1920), 0.001));
+    expect(size.width, 104);
+    expect(size.height, 148);
     final imageRect = tester.getRect(
       find.byKey(const ValueKey('promo-image-ratio-check')),
     );
@@ -211,7 +208,7 @@ void main() {
     expect(
       imageRect,
       cardRect,
-      reason: 'A 1080x1920 story fills the preview beneath its border',
+      reason: 'The portrait story fills its compact preview beneath the border',
     );
   });
 
