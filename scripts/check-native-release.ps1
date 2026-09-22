@@ -8,6 +8,15 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $app = Join-Path $root 'BulkaAndroid'
 $errors = [System.Collections.Generic.List[string]]::new()
+$androidRoot = Join-Path $app 'android'
+$signingPropertiesSetting = $env:BULKA_ANDROID_SIGNING_PROPERTIES_FILE
+$keyPropertiesPath = if ([string]::IsNullOrWhiteSpace($signingPropertiesSetting)) {
+  Join-Path $androidRoot 'key.properties'
+} elseif ([IO.Path]::IsPathRooted($signingPropertiesSetting)) {
+  $signingPropertiesSetting
+} else {
+  Join-Path $androidRoot $signingPropertiesSetting
+}
 
 function Require-File([string]$Path, [string]$Label) {
   if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
@@ -49,7 +58,7 @@ function Require-Minimum-Version(
 Require-File (Join-Path $app 'android\app\google-services.json') 'Firebase Android config'
 Require-File (Join-Path $app 'ios\Runner\GoogleService-Info.plist') 'Firebase iOS config'
 if (-not $SkipSigning) {
-  Require-File (Join-Path $app 'android\key.properties') 'Android release signing config'
+  Require-File $keyPropertiesPath 'Android release signing config'
 }
 Require-File (Join-Path $app 'ios\Runner\RunnerRelease.entitlements') 'iOS release entitlements'
 Require-File (Join-Path $app 'ios\Runner\PrivacyInfo.xcprivacy') 'iOS privacy manifest'
@@ -74,7 +83,6 @@ Require-Minimum-Version `
   'iOS Xcode project' `
   $minimumIosVersion
 
-$keyPropertiesPath = Join-Path $app 'android\key.properties'
 if (-not $SkipSigning -and (Test-Path -LiteralPath $keyPropertiesPath)) {
   $properties = @{}
   Get-Content -LiteralPath $keyPropertiesPath | ForEach-Object {
@@ -89,7 +97,7 @@ if (-not $SkipSigning -and (Test-Path -LiteralPath $keyPropertiesPath)) {
     $storePath = if ([IO.Path]::IsPathRooted($properties.storeFile)) {
       $properties.storeFile
     } else {
-      Join-Path (Join-Path $app 'android') $properties.storeFile
+      Join-Path (Split-Path -Parent $keyPropertiesPath) $properties.storeFile
     }
     if (-not (Test-Path -LiteralPath $storePath -PathType Leaf)) {
       $errors.Add("Android keystore was not found: $storePath")

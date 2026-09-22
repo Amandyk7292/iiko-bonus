@@ -1,3 +1,4 @@
+import java.io.File
 import java.io.FileInputStream
 import java.util.Properties
 
@@ -10,11 +11,17 @@ plugins {
 }
 
 val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
-val hasReleaseSigning = keystorePropertiesFile.isFile
-if (hasReleaseSigning) {
+// Read an existing private configuration in place when building from a clean
+// worktree. Passwords and the keystore do not need to be copied into the checkout.
+val keystorePropertiesFile = rootProject.file(
+    providers.environmentVariable("BULKA_ANDROID_SIGNING_PROPERTIES_FILE")
+        .getOrElse("key.properties"),
+)
+if (keystorePropertiesFile.isFile) {
     FileInputStream(keystorePropertiesFile).use(keystoreProperties::load)
 }
+val hasReleaseSigning = listOf("keyAlias", "keyPassword", "storeFile", "storePassword")
+    .all { !keystoreProperties.getProperty(it).isNullOrBlank() }
 
 android {
     namespace = "com.bulka.bonus"
@@ -45,7 +52,11 @@ android {
             create("release") {
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
-                storeFile = keystoreProperties.getProperty("storeFile")?.let(rootProject::file)
+                storeFile = keystoreProperties.getProperty("storeFile")?.let { path ->
+                    File(path).let { file ->
+                        if (file.isAbsolute) file else File(keystorePropertiesFile.parentFile, path)
+                    }
+                }
                 storePassword = keystoreProperties.getProperty("storePassword")
                 enableV1Signing = true
                 enableV2Signing = true
@@ -73,8 +84,8 @@ gradle.taskGraph.whenReady {
     }
     if (buildsReleaseArtifact && !hasReleaseSigning) {
         throw GradleException(
-            "Release signing is not configured. Copy android/key.properties.example to " +
-                "android/key.properties and point it to the production keystore.",
+            "Release signing is not configured. Configure android/key.properties or set " +
+                "BULKA_ANDROID_SIGNING_PROPERTIES_FILE to an existing release configuration.",
         )
     }
 }
