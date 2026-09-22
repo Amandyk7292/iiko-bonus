@@ -6,6 +6,90 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  for (final language in ['ru', 'kk']) {
+    for (final width in [390.0, 1024.0]) {
+      testWidgets(
+        'cashier order details keep choices and supplements per item ($language, $width)',
+        (tester) async {
+          appLanguageNotifier.value = language;
+          addTearDown(() => appLanguageNotifier.value = 'ru');
+          tester.view.physicalSize = Size(width, 1400);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final descriptions = {
+            'ru': 'Размер: Большой (+500 ₸); Упаковка: Коробка (+100 ₸)',
+            'kk': 'Өлшем: Үлкен (+500 ₸); Қаптама: Қорап (+100 ₸)',
+          };
+          final otherChoices = {
+            'ru': 'Размер: Маленький; Упаковка: Без упаковки',
+            'kk': 'Өлшем: Кішкентай; Қаптама: Қаптамасыз',
+          };
+          final api = StaffApiClient(
+            baseUrl: 'https://bulka.test',
+            client: MockClient((_) async => http.Response('{}', 200)),
+          );
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: staffTheme(),
+              home: StaffOrderDetail(
+                api: api,
+                role: 'cashier',
+                order: {
+                  'id': 'order-choices',
+                  'number': 42,
+                  'amount': 4300,
+                  'paymentStatus': 'paid',
+                  'orderStatus': 'completed',
+                  'fulfillmentType': 'pickup',
+                  'items': [
+                    {
+                      'name': 'Кофе',
+                      'quantity': 2,
+                      'price': 1600,
+                      'optionSummary': descriptions['ru'],
+                      'optionSummaries': descriptions,
+                    },
+                    {
+                      'name': 'Кофе',
+                      'quantity': 1,
+                      'price': 1000,
+                      'optionSummary': otherChoices['ru'],
+                      'optionSummaries': otherChoices,
+                    },
+                    {'name': 'Вода', 'quantity': 1, 'price': 100},
+                  ],
+                },
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final configuredItem = find.text('Кофе\n${descriptions[language]}');
+          await tester.ensureVisible(configuredItem);
+          expect(configuredItem, findsOneWidget);
+          final tile = find.ancestor(
+            of: configuredItem,
+            matching: find.byType(ListTile),
+          );
+          expect(
+            find.descendant(
+              of: tile,
+              matching: find.text('2 × ${staffMoney(1600)}'),
+            ),
+            findsOneWidget,
+          );
+          expect(find.text('Кофе\n${otherChoices[language]}'), findsOneWidget);
+          expect(
+            find.text(localizedOrderItemName({'name': 'Вода'})),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+          api.close();
+        },
+      );
+    }
+  }
   test('order mutation and refund roles preserve the web permissions', () {
     expect(staffCanCancelOrders('cashier'), isTrue);
     expect(staffCanRefundOrders('cashier'), isFalse);

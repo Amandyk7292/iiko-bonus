@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../lib/i18n';
 import Modal from './Modal';
@@ -56,5 +56,35 @@ describe('Modal motion and accessibility', () => {
 
     act(() => vi.advanceTimersByTime(150));
     expect(screen.queryByRole('dialog', { name: 'Проверка' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the page locked and parent open when a nested modal closes', () => {
+    vi.useFakeTimers();
+    const closeParent = vi.fn();
+    const closeChild = vi.fn();
+    const view = (childOpen: boolean) => (
+      <I18nProvider>
+        <Modal open title="Настройки" onClose={closeParent}>
+          <button>Редактировать</button>
+          <Modal open={childOpen} title="Вариант" onClose={closeChild}>
+            <input aria-label="Название" />
+          </Modal>
+        </Modal>
+      </I18nProvider>
+    );
+    const { rerender, unmount } = render(view(false));
+    rerender(view(true));
+    act(() => vi.advanceTimersByTime(1));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(closeChild).toHaveBeenCalledOnce();
+    expect(closeParent).not.toHaveBeenCalled();
+    rerender(view(false));
+    act(() => vi.advanceTimersByTime(300));
+    expect(screen.queryByRole('dialog', { name: 'Вариант' })).not.toBeInTheDocument();
+    expect(document.documentElement).toHaveClass('modal-open');
+    expect(document.body).toHaveClass('modal-open');
+    unmount();
+    expect(document.documentElement).not.toHaveClass('modal-open');
+    expect(document.body).not.toHaveClass('modal-open');
   });
 });

@@ -796,7 +796,7 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
             for (final item in staffRows(_order['items']))
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text('${item['name'] ?? '—'}'),
+                title: Text(localizedOrderItemName(item)),
                 subtitle: Text(
                   '${staffNumber(item['quantity'])} × ${staffMoney(item['price'])}',
                 ),

@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../lib/i18n';
 import { FeedbackProvider, useFeedback } from './Feedback';
+import Modal from './Modal';
 
 function FeedbackHarness() {
   const { confirm, toast } = useFeedback();
@@ -27,6 +28,29 @@ function FeedbackHarness() {
 }
 
 describe('Feedback transitions', () => {
+  it('closing a confirmation preserves the underlying modal and scroll lock', () => {
+    vi.useFakeTimers();
+    const closeParent = vi.fn();
+    render(
+      <I18nProvider>
+        <FeedbackProvider>
+          <Modal open title="Редактор" onClose={closeParent}>
+            <FeedbackHarness />
+          </Modal>
+        </FeedbackProvider>
+      </I18nProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+    const confirmation = screen.getByRole('alertdialog');
+    expect(confirmation.parentElement?.parentElement).toBe(document.body);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    act(() => vi.advanceTimersByTime(300));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Редактор' })).toBeInTheDocument();
+    expect(closeParent).not.toHaveBeenCalled();
+    expect(document.documentElement).toHaveClass('modal-open');
+    expect(document.body).toHaveClass('modal-open');
+  });
   it('keeps a new confirmation open when the previous exit timer completes', () => {
     vi.useFakeTimers();
     render(
