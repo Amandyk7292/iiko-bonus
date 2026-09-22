@@ -52,7 +52,9 @@ function registerPersonalAccountRoutes(router) {
           'PERSONAL_ACCOUNT_TOPUP_NOT_FOUND',
           404,
         );
-      topup = await topups.sync(topup);
+      if (!['credited', 'reversed', 'failed', 'expired'].includes(topup.status)) {
+        topup = await topups.sync(topup);
+      }
       return topups.response(topup, req.query.language || 'ru', req.query.resume === '1');
     }),
   );
