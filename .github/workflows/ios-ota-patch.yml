@@ -21,7 +21,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  verify:
+    # Pixel baselines are generated on Windows. Run the complete test suite
+    # with that renderer, then require its success before the Mac build.
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: BulkaAndroid
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.38.5'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-pub
+      - run: flutter test --no-pub --concurrency=2
   patch:
+    needs: verify
     runs-on: macos-latest
     timeout-minutes: 45
     defaults:
@@ -58,7 +76,6 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter analyze --no-pub
-      - run: flutter test --no-pub
       - name: Prepare temporary signing keychain
         run: python3 ../scripts/prepare-ios-device-signing.py
       - name: Install CocoaPods dependencies
