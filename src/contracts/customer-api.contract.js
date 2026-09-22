@@ -82,7 +82,7 @@ const checkoutQuoteBodySchema = z
 const checkoutPaymentBodySchema = checkoutQuoteBodySchema
   .extend({
     checkoutId: z.string().trim().uuid(),
-    paymentMethod: z.literal('forte_card').optional().default('forte_card'),
+    paymentMethod: z.enum(['forte_card', 'personal_account']).optional().default('forte_card'),
     expectedTotal: z.number().finite().nonnegative().max(100000000).optional(),
     savedPaymentMethodId: nullableText(200),
     deliveryQuoteToken: nullableText(2048),
@@ -489,12 +489,13 @@ const forteTransactionSchema = z
     uid: forteProviderIdSchema.optional(),
     id: forteProviderIdSchema.optional(),
     status: z.string().trim().min(1).max(60),
-    amount: z.number().int().positive(),
+    amount: z.number().int().nonnegative(),
     currency: z.literal('KZT'),
     description: z.string().max(1_000).nullable().optional(),
     type: z.string().max(60).nullable().optional(),
     payment_method_type: z.string().max(60).nullable().optional(),
-    tracking_id: uuidSchema,
+    tracking_id: uuidSchema.optional(),
+    parent_uid: forteProviderIdSchema.nullable().optional(),
     message: z.string().max(1_000).nullable().optional(),
     test: z.boolean(),
     created_at: forteTimestampSchema,
@@ -539,7 +540,7 @@ const forteTransactionSchema = z
 const forteCheckoutOrderSchema = z
   .object({
     currency: z.literal('KZT'),
-    amount: z.number().int().positive(),
+    amount: z.number().int().nonnegative(),
     description: z.string().max(1_000).nullable().optional(),
     tracking_id: uuidSchema,
     additional_data: forteExtensionSchema.optional(),
@@ -666,7 +667,8 @@ const forteWebhookTransactionSchema = z
   .object({
     uid: forteProviderIdSchema.optional(),
     id: forteProviderIdSchema.optional(),
-    tracking_id: uuidSchema,
+    tracking_id: uuidSchema.optional(),
+    parent_uid: forteProviderIdSchema.nullable().optional(),
     status: z.string().trim().min(1).max(60).optional(),
   })
   .passthrough()

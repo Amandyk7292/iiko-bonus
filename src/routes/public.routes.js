@@ -863,6 +863,7 @@ router.patch(
 
 // ForteBank PaymentGateway: HPP redirect plus server-side status polling.
 const forteController = require('../controllers/forte.controller');
+require('./personal-account.routes').registerPersonalAccountRoutes(router);
 router.use('/api/customer/forte-pay', (_req, res, next) => {
   res.set('Cache-Control', 'private, no-store');
   next();

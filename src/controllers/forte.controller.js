@@ -31,6 +31,7 @@ const {
 } = require('../services/online-ordering.service');
 
 const checkoutRequests = new SingleFlight();
+const personalAccount = require('../services/personal-account.service');
 const CHECKOUT_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PAYMENT_TOKEN_PATTERN = /^[A-Za-z0-9._~-]{8,100}$/;
@@ -168,6 +169,18 @@ const createPayment = async (req, res) => {
       // An existing payment keeps its amount even after the quote or slot expires.
       const existing = await forteWidgetService.existingRequest(customerId, checkoutId);
       if (existing) {
+        if (existing.payment_method !== (req.body?.paymentMethod || 'forte_card')) {
+          throw Object.assign(new Error('Оформление связано с другим способом оплаты'), {
+            statusCode: 409,
+            code: 'PAYMENT_REQUEST_ALREADY_USED',
+          });
+        }
+        if (
+          existing.payment_method === 'personal_account' &&
+          req.body?.paymentMethod === 'personal_account'
+        ) {
+          return personalAccount.settleOrder(existing);
+        }
         if (existing.payment_method !== 'forte_card') {
           throw Object.assign(new Error('Это оформление уже связано с другим способом оплаты'), {
             statusCode: 409,
@@ -240,9 +253,16 @@ const createPayment = async (req, res) => {
         throw error;
       }
       try {
-        const decision = await paymentOperations.getForteCheckoutDecision();
+        const decision =
+          req.body?.paymentMethod === 'personal_account'
+            ? null
+            : await paymentOperations.getForteCheckoutDecision();
         let service =
-          decision.effectiveIntegration === 'widget' ? forteWidgetService : forteService;
+          req.body?.paymentMethod === 'personal_account'
+            ? personalAccount
+            : decision.effectiveIntegration === 'widget'
+              ? forteWidgetService
+              : forteService;
         const checkoutPayload = {
           ...checkout,
           requestId: checkoutId,
@@ -336,7 +356,19 @@ const checkStatus = async (req, res) => {
     }
     const customerId = req.customerAuth.id;
     const service = isWidgetOperation ? forteWidgetService : forteService;
-    let order = await service.getOrderStatus(operationId, customerId);
+    let order;
+    try {
+      order = await service.getOrderStatus(operationId, customerId);
+    } catch (error) {
+      if (error.statusCode !== 404) throw error;
+      const accountOrder = await personalAccount.findOrder(operationId, customerId);
+      if (!accountOrder) throw error;
+      const confirmed =
+        accountOrder.status === 'paid'
+          ? (await personalAccount.orders.recordPaidOrder(operationId)) || accountOrder
+          : accountOrder;
+      return res.json(personalAccount.paymentResponse(confirmed));
+    }
     if (order.status === 'paid') {
       order = (await service.orderService.recordPaidOrder(operationId)) || order;
     } else if (
@@ -382,6 +414,13 @@ const checkCheckoutStatus = async (req, res) => {
         .json({ code: 'PAYMENT_CHECKOUT_NOT_FOUND', error: 'Оплата не найдена' });
     }
     if (order.payment_method !== 'forte_card') {
+      if (order.payment_method === 'personal_account') {
+        const confirmed =
+          order.status === 'paid'
+            ? (await personalAccount.orders.recordPaidOrder(order.operation_id)) || order
+            : order;
+        return res.json(personalAccount.paymentResponse(confirmed));
+      }
       return res
         .status(409)
         .json({ code: 'PAYMENT_REQUEST_ALREADY_USED', error: 'Другой способ оплаты' });
@@ -496,7 +535,11 @@ const setDefaultPaymentMethod = async (req, res) => {
 
 const handleWidgetWebhook = async (req, res) => {
   try {
-    await forteWidgetService.handleWebhook(req.body, req.rawBody, req.headers);
+    forteWidgetService.authenticateWebhook(req.headers, req.rawBody);
+    const handled = await require('../services/personal-account-topup.service').handleWebhook(
+      req.body,
+    );
+    if (!handled) await forteWidgetService.handleWebhook(req.body, req.rawBody, req.headers);
     await paymentOperations.recordWebhook('forte_widget', { success: true }).catch(() => undefined);
     return res.status(200).json({ success: true });
   } catch (error) {

@@ -251,7 +251,12 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
       order.status === 'refunded' || order.refund_status === 'succeeded'
         ? 'refunded'
         : order.status,
-    paymentProvider: order.payment_method === 'forte_card' ? 'forte' : 'historical',
+    paymentProvider:
+      order.payment_method === 'personal_account'
+        ? 'personal_account'
+        : order.payment_method === 'forte_card'
+          ? 'forte'
+          : 'historical',
     orderStatus: normalizedOrderStatus(order),
     amount: Number(order.amount || 0),
     subtotal: Number(order.subtotal ?? order.amount ?? 0),

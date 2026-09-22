@@ -5,7 +5,11 @@ const SAFE_REFUND_RETRY_WINDOW_MS = 23 * 60 * 60 * 1000;
 const isForteOrder = (order) => String(order?.payment_method || '') === 'forte_card';
 
 const paymentProviderName = (order) =>
-  isForteOrder(order) ? 'ForteBank' : 'Исторический способ оплаты';
+  order?.payment_method === 'personal_account'
+    ? 'Личный счёт'
+    : isForteOrder(order)
+      ? 'ForteBank'
+      : 'Исторический способ оплаты';
 
 const retiredProviderRefundError = () =>
   Object.assign(
@@ -20,6 +24,9 @@ const retiredProviderRefundError = () =>
   );
 
 async function refundPaymentForOrder(order, amount, options = {}) {
+  if (order?.payment_method === 'personal_account') {
+    return require('./personal-account.service').refundPayment(order, amount, options);
+  }
   if (!order?.operation_id) {
     throw Object.assign(new Error('У заказа отсутствует идентификатор платежа'), {
       statusCode: 409,
@@ -36,6 +43,12 @@ async function refundPaymentForOrder(order, amount, options = {}) {
 }
 
 async function reconcileFullRefundForOrder(order) {
+  if (order?.payment_method === 'personal_account' && order.refund_request_id) {
+    return reconcileRefundForOrder(order, {
+      id: order.refund_request_id,
+      amount: Number(order.amount) - Number(order.partially_refunded_amount || 0),
+    });
+  }
   if (isForteOrder(order) && order.provider_payment_system === 'forte_widget') {
     if (order.refund_reference) return forteWidgetService.reconcileRefund(order);
     if (
@@ -63,6 +76,16 @@ async function reconcileFullRefundForOrder(order) {
 const EXPLICIT_REFUND_DECLINES = new Set(['FORTE_REFUND_REJECTED', 'FORTE_WIDGET_REFUND_REJECTED']);
 
 async function reconcileRefundForOrder(order, refund, options = {}) {
+  if (order?.payment_method === 'personal_account') {
+    try {
+      const result = await refundPaymentForOrder(order, Number(refund.amount), {
+        idempotencyKey: refund.provider_request_id || refund.id,
+      });
+      return { status: 'confirmed', reference: result.reference, requestId: result.requestId };
+    } catch (error) {
+      return { status: 'pending', requestId: refund.id, message: error.message };
+    }
+  }
   if (!isForteOrder(order)) {
     throw retiredProviderRefundError();
   }

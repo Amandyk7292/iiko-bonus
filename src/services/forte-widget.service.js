@@ -412,7 +412,7 @@ const buildWidgetLaunchUrl = ({
     order: String(operationId),
     language: normalizeLanguage(language),
     test: test ? '1' : '0',
-    purpose: purpose === 'card-setup' ? 'card-setup' : 'order',
+    purpose: ['card-setup', 'account-topup'].includes(purpose) ? purpose : 'order',
   }).toString();
   return url.toString();
 };
@@ -954,7 +954,9 @@ class ForteWidgetService {
     const returnBase =
       purpose === 'card-setup'
         ? `${config.publicBaseUrl}/profile?payment=forte&setup=${encodeURIComponent(trackingId)}`
-        : `${config.publicBaseUrl}/orders?payment=forte&order=${encodeURIComponent(trackingId)}`;
+        : purpose === 'account-topup'
+          ? `${config.publicBaseUrl}/profile?payment=forte&topup=${encodeURIComponent(trackingId)}`
+          : `${config.publicBaseUrl}/orders?payment=forte&order=${encodeURIComponent(trackingId)}`;
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
     const body = {
       checkout: {
@@ -969,7 +971,7 @@ class ForteWidgetService {
           tracking_id: trackingId,
           expired_at: expiresAt,
           additional_data: {
-            contract: [...CARD_ON_FILE_PROVIDER_CONTRACT],
+            ...(purpose !== 'account-topup' && { contract: [...CARD_ON_FILE_PROVIDER_CONTRACT] }),
             ...(hasSavedCardToken && {
               card_on_file: { initiator: 'customer' },
             }),
@@ -995,7 +997,7 @@ class ForteWidgetService {
                 save_card_toggle: {
                   // The bank-owned toggle records explicit consent and is the
                   // only condition under which Forte returns a reusable token.
-                  display: true,
+                  display: purpose !== 'account-topup',
                   customer_contract: true,
                   text: localized.saveCard,
                   ...(purpose !== 'card-setup' && {

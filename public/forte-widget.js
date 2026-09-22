@@ -73,6 +73,35 @@
     },
   };
 
+  const accountCopy = {
+    ru: {
+      title: 'Пополнение счёта',
+      loading: 'Открываем пополнение счёта',
+      waiting: 'Сумма поступит на личный счёт после подтверждения банка.',
+      verifying: 'Проверяем пополнение',
+      error: 'Не удалось открыть пополнение',
+      errorHint: 'Вернитесь к счёту и проверьте результат перед повторной попыткой.',
+      back: 'Вернуться к счёту',
+    },
+    kk: {
+      title: 'Шотты толтыру',
+      loading: 'Шотты толтыру бетін ашып жатырмыз',
+      waiting: 'Ақша банк растағаннан кейін жеке шотқа түседі.',
+      verifying: 'Шотты толтыруды тексеріп жатырмыз',
+      error: 'Шотты толтыру бетін ашу мүмкін болмады',
+      errorHint: 'Қайталамас бұрын шотқа оралып, нәтижені тексеріңіз.',
+      back: 'Шотқа оралу',
+    },
+    en: {
+      title: 'Top up account',
+      loading: 'Opening account top-up',
+      waiting: 'Funds will be credited after bank confirmation.',
+      verifying: 'Checking your top-up',
+      error: 'Could not open top-up',
+      errorHint: 'Return to your account and check the result before retrying.',
+      back: 'Return to account',
+    },
+  };
   const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   const query = new URLSearchParams(window.location.search);
   let token = fragment.get('token') || '';
@@ -80,12 +109,18 @@
   const requestedLanguage = fragment.get('language') || query.get('language');
   const language = ['ru', 'kk', 'en'].includes(requestedLanguage) ? requestedLanguage : 'ru';
   let test = fragment.get('test') === '1';
-  const purpose =
-    (fragment.get('purpose') || query.get('purpose')) === 'card-setup' ? 'card-setup' : 'order';
+  const requestedPurpose = fragment.get('purpose') || query.get('purpose');
+  const purpose = ['card-setup', 'account-topup'].includes(requestedPurpose)
+    ? requestedPurpose
+    : 'order';
   const operationPattern =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const tokenPattern = /^[A-Za-z0-9._~-]{16,512}$/;
-  const text = { ...copy[language], ...(purpose === 'card-setup' ? setupCopy[language] : {}) };
+  const text = {
+    ...copy[language],
+    ...(purpose === 'card-setup' ? setupCopy[language] : {}),
+    ...(purpose === 'account-topup' ? accountCopy[language] : {}),
+  };
   const storageKey = `bulka-forte-checkout:${operationId}`;
   // Tab-scoped, short-lived checkout access; never a reusable saved-card token.
   // The non-secret operation reference also supports an authenticated recovery.
@@ -110,10 +145,10 @@
   backButton.textContent = text.back;
 
   const returnUrl = (status) =>
-    purpose === 'card-setup'
+    purpose === 'card-setup' || purpose === 'account-topup'
       ? !operationId
         ? '/profile'
-        : `/profile?payment=forte&setup=${encodeURIComponent(
+        : `/profile?payment=forte&${purpose === 'account-topup' ? 'topup' : 'setup'}=${encodeURIComponent(
             operationId,
           )}&status=${encodeURIComponent(status)}`
       : !operationId
@@ -185,9 +220,12 @@
           /* Fall back to the customer's authenticated operation. */
         }
         if (!tokenPattern.test(token)) {
-          const path = purpose === 'card-setup' ? 'card-setup' : 'status';
+          const path =
+            purpose === 'account-topup'
+              ? 'personal-account/topups'
+              : `forte-pay/${purpose === 'card-setup' ? 'card-setup' : 'status'}`;
           const response = await fetch(
-            `/api/customer/forte-pay/${path}/${encodeURIComponent(operationId)}?resume=1&language=${language}`,
+            `/api/customer/${path}/${encodeURIComponent(operationId)}?resume=1&language=${language}`,
             { credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(15000) },
           );
           if (!response.ok) throw new Error('Resume unavailable');
