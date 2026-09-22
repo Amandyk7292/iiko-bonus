@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { supabase } = require('../config/supabase');
 const { sendPushToCustomer } = require('./push.service');
+const { pushOutboxDedupeKey } = require('./push-outbox.service');
 const { queueCustomerLoyaltySync } = require('./loyalty-sync.service');
 const { decryptSecret, encryptSecret } = require('../utils/secret-envelope.util');
 
@@ -509,12 +510,18 @@ async function savePromotion(payload = {}, id = null) {
 
 async function enqueueAutomatedMessages() {
   const now = new Date();
+  // Claim birthdays before inactivity reminders so the latter respect the
+  // existing daily marketing cap. PostgreSQL keeps the annual claim atomic.
+  const { data: birthdayCount, error: birthdayError } = await supabase.rpc(
+    'enqueue_birthday_greetings',
+  );
+  if (birthdayError) throw birthdayError;
   const { data: automations, error } = await supabase
     .from('marketing_automations')
     .select('*')
     .eq('active', true);
   if (error) throw error;
-  let enqueued = 0;
+  let enqueued = Number(birthdayCount || 0);
   let customerCache = null;
   let transactionCache = null;
 
@@ -573,13 +580,6 @@ async function enqueueAutomatedMessages() {
         .filter((part) => part.type !== 'literal')
         .map((part) => [part.type, part.value]),
     );
-  const birthdayParts = (value) => {
-    const text = String(value || '');
-    const iso = text.match(/^\d{4}-(\d{2})-(\d{2})/);
-    if (iso) return { month: iso[1], day: iso[2] };
-    const local = text.match(/^(\d{2})\.(\d{2})\.\d{4}/);
-    return local ? { month: local[2], day: local[1] } : null;
-  };
   for (const automation of automations || []) {
     if (automation.trigger_type === 'abandoned_cart') {
       const delayMinutes = Number(automation.config?.delayMinutes || 60);
@@ -603,18 +603,7 @@ async function enqueueAutomatedMessages() {
       continue;
     }
 
-    if (automation.trigger_type === 'birthday') {
-      const daysBefore = Math.max(0, Math.min(30, Number(automation.config?.daysBefore || 0)));
-      const target = new Date(now.getTime() + daysBefore * 86400000);
-      const targetParts = localParts(target);
-      for (const customer of await customers()) {
-        const birth = birthdayParts(customer.birth_date);
-        if (birth?.month === targetParts.month && birth?.day === targetParts.day) {
-          await enqueue(automation, customer.id, `birthday:${targetParts.year}`, { daysBefore });
-        }
-      }
-      continue;
-    }
+    if (automation.trigger_type === 'birthday') continue;
 
     if (automation.trigger_type === 'inactive') {
       const inactiveHours = Math.max(
@@ -664,8 +653,11 @@ async function enqueueAutomatedMessages() {
   return enqueued;
 }
 
-async function deliverAutomatedMessages(limit = 100) {
-  const { data: deliveries, error } = await supabase
+async function deliverAutomatedMessages(
+  limit = 100,
+  { db = supabase, sendPush = sendPushToCustomer } = {},
+) {
+  const { data: deliveries, error } = await db
     .from('marketing_deliveries')
     .select('*,marketing_automations(*)')
     .eq('status', 'pending')
@@ -676,25 +668,23 @@ async function deliverAutomatedMessages(limit = 100) {
   let sent = 0;
   for (const delivery of deliveries || []) {
     try {
-      const { data: customer } = await supabase
+      const { data: customer, error: customerError } = await db
         .from('customers')
         .select('fcm_token,preferred_language,deleted_at')
         .eq('id', delivery.customer_id)
         .maybeSingle();
-      if (!customer || customer.deleted_at) {
-        await supabase
-          .from('marketing_deliveries')
-          .update({ status: 'skipped' })
-          .eq('id', delivery.id);
+      if (customerError) throw customerError;
+      const automation = delivery.marketing_automations || {};
+      if (!customer || customer.deleted_at || automation.active === false) {
+        await db.from('marketing_deliveries').update({ status: 'skipped' }).eq('id', delivery.id);
         continue;
       }
-      const automation = delivery.marketing_automations || {};
       const { title, body, language } = renderAutomationCopy(
         automation,
         delivery.payload || {},
         customer.preferred_language,
       );
-      const pushResult = await sendPushToCustomer(
+      const pushResult = await sendPush(
         delivery.customer_id,
         title,
         body,
@@ -702,11 +692,20 @@ async function deliverAutomatedMessages(limit = 100) {
           type: `marketing_${automation.trigger_type}`,
           language,
           deepLink: '/app/',
+          ...(automation.trigger_type === 'birthday'
+            ? {
+                pushDedupeKey: pushOutboxDedupeKey(
+                  'birthday',
+                  delivery.customer_id,
+                  delivery.deduplication_key,
+                ),
+              }
+            : {}),
         },
         customer.fcm_token,
       );
       if (pushResult.attempted === 0) {
-        await supabase
+        await db
           .from('marketing_deliveries')
           .update({ status: 'skipped', error: 'У клиента нет активных push-токенов' })
           .eq('id', delivery.id);
@@ -715,19 +714,19 @@ async function deliverAutomatedMessages(limit = 100) {
       if (pushResult.delivered === 0 && !pushResult.queued) {
         throw new Error('FCM отклонил все push-токены клиента');
       }
-      await supabase
+      await db
         .from('marketing_deliveries')
         .update({ status: 'sent', sent_at: new Date().toISOString(), error: null })
         .eq('id', delivery.id);
       if (automation.trigger_type === 'abandoned_cart') {
-        await supabase
+        await db
           .from('customer_cart_snapshots')
           .update({ abandoned_notified_at: new Date().toISOString() })
           .eq('customer_id', delivery.customer_id);
       }
       sent += 1;
     } catch (deliveryError) {
-      await supabase
+      await db
         .from('marketing_deliveries')
         .update({ status: 'failed', error: String(deliveryError.message).slice(0, 1000) })
         .eq('id', delivery.id);
