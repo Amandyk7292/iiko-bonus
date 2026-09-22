@@ -3,6 +3,28 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
+test('manufacturing and expiry dates preserve Kazakhstan local days around midnight', (t) => {
+  const previous = process.env.TZ;
+  process.env.TZ = 'Asia/Almaty';
+  t.after(() => {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  });
+  const source = fs.readFileSync('public/pricegenerator/app.js', 'utf8');
+  const values = { 'date-format': 'dd.mm.yyyy', 'made-date': '2026-09-22', 'made-time': '02:00' };
+  const context = vm.createContext({ Date, $: (id) => ({ value: values[id] }) });
+  vm.runInContext(
+    source.slice(source.indexOf('  function formatDate('), source.indexOf('  function validEan(')),
+    context,
+  );
+  assert.equal(context.formatDate(new Date('2026-09-22T02:00:00+05:00')), '22.09.2026');
+  assert.equal(context.expiryDate(24, 'hours'), '23.09.2026 02:00');
+  values['made-time'] = '23:30';
+  assert.equal(context.expiryDate(2, 'hours'), '23.09.2026 01:30');
+  values['date-format'] = 'dd.mm.yy';
+  assert.equal(context.expiryDate(1), '23.09.26');
+});
+
 test('label editor and print use identical text-to-paper proportions at every zoom', () => {
   const source = fs.readFileSync('public/pricegenerator/app.js', 'utf8');
   const start = source.indexOf('  function styleElement(');

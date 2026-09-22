@@ -249,6 +249,15 @@ function validateBuilder(
 
 function validateModifierGroups(groups, submitted = []) {
   const values = Array.isArray(submitted) ? submitted : [];
+  const knownGroups = new Set(groups.flatMap((group) => [String(group.id), String(group.code)]));
+  for (const entry of values) {
+    const hasSelection = Array.isArray(entry.optionIds)
+      ? entry.optionIds.length > 0
+      : Boolean(entry.optionId);
+    if (hasSelection && !knownGroups.has(String(entry.groupId || entry.code))) {
+      throw optionError('Выбранные добавки или упаковка больше недоступны. Обновите выбор товара.');
+    }
+  }
   const byGroup = new Map(values.map((entry) => [String(entry.groupId || entry.code), entry]));
   let priceDelta = 0;
   const normalized = [];

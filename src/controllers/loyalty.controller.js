@@ -9,6 +9,7 @@ const {
   activatePendingBonusesSafe,
 } = require('../services/customer.service');
 const { notifyBonusChange } = require('../services/push.service');
+const { resolveOfflineLoyaltyCustomer } = require('../services/offline-loyalty.service');
 const { queueCustomerLoyaltySync } = require('../services/loyalty-sync.service');
 const { getBranchPosCoverage } = require('../services/branch-pos-credential.service');
 const { branchPosEnforcementMode } = require('../middlewares/branch-pos-auth.middleware');
@@ -370,6 +371,23 @@ async function applyBonus(req, res) {
   }
 }
 
+async function earnOfflineBonus(req, res) {
+  try {
+    if (!req.posBranchId || req.posAuthMode !== 'branch') {
+      throw requestError('Branch POS authentication is required', 401);
+    }
+    const customerId = await resolveOfflineLoyaltyCustomer(req.body);
+    // Reuse the normal branch/order idempotency ledger, with no write-off path.
+    const { orderId, orderTotal, items } = req.body;
+    req.body = { customerId, orderId, orderTotal, items, discountAmount: 0 };
+    return applyBonus(req, res);
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      error: error.statusCode ? error.message : 'Offline loyalty temporarily unavailable',
+    });
+  }
+}
+
 async function reserveBonus(req, res) {
   try {
     res.json(await reserveLoyalty(req.body, loyaltyAuthContext(req)));
@@ -416,6 +434,7 @@ module.exports = {
   searchCustomersHandler,
   calculateBonus,
   applyBonus,
+  earnOfflineBonus,
   reserveBonus,
   commitReservedBonus,
   cancelReservedBonus,

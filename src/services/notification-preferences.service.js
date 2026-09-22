@@ -110,29 +110,45 @@ function notificationCategory(data = {}) {
   return 'promos';
 }
 
-function localMinutes(timezone, now = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
+function timeFormatter(timezone) {
+  return new Intl.DateTimeFormat('en-GB', {
     timeZone: timezone,
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
-  }).formatToParts(now);
+  });
+}
+
+function localMinutes(timezone, now = new Date(), formatter = timeFormatter(timezone)) {
+  const parts = formatter.formatToParts(now);
   const hour = Number(parts.find((part) => part.type === 'hour')?.value || 0);
   const minute = Number(parts.find((part) => part.type === 'minute')?.value || 0);
   return hour * 60 + minute;
 }
 
-function inQuietHours(preferences, now = new Date()) {
+function inQuietHours(preferences, now = new Date(), formatter) {
   if (!preferences.quietHoursEnabled) return false;
   const toMinutes = (value) => {
     const [hour, minute] = asTime(value, '00:00').split(':').map(Number);
     return hour * 60 + minute;
   };
-  const current = localMinutes(preferences.timezone || DEFAULTS.timezone, now);
+  const current = localMinutes(preferences.timezone || DEFAULTS.timezone, now, formatter);
   const start = toMinutes(preferences.quietStart);
   const end = toMinutes(preferences.quietEnd);
   if (start === end) return true;
   return start < end ? current >= start && current < end : current >= start || current < end;
+}
+
+function quietHoursResumeAt(preferences, now) {
+  const formatter = timeFormatter(preferences.timezone || DEFAULTS.timezone);
+  const firstMinute = Math.floor(now.getTime() / 60000) * 60000 + 60000;
+  // Walk real minutes so DST transitions and midnight use the customer's clock.
+  for (let minute = 0; minute < 48 * 60; minute++) {
+    const candidate = new Date(firstMinute + minute * 60000);
+    if (!inQuietHours(preferences, candidate, formatter)) return candidate.toISOString();
+  }
+  // Equal start/end means a full-day pause; recheck in case preferences change.
+  return new Date(now.getTime() + 86400000).toISOString();
 }
 
 async function notificationAllowed(customerId, data = {}, now = new Date()) {
@@ -152,7 +168,14 @@ async function notificationAllowed(customerId, data = {}, now = new Date()) {
   if (!enabled) return false;
   // Order and support updates are transactional and must not be delayed by quiet hours.
   if (category === 'orders' || category === 'support') return true;
-  return !inQuietHours(preferences, now);
+  if (inQuietHours(preferences, now)) {
+    throw Object.assign(new Error('Notification postponed until quiet hours end'), {
+      code: 'PUSH_QUIET_HOURS',
+      retryable: true,
+      retryAt: quietHoursResumeAt(preferences, now),
+    });
+  }
+  return true;
 }
 
 module.exports = {

@@ -48,6 +48,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
             public decimal OrderFullSum { get; set; }
             public decimal PayableAmount { get; set; }
             public string ReservationId { get; set; }
+            public string PendingCustomerCode { get; set; }
+            public string ScannedAtUtc { get; set; }
         }
 
         public static ConcurrentDictionary<Guid, OrderLoyaltyData> ActiveOrders =
@@ -235,6 +237,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
             try
             {
                 if (!ActiveOrders.TryGetValue(orderId, out var data)) return extensions;
+                if (!string.IsNullOrWhiteSpace(data.PendingCustomerCode))
+                {
+                    extensions.AfterFooter = XElement.Parse("<doc><line /><center>Bulka: QR сохранён</center><center>Начисление бонусов после восстановления связи</center><line /></doc>");
+                    return extensions;
+                }
 
                 decimal realMoneyPaid = data.PayableAmount > 0
                     ? data.PayableAmount
@@ -274,6 +281,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
             try
             {
                 if (!ActiveOrders.TryGetValue(orderId, out var data)) return extensions;
+                if (!string.IsNullOrWhiteSpace(data.PendingCustomerCode))
+                {
+                    extensions.AfterCheque = XElement.Parse("<doc><line /><center>Bulka: QR сохранён</center><center>Начисление бонусов после восстановления связи</center><line /></doc>");
+                    return extensions;
+                }
 
                 decimal realMoneyPaid = data.PayableAmount > 0
                     ? data.PayableAmount

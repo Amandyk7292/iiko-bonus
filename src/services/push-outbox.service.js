@@ -316,6 +316,30 @@ async function deliverPushOutbox(
       );
       outcomes.push(await markDelivered(row, results, { db }));
     } catch (stateError) {
+      if (stateError.code === 'PUSH_QUIET_HOURS') {
+        await updateOutbox(
+          row,
+          {
+            status: 'retry',
+            next_attempt_at: stateError.retryAt,
+            attempt_count: Math.max(0, row.attemptCount - 1),
+            locked_at: null,
+            lease_token: null,
+            last_error: 'PUSH_QUIET_HOURS',
+          },
+          { db },
+        );
+        outcomes.push({
+          outboxId: row.id,
+          status: 'retry',
+          attempted: 0,
+          delivered: 0,
+          failed: 0,
+          queued: true,
+          nextAttemptAt: stateError.retryAt,
+        });
+        continue;
+      }
       try {
         await updateOutbox(
           row,

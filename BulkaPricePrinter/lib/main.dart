@@ -4,6 +4,7 @@ import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'catalog_service.dart';
 import 'printer_service.dart';
+import 'print_batch_status.dart';
 import 'label_document.dart';
 import 'product.dart';
 import 'label_template.dart';
@@ -53,6 +54,8 @@ class _PrinterHomeState extends State<PrinterHome> {
   int _copies = 1;
   bool _loading = true, _printing = false;
   String? _error;
+  LabelPrintBatch? _batch;
+  bool get _hasActiveBatch => _batch != null && !_batch!.complete;
 
   @override
   void initState() {
@@ -128,25 +131,41 @@ class _PrinterHomeState extends State<PrinterHome> {
   }
 
   Future<void> _print() async {
-    if (_selected == null || _printer == null || _printing) return;
-    setState(() => _printing = true);
-    try {
-      final ok = await _printerService.printLabel(
+    if (_selected == null ||
+        _printer == null ||
+        _printing ||
+        _batch?.outcomeUnknown == true) {
+      return;
+    }
+    if (!_hasActiveBatch) {
+      _batch = LabelPrintBatch(
         printer: _printer!,
         product: _selected!,
         madeAt: DateTime.now(),
         copies: _copies,
         template: _template,
       );
+    }
+    final batch = _batch!;
+    setState(() => _printing = true);
+    try {
+      await _printerService.printBatch(
+        batch,
+        onProgress: () {
+          if (mounted) setState(() {});
+        },
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            ok
-                ? 'Этикетка отправлена на ${_printer!.name}'
-                : 'Принтер не принял задание',
+            batch.complete
+                ? 'Отправлено ${batch.accepted} этикеток на ${batch.printer.name}'
+                : 'Отправлено ${batch.accepted} из ${batch.copies}. ${batch.error}',
           ),
-          backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade700,
+          backgroundColor: batch.complete
+              ? Colors.green.shade700
+              : Colors.red.shade700,
         ),
       );
     } catch (e) {
@@ -311,7 +330,7 @@ class _PrinterHomeState extends State<PrinterHome> {
       actions: [
         IconButton(
           tooltip: 'Обновить',
-          onPressed: _loading ? null : _reload,
+          onPressed: _loading || _hasActiveBatch || _printing ? null : _reload,
           icon: const Icon(Icons.refresh),
         ),
         const SizedBox(width: 12),
@@ -366,14 +385,17 @@ class _PrinterHomeState extends State<PrinterHome> {
             ButtonSegment(value: 'astana', label: Text('Астана')),
           ],
           selected: {_city},
-          onSelectionChanged: (v) async {
-            _city = v.first;
-            await (await SharedPreferences.getInstance()).setString(
-              'city',
-              _city,
-            );
-            _reload();
-          },
+          onSelectionChanged: _hasActiveBatch || _printing
+              ? null
+              : (v) async {
+                  _batch = null;
+                  _city = v.first;
+                  await (await SharedPreferences.getInstance()).setString(
+                    'city',
+                    _city,
+                  );
+                  _reload();
+                },
         ),
         const SizedBox(height: 16),
         TextField(
@@ -414,7 +436,12 @@ class _PrinterHomeState extends State<PrinterHome> {
                 trailing: active
                     ? const Icon(Icons.check_circle, color: Color(0xff782b0e))
                     : null,
-                onTap: () => setState(() => _selected = item),
+                onTap: _hasActiveBatch || _printing
+                    ? null
+                    : () => setState(() {
+                        _selected = item;
+                        _batch = null;
+                      }),
               );
             },
           ),
@@ -455,15 +482,18 @@ class _PrinterHomeState extends State<PrinterHome> {
                 ),
               )
               .toList(),
-          onChanged: (p) async {
-            setState(() => _printer = p);
-            if (p != null) {
-              await (await SharedPreferences.getInstance()).setString(
-                'printer',
-                p.url,
-              );
-            }
-          },
+          onChanged: _hasActiveBatch || _printing
+              ? null
+              : (p) async {
+                  _batch = null;
+                  setState(() => _printer = p);
+                  if (p != null) {
+                    await (await SharedPreferences.getInstance()).setString(
+                      'printer',
+                      p.url,
+                    );
+                  }
+                },
         ),
         if (_printers.isEmpty)
           const Padding(
@@ -482,6 +512,14 @@ class _PrinterHomeState extends State<PrinterHome> {
           ),
         ),
         const SizedBox(height: 22),
+        if (_batch != null)
+          PrintBatchStatus(
+            batch: _batch!,
+            printing: _printing,
+            onFinish: () => setState(() => _batch = null),
+            onResolveUnknown: (printed) =>
+                setState(() => _batch!.resolveUnknown(printed: printed)),
+          ),
         Row(
           children: [
             const Text(
@@ -490,11 +528,13 @@ class _PrinterHomeState extends State<PrinterHome> {
             ),
             const SizedBox(width: 12),
             IconButton.filledTonal(
-              onPressed: _copies > 1 ? () => setState(() => _copies--) : null,
+              onPressed: !_hasActiveBatch && !_printing && _copies > 1
+                  ? () => setState(() => _copies--)
+                  : null,
               icon: const Icon(Icons.remove),
             ),
             InkWell(
-              onTap: _editCopies,
+              onTap: _hasActiveBatch || _printing ? null : _editCopies,
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 width: 72,
@@ -515,7 +555,9 @@ class _PrinterHomeState extends State<PrinterHome> {
               ),
             ),
             IconButton.filledTonal(
-              onPressed: _copies < 999 ? () => setState(() => _copies++) : null,
+              onPressed: !_hasActiveBatch && !_printing && _copies < 999
+                  ? () => setState(() => _copies++)
+                  : null,
               icon: const Icon(Icons.add),
             ),
             const Spacer(),
@@ -523,7 +565,11 @@ class _PrinterHomeState extends State<PrinterHome> {
               height: 58,
               width: 270,
               child: FilledButton.icon(
-                onPressed: _printer == null || _selected == null || _printing
+                onPressed:
+                    _printer == null ||
+                        _selected == null ||
+                        _printing ||
+                        _batch?.outcomeUnknown == true
                     ? null
                     : _print,
                 icon: _printing
@@ -533,7 +579,11 @@ class _PrinterHomeState extends State<PrinterHome> {
                       )
                     : const Icon(Icons.print),
                 label: Text(
-                  _printing ? 'Печатаю…' : 'Печатать сразу',
+                  _printing
+                      ? 'Печатаю…'
+                      : _hasActiveBatch
+                      ? 'Продолжить: ${_batch!.remaining}'
+                      : 'Печатать сразу',
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,

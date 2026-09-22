@@ -159,18 +159,23 @@ class PersonalAccountTopups {
     });
   }
   async sync(topup) {
+    if (['credited', 'reversed'].includes(topup.status)) return topup;
     if (!topup.token_ciphertext) {
-      if (Date.parse(topup.expires_at) < Date.now()) {
-        const { error } = await this.db
-          .from('personal_account_topups')
-          .update({ status: 'expired', checked_at: new Date().toISOString() })
-          .eq('id', topup.id)
-          .eq('status', 'creating');
-        if (error) throw error;
-      }
+      const expired = Date.parse(topup.expires_at) < Date.now();
+      const { error } = await this.db
+        .from('personal_account_topups')
+        .update({
+          checked_at: new Date().toISOString(),
+          ...(expired && ['creating', 'pending'].includes(topup.status)
+            ? { status: 'expired' }
+            : {}),
+        })
+        .eq('id', topup.id)
+        .eq('status', topup.status)
+        .is('token_ciphertext', null);
+      if (error) throw error;
       return this.find(topup.id, topup.customer_id);
     }
-    if (['credited', 'reversed'].includes(topup.status)) return topup;
     const token = decryptProviderToken(
       topup.token_ciphertext,
       'account-topup',
@@ -273,14 +278,26 @@ class PersonalAccountTopups {
   }
   async reconcile() {
     if (!this.bank.availability()) return 0;
-    const { data, error } = await this.db
-      .from('personal_account_topups')
-      .select('*')
-      .in('status', ['creating', 'pending', 'failed', 'expired'])
-      .gte('created_at', new Date(Date.now() - 86400000).toISOString())
-      .order('checked_at', { ascending: true, nullsFirst: true })
-      .limit(30);
-    if (error) throw error;
+    // Unsettled payments have no age cutoff and get their own capacity. Recent
+    // bank refusals are rechecked separately for a late confirmed success.
+    const results = await Promise.all([
+      this.db
+        .from('personal_account_topups')
+        .select('*')
+        .in('status', ['creating', 'pending'])
+        .order('checked_at', { ascending: true, nullsFirst: true })
+        .limit(30),
+      this.db
+        .from('personal_account_topups')
+        .select('*')
+        .in('status', ['failed', 'expired'])
+        .not('token_ciphertext', 'is', null)
+        .gte('created_at', new Date(Date.now() - 86400000).toISOString())
+        .order('checked_at', { ascending: true, nullsFirst: true })
+        .limit(10),
+    ]);
+    for (const result of results) if (result.error) throw result.error;
+    const data = results.flatMap((result) => result.data || []);
     for (const topup of data || []) {
       try {
         await this.sync(topup);

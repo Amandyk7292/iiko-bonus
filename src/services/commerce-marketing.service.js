@@ -673,7 +673,13 @@ async function deliverAutomatedMessages(
         .select('fcm_token,preferred_language,deleted_at')
         .eq('id', delivery.customer_id)
         .maybeSingle();
-      if (customerError) throw customerError;
+      if (customerError) {
+        // No provider call has happened, so retrying this delivery is safe.
+        throw Object.assign(new Error('Customer lookup temporarily unavailable'), {
+          code: 'MARKETING_CUSTOMER_UNAVAILABLE',
+          retryable: true,
+        });
+      }
       const automation = delivery.marketing_automations || {};
       if (!customer || customer.deleted_at || automation.active === false) {
         await db.from('marketing_deliveries').update({ status: 'skipped' }).eq('id', delivery.id);
@@ -707,7 +713,13 @@ async function deliverAutomatedMessages(
       if (pushResult.attempted === 0 && !pushResult.queued) {
         await db
           .from('marketing_deliveries')
-          .update({ status: 'skipped', error: 'У клиента нет активных push-токенов' })
+          .update({
+            status: 'skipped',
+            error:
+              pushResult.skipped === 'preferences'
+                ? 'Рассылка отключена клиентом'
+                : 'У клиента нет активных push-токенов',
+          })
           .eq('id', delivery.id);
         continue;
       }
@@ -726,12 +738,15 @@ async function deliverAutomatedMessages(
       }
       sent += 1;
     } catch (deliveryError) {
+      const retry =
+        deliveryError.retryable === true ||
+        ['PUSH_PREFERENCES_UNAVAILABLE', 'PUSH_QUIET_HOURS'].includes(deliveryError.code);
       await db
         .from('marketing_deliveries')
         .update({
-          status: deliveryError.code === 'PUSH_PREFERENCES_UNAVAILABLE' ? 'pending' : 'failed',
-          ...(deliveryError.code === 'PUSH_PREFERENCES_UNAVAILABLE'
-            ? { scheduled_at: new Date(Date.now() + 600000).toISOString() }
+          status: retry ? 'pending' : 'failed',
+          ...(retry
+            ? { scheduled_at: deliveryError.retryAt || new Date(Date.now() + 600000).toISOString() }
             : {}),
           error: String(deliveryError.message).slice(0, 1000),
         })

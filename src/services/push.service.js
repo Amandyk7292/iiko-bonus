@@ -390,7 +390,7 @@ async function sendPushToCustomer(customerId, title, body, data = {}, fallbackTo
     }
   } catch (error) {
     // Queue for a later preference check; never turn a database error into consent.
-    if (error.code !== 'PUSH_PREFERENCES_UNAVAILABLE') throw error;
+    if (!['PUSH_PREFERENCES_UNAVAILABLE', 'PUSH_QUIET_HOURS'].includes(error.code)) throw error;
     preferenceError = error;
   }
   const tokens = await getCustomerPushTokens(customerId, fallbackToken);

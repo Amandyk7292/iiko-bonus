@@ -201,6 +201,12 @@ namespace Resto.Front.Api.IikoBonusPlugin
     public class LoyaltyApplyQueueItem
     {
         [System.Runtime.Serialization.DataMember(EmitDefaultValue = false)]
+        public string customerCode { get; set; }
+        [System.Runtime.Serialization.DataMember(EmitDefaultValue = false)]
+        public string scannedAtUtc { get; set; }
+        [System.Runtime.Serialization.DataMember(EmitDefaultValue = false)]
+        public string paidAtUtc { get; set; }
+        [System.Runtime.Serialization.DataMember(EmitDefaultValue = false)]
         public string operation { get; set; }
         [System.Runtime.Serialization.DataMember]
         public string orderId { get; set; }
@@ -347,6 +353,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             try
             {
+                ReconcileRestoredOrders(PluginContext.Operations);
                 FlushPendingApplyRequests();
                 CheckServerStatus();
             }
@@ -1151,6 +1158,34 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
         }
 
+        private static bool TryAttachOfflineQr(IOrder order, IOperationService os, IViewManager vm,
+            string code, DateTime scannedAtUtc)
+        {
+            if (!OfflineLoyaltyIdentity.CanCapture(code, scannedAtUtc)) return false;
+            order = GetOpenLoyaltyOrder(order, os, vm);
+            if (order == null) return true;
+            lock (GetOrderOperationLock(order.Id.ToString()))
+            {
+                // Never replace an existing customer/reservation while offline.
+                if (PluginEntry.ActiveOrders.ContainsKey(order.Id)) return false;
+                var pending = new PluginEntry.OrderLoyaltyData {
+                    PendingCustomerCode = code, ScannedAtUtc = scannedAtUtc.ToString("o"),
+                    CustomerName = "QR сохранён", DiscountAmount = 0,
+                    OrderFullSum = Math.Max(0m, order.ResultSum), PayableAmount = Math.Max(0m, order.ResultSum)
+                };
+                if (!PluginEntry.ActiveOrders.TryAdd(order.Id, pending)) return false;
+                if (!PersistActiveOrders())
+                {
+                    PluginEntry.ActiveOrders.TryRemove(order.Id, out _);
+                    vm.ShowErrorPopup("Не удалось сохранить QR на кассе. Начисление не привязано к чеку.", "ОК");
+                    return true;
+                }
+            }
+            vm.ShowOkPopup("QR сохранён на кассе",
+                "После оплаты чек останется в очереди. Бонусы начислятся после восстановления связи и проверки QR сервером. Списание без интернета недоступно.", "ОК");
+            return true;
+        }
+
         private static void RunSearchAndApply(IOrder order, IOperationService os, IViewManager vm, string query)
         {
             try
@@ -1178,10 +1213,22 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 vm.ChangeProgressBarMessage("Поиск клиента...");
 
                 // Шаг 2: Ищем клиента
-                var response = SendApiRequest(HttpMethod.Post, "search", new SearchRequest { query = query.Trim() });
+                ApiResponse response;
+                var scannedAtUtc = DateTime.UtcNow;
+                try
+                {
+                    response = SendApiRequest(HttpMethod.Post, "search", new SearchRequest { query = query.Trim() });
+                }
+                catch
+                {
+                    if (TryAttachOfflineQr(order, os, vm, query.Trim(), scannedAtUtc)) return;
+                    throw;
+                }
 
                 if (!response.IsSuccessStatusCode)
                 {
+                    if (IsRetryableStatus(response.StatusCode) &&
+                        TryAttachOfflineQr(order, os, vm, query.Trim(), scannedAtUtc)) return;
                     PluginContext.Log.Error("IikoBonusPlugin: Customer search failed: " + response.StatusCode + " - " + GetSafeErrorBody(response.Body));
                     var fallback = IsRetryableStatus(response.StatusCode)
                         ? "Сервис лояльности временно недоступен. Код: " + (int)response.StatusCode
@@ -1568,14 +1615,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     IOrder order;
                     if (!orders.TryGetValue(pair.Key, out order))
                     {
-                        if (!string.IsNullOrWhiteSpace(pair.Value.ReservationId))
-                        {
-                            EnqueueOperation("cancel", pair.Key.ToString(), pair.Value.CustomerId,
-                                pair.Value.ReservationId, 0, 0);
-                        }
-                        PluginEntry.ActiveOrders.TryRemove(pair.Key, out _);
-                        PersistActiveOrders();
-                        continue;
+                        // A missing snapshot is not proof of cancellation. Keep
+                        // the durable attachment until the order can be read.
+                        try { order = operationService.GetOrderById(pair.Key); }
+                        catch { continue; }
+                        if (order == null) continue;
                     }
                     if (order.Status == OrderStatus.Closed)
                     {
@@ -1730,7 +1774,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
             // Очередь сначала надежно сохраняется на диск. Только затем заказ удаляется
             // из активных, чтобы сбой записи не потерял начисление.
-            if (loyaltyData.DiscountAmount > 0)
+            if (!string.IsNullOrWhiteSpace(loyaltyData.PendingCustomerCode))
+            {
+                EnqueueOperation("offline-earn", order.Id.ToString(), null, null, 0,
+                    Math.Max(0m, order.ResultSum), itemsList.ToArray(), false, "",
+                    loyaltyData.PendingCustomerCode, loyaltyData.ScannedAtUtc,
+                    (order.CloseTime ?? DateTime.Now).ToUniversalTime().ToString("o"));
+            }
+            else if (loyaltyData.DiscountAmount > 0)
             {
                 var missingReservation = string.IsNullOrWhiteSpace(loyaltyData.ReservationId);
                 EnqueueOperation("commit", order.Id.ToString(), loyaltyData.CustomerId,
@@ -1831,7 +1882,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
             decimal orderTotal,
             OrderItemData[] items = null,
             bool terminal = false,
-            string lastError = "")
+            string lastError = "",
+            string customerCode = null, string scannedAtUtc = null, string paidAtUtc = null)
         {
             lock (QueueLock)
             {
@@ -1844,11 +1896,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 if (existing != null)
                 {
                     var payloadChanged =
+                        !string.Equals(existing.customerCode, customerCode, StringComparison.Ordinal) ||
                         !string.Equals(existing.customerId, customerId, StringComparison.OrdinalIgnoreCase) ||
                         !string.Equals(existing.reservationId ?? "", reservationId ?? "", StringComparison.OrdinalIgnoreCase) ||
                         existing.discountAmount != discountAmount ||
                         existing.orderTotal != orderTotal;
                     existing.customerId = customerId;
+                    existing.customerCode = customerCode;
+                    existing.scannedAtUtc = scannedAtUtc;
+                    existing.paidAtUtc = paidAtUtc;
                     existing.reservationId = reservationId;
                     existing.discountAmount = discountAmount;
                     existing.orderTotal = orderTotal;
@@ -1875,6 +1931,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     operation = operation,
                     orderId = orderId,
                     customerId = customerId,
+                    customerCode = customerCode,
+                    scannedAtUtc = scannedAtUtc,
+                    paidAtUtc = paidAtUtc,
                     reservationId = reservationId,
                     discountAmount = discountAmount,
                     orderTotal = orderTotal,
@@ -2014,12 +2073,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 foreach (var item in queue)
                 {
                     var itemKey = NormalizeOperation(item.operation) + "|" + item.orderId;
+                    var earnOperation = OfflineLoyaltyIdentity.IsEarnOperation(NormalizeOperation(item.operation));
+                    if (earnOperation && item.terminal &&
+                        (item.lastError ?? "").StartsWith("Достигнут лимит попыток", StringComparison.Ordinal)) item.terminal = false;
                     if (item.terminal)
                     {
                         attemptResults[itemKey] = Tuple.Create(item, false);
                         continue;
                     }
-                    if (MaxAttempts > 0 && item.attempts >= MaxAttempts)
+                    if (!earnOperation && MaxAttempts > 0 && item.attempts >= MaxAttempts)
                     {
                         item.terminal = true;
                         item.lastError = "Достигнут лимит попыток (" + MaxAttempts + "). " + item.lastError;
@@ -2027,7 +2089,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                         continue;
                     }
 
-                    item.attempts += 1;
+                    item.attempts = Math.Min(1000, item.attempts + 1);
                     item.lastAttemptAtUtc = DateTime.UtcNow.ToString("o");
                     string error;
                     bool retryable;
@@ -2136,6 +2198,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
                         customerId = item.customerId,
                         orderId = item.orderId,
                         reservationId = item.reservationId
+                    };
+                }
+                else if (operation == "offline-earn")
+                {
+                    relativePath = "offline-earn";
+                    payload = new OfflineLoyaltyEarnRequest {
+                        customerCode = item.customerCode, scannedAtUtc = item.scannedAtUtc,
+                        paidAtUtc = item.paidAtUtc, orderId = item.orderId,
+                        orderTotal = item.orderTotal, items = item.items
                     };
                 }
                 else if (operation == "apply")

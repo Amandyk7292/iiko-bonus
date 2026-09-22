@@ -561,7 +561,7 @@ async function addManualBonus(customerId, amount, reason, { branchId = null } = 
   return data;
 }
 
-async function searchCustomers(query) {
+async function searchCustomers(query, { qrTime = Date.now() } = {}) {
   if (!query) return [];
   const trimQuery = query.trim();
 
@@ -573,7 +573,7 @@ async function searchCustomers(query) {
       const phone = parts[2];
       const timeWindow = parseInt(parts[3], 10);
       const hash = parts[4];
-      const currentWindow = Math.floor(Date.now() / 300000); // 300000 ms = 5 minutes
+      const currentWindow = Math.floor(qrTime / 300000); // 300000 ms = 5 minutes
 
       if (!/^\d{10,15}$/.test(phone) || !/^\d+$/.test(parts[3]) || !/^[0-9a-f]{16}$/i.test(hash)) {
         throw customerError('Некорректный QR-код клиента');
