@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const { productScheduleBounds } = require('./product-options.service');
 
 const slotError = (message, statusCode = 400) => Object.assign(new Error(message), { statusCode });
 
@@ -29,11 +30,18 @@ const capacityFor = (location, type) =>
         : location.pickup_slot_capacity,
   );
 
-async function listAvailableSlots({ branchId, orderType, days = 7, now = new Date() }) {
+async function listAvailableSlots({
+  branchId,
+  orderType,
+  days = 7,
+  productIds = [],
+  now = new Date(),
+}) {
   if (!['pickup', 'delivery', 'preorder'].includes(orderType)) {
     throw slotError('Некорректный способ получения заказа');
   }
   const safeDays = slotHorizonDays(orderType, days);
+  const productBounds = await productScheduleBounds(productIds, now);
   const { data: location, error } = await supabase
     .from('bulka_locations')
     .select(
@@ -53,11 +61,9 @@ async function listAvailableSlots({ branchId, orderType, days = 7, now = new Dat
 
   const safeOffset = timezoneOffsetMinutes();
   const localNow = new Date(now.getTime() + safeOffset * 60000);
-  const startLocalDay = Date.UTC(
-    localNow.getUTCFullYear(),
-    localNow.getUTCMonth(),
-    localNow.getUTCDate(),
-  );
+  const startLocalDay =
+    Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate()) +
+    (orderType === 'preorder' ? Math.floor(productBounds.minimumHours / 24) * 86400000 : 0);
   const queryStart = new Date(startLocalDay - safeOffset * 60000).toISOString();
   const queryEnd = new Date(startLocalDay + safeDays * 86400000 - safeOffset * 60000).toISOString();
   const { data: reservations, error: reservationsError } = await supabase
@@ -86,7 +92,9 @@ async function listAvailableSlots({ branchId, orderType, days = 7, now = new Dat
     10,
   );
   const floor = orderType === 'preorder' ? 1440 : 0;
-  const earliest = now.getTime() + Math.max(floor, Number.isFinite(lead) ? lead : 10) * 60000;
+  const earliest =
+    now.getTime() +
+    Math.max(floor, Number.isFinite(lead) ? lead : 10, productBounds.minimumHours * 60) * 60000;
   const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
   const slots = [];
 
@@ -101,7 +109,7 @@ async function listAvailableSlots({ branchId, orderType, days = 7, now = new Dat
     const first = Math.ceil(open / interval) * interval;
     for (let minute = first; minute < close; minute += interval) {
       const instant = new Date(localDayMs + minute * 60000 - safeOffset * 60000);
-      if (instant.getTime() < earliest) continue;
+      if (instant.getTime() < earliest || instant.getTime() > productBounds.latest) continue;
       const key = instant.toISOString();
       const used = held.get(key) || 0;
       if (used >= capacity) continue;

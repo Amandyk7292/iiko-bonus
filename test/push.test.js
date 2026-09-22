@@ -32,7 +32,7 @@ const supabase = {
           return this;
         },
         async maybeSingle() {
-          return { data: null, error: { code: '42P01', message: 'table is not installed' } };
+          return { data: null, error: null };
         },
       };
     }
@@ -72,7 +72,7 @@ const supabase = {
               return query;
             },
             async maybeSingle() {
-              if (failOutboxUpdate) {
+              if (failOutboxUpdate && values.status) {
                 return { data: null, error: { code: '08006', message: 'connection lost' } };
               }
               const row = pushOutboxRows.find((candidate) =>

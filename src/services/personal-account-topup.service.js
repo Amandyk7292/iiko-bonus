@@ -208,7 +208,7 @@ class PersonalAccountTopups {
         .from('personal_account_topups')
         .update({
           checked_at: new Date().toISOString(),
-          ...(status === 'expired' ? { status: 'expired' } : {}),
+          ...(['failed', 'expired'].includes(status) ? { status } : {}),
         })
         .eq('id', topup.id)
         .in('status', ['creating', 'pending', 'failed', 'expired']);

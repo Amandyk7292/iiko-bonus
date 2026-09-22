@@ -25,6 +25,10 @@ Future<Uint8List> buildLabelPdf(
     r'C:\Windows\Fonts\segoeuib.ttf',
     'assets/fonts/Roboto-Bold.ttf',
   );
+  final semibold = await _font(
+    r'C:\Windows\Fonts\seguisb.ttf',
+    'assets/fonts/Roboto-Bold.ttf',
+  );
   final document = pw.Document(
     theme: pw.ThemeData.withFont(base: regular, bold: bold),
   );
@@ -76,6 +80,7 @@ Future<Uint8List> buildLabelPdf(
                     product.barcode,
                     regular,
                     bold,
+                    semibold,
                     template.foreground,
                   ),
             ],
@@ -94,6 +99,7 @@ pw.Widget _field(
   String barcode,
   pw.Font regular,
   pw.Font bold,
+  pw.Font semibold,
   String color,
 ) => pw.Positioned(
   left: field.x * PdfPageFormat.mm,
@@ -109,23 +115,40 @@ pw.Widget _field(
             color: PdfColor.fromHex(color),
             textStyle: pw.TextStyle(font: regular, fontSize: field.fontSize),
           )
-        : pw.Container(
-            alignment: _alignment(field.align),
-            child: key == 'composition'
-                ? _textWidget(key, field, text, barcode, regular, bold, color)
-                : pw.FittedBox(
-                    fit: pw.BoxFit.scaleDown,
+        : pw.LayoutBuilder(
+            builder: (context, _) {
+              final maxWidth = field.width * PdfPageFormat.mm;
+              final maxHeight = field.height * PdfPageFormat.mm;
+              for (var size = field.fontSize; size >= 3; size -= 0.25) {
+                final fitted = _textWidget(
+                  key,
+                  field,
+                  text,
+                  barcode,
+                  regular,
+                  bold,
+                  semibold,
+                  color,
+                  size,
+                );
+                // Measure all lines without a height cap so text cannot disappear
+                // silently inside a small label field.
+                fitted.layout(
+                  context,
+                  pw.BoxConstraints(maxWidth: maxWidth),
+                );
+                if (fitted.box!.height <= maxHeight + 0.01 &&
+                    fitted.box!.width <= maxWidth + 0.01) {
+                  return pw.Align(
                     alignment: _alignment(field.align),
-                    child: _textWidget(
-                      key,
-                      field,
-                      text,
-                      barcode,
-                      regular,
-                      bold,
-                      color,
-                    ),
-                  ),
+                    child: fitted,
+                  );
+                }
+              }
+              throw StateError(
+                'Текст поля «$key» не помещается. Увеличьте поле в шаблоне.',
+              );
+            },
           ),
   ),
 );
@@ -137,18 +160,23 @@ pw.Widget _textWidget(
   String barcode,
   pw.Font regular,
   pw.Font bold,
+  pw.Font semibold,
   String color,
+  double fontSize,
 ) => pw.Text(
   key == 'barcode' && barcode.isEmpty
       ? 'Нет штрихкода'
       : (key == 'barcode' ? barcode : text),
   textAlign: _textAlign(field.align),
-  maxLines: key == 'name' ? 2 : null,
   style: pw.TextStyle(
-    font: field.weight >= 600 ? bold : regular,
-    fontSize: field.fontSize,
+    font: field.weight >= 700
+        ? bold
+        : field.weight >= 600
+        ? semibold
+        : regular,
+    fontSize: fontSize,
     color: PdfColor.fromHex(color),
-    lineSpacing: field.fontSize * (field.lineHeight - 1),
+    lineSpacing: fontSize * (field.lineHeight - 1),
   ),
 );
 

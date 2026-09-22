@@ -297,7 +297,9 @@
       top: unit(cfg.y),
       width: unit(cfg.w),
       height: unit(cfg.h),
-      fontSize: `${cfg.font * (print ? 1 : state.zoom)}pt`,
+      // Positions use mm; fonts use points (72 pt/in). Scale both by the
+      // same preview pixels/mm instead of mixing CSS points and zoomed mm.
+      fontSize: print ? `${cfg.font}pt` : `${(cfg.font * scale * 25.4) / 72}px`,
       fontWeight: String(cfg.weight || 400),
       lineHeight: String(cfg.lineHeight || 1.15),
       textAlign: cfg.align,
@@ -336,12 +338,14 @@
     for (const node of label.querySelectorAll('.label-element:not(.field-barcode)')) {
       if (node.style.display === 'none') continue;
       let size = Number.parseFloat(getComputedStyle(node).fontSize);
-      const minimum = 4;
+      const pixelsPerMm = label.classList.contains('print-label') ? 96 / 25.4 : state.zoom * 6;
+      const minimum = (3 * pixelsPerMm * 25.4) / 72;
+      const step = (0.25 * pixelsPerMm * 25.4) / 72;
       while (
         size > minimum &&
         (node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1)
       ) {
-        size = Math.max(minimum, size - 0.5);
+        size = Math.max(minimum, size - step);
         node.style.fontSize = `${size}px`;
       }
       if (node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1)

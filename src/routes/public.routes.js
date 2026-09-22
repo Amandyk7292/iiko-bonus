@@ -976,6 +976,10 @@ router.get('/api/public/fulfillment-slots', async (req, res) => {
       branchId: req.query.branchId,
       orderType: String(req.query.orderType || 'pickup'),
       days: req.query.days,
+      productIds:
+        typeof req.query.productIds === 'string'
+          ? req.query.productIds.split(',').filter(Boolean)
+          : [],
     });
     res.set('Cache-Control', 'private, no-store');
     res.json({ success: true, ...result });

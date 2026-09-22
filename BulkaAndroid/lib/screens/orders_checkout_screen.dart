@@ -235,6 +235,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         branchId: location.id,
         orderType: _orderType.wireValue,
         days: _orderType == _OrderType.preorder ? 7 : 1,
+        productIds: widget.cartItems
+            .map((item) => _asString(item['id']))
+            .toList(),
       );
       FulfillmentSlot? matchingSlot;
       for (final slot in slots) {

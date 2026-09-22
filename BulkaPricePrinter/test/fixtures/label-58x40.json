@@ -1,0 +1,76 @@
+{
+  "layout": {
+    "name": {
+      "x": 0,
+      "y": 1.2703933715820312,
+      "w": 58,
+      "h": 7,
+      "font": 15.5,
+      "weight": 700,
+      "lineHeight": 1.15,
+      "align": "center",
+      "visible": true
+    },
+    "composition": {
+      "x": 2.582804361979168,
+      "y": 8.047632853190104,
+      "w": 52.834391276041664,
+      "h": 14.780537923177084,
+      "font": 8,
+      "weight": 600,
+      "lineHeight": 1,
+      "breakLanguages": false,
+      "align": "center",
+      "visible": true
+    },
+    "barcode": {
+      "x": 9.310099283854168,
+      "y": 22.809524536132812,
+      "w": 39.379801432291664,
+      "h": 10.366902669270832,
+      "font": 5,
+      "weight": 400,
+      "lineHeight": 1.15,
+      "align": "center",
+      "visible": true
+    },
+    "dates": {
+      "x": 4.346598307291666,
+      "y": 34.909342447916664,
+      "w": 25.23810831705729,
+      "h": 4,
+      "font": 8.5,
+      "weight": 400,
+      "lineHeight": 1.15,
+      "align": "left",
+      "visible": true
+    },
+    "price": {
+      "x": 36.344563802083336,
+      "y": 35.714274088541664,
+      "w": 17.285715738932293,
+      "h": 4.285725911458334,
+      "font": 12,
+      "weight": 700,
+      "lineHeight": 1.15,
+      "align": "right",
+      "visible": true
+    }
+  },
+  "label": {
+    "width": 58,
+    "height": 40,
+    "radius": 4,
+    "background": "#ffffff",
+    "foreground": "#222222",
+    "offsetX": 0,
+    "offsetY": 0
+  },
+  "paper": {
+    "width": 210,
+    "height": 297,
+    "gapX": 3,
+    "gapY": 3,
+    "margin": 5
+  }
+}

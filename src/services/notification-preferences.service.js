@@ -139,10 +139,13 @@ async function notificationAllowed(customerId, data = {}, now = new Date()) {
   if (!customerId) return true;
   let preferences;
   try {
-    preferences = await getNotificationPreferences(customerId, { failOpen: true });
+    preferences = await getNotificationPreferences(customerId);
   } catch (error) {
     console.error('Failed to read notification preferences:', error.message);
-    return true;
+    throw Object.assign(new Error('Notification preferences temporarily unavailable'), {
+      code: 'PUSH_PREFERENCES_UNAVAILABLE',
+      retryable: true,
+    });
   }
   const category = notificationCategory(data);
   const enabled = preferences[`${category}Enabled`] !== false;

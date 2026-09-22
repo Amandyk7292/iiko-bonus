@@ -1449,12 +1449,14 @@ class BulkaApiClient {
     required String branchId,
     required String orderType,
     int days = 7,
+    List<String> productIds = const [],
   }) async {
     final query = Uri(
       queryParameters: {
         'branchId': branchId,
         'orderType': orderType,
         'days': '$days',
+        if (productIds.isNotEmpty) 'productIds': productIds.toSet().join(','),
       },
     ).query;
     final json = await _get('/api/public/fulfillment-slots?$query');

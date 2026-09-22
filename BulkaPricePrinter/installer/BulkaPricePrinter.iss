@@ -1,5 +1,5 @@
 #define MyAppName "Bulka — печать этикеток"
-#define MyAppVersion "1.0.3"
+#define MyAppVersion "1.0.4"
 #define MyAppExeName "bulka_price_printer.exe"
 
 [Setup]
@@ -9,7 +9,7 @@ AppVersion={#MyAppVersion}
 DefaultDirName={autopf}\Bulka Price Printer
 DefaultGroupName=Bulka
 OutputDir=output
-OutputBaseFilename=Bulka-Price-Printer-Setup-1.0.3
+OutputBaseFilename=Bulka-Price-Printer-Setup-1.0.4
 Compression=lzma2
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible

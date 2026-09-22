@@ -47,6 +47,8 @@ function normalizeOutbox(row) {
     body: row.body,
     data: row.payload && typeof row.payload === 'object' ? row.payload : {},
     tokens: normalizeTokens(row.pending_tokens),
+    inFlightTokens: normalizeTokens(row.in_flight_tokens),
+    uncertainTokens: normalizeTokens(row.uncertain_tokens),
     status: row.status,
     attemptCount: Number(row.attempt_count || 0),
     maxAttempts: Number(row.max_attempts || 8),
@@ -173,7 +175,14 @@ async function markSkipped(row, reason, { db = supabase } = {}) {
 async function markDelivered(row, results, { db = supabase } = {}) {
   const attempted = results.length;
   const delivered = results.filter((result) => result.delivered).length;
-  const retryable = results.filter((result) => !result.delivered && !result.terminal);
+  const retryable = results.filter(
+    (result) => !result.delivered && !result.terminal && !result.outcomeUnknown,
+  );
+  const uncertainTokens = normalizeTokens([
+    ...row.uncertainTokens,
+    ...results.filter((result) => result.outcomeUnknown).map((result) => result.token),
+  ]);
+  const uncertainty = { in_flight_tokens: [], uncertain_tokens: uncertainTokens };
   const attemptedTokens = row.attemptedTokens + attempted;
   const deliveredTokens = row.deliveredTokens + delivered;
   const finalAttempt = row.attemptCount >= row.maxAttempts;
@@ -185,6 +194,7 @@ async function markDelivered(row, results, { db = supabase } = {}) {
     await updateOutbox(
       row,
       {
+        ...uncertainty,
         status: 'retry',
         pending_tokens: retryable.map((result) => result.token),
         attempted_tokens: attemptedTokens,
@@ -207,19 +217,26 @@ async function markDelivered(row, results, { db = supabase } = {}) {
     };
   }
 
-  const terminalStatus = deliveredTokens > 0 ? 'sent' : retryable.length ? 'failed' : 'skipped';
+  const terminalStatus =
+    deliveredTokens > 0
+      ? 'sent'
+      : retryable.length || uncertainTokens.length
+        ? 'failed'
+        : 'skipped';
   const sentAt = deliveredTokens > 0 ? new Date().toISOString() : null;
   await updateOutbox(
     row,
     {
+      ...uncertainty,
       status: terminalStatus,
       pending_tokens: [],
       attempted_tokens: attemptedTokens,
       delivered_tokens: deliveredTokens,
       locked_at: null,
       lease_token: null,
-      last_error:
-        terminalStatus === 'sent'
+      last_error: uncertainTokens.length
+        ? 'FCM_OUTCOME_UNKNOWN: automatic resend suppressed'
+        : terminalStatus === 'sent'
           ? null
           : cleanText(
               results.find((result) => !result.delivered)?.error || 'No active tokens',
@@ -236,6 +253,7 @@ async function markDelivered(row, results, { db = supabase } = {}) {
     delivered,
     failed: attempted - delivered,
     queued: false,
+    outcomeUnknown: uncertainTokens.length > 0,
   };
 }
 
@@ -252,15 +270,24 @@ async function deliverPushOutbox(
   const outcomes = [];
   for (const rawRow of data || []) {
     const row = normalizeOutbox(rawRow);
+    // A previous worker may have stopped after FCM accepted the request.
+    // Keep those tokens out of all further attempts, even after lease expiry.
+    row.uncertainTokens = normalizeTokens([...row.uncertainTokens, ...row.inFlightTokens]);
+    row.tokens = row.tokens.filter((token) => !row.uncertainTokens.includes(token));
     try {
       if (typeof isAllowed === 'function' && !(await isAllowed(row.customerId, row.data))) {
         outcomes.push(await markSkipped(row, 'Notification preferences changed', { db }));
         continue;
       }
       if (!row.tokens.length) {
-        outcomes.push(await markSkipped(row, 'No active push tokens', { db }));
+        outcomes.push(
+          row.uncertainTokens.length
+            ? await markDelivered(row, [], { db })
+            : await markSkipped(row, 'No active push tokens', { db }),
+        );
         continue;
       }
+      await updateOutbox(row, { in_flight_tokens: row.tokens }, { db });
       const results = await Promise.all(
         row.tokens.map(async (token) => {
           try {
@@ -273,6 +300,7 @@ async function deliverPushOutbox(
               token,
               delivered: Boolean(result?.delivered),
               terminal: Boolean(result?.terminal),
+              outcomeUnknown: Boolean(result?.outcomeUnknown),
               error: result?.error || null,
             };
           } catch (sendError) {
@@ -280,6 +308,7 @@ async function deliverPushOutbox(
               token,
               delivered: false,
               terminal: false,
+              outcomeUnknown: true,
               error: sendError?.message || 'FCM delivery failed',
             };
           }

@@ -1,5 +1,26 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+
+test('label editor and print use identical text-to-paper proportions at every zoom', () => {
+  const source = fs.readFileSync('public/pricegenerator/app.js', 'utf8');
+  const start = source.indexOf('  function styleElement(');
+  const end = source.indexOf('  function buildLabel(', start);
+  for (const zoom of [0.5, 1, 2]) {
+    const context = vm.createContext({ state: { zoom, label: { foreground: '#222222' } } });
+    vm.runInContext(source.slice(start, end), context);
+    const screen = { style: {} },
+      paper = { style: {} };
+    const field = { x: 1, y: 1, w: 52, h: 15, font: 8, visible: true, align: 'left' };
+    context.styleElement(screen, field, 'composition', false);
+    context.styleElement(paper, field, 'composition', true);
+    const previewRatio = parseFloat(screen.style.fontSize) / parseFloat(screen.style.width);
+    const physicalRatio =
+      (parseFloat(paper.style.fontSize) * 25.4) / 72 / parseFloat(paper.style.width);
+    assert.ok(Math.abs(previewRatio - physicalRatio) < 0.000001);
+  }
+});
 
 const values = new Map();
 require.cache[require.resolve('../src/config/supabase')] = {

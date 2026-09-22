@@ -13,6 +13,7 @@ class PrinterService {
     required int copies,
     required LabelTemplate template,
   }) async {
+    final pdf = await buildLabelPdf(product, madeAt, template);
     var success = true;
     for (var i = 0; i < copies; i++) {
       final result = await Printing.directPrintPdf(
@@ -26,7 +27,7 @@ class PrinterService {
         dynamicLayout: false,
         usePrinterSettings: false,
         forceCustomPrintPaper: true,
-        onLayout: (_) => buildLabelPdf(product, madeAt, template),
+        onLayout: (_) async => pdf,
       );
       success = success && result;
       if (!result) break;

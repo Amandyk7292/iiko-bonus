@@ -11,7 +11,6 @@ import './styles/commerce.css';
 import './styles/operations.css';
 import './styles/interaction.css';
 import './styles/release.css';
-import './styles/contacts.css';
 import './styles/whatsapp.css';
 import './styles/global-search.css';
 import './styles/topbar.css';

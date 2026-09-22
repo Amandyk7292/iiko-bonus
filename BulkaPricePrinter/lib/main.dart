@@ -1,9 +1,10 @@
-import 'package:barcode_widget/barcode_widget.dart';
+import 'package:pdf/pdf.dart';
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'catalog_service.dart';
 import 'printer_service.dart';
+import 'label_document.dart';
 import 'product.dart';
 import 'label_template.dart';
 
@@ -162,151 +163,29 @@ class _PrinterHomeState extends State<PrinterHome> {
     }
   }
 
-  String _previewDates(Product product) {
-    final madeAt = DateTime.now();
-    final expires = product.expiryUnit == 'hours'
-        ? madeAt.add(Duration(hours: product.expiry))
-        : madeAt.add(Duration(days: product.expiry));
-    String date(DateTime value) =>
-        '${value.day.toString().padLeft(2, '0')}.${value.month.toString().padLeft(2, '0')}.${value.year}';
-    String time(DateTime value) =>
-        '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
-    final withTime = product.expiryUnit == 'hours';
-    return 'ИЗГОТОВЛЕНО: ${date(madeAt)}${withTime ? ' ${time(madeAt)}' : ''}\n'
-        'ГОДЕН ДО: ${date(expires)}${withTime ? ' ${time(expires)}' : ''}';
-  }
-
   Widget _templatePreview(Product product) => AspectRatio(
     aspectRatio: _template.width / _template.height,
-    child: LayoutBuilder(
-      builder: (context, box) {
-        final scale = box.maxWidth / _template.width;
-        final textColor = _hexColor(_template.foreground);
-        final content = <String, String>{
-          'name': product.name,
-          'composition': _template.fields['composition']!.breakLanguages
-              ? product.composition.replaceFirst(
-                  RegExp(r'\s+(Состав:)', caseSensitive: false),
-                  '\nСостав:',
-                )
-              : product.composition,
-          'dates': _previewDates(product),
-          'price': 'ЦЕНА:${product.price} ₸',
-        };
-        return Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: _hexColor(_template.background),
-            borderRadius: BorderRadius.circular(_template.radius * scale),
-            border: Border.all(color: const Color(0xffead9bd)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x16000000),
-                blurRadius: 22,
-                offset: Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Transform.translate(
-            offset: Offset(
-              _template.offsetX * scale,
-              _template.offsetY * scale,
-            ),
-            child: Stack(
-              children: [
-                for (final entry in _template.fields.entries)
-                  if (entry.value.visible)
-                    Positioned(
-                      left: entry.value.x * scale,
-                      top: entry.value.y * scale,
-                      width: entry.value.width * scale,
-                      height: entry.value.height * scale,
-                      child:
-                          entry.key == 'barcode' && product.barcode.length == 13
-                          ? BarcodeWidget(
-                              barcode: Barcode.ean13(),
-                              data: product.barcode,
-                              drawText: true,
-                              color: textColor,
-                              style: TextStyle(
-                                fontFamily: 'Segoe UI',
-                                fontSize:
-                                    entry.value.fontSize * scale / 6 * 4 / 3,
-                                letterSpacing: scale / 2,
-                              ),
-                            )
-                          : Align(
-                              alignment: _fieldAlignment(entry.value.align),
-                              child: _previewText(
-                                entry.key,
-                                entry.value,
-                                product,
-                                content[entry.key] ?? '',
-                                textColor,
-                                scale,
-                              ),
-                            ),
-                    ),
-              ],
-            ),
-          ),
-        );
-      },
+    child: PdfPreview(
+      key: ValueKey('${product.id}:${_template.hashCode}'),
+      build: (_) => buildLabelPdf(product, DateTime.now(), _template),
+      initialPageFormat: PdfPageFormat(
+        _template.width * PdfPageFormat.mm,
+        _template.height * PdfPageFormat.mm,
+        marginAll: 0,
+      ),
+      allowPrinting: false,
+      allowSharing: false,
+      canChangePageFormat: false,
+      canChangeOrientation: false,
+      canDebug: false,
+      useActions: false,
+      dynamicLayout: false,
+      padding: EdgeInsets.zero,
+      previewPageMargin: EdgeInsets.zero,
+      pdfPreviewPageDecoration: const BoxDecoration(color: Colors.white),
+      scrollViewDecoration: const BoxDecoration(color: Color(0xfffffbf4)),
     ),
   );
-
-  Color _hexColor(String value) {
-    final clean = value.replaceFirst('#', '');
-    return Color(int.tryParse('ff$clean', radix: 16) ?? 0xff222222);
-  }
-
-  Alignment _fieldAlignment(String value) => switch (value) {
-    'center' => Alignment.center,
-    'right' => Alignment.centerRight,
-    _ => Alignment.centerLeft,
-  };
-  TextAlign _fieldTextAlign(String value) => switch (value) {
-    'center' => TextAlign.center,
-    'right' => TextAlign.right,
-    _ => TextAlign.left,
-  };
-
-  Widget _previewText(
-    String key,
-    LabelField field,
-    Product product,
-    String text,
-    Color color,
-    double scale,
-  ) {
-    final node = Text(
-      key == 'barcode'
-          ? (product.barcode.isEmpty ? 'Штрихкод не указан' : product.barcode)
-          : text,
-      maxLines: key == 'name' ? 2 : null,
-      overflow: TextOverflow.clip,
-      textAlign: _fieldTextAlign(field.align),
-      style: TextStyle(
-        fontFamily: 'Segoe UI',
-        color: color,
-        fontSize: field.fontSize * scale / 6 * 4 / 3,
-        fontWeight: field.weight >= 700
-            ? FontWeight.w700
-            : field.weight >= 600
-            ? FontWeight.w600
-            : FontWeight.w400,
-        height: field.lineHeight,
-      ),
-    );
-    return key == 'composition'
-        ? node
-        : FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: _fieldAlignment(field.align),
-            child: node,
-          );
-  }
-
   Future<void> _editCopies() async {
     var value = '$_copies';
     final selected = await showDialog<int>(

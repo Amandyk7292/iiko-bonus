@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import '../styles/contacts.css';
 import {
   ArrowDown,
   ArrowUp,

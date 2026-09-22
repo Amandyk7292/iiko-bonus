@@ -20,12 +20,13 @@ function harness() {
   const rows = [];
   let credits = 0,
     created = 0,
-    chargedAmount = 100000;
+    chargedAmount = 100000,
+    bankStatus = 'successful';
   const db = {
     from() {
       let filters = [],
         patch;
-      const found = () => rows.filter((r) => filters.every(([k, v]) => r[k] === v));
+      const found = () => rows.filter((r) => filters.every((matches) => matches(r)));
       const run = () => {
         const selected = found();
         if (patch) selected.forEach((r) => Object.assign(r, patch));
@@ -36,10 +37,11 @@ function harness() {
           return q;
         },
         eq(k, v) {
-          filters.push([k, v]);
+          filters.push((row) => row[k] === v);
           return q;
         },
-        in() {
+        in(k, values) {
+          filters.push((row) => values.includes(row[k]));
           return q;
         },
         insert(items) {
@@ -84,11 +86,11 @@ function harness() {
       checkout: {
         token,
         shop_id: '123456',
-        status: 'successful',
+        status: bankStatus,
         finished: true,
         test: false,
         order: { tracking_id: rows[0].id, amount: chargedAmount, currency: 'KZT' },
-        gateway_response: { payment: { uid: transaction, status: 'successful' } },
+        gateway_response: { payment: { uid: transaction, status: bankStatus } },
       },
     },
   });
@@ -100,8 +102,34 @@ function harness() {
     setAmount: (value) => {
       chargedAmount = value;
     },
+    setStatus: (value) => {
+      bankStatus = value;
+    },
   };
 }
+test('bank refusal finishes a topup, while a later verified success credits only once', async () => {
+  const h = harness();
+  await h.service.create(customer, '+77000000000', { requestId, amount: 1000 });
+  h.setStatus('failed');
+  await h.service.sync(h.rows[0]);
+  assert.equal(h.service.response(h.rows[0]).paymentStatus, 'failed');
+  assert.equal(h.stats().credits, 0);
+  h.setStatus('successful');
+  await h.service.sync(h.rows[0]);
+  await h.service.sync(h.rows[0]);
+  assert.equal(h.stats().credits, 1);
+  assert.equal(h.service.response(h.rows[0]).paymentStatus, 'paid');
+});
+
+test('stale bank failure cannot overwrite a concurrently credited topup', async () => {
+  const h = harness();
+  await h.service.create(customer, '+77000000000', { requestId, amount: 1000 });
+  const stale = { ...h.rows[0] };
+  h.rows[0].status = 'credited';
+  h.setStatus('failed');
+  await h.service.sync(stale);
+  assert.equal(h.rows[0].status, 'credited');
+});
 test('topup retries reuse one operation and credit only after a matching bank confirmation', async () => {
   const h = harness();
   const [a, b] = await Promise.all([

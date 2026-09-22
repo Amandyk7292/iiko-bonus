@@ -180,7 +180,11 @@ async function getProductOptionFlags(productIds) {
 const optionByCode = (items, value) =>
   items.find((item) => String(item.code) === String(value) || String(item.id) === String(value));
 
-function validateBuilder(configuration, submitted = {}) {
+function validateBuilder(
+  configuration,
+  submitted = {},
+  { scheduledAt = submitted.readyAt, now = Date.now(), asap = false } = {},
+) {
   if (!configuration?.enabled || configuration.productKind === 'standard') return null;
   const result = {};
   let priceDelta = 0;
@@ -216,11 +220,13 @@ function validateBuilder(configuration, submitted = {}) {
   if (referenceUrl && !configuration.allowReferenceUpload) {
     throw optionError('Загрузка примера недоступна');
   }
+  if (!scheduledAt && !(asap && Number(configuration.minLeadHours || 0) === 0)) {
+    throw optionError('Выберите время получения настроенного товара с учётом срока изготовления');
+  }
   let readyAt = null;
-  if (submitted.readyAt) {
-    const requested = new Date(submitted.readyAt);
+  if (scheduledAt) {
+    const requested = new Date(scheduledAt);
     if (Number.isNaN(requested.getTime())) throw optionError('Некорректная дата готовности');
-    const now = Date.now();
     if (requested.getTime() < now + configuration.minLeadHours * 3600000) {
       throw optionError(
         `Для товара требуется минимум ${configuration.minLeadHours} ч. на приготовление`,
@@ -274,12 +280,15 @@ function validateModifierGroups(groups, submitted = []) {
   return { groups: normalized, priceDelta };
 }
 
-async function validateCartOptions(items) {
+async function validateCartOptions(items, { scheduledAt = null, asap = false } = {}) {
   const optionMap = await getProductOptions(items.map((item) => item.id));
   let subtotal = 0;
   const canonicalItems = items.map((item) => {
     const options = optionMap.get(String(item.id)) || { configuration: null, modifierGroups: [] };
-    const builder = validateBuilder(options.configuration, item.configuration || {});
+    const builder = validateBuilder(options.configuration, item.configuration || {}, {
+      scheduledAt,
+      asap,
+    });
     const modifiers = validateModifierGroups(options.modifierGroups, item.modifiers || []);
     const unitPrice = Number(item.price) + Number(builder?.priceDelta || 0) + modifiers.priceDelta;
     if (!Number.isSafeInteger(unitPrice) || unitPrice <= 0)
@@ -307,6 +316,32 @@ async function validateCartOptions(items) {
   return { canonicalItems, subtotal };
 }
 
+async function productScheduleBounds(productIds, now = new Date()) {
+  if (
+    !Array.isArray(productIds) ||
+    productIds.length > 200 ||
+    productIds.some((id) => !/^[A-Za-z0-9_.:-]{1,128}$/.test(String(id)))
+  ) {
+    throw optionError('Некорректный список товаров');
+  }
+  if (!productIds.length) return { minimumHours: 0, latest: Infinity };
+  const { data, error } = await supabase
+    .from('product_configurations')
+    .select('product_kind,enabled,min_lead_hours,max_advance_days')
+    .in('product_id', [...new Set(productIds)]);
+  if (error) throw error;
+  const configured = (data || []).filter(
+    (c) => c.enabled !== false && c.product_kind !== 'standard',
+  );
+  return {
+    minimumHours: Math.max(0, ...configured.map((c) => Number(c.min_lead_hours || 0))),
+    latest: Math.min(
+      Infinity,
+      ...configured.map((c) => now.getTime() + Number(c.max_advance_days || 30) * 86400000),
+    ),
+  };
+}
+
 async function saveProductOptions(productId, payload = {}) {
   const id = String(productId || '').trim();
   if (!id) throw optionError('Товар не найден');
@@ -328,57 +363,30 @@ async function saveProductOptions(productId, payload = {}) {
     design_options: Array.isArray(config.designOptions) ? config.designOptions : [],
     updated_at: new Date().toISOString(),
   };
-  const { error: configError } = await supabase
-    .from('product_configurations')
-    .upsert(configurationRecord, { onConflict: 'product_id' });
-  if (configError) throw configError;
-
-  const { data: existing, error: readError } = await supabase
-    .from('product_modifier_groups')
-    .select('id')
-    .eq('product_id', id);
-  if (readError) throw readError;
-  const oldIds = (existing || []).map((row) => row.id);
-  if (oldIds.length) {
-    const { error } = await supabase.from('product_modifier_groups').delete().in('id', oldIds);
-    if (error) throw error;
-  }
-  for (const [groupIndex, group] of (payload.modifierGroups || []).entries()) {
-    const groupRecord = {
-      product_id: id,
-      code: String(group.code || `group_${groupIndex + 1}`).trim(),
-      title_translations: localized(group.title, group.name || `Опция ${groupIndex + 1}`),
-      selection_type: group.selectionType === 'multiple' ? 'multiple' : 'single',
-      required: group.required === true,
-      min_selected: Number(group.minSelected ?? (group.required ? 1 : 0)),
-      max_selected: Number(group.maxSelected ?? 1),
-      sort_order: groupIndex,
-      active: group.active !== false,
-      updated_at: new Date().toISOString(),
-    };
-    const { data: savedGroup, error } = await supabase
-      .from('product_modifier_groups')
-      .insert(groupRecord)
-      .select('id')
-      .single();
-    if (error) throw error;
-    const records = (group.options || []).map((option, optionIndex) => ({
-      group_id: savedGroup.id,
+  const groups = (payload.modifierGroups || []).map((group, groupIndex) => ({
+    code: String(group.code || `group_${groupIndex + 1}`).trim(),
+    title_translations: localized(group.title, group.name || `Опция ${groupIndex + 1}`),
+    selection_type: group.selectionType === 'multiple' ? 'multiple' : 'single',
+    required: group.required === true,
+    min_selected: Number(group.minSelected ?? (group.required ? 1 : 0)),
+    max_selected: Number(group.maxSelected ?? 1),
+    sort_order: groupIndex,
+    active: group.active !== false,
+    options: (group.options || []).map((option, optionIndex) => ({
       code: String(option.code || `option_${optionIndex + 1}`).trim(),
       title_translations: localized(option.title, option.name || `Вариант ${optionIndex + 1}`),
       price_delta: Number(option.priceDelta || 0),
       is_default: option.isDefault === true,
       sort_order: optionIndex,
       active: option.active !== false,
-      updated_at: new Date().toISOString(),
-    }));
-    if (records.length) {
-      const { error: optionErrorResult } = await supabase
-        .from('product_modifier_options')
-        .insert(records);
-      if (optionErrorResult) throw optionErrorResult;
-    }
-  }
+    })),
+  }));
+  const { error } = await supabase.rpc('replace_product_options', {
+    p_product_id: id,
+    p_configuration: configurationRecord,
+    p_groups: groups,
+  });
+  if (error) throw error;
   return (await getProductOptions([id])).get(id);
 }
 
@@ -386,6 +394,7 @@ module.exports = {
   getProductOptionFlags,
   getProductOptions,
   normalizeOptionTranslations: localized,
+  productScheduleBounds,
   saveProductOptions,
   summarizeProductOptionFlags,
   validateBuilder,

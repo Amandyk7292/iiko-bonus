@@ -704,7 +704,7 @@ async function deliverAutomatedMessages(
         },
         customer.fcm_token,
       );
-      if (pushResult.attempted === 0) {
+      if (pushResult.attempted === 0 && !pushResult.queued) {
         await db
           .from('marketing_deliveries')
           .update({ status: 'skipped', error: 'У клиента нет активных push-токенов' })
@@ -728,7 +728,13 @@ async function deliverAutomatedMessages(
     } catch (deliveryError) {
       await db
         .from('marketing_deliveries')
-        .update({ status: 'failed', error: String(deliveryError.message).slice(0, 1000) })
+        .update({
+          status: deliveryError.code === 'PUSH_PREFERENCES_UNAVAILABLE' ? 'pending' : 'failed',
+          ...(deliveryError.code === 'PUSH_PREFERENCES_UNAVAILABLE'
+            ? { scheduled_at: new Date(Date.now() + 600000).toISOString() }
+            : {}),
+          error: String(deliveryError.message).slice(0, 1000),
+        })
         .eq('id', delivery.id);
     }
   }

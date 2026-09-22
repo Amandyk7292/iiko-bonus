@@ -2880,6 +2880,7 @@ class _CheckoutPaymentRoutingApiClient extends _FakeBulkaApiClient {
     required String branchId,
     required String orderType,
     int days = 7,
+    List<String> productIds = const [],
   }) async => [
     FulfillmentSlot(
       startsAt: _slotStartsAt,
@@ -2982,6 +2983,7 @@ class _DelayedSlotsApiClient extends _FakeBulkaApiClient {
     required String branchId,
     required String orderType,
     int days = 7,
+    List<String> productIds = const [],
   }) async {
     slotRequests++;
     await _slotsReady.future;

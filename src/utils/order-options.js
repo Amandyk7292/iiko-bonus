@@ -34,6 +34,23 @@ function optionSummary(item = {}, language = 'ru') {
   if (config.inscription) lines.push(`${names[3]}: ${config.inscription}`);
   if (Number(config.candles) > 0) lines.push(`${names[4]}: ${config.candles}`);
   if (config.referenceUrl) lines.push(`${names[5]}: ${config.referenceUrl}`);
+  if (config.readyAt && Number.isFinite(Date.parse(config.readyAt))) {
+    const title =
+      language === 'kk' ? 'Дайын болу уақыты' : language === 'en' ? 'Ready by' : 'Готовность';
+    const date = new Intl.DateTimeFormat(
+      language === 'kk' ? 'kk-KZ' : language === 'en' ? 'en-GB' : 'ru-RU',
+      {
+        timeZone: 'Asia/Aqtau',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      },
+    ).format(new Date(config.readyAt));
+    lines.push(`${title}: ${date}`);
+  }
   return lines.join('; ');
 }
 function withOrderOptions(item) {
