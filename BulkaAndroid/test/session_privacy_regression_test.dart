@@ -482,7 +482,7 @@ void main() {
   });
 
   test(
-    'guest addresses stay local and do not call account endpoints',
+    'guest addresses stay in memory and do not call account endpoints',
     () async {
       var requests = 0;
       final client = MockClient((request) async {
@@ -508,6 +508,9 @@ void main() {
       expect(await repository.loadAddresses(), isEmpty);
       await repository.saveAddress(address);
       expect((await repository.loadSelectedAddress())?.id, address.id);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getStringList('delivery_addresses_guest'), isNull);
+      expect(prefs.getString('selected_delivery_address_id_guest'), isNull);
       await repository.updateAddress(address);
       await repository.selectAddress(address.id);
       await repository.deleteAddress(address.id);
@@ -516,6 +519,89 @@ void main() {
       expect(requests, 0);
     },
   );
+
+  test('temporary guest address is adopted once after sign-in', () async {
+    SharedPreferences.setMockInitialValues({});
+    var creates = 0;
+    var saved = false;
+    final api = BulkaApiClient(
+      client: MockClient((request) async {
+        if (request.url.path == '/api/customer/addresses' &&
+            request.method == 'GET') {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'addresses': [
+                if (saved)
+                  {
+                    'id': 'server-address',
+                    'label': 'Дом',
+                    'city': 'Актау',
+                    'address': '19А микрорайон',
+                    'latitude': 43.64,
+                    'longitude': 51.17,
+                    'house': '11',
+                  },
+              ],
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        if (request.url.path == '/api/customer/addresses' &&
+            request.method == 'POST') {
+          creates++;
+          saved = true;
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'address': {
+                'id': 'server-address',
+                'label': 'Дом',
+                'city': 'Актау',
+                'address': '19А микрорайон',
+                'latitude': 43.64,
+                'longitude': 51.17,
+                'house': '11',
+              },
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        if (request.url.path ==
+            '/api/customer/addresses/server-address/default') {
+          return http.Response('{"success":true}', 200);
+        }
+        return http.Response('{"success":false}', 404);
+      }),
+    );
+    addTearDown(api.dispose);
+    const draft = DeliveryAddress(
+      id: 'temporary-address',
+      title: 'Дом',
+      location: DeliveryLocation(
+        city: 'Актау',
+        address: '19А микрорайон',
+        latitude: 43.64,
+        longitude: 51.17,
+      ),
+      house: '11',
+    );
+    await AddressRepository(api: api).saveAddress(draft);
+    expect(AddressRepository.hasGuestDrafts(api), isTrue);
+    api.setSession(accessToken: 'account-token', cacheScope: 'account-a');
+
+    await AddressRepository.adoptGuestDrafts(api);
+    expect(creates, 1);
+    expect(AddressRepository.hasGuestDrafts(api), isFalse);
+    expect(
+      (await AddressRepository(api: api).loadSelectedAddress())?.id,
+      'server-address',
+    );
+    await AddressRepository.adoptGuestDrafts(api);
+    expect(creates, 1);
+  });
 
   test('logout cleanup removes scoped customer data only', () async {
     SharedPreferences.setMockInitialValues({

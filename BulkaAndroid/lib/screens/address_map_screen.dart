@@ -21,7 +21,7 @@ class AddressMapScreen extends StatefulWidget {
 }
 
 class _AddressMapScreenState extends State<AddressMapScreen> {
-  static const _defaultPoint = LatLng(51.1282, 71.4304);
+  static const _defaultPoint = LatLng(43.65, 51.16);
 
   late final BulkaApiClient _api;
   late final _LiveRefresh _live;
@@ -33,6 +33,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   final _floorController = TextEditingController();
   final _apartmentController = TextEditingController();
   final _commentController = TextEditingController();
+  final _searchController = TextEditingController();
   late LatLng _point;
   double _zoom = 14.5;
   List<BakeryLocation> _locations = const [];
@@ -45,7 +46,20 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   bool _pointSelected = false;
   bool _locationsLoaded = false;
   bool _locationsFailed = false;
-  Timer? _locateOnOpenTimer;
+  Timer? _searchDebounce;
+  int _searchRevision = 0;
+  bool _searching = false;
+  List<Map<String, dynamic>> _searchResults = const [];
+  String? _searchError;
+
+  List<String> get _deliveryCities =>
+      _locations
+          .where((location) => location.active && location.deliveryEnabled)
+          .map((location) => location.city.trim())
+          .where((city) => city.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
 
   @override
   void initState() {
@@ -78,7 +92,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
         initialAddress?.location.city.trim() ??
         widget.initialCity?.trim() ??
         '';
-    _city = initialCity.isEmpty ? 'Астана' : initialCity;
+    _city = initialCity.isEmpty ? 'Актау' : initialCity;
     // A new address starts empty. "Дом" is a hint, not customer data that
     // must be selected and deleted before typing a custom address name.
     _titleController.text = initialAddress?.title ?? '';
@@ -91,32 +105,41 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     _addressResolved = initialAddress != null;
     _pointSelected = initialAddress != null;
     unawaited(_loadLocations());
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scheduleLocateOnOpen();
-    });
-  }
-
-  void _scheduleLocateOnOpen() {
-    // Let the route finish its first frame before Safari displays the native
-    // permission prompt. If the customer already touched the map, preserve
-    // that explicit choice instead of moving the pin underneath them.
-    _locateOnOpenTimer?.cancel();
-    if (_hasPreferredCenter) return;
-    _locateOnOpenTimer = Timer(const Duration(milliseconds: 250), () {
-      if (!mounted || _pointSelected) return;
-      unawaited(_goToMyLocation());
-    });
   }
 
   Future<void> _loadLocations() async {
     try {
       final locations = await _api.getFulfillmentLocations();
       if (mounted) {
+        final delivery = locations
+            .where(
+              (location) =>
+                  location.active &&
+                  location.deliveryEnabled &&
+                  location.latitude != null &&
+                  location.longitude != null,
+            )
+            .toList();
+        final preferred = delivery
+            .where(
+              (location) =>
+                  location.city.trim().toLowerCase() ==
+                  _city.trim().toLowerCase(),
+            )
+            .firstOrNull;
+        final center = preferred ?? delivery.firstOrNull;
         setState(() {
           _locations = locations;
           _locationsLoaded = true;
           _locationsFailed = false;
+          if (!_hasPreferredCenter && !_pointSelected && center != null) {
+            _city = center.city;
+            _point = LatLng(center.latitude!, center.longitude!);
+          }
         });
+        if (!_hasPreferredCenter && !_pointSelected && center != null) {
+          _mapController.move(_point, _zoom);
+        }
       }
     } catch (_) {
       if (mounted) {
@@ -132,7 +155,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   void dispose() {
     _live.dispose();
     if (widget.api == null) _api.dispose();
-    _locateOnOpenTimer?.cancel();
+    _searchDebounce?.cancel();
     _mapController.dispose();
     _titleController.dispose();
     _houseController.dispose();
@@ -140,6 +163,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     _floorController.dispose();
     _apartmentController.dispose();
     _commentController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -216,6 +240,89 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     ).showSnackBar(bulkaSnackBar(content: Text(message)));
   }
 
+  void _searchAddress(String query) {
+    _searchDebounce?.cancel();
+    final revision = ++_searchRevision;
+    final normalized = query.trim();
+    setState(() {
+      _searchResults = const [];
+      _searchError = null;
+      _searching = normalized.length >= 3;
+    });
+    if (normalized.length < 3) return;
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () async {
+      try {
+        final results = await _api.searchDeliveryAddress(
+          normalized,
+          city: _city,
+        );
+        if (!mounted || revision != _searchRevision) return;
+        setState(() {
+          _searchResults = results;
+          _searching = false;
+          if (results.isEmpty) _searchError = 'map_search_not_found'.tr;
+        });
+      } catch (_) {
+        if (!mounted || revision != _searchRevision) return;
+        setState(() {
+          _searching = false;
+          _searchError = 'map_search_failed'.tr;
+        });
+      }
+    });
+  }
+
+  void _selectSearchResult(Map<String, dynamic> result) {
+    final latitude = _asDouble(result['latitude']);
+    final longitude = _asDouble(result['longitude']);
+    if (latitude < -90 ||
+        latitude > 90 ||
+        longitude < -180 ||
+        longitude > 180 ||
+        (latitude == 0 && longitude == 0)) {
+      return;
+    }
+    _searchDebounce?.cancel();
+    _searchRevision++;
+    _searchController.clear();
+    setState(() {
+      _searchResults = const [];
+      _searchError = null;
+      _searching = false;
+    });
+    final point = LatLng(latitude, longitude);
+    _moveMap(point, 16);
+    _setPoint(point);
+  }
+
+  void _selectDeliveryCity(String city) {
+    if (city == _city) return;
+    final branch = _locations
+        .where(
+          (location) =>
+              location.active &&
+              location.deliveryEnabled &&
+              location.city == city &&
+              location.latitude != null &&
+              location.longitude != null,
+        )
+        .firstOrNull;
+    if (branch == null) return;
+    _searchDebounce?.cancel();
+    _searchRevision++;
+    _searchController.clear();
+    setState(() {
+      _city = city;
+      _pointSelected = false;
+      _addressResolved = false;
+      _address = 'map_select_point'.tr;
+      _searchResults = const [];
+      _searchError = null;
+      _searching = false;
+    });
+    _moveMap(LatLng(branch.latitude!, branch.longitude!), 14.5);
+  }
+
   void _moveMap(LatLng point, double zoom) {
     if (!mounted) return;
     setState(() {
@@ -244,12 +351,17 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
           fallback: 'map_selected_point'.tr,
         ),
       );
+      final resolvedCity = _asString(result['city'], fallback: _city);
+      final inSelectedCity =
+          resolvedCity.trim().toLowerCase() == _city.trim().toLowerCase();
       if (!mounted) return;
       setState(() {
         _address = nextAddress;
-        _city = _asString(result['city'], fallback: _city);
-        _addressResolved = true;
+        _addressResolved = inSelectedCity;
       });
+      if (!inSelectedCity) {
+        _showLocationError('map_delivery_unavailable'.tr);
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -348,6 +460,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
       final longitude = location.longitude;
       if (!location.active ||
           !location.deliveryEnabled ||
+          location.city.trim().toLowerCase() != _city.trim().toLowerCase() ||
           latitude == null ||
           longitude == null) {
         continue;
@@ -507,6 +620,59 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                         ),
                         child: Column(
                           children: [
+                            DropdownButtonFormField<String>(
+                              key: const ValueKey('delivery-address-city'),
+                              initialValue: _deliveryCities.contains(_city)
+                                  ? _city
+                                  : null,
+                              decoration: InputDecoration(
+                                labelText: 'delivery_city_label'.tr,
+                              ),
+                              items: _deliveryCities
+                                  .map(
+                                    (city) => DropdownMenuItem(
+                                      value: city,
+                                      child: Text(city),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: _deliveryCities.length > 1
+                                  ? (city) {
+                                      if (city != null) {
+                                        _selectDeliveryCity(city);
+                                      }
+                                    }
+                                  : null,
+                            ),
+                            SizedBox(height: compact ? 8 : 10),
+                            TextField(
+                              key: const ValueKey('delivery-address-search'),
+                              controller: _searchController,
+                              onChanged: _searchAddress,
+                              decoration: InputDecoration(
+                                labelText: 'delivery_street_search'.tr,
+                                prefixIcon: const Icon(Icons.search_rounded),
+                              ),
+                            ),
+                            if (_searching) const LinearProgressIndicator(),
+                            if (_searchError != null)
+                              Text(
+                                _searchError!,
+                                style: TextStyle(color: colors.mutedText),
+                              ),
+                            for (final result in _searchResults)
+                              ListTile(
+                                key: ValueKey(
+                                  'delivery-search-result-${result['latitude']}-${result['longitude']}',
+                                ),
+                                title: Text(
+                                  _asString(
+                                    result['displayName'] ?? result['address'],
+                                  ),
+                                ),
+                                onTap: () => _selectSearchResult(result),
+                              ),
+                            SizedBox(height: compact ? 8 : 10),
                             _BulkaTextField(
                               label: 'address_title_label'.tr,
                               controller: _titleController,
@@ -582,7 +748,9 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                               height: compact ? 48 : 52,
                               child: Text(
                                 (widget.initialAddress == null
-                                        ? 'save_address_btn'
+                                        ? _api.isAuthenticated
+                                              ? 'save_address_btn'
+                                              : 'guest_address_use_action'
                                         : 'update_address_btn')
                                     .tr,
                                 style: const TextStyle(

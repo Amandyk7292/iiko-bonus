@@ -43,6 +43,7 @@ class _MainShellState extends State<MainShell> {
   );
   late int _tab;
   String _catalogOrderType = 'pickup';
+  String? _lastOrderableCartType;
   int _catalogSelectionRevision = 0;
   bool _hasCatalogOrderType = false;
   bool _authFlowInProgress = false;
@@ -174,6 +175,13 @@ class _MainShellState extends State<MainShell> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('selected_order_type', normalized);
     if (!mounted) return;
+    final cartItems = context.read<CartProvider>().items.values;
+    if (_hasCatalogOrderType &&
+        normalized != _catalogOrderType &&
+        cartItems.isNotEmpty &&
+        cartItems.every((item) => !item.isStopListed)) {
+      _lastOrderableCartType = _catalogOrderType;
+    }
     setState(() {
       _catalogOrderType = normalized;
       _hasCatalogOrderType = true;
@@ -246,6 +254,10 @@ class _MainShellState extends State<MainShell> {
         api: widget.api,
         customer: customer,
         transactions: widget.transactions,
+        orderType: _catalogOrderType,
+        selectionRevision: _catalogSelectionRevision,
+        returnOrderType: _lastOrderableCartType,
+        onReturnToOrderType: _openCatalogFor,
         onExplore: () => _changeTab(1),
         onOpenProduct: _openCatalogProduct,
         onRequireAuth: _requireAuth,
@@ -549,9 +561,7 @@ class _NavButton extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: selected ? _bulkaGlassGradient : null,
-                        color: selected
-                            ? _bulkaYellow
-                            : Colors.transparent,
+                        color: selected ? _bulkaYellow : Colors.transparent,
                         border: selected
                             ? Border.all(
                                 color: colors.brandBrown.withValues(

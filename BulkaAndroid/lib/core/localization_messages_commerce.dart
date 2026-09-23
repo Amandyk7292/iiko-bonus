@@ -93,6 +93,34 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Бонуспен қайтарамыз',
     'en': 'Bonus earned',
   },
+  'cart_guest_bonus_hint': {
+    'ru': 'Войдите, чтобы увидеть бонусы за заказ.',
+    'kk': 'Тапсырыс бонустарын көру үшін кіріңіз.',
+    'en': 'Sign in to see the bonuses for this order.',
+  },
+  'cart_delivery_fee_hint': {
+    'ru': 'Стоимость доставки рассчитаем после выбора адреса.',
+    'kk': 'Жеткізу құны мекенжай таңдалғаннан кейін есептеледі.',
+    'en': 'Delivery cost is calculated after you choose an address.',
+  },
+  'cart_change_mode_title': {
+    'ru': 'Изменить тип заказа?',
+    'kk': 'Тапсырыс түрін өзгертесіз бе?',
+    'en': 'Change order type?',
+  },
+  'cart_change_mode_body': {
+    'ru':
+        'Некоторые товары в корзине могут быть недоступны в новом типе заказа. Корзина сохранится.',
+    'kk':
+        'Себеттегі кейбір тауарлар жаңа тапсырыс түрінде қолжетімсіз болуы мүмкін. Себет сақталады.',
+    'en':
+        'Some cart items may be unavailable for the new order type. Your cart will stay intact.',
+  },
+  'cart_change_mode_action': {
+    'ru': 'Продолжить',
+    'kk': 'Жалғастыру',
+    'en': 'Continue',
+  },
   'cart_total': {'ru': 'Итоговая цена:', 'kk': 'Жалпы баға:', 'en': 'Total:'},
   'cart_points': {'ru': 'бонусов', 'kk': 'бонус', 'en': 'bonuses'},
   'cart_contains': {'ru': 'В корзине', 'kk': 'Себетте', 'en': 'In cart'},
@@ -106,6 +134,19 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'ru': 'Удалите недоступные товары, чтобы оформить заказ.',
     'kk': 'Тапсырыс беру үшін қолда жоқ тауарларды өшіріңіз.',
     'en': 'Remove unavailable items to continue checkout.',
+  },
+  'cart_unavailable_return_hint': {
+    'ru':
+        'Эти товары недоступны для выбранного типа заказа. Вернитесь к прежнему режиму или удалите их.',
+    'kk':
+        'Бұл тауарлар таңдалған тапсырыс түрінде қолжетімсіз. Алдыңғы түріне оралыңыз немесе оларды өшіріңіз.',
+    'en':
+        'These items are unavailable for this order type. Return to the previous type or remove them.',
+  },
+  'cart_return_to_mode': {
+    'ru': 'Вернуться: {type}',
+    'kk': 'Қайту: {type}',
+    'en': 'Return to {type}',
   },
   'cart_clear_title': {
     'ru': 'Очистить корзину?',

@@ -646,8 +646,6 @@ void main() {
       ),
     );
     SharedPreferences.setMockInitialValues({
-      'delivery_addresses_guest': [jsonEncode(address.toJson())],
-      'selected_delivery_address_id_guest': address.id,
       'selected_bakery_location_id_pickup': 'branch-one',
       'selected_bakery_location_pickup': 'Филиал',
       'selected_bakery_location_id_delivery': 'branch-one',
@@ -690,6 +688,7 @@ void main() {
     });
     addTearDown(client.close);
     final api = BulkaApiClient(client: client);
+    await AddressRepository(api: api).saveAddress(address);
 
     Widget catalog(String orderType, int revision) => MaterialApp(
       theme: buildBulkaTheme(),

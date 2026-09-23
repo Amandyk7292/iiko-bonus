@@ -244,10 +244,59 @@ const Map<String, Map<String, String>> _locationTranslations = {
     'kk': 'Мекенжайды таңдаңыз',
     'en': 'Select an address',
   },
+  'guest_address_heading': {
+    'ru': 'Временный адрес',
+    'kk': 'Уақытша мекенжай',
+    'en': 'Temporary address',
+  },
+  'guest_address_explanation': {
+    'ru':
+        'Адрес хранится только до закрытия приложения. После входа предложим сохранить его в аккаунте.',
+    'kk':
+        'Мекенжай қолданба жабылғанға дейін ғана сақталады. Кірген соң оны аккаунтқа сақтауды ұсынамыз.',
+    'en':
+        'This address lasts only until you close the app. After sign-in, you can save it to your account.',
+  },
+  'guest_address_save_title': {
+    'ru': 'Сохранить адрес в аккаунте?',
+    'kk': 'Мекенжайды аккаунтқа сақтайсыз ба?',
+    'en': 'Save this address to your account?',
+  },
+  'guest_address_save_body': {
+    'ru': 'Временный адрес появится в «Моих адресах» на ваших устройствах.',
+    'kk':
+        'Уақытша мекенжай барлық құрылғыларыңыздағы «Менің мекенжайларым» тізімінде пайда болады.',
+    'en': 'The temporary address will appear in My addresses on your devices.',
+  },
+  'guest_address_discard': {
+    'ru': 'Не сохранять',
+    'kk': 'Сақтамау',
+    'en': 'Do not save',
+  },
+  'guest_address_save_action': {
+    'ru': 'Сохранить',
+    'kk': 'Сақтау',
+    'en': 'Save',
+  },
+  'guest_address_use_action': {
+    'ru': 'Использовать адрес',
+    'kk': 'Мекенжайды пайдалану',
+    'en': 'Use address',
+  },
   'delivery_address_title': {
     'ru': 'Адрес доставки',
     'kk': 'Жеткізу мекенжайы',
     'en': 'Delivery address',
+  },
+  'delivery_city_label': {
+    'ru': 'Город доставки',
+    'kk': 'Жеткізу қаласы',
+    'en': 'Delivery city',
+  },
+  'delivery_street_search': {
+    'ru': 'Улица или микрорайон',
+    'kk': 'Көше немесе шағын аудан',
+    'en': 'Street or neighbourhood',
   },
   'edit_address_title': {
     'ru': 'Изменить адрес',
@@ -373,9 +422,12 @@ const Map<String, Map<String, String>> _locationTranslations = {
     'en': 'Search is unavailable. Please retry.',
   },
   'geo_disabled': {
-    'ru': 'Геолокация выключена. На карте оставлен центр Астаны.',
-    'kk': 'Геолокация өшірілген. Картада Астана орталығы қалды.',
-    'en': 'Location services are off. The map remains centered on Astana.',
+    'ru':
+        'Геолокация выключена. Найдите адрес по улице или выберите точку на карте.',
+    'kk':
+        'Геолокация өшірілген. Мекенжайды көшеден іздеңіз немесе картадан нүктені таңдаңыз.',
+    'en':
+        'Location services are off. Search by street or choose a point on the map.',
   },
   'geo_permission': {
     'ru': 'Разрешите доступ к геолокции в настройках.',

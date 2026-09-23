@@ -32,6 +32,10 @@ class OrdersScreen extends StatefulWidget {
   const OrdersScreen({
     required this.api,
     required this.customer,
+    this.orderType = 'pickup',
+    this.selectionRevision = 0,
+    this.returnOrderType,
+    this.onReturnToOrderType,
     this.transactions = const [],
     this.onExplore,
     this.onOpenProduct,
@@ -42,6 +46,10 @@ class OrdersScreen extends StatefulWidget {
 
   final BulkaApiClient api;
   final Customer? customer;
+  final String orderType;
+  final int selectionRevision;
+  final String? returnOrderType;
+  final Future<void> Function(String)? onReturnToOrderType;
   final List<BonusTransaction> transactions;
   final VoidCallback? onExplore;
   final ValueChanged<String>? onOpenProduct;
@@ -62,6 +70,33 @@ class _OrdersScreenState extends State<OrdersScreen> {
   String? _popularScope;
   String _popularBranchId = '';
   List<_CartSuggestion> _popularProducts = const [];
+  String _fulfillmentLabel = '';
+  int _fulfillmentLoadRevision = 0;
+
+  Future<void> _loadFulfillmentLabel() async {
+    final revision = ++_fulfillmentLoadRevision;
+    String label = '';
+    if (widget.orderType == 'delivery') {
+      try {
+        label =
+            (await AddressRepository(
+              api: widget.api,
+            ).loadSelectedAddress())?.displayAddress ??
+            '';
+      } catch (_) {
+        label = '';
+      }
+    } else {
+      final prefs = await SharedPreferences.getInstance();
+      label =
+          prefs.getString('selected_bakery_location_${widget.orderType}') ??
+          prefs.getString('selected_bakery_location') ??
+          '';
+    }
+    if (mounted && revision == _fulfillmentLoadRevision) {
+      setState(() => _fulfillmentLabel = label);
+    }
+  }
 
   void _updateOrdersState(VoidCallback update) => setState(update);
 
@@ -69,6 +104,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   void initState() {
     super.initState();
     _popularLive = _createPopularRefresh();
+    unawaited(_loadFulfillmentLabel());
     appLanguageNotifier.addListener(_ensurePopularProducts);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_prepareCheckoutRestore());
@@ -81,6 +117,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
     final next = context.read<CartProvider>();
     final wasVisible = _popularVisible;
     _popularVisible = TickerMode.of(context);
+    if (!wasVisible && _popularVisible) unawaited(_loadFulfillmentLabel());
     final changed = !identical(next, _cartProvider);
     if (changed) {
       _cartProvider?.removeListener(_restoreCheckoutIfReady);
@@ -94,6 +131,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
   @override
   void didUpdateWidget(covariant OrdersScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.orderType != widget.orderType ||
+        oldWidget.selectionRevision != widget.selectionRevision ||
+        oldWidget.customer != widget.customer) {
+      unawaited(_loadFulfillmentLabel());
+    }
     if (!identical(oldWidget.api, widget.api)) {
       _popularLive.dispose();
       _popularLive = _createPopularRefresh();
@@ -409,6 +451,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
             total: cart.totalAmount,
             cashbackPercent: widget.customer?.cashbackPercent ?? 0,
             hasUnavailableItems: hasUnavailableItems,
+            isGuest: widget.customer == null,
+            orderType: widget.orderType,
+            fulfillmentLabel: _fulfillmentLabel,
+            returnOrderType: widget.returnOrderType,
+            onReturnToOrderType: widget.onReturnToOrderType,
             onCheckout: hasUnavailableItems
                 ? null
                 : () => _openCheckout(context, cart),

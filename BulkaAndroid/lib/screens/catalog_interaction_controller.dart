@@ -376,6 +376,8 @@ extension _CatalogInteractionController on _CatalogScreenState {
     bool updateClientRoute = true,
   }) async {
     CatalogProduct? nextProduct;
+    var closeButtonPressed = false;
+    final originCategory = _openedCategory;
     await _navigationGate.run(() async {
       _api.trackEvent(
         'product_view',
@@ -404,6 +406,10 @@ extension _CatalogInteractionController on _CatalogScreenState {
             onQuantityChanged: _setProductQuantity,
             onOpenRelatedProduct: (related) =>
                 Navigator.of(context).pop(related),
+            onClose: () {
+              closeButtonPressed = true;
+              Navigator.of(context).pop();
+            },
             initialFavorite: _favoriteProductIds.contains(product.id),
             onToggleFavorite: () => _toggleFavorite(product),
             hasSelectedOrderType: widget.hasSelectedOrderType,
@@ -411,18 +417,23 @@ extension _CatalogInteractionController on _CatalogScreenState {
           ),
         );
         nextProduct = await Navigator.of(context).push<CatalogProduct>(route);
+        await route.completed;
         // Retire the product intent as soon as pop starts. Browser history is
         // not updated on native platforms and must not be our source of truth.
         if (_productPendingFulfillment == null &&
             nextProduct == null &&
-            _pendingClientUri != null &&
-            productIdFromClientUri(_pendingClientUri!) == product.id) {
-          _pendingClientUri = _CatalogScreenState._categoryClientUri(
-            product.category,
-          );
+            (closeButtonPressed ||
+                (_pendingClientUri != null &&
+                    productIdFromClientUri(_pendingClientUri!) ==
+                        product.id))) {
+          _pendingClientUri = originCategory == null
+              ? Uri(path: '/catalog')
+              : _CatalogScreenState._categoryClientUri(originCategory);
+          if (mounted && _openedCategory != originCategory) {
+            _updateCatalogState(() => _openedCategory = originCategory);
+          }
           publishClientRoute(_pendingClientUri!, replace: true);
         }
-        await route.completed;
       } finally {
         _productRouteOpen = false;
       }

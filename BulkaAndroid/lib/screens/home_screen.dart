@@ -69,28 +69,53 @@ class _HomeScreenState extends State<HomeScreen> {
   void _updateHomeState(VoidCallback update) => setState(update);
 
   Future<void> _openBakeryLocations(String orderType) async {
+    final pageContext = context;
     await _navigationGate.run(() async {
+      final prefs = await SharedPreferences.getInstance();
+      if (!pageContext.mounted) return;
+      final currentType = prefs.getString('selected_order_type')?.trim() ?? '';
+      final cart = pageContext.read<CartProvider>();
+      if (currentType.isNotEmpty &&
+          currentType != orderType &&
+          cart.items.isNotEmpty) {
+        final proceed = await showDialog<bool>(
+          context: pageContext,
+          builder: (dialogContext) => BulkaActionDialog(
+            title: Text('cart_change_mode_title'.tr),
+            content: Text('cart_change_mode_body'.tr),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text('cancel_btn'.tr),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text('cart_change_mode_action'.tr),
+              ),
+            ],
+          ),
+        );
+        if (!pageContext.mounted || proceed != true) return;
+      }
       if (orderType == 'delivery') {
-        final address = await Navigator.of(context).push<DeliveryAddress>(
+        final address = await Navigator.of(pageContext).push<DeliveryAddress>(
           MaterialPageRoute(
             builder: (_) => AddressSelectionScreen(api: widget.api),
           ),
         );
         if (!mounted || address == null) return;
-        final prefs = await SharedPreferences.getInstance();
         await prefs.setString('selected_order_type', orderType);
         if (!mounted) return;
         await widget.onOpenCatalog(orderType);
         return;
       }
-      final location = await Navigator.of(context).push<String>(
+      final location = await Navigator.of(pageContext).push<String>(
         MaterialPageRoute(
           builder: (_) =>
               LocationsScreen(orderType: orderType, api: widget.api),
         ),
       );
       if (!mounted || location == null || location.trim().isEmpty) return;
-      final prefs = await SharedPreferences.getInstance();
       await prefs.setString('selected_bakery_location', location);
       await prefs.setString('selected_order_type', orderType);
       if (!mounted) return;

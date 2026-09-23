@@ -264,6 +264,7 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     final selected = _selectedId != null;
+    final temporaryGuest = widget.api?.isAuthenticated != true;
     final colors = context.bulkaColors;
     final scheme = Theme.of(context).colorScheme;
 
@@ -301,7 +302,7 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
               child: Text(
-                'my_addresses'.tr,
+                (temporaryGuest ? 'guest_address_heading' : 'my_addresses').tr,
                 style: TextStyle(
                   color: scheme.onSurface,
                   fontFamily: _headingFont,
@@ -310,6 +311,17 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
                 ),
               ),
             ),
+            if (temporaryGuest)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 6, 24, 0),
+                child: Text(
+                  'guest_address_explanation'.tr,
+                  style: TextStyle(
+                    color: colors.mutedText,
+                    fontSize: BulkaTypeScale.bodySmall,
+                  ),
+                ),
+              ),
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())

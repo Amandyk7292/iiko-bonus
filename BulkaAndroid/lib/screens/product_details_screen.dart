@@ -14,6 +14,7 @@ class ProductDetailsScreen extends StatefulWidget {
     this.hasSelectedOrderType = true,
     this.onEnsureOrderTypeSelected,
     this.onOpenRelatedProduct,
+    this.onClose,
   });
 
   final String? branchId;
@@ -27,6 +28,7 @@ class ProductDetailsScreen extends StatefulWidget {
   final bool hasSelectedOrderType;
   final Future<bool> Function()? onEnsureOrderTypeSelected;
   final ValueChanged<CatalogProduct>? onOpenRelatedProduct;
+  final VoidCallback? onClose;
 
   @override
   State<ProductDetailsScreen> createState() => _ProductDetailsScreenState();
@@ -907,7 +909,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           const Spacer(),
           IconButton(
             key: const ValueKey('product-close'),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              if (widget.onClose != null) {
+                widget.onClose!();
+              } else {
+                Navigator.of(context).pop();
+              }
+            },
             icon: const Icon(Icons.close_rounded, size: 27),
             tooltip: 'close_tooltip'.tr,
             style: IconButton.styleFrom(

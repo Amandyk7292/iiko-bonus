@@ -2562,7 +2562,7 @@ void main() {
       ),
       findsNothing,
     );
-    final saveButton = find.text('Сохранить адрес');
+    final saveButton = find.text('Использовать адрес');
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
@@ -2612,7 +2612,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Сюда пока не доставляем'), findsNothing);
-      await tester.tap(find.text('Сохранить адрес'));
+      await tester.tap(find.text('Использовать адрес'));
       await tester.pumpAndSettle();
       expect(find.text('Нет доступных филиалов для доставки'), findsNothing);
       expect(find.text('Заполните поле'), findsWidgets);
