@@ -527,6 +527,8 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                 textScale > 1.15;
             final mapHeight = keyboardVisible
                 ? min(118.0, max(88.0, constraints.maxHeight * 0.2))
+                : compact
+                ? min(225.0, max(170.0, constraints.maxHeight * 0.32))
                 : min(
                     textScale > 1.15 ? 270.0 : 360.0,
                     max(210.0, constraints.maxHeight * 0.42),
@@ -614,7 +616,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                           16,
                           compact ? 12 : 16,
                           16,
-                          12 +
+                          (compact ? 76 : 12) +
                               BulkaLayout.safeBottomInset(context) +
                               (keyboardVisible ? 12 : 0),
                         ),
@@ -743,28 +745,60 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                               maxLines: 2,
                             ),
                             SizedBox(height: compact ? 8 : 12),
-                            GradientButton(
-                              onPressed: _saveAddress,
-                              height: compact ? 48 : 52,
-                              child: Text(
-                                (widget.initialAddress == null
-                                        ? _api.isAuthenticated
-                                              ? 'save_address_btn'
-                                              : 'guest_address_use_action'
-                                        : 'update_address_btn')
-                                    .tr,
-                                style: const TextStyle(
-                                  fontSize: BulkaTypeScale.body,
-                                  fontWeight: FontWeight.w600,
+                            if (!compact)
+                              GradientButton(
+                                onPressed: _saveAddress,
+                                height: 52,
+                                child: Text(
+                                  (widget.initialAddress == null
+                                          ? _api.isAuthenticated
+                                                ? 'save_address_btn'
+                                                : 'guest_address_use_action'
+                                          : 'update_address_btn')
+                                      .tr,
+                                  style: const TextStyle(
+                                    fontSize: BulkaTypeScale.body,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
-                            ),
                           ],
                         ),
                       ),
                     ),
                   ),
                 ),
+                if (compact)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      color: scheme.surface,
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        8,
+                        16,
+                        8 + BulkaLayout.safeBottomInset(context),
+                      ),
+                      child: GradientButton(
+                        onPressed: _saveAddress,
+                        height: 48,
+                        child: Text(
+                          (widget.initialAddress == null
+                                  ? _api.isAuthenticated
+                                        ? 'save_address_btn'
+                                        : 'guest_address_use_action'
+                                  : 'update_address_btn')
+                              .tr,
+                          style: const TextStyle(
+                            fontSize: BulkaTypeScale.body,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             );
           },

@@ -57,6 +57,30 @@ class _SearchAddressApi extends BulkaApiClient {
 }
 
 void main() {
+  testWidgets('compact address screen keeps its action visible', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    appLanguageNotifier.value = 'ru';
+    final api = _SearchAddressApi();
+    addTearDown(api.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: AddressMapScreen(api: api),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final action = find.text('Использовать адрес');
+    expect(action, findsOneWidget);
+    expect(tester.getBottomRight(action).dy, lessThan(700));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('address search uses the delivery city and selects a map point', (
     tester,
   ) async {
