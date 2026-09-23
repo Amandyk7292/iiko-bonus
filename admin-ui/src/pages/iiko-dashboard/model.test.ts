@@ -1,8 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { comparisonRange, datedRows, valueFor, validRange } from './model';
+import {
+  comparisonRange,
+  datedRows,
+  retailDepartmentsForCity,
+  valueFor,
+  validRange,
+} from './model';
 import { parsePreferences } from './Settings';
 
 describe('report calculations and settings', () => {
+  it('offers retail points belonging to the selected city', () => {
+    expect(
+      retailDepartmentsForCity('aktau', [
+        'Bulka 16 мкр 85 дом',
+        'Bulka Ozen',
+        'Bulka Атырау Пристройка 23а',
+        'Bulka Доставка',
+        'Bulka Астана Туран 42',
+        'ИП РУБЛЕВА',
+      ]),
+    ).toEqual(['Bulka 16 мкр 85 дом']);
+    expect(
+      retailDepartmentsForCity('astana', [
+        'Bulka Астана Туран 42',
+        'Bulka Астана ЦО',
+        'ИП ТЕЛЕУБАЕВА',
+      ]),
+    ).toEqual(['Bulka Астана Туран 42']);
+  });
   it('uses total revenue / unique checks and distinguishes absent data', () => {
     expect(valueFor({ DishDiscountSumInt: 1000, UniqOrderId: 4 }, 'average')).toBe(250);
     expect(valueFor({ DishDiscountSumInt: 1000, UniqOrderId: 0 }, 'average')).toBeNull();

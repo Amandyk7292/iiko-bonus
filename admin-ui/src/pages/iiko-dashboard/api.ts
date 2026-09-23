@@ -1,10 +1,30 @@
 import { ApiError, request } from '../../lib/api';
 import type { AnalyticsQuery } from './Rankings';
-import type { Columns, Query, Report, Server, ServerMutation } from './model';
+import type {
+  Columns,
+  ProductChoice,
+  ProductSalesQuery,
+  ProductSalesResult,
+  Query,
+  Report,
+  Server,
+  ServerMutation,
+} from './model';
 const base = '/iiko-dashboard';
 export const dashboardApi = {
   analytics: (query: AnalyticsQuery, signal?: AbortSignal) =>
     request<Report>(`${base}/analytics`, { method: 'POST', body: JSON.stringify(query), signal }),
+  productSearch: (serverId: string, search: string, signal?: AbortSignal) =>
+    request<{ products: ProductChoice[] }>(
+      `${base}/product-sales/products?${new URLSearchParams({ serverId, search })}`,
+      { signal },
+    ),
+  productSales: (query: ProductSalesQuery, signal?: AbortSignal) =>
+    request<ProductSalesResult>(`${base}/product-sales`, {
+      method: 'POST',
+      body: JSON.stringify(query),
+      signal,
+    }),
   servers: () => request<{ servers: Server[] }>(`${base}/servers`),
   departments: (serverId: string, signal?: AbortSignal) =>
     request<{ serverId: string; departments: { id: string; name: string }[] }>(
@@ -76,4 +96,18 @@ export async function exportReport(query: Query | AnalyticsQuery) {
     throw new ApiError('', response.status, body.code);
   }
   await download(await response.blob(), `iiko-${query.from}-${query.to}.xlsx`);
+}
+export async function exportProductSales(query: ProductSalesQuery) {
+  const response = await fetch(`/admin/api${base}/product-sales/export`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(query),
+    signal: AbortSignal.timeout(90000),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new ApiError('', response.status, body.code);
+  }
+  await download(await response.blob(), `iiko-product-sales-${query.from}-${query.to}.xlsx`);
 }

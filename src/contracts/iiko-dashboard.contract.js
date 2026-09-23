@@ -67,6 +67,25 @@ const reportQuery = z
   }, 'Период должен быть от 1 до 367 дней');
 const schemaQuery = z.object({ serverId, reportType: reportType.default('SALES') }).strict();
 const departmentsQuery = z.object({ serverId }).strict();
+const productSearchQuery = z
+  .object({
+    serverId,
+    search: z.string().trim().min(2).max(160),
+  })
+  .strict();
+const productSalesQuery = z
+  .object({
+    serverId,
+    productId: z.uuid(),
+    from: date,
+    to: date,
+    department: z.string().trim().max(250).default(''),
+  })
+  .strict()
+  .refine((input) => {
+    const days = (Date.parse(input.to) - Date.parse(input.from)) / 86400000;
+    return days >= 0 && days <= 366;
+  }, 'Период должен быть от 1 до 367 дней');
 const balancesQuery = z.object({ serverId, date }).strict();
 const revisionQuery = z
   .object({ serverId, from: date, to: date, department: z.string().max(250).default('') })
@@ -194,6 +213,8 @@ module.exports = {
   reportQuery,
   schemaQuery,
   departmentsQuery,
+  productSearchQuery,
+  productSalesQuery,
   balancesQuery,
   revisionQuery,
   cashReportQuery,

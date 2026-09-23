@@ -26,6 +26,7 @@ import {
   errorKey,
   metrics,
   offsetDate,
+  retailDepartmentsForCity,
   salesFilters,
   today,
   validRange,
@@ -44,12 +45,14 @@ import Barters from './iiko-dashboard/Barters';
 import Invoices from './iiko-dashboard/Invoices';
 import Revision from './iiko-dashboard/Revision';
 import CashReport from './iiko-dashboard/CashReport';
+import ProductSales from './iiko-dashboard/ProductSales';
 import './iiko-dashboard/dashboard.css';
 import './iiko-dashboard/workspace.css';
 
 const preferenceKey = 'bulka-iiko-dashboard-v1';
 const tabs = [
   { id: 'overview', icon: ChartNoAxesCombined },
+  { id: 'productSales', icon: PackageSearch },
   { id: 'rankings', icon: BarChart3 },
   { id: 'reports', icon: Table2 },
   { id: 'writeoffs', icon: ClipboardMinus },
@@ -65,6 +68,7 @@ const tabs = [
 const tabIds = new Set(tabs.map((item) => item.id));
 const departmentTabs = new Set([
   'overview',
+  'productSales',
   'rankings',
   'reports',
   'writeoffs',
@@ -136,7 +140,19 @@ export default function IikoDashboardPage() {
     }
   });
   const selectedServer = servers.find((server) => server.id === serverId);
+  const visibleDepartments =
+    tab === 'productSales'
+      ? retailDepartmentsForCity(selectedServer?.city || 'aktau', departments)
+      : departments;
   const rangeValid = validRange(from, to);
+  useEffect(() => {
+    if (
+      tab === 'productSales' &&
+      department &&
+      !retailDepartmentsForCity(selectedServer?.city || 'aktau', [department]).length
+    )
+      setDepartment('');
+  }, [tab, department, selectedServer?.city]);
   const base = useMemo<Query>(
     () => ({
       serverId,
@@ -347,9 +363,9 @@ export default function IikoDashboardPage() {
             </select>
           </label>
           <label>
-            <span>{t('id.department')}</span>
+            <span>{t(tab === 'productSales' ? 'id.point' : 'id.department')}</span>
             <select
-              aria-label={t('id.department')}
+              aria-label={t(tab === 'productSales' ? 'id.point' : 'id.department')}
               value={department}
               onChange={(event) => {
                 setDepartment(event.target.value);
@@ -357,13 +373,13 @@ export default function IikoDashboardPage() {
               }}
               disabled={tab === 'balances' || tab === 'settings'}
             >
-              <option value="">{t('id.all')}</option>
-              {department && !departments.includes(department) && (
+              <option value="">{t(tab === 'productSales' ? 'id.allPoints' : 'id.all')}</option>
+              {department && !visibleDepartments.includes(department) && (
                 <option value={department}>
                   {department} — {t('id.departmentUnavailable')}
                 </option>
               )}
-              {departments.map((name) => (
+              {visibleDepartments.map((name) => (
                 <option key={name}>{name}</option>
               ))}
             </select>
@@ -481,6 +497,16 @@ export default function IikoDashboardPage() {
         </div>
       )}
       {tab === 'overview' && overview && <Overview data={overview} cards={preferences.cards} />}
+      {tab === 'productSales' && (
+        <ProductSales
+          serverId={serverId}
+          from={from}
+          to={to}
+          department={department}
+          configured={Boolean(selectedServer?.configured)}
+          refresh={refresh}
+        />
+      )}
       {tab === 'rankings' && (
         <Rankings
           key="sales"
