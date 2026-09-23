@@ -653,7 +653,6 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                               onChanged: _searchAddress,
                               decoration: InputDecoration(
                                 labelText: 'delivery_street_search'.tr,
-                                prefixIcon: const Icon(Icons.search_rounded),
                               ),
                             ),
                             if (_searching) const LinearProgressIndicator(),

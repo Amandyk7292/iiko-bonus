@@ -44,19 +44,14 @@ class _CartCheckoutBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.place_outlined, size: 19),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${_orderTypeFromWire(orderType).label}${fulfillmentLabel.isEmpty ? '' : ' · $fulfillmentLabel'}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '${_orderTypeFromWire(orderType).label}${fulfillmentLabel.isEmpty ? '' : ' · $fulfillmentLabel'}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
           const SizedBox(height: 12),
           if (hasUnavailableItems) ...[
@@ -92,10 +87,9 @@ class _CartCheckoutBar extends StatelessWidget {
                 onReturnToOrderType != null)
               Align(
                 alignment: Alignment.centerLeft,
-                child: TextButton.icon(
+                child: TextButton(
                   onPressed: () => onReturnToOrderType!(returnOrderType!),
-                  icon: const Icon(Icons.undo_rounded),
-                  label: Text(
+                  child: Text(
                     'cart_return_to_mode'.trArgs({
                       'type': _orderTypeFromWire(returnOrderType).label,
                     }),
@@ -108,10 +102,9 @@ class _CartCheckoutBar extends StatelessWidget {
                 onChooseOrderType != null)
               Align(
                 alignment: Alignment.centerLeft,
-                child: TextButton.icon(
+                child: TextButton(
                   onPressed: onChooseOrderType,
-                  icon: const Icon(Icons.swap_horiz_rounded),
-                  label: Text('cart_choose_order_type'.tr),
+                  child: Text('cart_choose_order_type'.tr),
                 ),
               ),
             const SizedBox(height: 12),
