@@ -150,6 +150,7 @@ part 'screens/orders_empty_state.dart';
 part 'screens/orders_cart_suggestions.dart';
 part 'screens/orders_payment.dart';
 part 'screens/orders_cart_widgets.dart';
+part 'screens/orders_cart_summary.dart';
 part 'screens/orders_checkout_screen.dart';
 part 'screens/orders_checkout_state.dart';
 part 'screens/orders_checkout_schedule.dart';
