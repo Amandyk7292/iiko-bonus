@@ -12,7 +12,7 @@ class NativeLaunchVideoGate extends StatefulWidget {
 }
 
 class _NativeLaunchVideoGateState extends State<NativeLaunchVideoGate> {
-  late final VideoPlayerController _controller;
+  VideoPlayerController? _controller;
   Timer? _timer;
   bool _ready = false;
   bool _finished = false;
@@ -20,36 +20,59 @@ class _NativeLaunchVideoGateState extends State<NativeLaunchVideoGate> {
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.asset(
-      'assets/brand/launch_animation.mp4',
-      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-    );
     unawaited(_start());
   }
 
   Future<void> _start() async {
+    io.File? file;
     try {
-      await _controller.initialize().timeout(const Duration(seconds: 10));
-      await _controller.setVolume(0);
-      await _controller.setLooping(false);
-      if (!mounted) return;
+      // The download can finish in the background for the next launch.
+      file = await launchVideoCache.load().timeout(const Duration(seconds: 2));
+      if (!mounted || _finished) return;
+      final controller = VideoPlayerController.file(
+        file,
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+      );
+      _controller = controller;
+      await controller.initialize().timeout(const Duration(seconds: 2));
+      if (!mounted || _finished) return;
+      await controller.setVolume(0);
+      await controller.setLooping(false);
+      if (!mounted || _finished) return;
       setState(() => _ready = true);
-      await _controller.play();
+      _timer = Timer(const Duration(seconds: 4), _finish);
+      controller.addListener(() {
+        if (controller.value.hasError ||
+            (controller.value.isInitialized &&
+                controller.value.position >= controller.value.duration)) {
+          _finish();
+        }
+      });
+      await controller.play();
     } catch (error) {
       debugPrint('Launch animation unavailable: ${error.runtimeType}');
-    } finally {
-      if (mounted) {
-        _timer = Timer(_ready ? _controller.value.duration : Duration.zero, () {
-          if (mounted) setState(() => _finished = true);
-        });
+      if (file != null && error is! TimeoutException) {
+        try {
+          if (await file.exists()) await file.delete();
+        } catch (_) {
+          // A cache failure must never prevent the customer entering the app.
+        }
       }
+      _finish();
     }
+  }
+
+  void _finish() {
+    if (!mounted || _finished) return;
+    _timer?.cancel();
+    setState(() => _finished = true);
+    unawaited(_controller?.pause());
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    unawaited(_controller.dispose());
+    unawaited(_controller?.dispose());
     super.dispose();
   }
 
@@ -68,9 +91,9 @@ class _NativeLaunchVideoGateState extends State<NativeLaunchVideoGate> {
                     fit: BoxFit.cover,
                     clipBehavior: Clip.hardEdge,
                     child: SizedBox(
-                      width: _controller.value.size.width,
-                      height: _controller.value.size.height,
-                      child: VideoPlayer(_controller),
+                      width: _controller!.value.size.width,
+                      height: _controller!.value.size.height,
+                      child: VideoPlayer(_controller!),
                     ),
                   )
                 : const SizedBox.expand(),

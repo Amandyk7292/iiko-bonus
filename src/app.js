@@ -491,6 +491,14 @@ app.use(
 
 // Serve the Flutter build at the domain root as the canonical web app.
 app.use(
+  '/assets/launch',
+  express.static(path.join(process.cwd(), 'public/assets/launch'), {
+    maxAge: '1y',
+    immutable: true,
+    index: false,
+  }),
+);
+app.use(
   '/assets/loyalty',
   express.static(path.join(process.cwd(), 'public/assets/loyalty'), {
     maxAge: '1y',
