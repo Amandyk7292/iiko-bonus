@@ -84,6 +84,7 @@ class _MainShellState extends State<MainShell> {
     _tab = _tab.clamp(0, 4).toInt();
     clientRouteNotifier.addListener(_onClientRouteChanged);
     unawaited(_restoreCatalogOrderType());
+    unawaited(_restoreCartReturnMode());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _catalogKey.currentState?.applyClientUri(clientRouteNotifier.value);
       if (mounted) {
@@ -170,17 +171,42 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
+  Future<void> _restoreCartReturnMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final cart = context.read<CartProvider>();
+    await cart.restored;
+    if (!mounted) return;
+    final savedType = prefs.getString('last_orderable_cart_type');
+    final savedRevision = prefs.getString('last_orderable_cart_revision');
+    if (cart.items.isNotEmpty &&
+        savedType != null &&
+        savedRevision == cart.checkoutRevision) {
+      setState(() => _lastOrderableCartType = savedType);
+    }
+  }
+
   Future<void> _openCatalogFor(String orderType) async {
     final normalized = _orderTypeFromWire(orderType).wireValue;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('selected_order_type', normalized);
     if (!mounted) return;
-    final cartItems = context.read<CartProvider>().items.values;
+    final cart = context.read<CartProvider>();
+    final cartItems = cart.items.values;
     if (_hasCatalogOrderType &&
         normalized != _catalogOrderType &&
         cartItems.isNotEmpty &&
         cartItems.every((item) => !item.isStopListed)) {
       _lastOrderableCartType = _catalogOrderType;
+      await prefs.setString('last_orderable_cart_type', _catalogOrderType);
+      await prefs.setString(
+        'last_orderable_cart_revision',
+        cart.checkoutRevision,
+      );
+    } else if (cartItems.isEmpty) {
+      _lastOrderableCartType = null;
+      await prefs.remove('last_orderable_cart_type');
+      await prefs.remove('last_orderable_cart_revision');
     }
     setState(() {
       _catalogOrderType = normalized;
@@ -258,6 +284,7 @@ class _MainShellState extends State<MainShell> {
         selectionRevision: _catalogSelectionRevision,
         returnOrderType: _lastOrderableCartType,
         onReturnToOrderType: _openCatalogFor,
+        onChooseOrderType: () => _changeTab(0),
         onExplore: () => _changeTab(1),
         onOpenProduct: _openCatalogProduct,
         onRequireAuth: _requireAuth,

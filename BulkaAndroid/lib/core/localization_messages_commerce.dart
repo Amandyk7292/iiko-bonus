@@ -148,6 +148,11 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Қайту: {type}',
     'en': 'Return to {type}',
   },
+  'cart_choose_order_type': {
+    'ru': 'Выбрать другой тип заказа',
+    'kk': 'Басқа тапсырыс түрін таңдау',
+    'en': 'Choose another order type',
+  },
   'cart_clear_title': {
     'ru': 'Очистить корзину?',
     'kk': 'Себетті тазалау керек пе?',

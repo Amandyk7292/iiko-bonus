@@ -36,6 +36,7 @@ class OrdersScreen extends StatefulWidget {
     this.selectionRevision = 0,
     this.returnOrderType,
     this.onReturnToOrderType,
+    this.onChooseOrderType,
     this.transactions = const [],
     this.onExplore,
     this.onOpenProduct,
@@ -50,6 +51,7 @@ class OrdersScreen extends StatefulWidget {
   final int selectionRevision;
   final String? returnOrderType;
   final Future<void> Function(String)? onReturnToOrderType;
+  final VoidCallback? onChooseOrderType;
   final List<BonusTransaction> transactions;
   final VoidCallback? onExplore;
   final ValueChanged<String>? onOpenProduct;
@@ -456,6 +458,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             fulfillmentLabel: _fulfillmentLabel,
             returnOrderType: widget.returnOrderType,
             onReturnToOrderType: widget.onReturnToOrderType,
+            onChooseOrderType: widget.onChooseOrderType,
             onCheckout: hasUnavailableItems
                 ? null
                 : () => _openCheckout(context, cart),

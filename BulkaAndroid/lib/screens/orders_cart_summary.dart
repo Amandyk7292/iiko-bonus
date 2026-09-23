@@ -10,6 +10,7 @@ class _CartCheckoutBar extends StatelessWidget {
     required this.fulfillmentLabel,
     this.returnOrderType,
     this.onReturnToOrderType,
+    this.onChooseOrderType,
     required this.onCheckout,
   });
 
@@ -21,6 +22,7 @@ class _CartCheckoutBar extends StatelessWidget {
   final String fulfillmentLabel;
   final String? returnOrderType;
   final Future<void> Function(String)? onReturnToOrderType;
+  final VoidCallback? onChooseOrderType;
   final VoidCallback? onCheckout;
 
   @override
@@ -98,6 +100,18 @@ class _CartCheckoutBar extends StatelessWidget {
                       'type': _orderTypeFromWire(returnOrderType).label,
                     }),
                   ),
+                ),
+              ),
+            if ((returnOrderType == null ||
+                    returnOrderType == orderType ||
+                    onReturnToOrderType == null) &&
+                onChooseOrderType != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: onChooseOrderType,
+                  icon: const Icon(Icons.swap_horiz_rounded),
+                  label: Text('cart_choose_order_type'.tr),
                 ),
               ),
             const SizedBox(height: 12),

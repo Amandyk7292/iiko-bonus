@@ -58,4 +58,45 @@ void main() {
     cart.dispose();
     api.dispose();
   });
+
+  testWidgets('an older unavailable cart can choose another order type', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    appLanguageNotifier.value = 'ru';
+    final api = BulkaApiClient();
+    final cart = CartProvider();
+    await cart.restored;
+    cart.replaceWithItems([
+      CartItem(
+        id: 'bun',
+        name: 'Булочка',
+        price: 520,
+        imageUrl: '',
+        isStopListed: true,
+      ),
+    ]);
+    var opened = false;
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: cart,
+        child: MaterialApp(
+          theme: buildBulkaTheme(),
+          home: OrdersScreen(
+            api: api,
+            customer: null,
+            onChooseOrderType: () => opened = true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Выбрать другой тип заказа'));
+    expect(opened, isTrue);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await cart.persisted;
+    cart.dispose();
+    api.dispose();
+  });
 }
