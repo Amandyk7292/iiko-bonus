@@ -1461,7 +1461,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                                         product,
                                                       ),
                                                 icon: const Icon(
-                                                  Icons.bookmark_add_outlined,
+                                                  Icons.favorite_rounded,
                                                 ),
                                                 label: Text('variant_save'.tr),
                                               ),
