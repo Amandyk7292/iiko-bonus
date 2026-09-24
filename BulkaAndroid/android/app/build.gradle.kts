@@ -41,9 +41,7 @@ android {
         applicationId = "com.bulka.bonus"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // Health Connect starts at API 26. Keeping a lower value would produce
-        // an installable app whose step challenge cannot run safely.
-        minSdk = 26
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

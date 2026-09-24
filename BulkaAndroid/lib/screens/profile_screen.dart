@@ -479,13 +479,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'menu_orders'.tr,
                       onTap: _openOrders,
                     ),
-                    _ProfileMenuItem(
-                      icon: Icons.emoji_events_outlined,
-                      title: 'challenges_title'.tr,
-                      onTap: () => _openPage(
-                        (_) => ChallengesScreen(customerId: widget.customer.id),
-                      ),
-                    ),
                     const Divider(
                       height: 1,
                       indent: 60,

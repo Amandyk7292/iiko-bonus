@@ -1,5 +1,4 @@
 import ActivityKit
-import CoreMotion
 import Flutter
 import UIKit
 import WebKit
@@ -26,8 +25,6 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
 @objc class AppDelegate: FlutterAppDelegate {
   private var orderStatusChannel: FlutterMethodChannel?
   private var adminSessionChannel: FlutterMethodChannel?
-  private var verifiedStepsChannel: FlutterMethodChannel?
-  private let pedometer = CMPedometer()
   private var activityTokenTasks: [String: Task<Void, Never>] = [:]
 
   override func application(
@@ -53,19 +50,6 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
         }
       }
       adminSessionChannel = sessionChannel
-      let stepsChannel = FlutterMethodChannel(
-        name: "com.bulka.bonus/verified_steps",
-        binaryMessenger: controller.binaryMessenger
-      )
-      stepsChannel.setMethodCallHandler { [weak self] call, result in
-        guard let self else { return result(nil) }
-        if call.method == "getTodaySteps" {
-          self.getTodaySteps(result: result)
-        } else {
-          result(FlutterMethodNotImplemented)
-        }
-      }
-      verifiedStepsChannel = stepsChannel
       let channel = FlutterMethodChannel(
         name: "com.bulka.bonus/order_status",
         binaryMessenger: controller.binaryMessenger
@@ -86,30 +70,6 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
       orderStatusChannel = channel
     }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
-  }
-
-  private func getTodaySteps(result: @escaping FlutterResult) {
-    guard CMPedometer.isStepCountingAvailable() else {
-      result(FlutterError(code: "UNAVAILABLE", message: "Step counting is unavailable", details: nil))
-      return
-    }
-    let now = Date()
-    let start = Calendar.current.startOfDay(for: now)
-    pedometer.queryPedometerData(from: start, to: now) { data, error in
-      DispatchQueue.main.async {
-        if let error {
-          let authorization = CMPedometer.authorizationStatus()
-          let code = authorization == .denied || authorization == .restricted
-            ? "PERMISSION_DENIED" : "STEP_READ_FAILED"
-          result(FlutterError(code: code, message: error.localizedDescription, details: nil))
-          return
-        }
-        result([
-          "steps": max(0, data?.numberOfSteps.intValue ?? 0),
-          "source": "iPhone Motion"
-        ])
-      }
-    }
   }
 
   private func updateOrderActivity(_ payload: [String: Any], result: @escaping FlutterResult) {

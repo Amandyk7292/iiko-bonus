@@ -2,24 +2,8 @@ import 'package:bulka_bonus/main.dart';
 import 'package:bulka_bonus/core/cart_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:health/health.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-HealthDataPoint stepPoint(int steps, RecordingMethod method, String id) =>
-    HealthDataPoint(
-      uuid: id,
-      value: NumericHealthValue(numericValue: steps),
-      type: HealthDataType.STEPS,
-      unit: HealthDataUnit.COUNT,
-      dateFrom: DateTime(2026, 9, 24, 8),
-      dateTo: DateTime(2026, 9, 24, 9),
-      sourcePlatform: HealthPlatformType.appleHealth,
-      sourceDeviceId: 'phone',
-      sourceId: 'com.apple.health',
-      sourceName: 'iPhone',
-      recordingMethod: method,
-    );
 
 class _LocationsApi extends BulkaApiClient {
   _LocationsApi(this.fail);
@@ -44,16 +28,6 @@ class _HomeApi extends BulkaApiClient {
 }
 
 void main() {
-  test('daily step challenge excludes manual and unknown records', () {
-    final steps = verifiedStepTotal([
-      stepPoint(4200, RecordingMethod.automatic, 'automatic'),
-      stepPoint(1800, RecordingMethod.active, 'active'),
-      stepPoint(10000, RecordingMethod.manual, 'manual'),
-      stepPoint(9000, RecordingMethod.unknown, 'unknown'),
-    ]);
-    expect(steps, 6000);
-  });
-
   test(
     'locations use a recent cache when the network is unavailable',
     () async {
