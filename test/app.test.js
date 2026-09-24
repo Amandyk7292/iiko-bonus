@@ -99,7 +99,16 @@ test('mobile association files open catalog links in installed apps', async (t) 
   assert.deepEqual(assetLinks[0].target.sha256_cert_fingerprints, fingerprints);
 
   const manifest = fs.readFileSync(
-    path.join(__dirname, '..', 'BulkaAndroid', 'android', 'app', 'src', 'main', 'AndroidManifest.xml'),
+    path.join(
+      __dirname,
+      '..',
+      'BulkaAndroid',
+      'android',
+      'app',
+      'src',
+      'main',
+      'AndroidManifest.xml',
+    ),
     'utf8',
   );
   assert.match(manifest, /android:autoVerify="true"/);
@@ -169,6 +178,28 @@ test('Flutter shell stays fresh while the current versioned bundle is immutable'
   const versionedBootstrap = await fetch(`${origin}/app/flutter_bootstrap.js?v=fixture-release`);
   assert.equal(versionedBootstrap.status, 200);
   assert.match(versionedBootstrap.headers.get('cache-control') || '', /no-store/);
+});
+
+test('plugin update package and installation guide are public files', async (t) => {
+  const server = http.createServer(app);
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  t.after(() => server.close());
+  const origin = `http://127.0.0.1:${server.address().port}`;
+
+  const download = await fetch(`${origin}/downloads/BulkaPlugin-1.10.0-full.zip`);
+  assert.equal(download.status, 200);
+  assert.match(download.headers.get('content-type') || '', /application\/zip/);
+  assert.equal(download.headers.get('content-disposition'), 'attachment');
+  assert.ok((await download.arrayBuffer()).byteLength > 100000);
+
+  const guide = await fetch(`${origin}/docs/iiko-plugin-installation.html`);
+  assert.equal(guide.status, 200);
+  assert.match(guide.headers.get('content-type') || '', /text\/html/);
+  assert.match(await guide.text(), /Установка плагина Bulka/);
+  assert.match(guide.headers.get('content-security-policy') || '', /style-src 'self' 'sha256-/);
 });
 
 test('taplink exposes delivery and city links as a fast standalone page', async (t) => {
