@@ -125,6 +125,10 @@ test('customer financial details combine scoped bonuses with the prepaid ledger'
   assert.equal(result.personalAccount.balance, 1250.5);
   assert.equal(result.personalAccount.entries[0].amount, -250);
   assert.equal(result.personalAccount.entries[0].orderNumber, 101);
+  assert.equal(
+    calls.some((call) => call[1] === 'in' && call[3].includes('null')),
+    false,
+  );
   assert.equal(moneyToMinor(12.34), 1234);
   const adjustment = await adjustPersonalAccount(
     'customer-1',

@@ -1,6 +1,6 @@
 const { supabase } = require('../config/supabase');
 
-const unique = (values) => [...new Set(values.map(String).filter(Boolean))];
+const unique = (values) => [...new Set(values.filter(Boolean).map(String))];
 const moneyFromMinor = (value) => Number(value || 0) / 100;
 const unwrap = (value) => (Array.isArray(value) ? value[0] : value);
 
