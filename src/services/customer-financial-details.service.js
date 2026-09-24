@@ -2,6 +2,24 @@ const { supabase } = require('../config/supabase');
 
 const unique = (values) => [...new Set(values.map(String).filter(Boolean))];
 const moneyFromMinor = (value) => Number(value || 0) / 100;
+const unwrap = (value) => (Array.isArray(value) ? value[0] : value);
+
+function moneyToMinor(value) {
+  const amount = Number(value);
+  const minor = Math.round(amount * 100);
+  if (
+    !Number.isFinite(amount) ||
+    amount === 0 ||
+    Math.abs(amount) > 1_000_000 ||
+    Math.abs(amount * 100 - minor) > 0.000001
+  ) {
+    throw Object.assign(new Error('Некорректная сумма личного счёта'), {
+      statusCode: 400,
+      code: 'PERSONAL_ACCOUNT_ADJUSTMENT_AMOUNT_INVALID',
+    });
+  }
+  return minor;
+}
 
 async function rowsFor(query) {
   const { data, error } = await query;
@@ -40,7 +58,7 @@ async function getCustomerFinancialDetails(
     rowsFor(
       db
         .from('personal_account_entries')
-        .select('id,amount_minor,kind,source_key,order_id,topup_id,created_at')
+        .select('id,amount_minor,kind,source_key,order_id,topup_id,description,created_at')
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false })
         .limit(safeLimit),
@@ -129,11 +147,17 @@ async function getCustomerFinancialDetails(
       entries: accountEntries.map((item) => {
         const order = directOrderMap.get(String(item.order_id || ''));
         const topup = topupMap.get(String(item.topup_id || ''));
+        const adminAdjustment = String(item.source_key || '').startsWith('admin-adjust:');
         return {
           id: item.id,
           amount: moneyFromMinor(item.amount_minor),
-          kind: item.kind,
+          kind: adminAdjustment
+            ? Number(item.amount_minor) > 0
+              ? 'manual_credit'
+              : 'manual_debit'
+            : item.kind,
           sourceKey: item.source_key,
+          description: item.description || '',
           createdAt: item.created_at,
           orderNumber: order?.order_number || null,
           branch: branchMap.get(String(order?.branch_id || '')) || null,
@@ -144,4 +168,41 @@ async function getCustomerFinancialDetails(
   };
 }
 
-module.exports = { getCustomerFinancialDetails, moneyFromMinor };
+async function adjustPersonalAccount(
+  customerId,
+  { amount, requestId, reason, adminSubject },
+  db = supabase,
+) {
+  const { data, error } = await db.rpc('admin_adjust_personal_account', {
+    p_customer_id: customerId,
+    p_amount_minor: moneyToMinor(amount),
+    p_request_id: requestId,
+    p_reason: String(reason || '').trim(),
+    p_admin_subject: String(adminSubject || '').trim(),
+  });
+  if (error) {
+    const insufficient = /insufficient personal account balance/i.test(error.message || '');
+    throw Object.assign(
+      new Error(
+        insufficient ? 'Недостаточно средств на личном счёте' : 'Не удалось изменить личный счёт',
+      ),
+      {
+        statusCode: insufficient ? 409 : error.code === '22023' ? 400 : 503,
+        code: insufficient ? 'PERSONAL_ACCOUNT_INSUFFICIENT' : 'PERSONAL_ACCOUNT_ADJUSTMENT_FAILED',
+      },
+    );
+  }
+  const result = unwrap(data) || {};
+  return {
+    entryId: result.entryId || null,
+    balance: moneyFromMinor(result.balanceMinor),
+    duplicate: result.duplicate === true,
+  };
+}
+
+module.exports = {
+  adjustPersonalAccount,
+  getCustomerFinancialDetails,
+  moneyFromMinor,
+  moneyToMinor,
+};

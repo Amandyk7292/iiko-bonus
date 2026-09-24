@@ -42,6 +42,7 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   const [bonusAmount, setBonusAmount] = useState('');
   const [bonusMode, setBonusMode] = useState<'add' | 'subtract'>('add');
   const [bonusReason, setBonusReason] = useState('');
+  const [adjustmentTarget, setAdjustmentTarget] = useState<'bonus' | 'account'>('bonus');
   const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
   const [customerDetails, setCustomerDetails] = useState<CustomerFinancialDetailsResponse | null>(
     null,
@@ -62,6 +63,7 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   const canManageCustomer = canAdjustBonus || canUpdateCustomer || canDeleteCustomer;
   const canViewDetails = can('customers:read') || canAdjustBonus;
   const showCustomerActions = canViewDetails || canManageCustomer;
+  const canAdjustPersonalAccount = can('payments:manage');
 
   const loadCustomerDetails = async (customer: Customer) => {
     const generation = ++detailGeneration.current;
@@ -91,6 +93,17 @@ export default function CustomersPage({ user }: CustomersPageProps) {
     setCustomerDetails(null);
     setDetailError('');
     setDetailLoading(false);
+    if (adjustmentTarget === 'account') setBonusCustomer(null);
+  };
+
+  const openAccountAdjustment = () => {
+    if (!detailCustomer) return;
+    setAdjustmentTarget('account');
+    setBonusCustomer(detailCustomer);
+    setBonusAmount('');
+    setBonusMode('add');
+    setBonusReason('');
+    setFormError('');
   };
 
   const fetchCustomers = useCallback(async () => {
@@ -232,6 +245,7 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   };
 
   const openBonus = (customer: Customer) => {
+    setAdjustmentTarget('bonus');
     setBonusCustomer(customer);
     setBonusAmount('');
     setBonusMode('add');
@@ -248,7 +262,7 @@ export default function CustomersPage({ user }: CustomersPageProps) {
       setFormError(t('customers.bonusAmountHint'));
       return;
     }
-    if (Number(bonusCustomer.balance || 0) + amount < 0) {
+    if (adjustmentTarget === 'bonus' && Number(bonusCustomer.balance || 0) + amount < 0) {
       setFormError(t('customers.insufficientBonus'));
       return;
     }
@@ -259,10 +273,24 @@ export default function CustomersPage({ user }: CustomersPageProps) {
     setSubmitting(true);
     setFormError('');
     try {
-      await api.addCustomerBonus(bonusCustomer.id, amount, reason);
+      if (adjustmentTarget === 'account') {
+        await api.adjustCustomerPersonalAccount(
+          bonusCustomer.id,
+          amount,
+          reason,
+          crypto.randomUUID(),
+        );
+      } else {
+        await api.addCustomerBonus(bonusCustomer.id, amount, reason);
+      }
       setBonusCustomer(null);
-      toast(t('customers.bonusSaved'));
-      await fetchCustomers();
+      toast(t(adjustmentTarget === 'account' ? 'common.saved' : 'customers.bonusSaved'));
+      await Promise.all([
+        fetchCustomers(),
+        ...(adjustmentTarget === 'account' && detailCustomer
+          ? [loadCustomerDetails(detailCustomer)]
+          : []),
+      ]);
     } catch (caught) {
       setFormError(caught instanceof Error ? caught.message : t('common.error'));
     } finally {
@@ -535,6 +563,8 @@ export default function CustomersPage({ user }: CustomersPageProps) {
           loading={detailLoading}
           error={detailError}
           onRetry={() => detailCustomer && void loadCustomerDetails(detailCustomer)}
+          canAdjustAccount={canAdjustPersonalAccount && user?.mfaVerified === true}
+          onAdjustAccount={openAccountAdjustment}
         />
       </Modal>
 
@@ -609,7 +639,9 @@ export default function CustomersPage({ user }: CustomersPageProps) {
       <Modal
         open={Boolean(bonusCustomer)}
         onClose={() => !submitting && setBonusCustomer(null)}
-        title={t('customers.bonusTitle')}
+        title={t(
+          adjustmentTarget === 'account' ? 'customers.personalAccount' : 'customers.bonusTitle',
+        )}
         size="sm"
       >
         <form className="modal-body form-stack" onSubmit={saveBonus}>
@@ -632,22 +664,37 @@ export default function CustomersPage({ user }: CustomersPageProps) {
               value={bonusMode}
               onChange={(event) => setBonusMode(event.target.value as 'add' | 'subtract')}
             >
-              <option value="add">{t('customers.bonusAdd')}</option>
-              <option value="subtract">{t('customers.bonusSubtract')}</option>
+              <option value="add">
+                {t(
+                  adjustmentTarget === 'account'
+                    ? 'customers.accountType.topup'
+                    : 'customers.bonusAdd',
+                )}
+              </option>
+              <option value="subtract">
+                {t(adjustmentTarget === 'account' ? 'iiko.writeoff' : 'customers.bonusSubtract')}
+              </option>
             </select>
             <p className="field-hint">
-              {t('customers.currentBalance', { amount: formatNumber(bonusCustomer?.balance || 0) })}
+              {t('customers.currentBalance', {
+                amount:
+                  adjustmentTarget === 'account'
+                    ? `${formatNumber(customerDetails?.personalAccount.balance || 0)} ₸`
+                    : formatNumber(bonusCustomer?.balance || 0),
+              })}
             </p>
           </div>
           <div className="field-group">
             <label className="field-label" htmlFor="bonus-amount">
-              {t('customers.bonusAmount')} *
+              {t(adjustmentTarget === 'account' ? 'transactions.amount' : 'customers.bonusAmount')}{' '}
+              *
             </label>
             <input
               id="bonus-amount"
               type="number"
               step="0.01"
               min="0.01"
+              max="1000000"
               className="input-classic"
               value={bonusAmount}
               onChange={(event) => setBonusAmount(event.target.value)}
@@ -656,10 +703,15 @@ export default function CustomersPage({ user }: CustomersPageProps) {
             <p className="field-hint">
               {t('customers.balanceAfter', {
                 amount: formatNumber(
-                  Number(bonusCustomer?.balance || 0) +
+                  Number(
+                    adjustmentTarget === 'account'
+                      ? customerDetails?.personalAccount.balance || 0
+                      : bonusCustomer?.balance || 0,
+                  ) +
                     (bonusMode === 'subtract' ? -1 : 1) * Number(bonusAmount || 0),
                 ),
               })}
+              {adjustmentTarget === 'account' ? ' ₸' : ''}
             </p>
           </div>
           <div className="field-group">

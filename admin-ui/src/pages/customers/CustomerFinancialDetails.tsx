@@ -1,4 +1,3 @@
-import { RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import PageState from '../../components/PageState';
 import { useI18n } from '../../lib/i18n';
@@ -71,7 +70,7 @@ function AccountRow({ entry }: { entry: CustomerPersonalAccountEntry }) {
       </span>
       <div className="customer-ledger-copy">
         <strong>{t(accountLabels[entry.kind] || 'customers.accountType.other')}</strong>
-        <p>{context || t('customers.accountOperation')}</p>
+        <p>{entry.description || context || t('customers.accountOperation')}</p>
         <small>
           {formatDate(entry.createdAt, { dateStyle: 'short', timeStyle: 'short' })}
           {entry.topupStatus ? ` · ${entry.topupStatus}` : ''}
@@ -87,11 +86,15 @@ export default function CustomerFinancialDetails({
   loading,
   error,
   onRetry,
+  canAdjustAccount,
+  onAdjustAccount,
 }: {
   details: CustomerFinancialDetailsResponse | null;
   loading: boolean;
   error: string;
   onRetry: () => void;
+  canAdjustAccount: boolean;
+  onAdjustAccount: () => void;
 }) {
   const { t, formatNumber } = useI18n();
   const [tab, setTab] = useState<'bonus' | 'account'>('bonus');
@@ -115,6 +118,11 @@ export default function CustomerFinancialDetails({
           <span>{t('customers.personalAccount')}</span>
           <strong>{formatNumber(details.personalAccount.balance)} ₸</strong>
           {details.personalAccount.blocked && <small>{t('customers.accountBlocked')}</small>}
+          {canAdjustAccount && (
+            <button type="button" className="customer-account-adjust" onClick={onAdjustAccount}>
+              {t('common.edit')}
+            </button>
+          )}
         </article>
         <article>
           <span>{t('customers.totalPurchases')}</span>
@@ -137,15 +145,6 @@ export default function CustomerFinancialDetails({
           onClick={() => setTab('account')}
         >
           {t('customers.personalAccount')}
-        </button>
-        <button
-          type="button"
-          className="customer-ledger-refresh"
-          onClick={onRetry}
-          disabled={loading}
-          aria-label={t('common.refresh')}
-        >
-          <RefreshCw className={loading ? 'spin' : ''} size={17} />
         </button>
       </div>
       <div className="customer-ledger-list" role="tabpanel">

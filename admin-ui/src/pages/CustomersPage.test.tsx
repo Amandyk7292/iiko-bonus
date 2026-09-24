@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
   getCustomers: vi.fn(),
   getCustomerFinancialDetails: vi.fn(),
   addCustomerBonus: vi.fn(),
+  adjustCustomerPersonalAccount: vi.fn(),
 }));
 vi.mock('../lib/api', () => ({ api }));
 vi.mock('../lib/admin-realtime', () => ({ useAdminRealtimeEvents: vi.fn() }));
@@ -17,13 +18,15 @@ vi.mock('../components/Feedback', () => ({
   useFeedback: () => ({ toast: vi.fn(), confirm: vi.fn() }),
 }));
 const customer = { id: 'test', name: 'Гость', balance: 100, bonus_expiration_enabled: false };
-const show = () =>
+const show = (
+  user: AdminUser = {
+    actions: ['customers:read', 'customers:adjust-bonus'],
+  } as AdminUser,
+) =>
   render(
     <BrowserRouter>
       <I18nProvider>
-        <CustomersPage
-          user={{ actions: ['customers:read', 'customers:adjust-bonus'] } as AdminUser}
-        />
+        <CustomersPage user={user} />
       </I18nProvider>
     </BrowserRouter>,
   );
@@ -64,6 +67,10 @@ beforeEach(() => {
     },
   });
   api.addCustomerBonus.mockResolvedValue({ success: true });
+  api.adjustCustomerPersonalAccount.mockResolvedValue({
+    success: true,
+    adjustment: { entryId: 'entry', balance: 1150, duplicate: false },
+  });
 });
 
 it('opens bonus and personal account history for one customer', async () => {
@@ -75,6 +82,25 @@ it('opens bonus and personal account history for one customer', async () => {
   await user.click(screen.getByRole('tab', { name: /Личный счёт/ }));
   expect(screen.getByText('Пополнение счёта')).toBeInTheDocument();
   expect(api.getCustomerFinancialDetails).toHaveBeenCalledWith('test');
+});
+
+it('lets an MFA administrator adjust the personal account with a reason', async () => {
+  const user = userEvent.setup();
+  show({ actions: ['customers:read', 'payments:manage'], mfaVerified: true } as AdminUser);
+  await user.click(await screen.findByRole('button', { name: 'Детали' }));
+  await user.click(await screen.findByRole('button', { name: 'Редактировать' }));
+  await user.selectOptions(screen.getByLabelText('Действие'), 'subtract');
+  await user.type(screen.getByLabelText(/Сумма/), '100');
+  await user.type(screen.getByLabelText(/Причина/), 'Исправление оплаты');
+  await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+  await waitFor(() =>
+    expect(api.adjustCustomerPersonalAccount).toHaveBeenCalledWith(
+      'test',
+      -100,
+      'Исправление оплаты',
+      expect.stringMatching(/^[0-9a-f-]{36}$/),
+    ),
+  );
 });
 
 it('shows disabled expiration and sends a negative adjustment through the explicit deduct action', async () => {

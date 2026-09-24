@@ -488,6 +488,7 @@ export interface AdminUser {
   role: string;
   branchIds?: string[];
   actions?: string[];
+  mfaVerified?: boolean;
 }
 
 export type StaffPushPlatform = 'ios' | 'android';
@@ -971,10 +972,20 @@ export interface CustomerPersonalAccountEntry {
   amount: number;
   kind: 'topup' | 'payment' | 'refund' | 'reversal' | string;
   sourceKey: string;
+  description?: string;
   createdAt: string;
   orderNumber?: number | null;
   branch?: CustomerFinancialBranch | null;
   topupStatus?: string | null;
+}
+
+export interface PersonalAccountAdjustmentResponse {
+  success: boolean;
+  adjustment: {
+    entryId?: string | null;
+    balance: number;
+    duplicate: boolean;
+  };
 }
 
 export interface CustomerFinancialDetailsResponse {

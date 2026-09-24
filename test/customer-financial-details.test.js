@@ -51,6 +51,13 @@ test('customer financial details combine scoped bonuses with the prepaid ledger'
     bulka_locations: [{ id: 'branch-1', name: '19А', city: 'Актау' }],
   };
   const db = {
+    rpc(name, args) {
+      calls.push(['rpc', name, args]);
+      return Promise.resolve({
+        data: { entryId: 'adjustment-entry', balanceMinor: 115050, duplicate: false },
+        error: null,
+      });
+    },
     from(table) {
       let rows = fixtures[table] || [];
       let single = false;
@@ -109,7 +116,7 @@ test('customer financial details combine scoped bonuses with the prepaid ledger'
     else delete require.cache[servicePath];
   });
 
-  const { getCustomerFinancialDetails } = require(servicePath);
+  const { adjustPersonalAccount, getCustomerFinancialDetails, moneyToMinor } = require(servicePath);
   const result = await getCustomerFinancialDetails('customer-1', { branchIds: ['branch-1'] }, db);
   assert.equal(result.bonus.balance, 120);
   assert.equal(result.bonus.entries[0].description, 'За покупку');
@@ -118,6 +125,19 @@ test('customer financial details combine scoped bonuses with the prepaid ledger'
   assert.equal(result.personalAccount.balance, 1250.5);
   assert.equal(result.personalAccount.entries[0].amount, -250);
   assert.equal(result.personalAccount.entries[0].orderNumber, 101);
+  assert.equal(moneyToMinor(12.34), 1234);
+  const adjustment = await adjustPersonalAccount(
+    'customer-1',
+    {
+      amount: -100,
+      requestId: '11111111-1111-4111-8111-111111111111',
+      reason: 'Исправление оплаты',
+      adminSubject: 'admin',
+    },
+    db,
+  );
+  assert.equal(adjustment.balance, 1150.5);
+  assert.ok(calls.some((call) => call[0] === 'rpc' && call[1] === 'admin_adjust_personal_account'));
   assert.ok(
     calls.some(
       (call) =>

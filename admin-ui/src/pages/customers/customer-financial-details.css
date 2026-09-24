@@ -21,6 +21,17 @@
   color: var(--sagi-muted);
   font-size: 12px;
 }
+.customer-account-adjust {
+  justify-self: start;
+  min-height: 36px;
+  padding: 0 11px;
+  border: 1px solid var(--sagi-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--sagi-cocoa);
+  font-size: 12px;
+  font-weight: 700;
+}
 .customer-financial-summary strong {
   font-size: 20px;
   font-variant-numeric: tabular-nums;
@@ -54,11 +65,6 @@
   background: #fff;
   color: var(--sagi-cocoa);
   box-shadow: 0 4px 14px rgb(56 30 15 / 8%);
-}
-.customer-financial-tabs .customer-ledger-refresh {
-  margin-left: auto;
-  width: 42px;
-  padding: 0;
 }
 .customer-ledger-list {
   display: grid;

@@ -164,6 +164,7 @@ import type {
   CustomerBonusEntry,
   CustomerPersonalAccountEntry,
   CustomerFinancialDetailsResponse,
+  PersonalAccountAdjustmentResponse,
 } from './api-types';
 export type {
   LocalizedText,
@@ -228,6 +229,7 @@ export type {
   CustomerBonusEntry,
   CustomerPersonalAccountEntry,
   CustomerFinancialDetailsResponse,
+  PersonalAccountAdjustmentResponse,
 } from './api-types';
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -502,6 +504,11 @@ export const api = {
   getCustomerFinancialDetails: (id: string) =>
     request<CustomerFinancialDetailsResponse>(
       `/customers/${encodeURIComponent(id)}/financial-details`,
+    ),
+  adjustCustomerPersonalAccount: (id: string, amount: number, reason: string, requestId: string) =>
+    request<PersonalAccountAdjustmentResponse>(
+      `/customers/${encodeURIComponent(id)}/personal-account-adjustment`,
+      json('POST', { amount, reason, requestId }),
     ),
   getOrders: ({
     page = 1,

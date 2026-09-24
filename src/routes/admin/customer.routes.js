@@ -2,7 +2,9 @@ const adminController = require('../../controllers/admin.controller');
 const {
   adminAuthMiddleware,
   requireAdminAction,
+  requireAdminMfa,
   CUSTOMER_ACTIONS,
+  PAYMENT_ACTIONS,
 } = require('../../middlewares/auth.middleware');
 const { validateRequest } = require('../../middlewares/validation.middleware');
 const {
@@ -11,11 +13,14 @@ const {
   adminCustomerListQuerySchema,
   adminCustomerParamsSchema,
   adminCustomerUpdateBodySchema,
+  adminPersonalAccountAdjustmentSchema,
 } = require('../../contracts/admin-customer.contract');
 const { supabase } = require('../../config/supabase');
 const { branchScopeForAdmin } = require('../../utils/admin-scope.util');
 const { badRequest, notFound } = require('../../utils/app-error.util');
+const { setAdminAuditContext } = require('../../services/admin-audit.service');
 const {
+  adjustPersonalAccount,
   getCustomerFinancialDetails,
 } = require('../../services/customer-financial-details.service');
 
@@ -97,6 +102,37 @@ const registerCustomerAdminRoutes = (router) => {
           ...(await getCustomerFinancialDetails(req.params.id, {
             branchIds: branchScopeForAdmin(req.admin),
           })),
+        });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+  router.post(
+    '/admin/api/customers/:id/personal-account-adjustment',
+    adminAuthMiddleware,
+    requireAdminAction(PAYMENT_ACTIONS.MANAGE),
+    requireAdminMfa,
+    validateRequest({
+      params: adminCustomerParamsSchema,
+      body: adminPersonalAccountAdjustmentSchema,
+    }),
+    customerAccessMiddleware,
+    async (req, res, next) => {
+      try {
+        setAdminAuditContext(req, {
+          actionCode: 'customer.personal-account.adjust',
+          targetType: 'customer',
+          targetId: req.params.id,
+          reason: req.body.reason,
+          amountChange: Number(req.body.amount),
+        });
+        res.json({
+          success: true,
+          adjustment: await adjustPersonalAccount(req.params.id, {
+            ...req.body,
+            adminSubject: req.admin?.sub || req.admin?.username,
+          }),
         });
       } catch (error) {
         next(error);
