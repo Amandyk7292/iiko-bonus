@@ -3126,7 +3126,8 @@ final _preorderDeliveryOrder = CustomerOrder(
   amount: 1200,
   subtotal: 1200,
   discount: 0,
-  branch: 'Bulka, Актау',
+  branch: 'Bulka, Астана',
+  branchId: 'astana-1',
   items: const [
     {'id': 'croissant', 'name': 'Круассан', 'quantity': 1, 'price': 1200},
   ],

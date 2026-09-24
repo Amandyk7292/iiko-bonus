@@ -1,5 +1,7 @@
 part of '../main.dart';
 
+enum _RepeatCartChoice { cancel, merge, replace }
+
 class CustomerOrdersScreen extends StatefulWidget {
   const CustomerOrdersScreen({
     required this.api,
@@ -250,12 +252,80 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     if (_repeatInFlight.contains(order.id)) return;
     setState(() => _repeatInFlight.add(order.id));
     try {
-      final items = await widget.api.reorder(order.id);
+      final cart = context.read<CartProvider>();
+      await cart.restored;
       if (!mounted) return;
-      await PendingForteOperationStore.prepareNewCheckout(widget.api);
+      final prefs = await SharedPreferences.getInstance();
+      final currentType = prefs.getString('selected_order_type')?.trim() ?? '';
+      final currentBranchId =
+          order.fulfillmentType != 'delivery' &&
+              currentType == order.fulfillmentType
+          ? (prefs.getString(
+                      'selected_bakery_location_id_${order.fulfillmentType}',
+                    ) ??
+                    prefs.getString('selected_bakery_location_id') ??
+                    '')
+                .trim()
+          : '';
+      final branchId = currentBranchId.isNotEmpty
+          ? currentBranchId
+          : order.branchId?.trim() ?? '';
+      if (branchId.isEmpty) throw ApiException('order_repeat_choose_branch'.tr);
+      final branches = await widget.api.getFulfillmentLocations();
+      final branch = branches
+          .where(
+            (candidate) =>
+                candidate.id == branchId &&
+                candidate.active &&
+                candidate.supports(order.fulfillmentType),
+          )
+          .firstOrNull;
+      if (branch == null) {
+        throw ApiException('order_repeat_branch_unavailable'.tr);
+      }
       if (!mounted) return;
-      final cart = context.read<CartProvider>()..clear();
-      for (final item in items) {
+      final canMerge =
+          currentType == order.fulfillmentType && currentBranchId.isNotEmpty;
+      var choice = _RepeatCartChoice.replace;
+      if (cart.items.isNotEmpty) {
+        choice =
+            await showDialog<_RepeatCartChoice>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: Text('order_repeat_cart_title'.tr),
+                content: Text(
+                  (canMerge
+                          ? 'order_repeat_cart_message'
+                          : 'order_repeat_replace_only_message')
+                      .tr,
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: Text('cancel_btn'.tr),
+                  ),
+                  if (canMerge)
+                    TextButton(
+                      key: const ValueKey('repeat-merge-cart'),
+                      onPressed: () =>
+                          Navigator.pop(dialogContext, _RepeatCartChoice.merge),
+                      child: Text('order_repeat_merge'.tr),
+                    ),
+                  FilledButton(
+                    key: const ValueKey('repeat-replace-cart'),
+                    onPressed: () =>
+                        Navigator.pop(dialogContext, _RepeatCartChoice.replace),
+                    child: Text('order_repeat_replace'.tr),
+                  ),
+                ],
+              ),
+            ) ??
+            _RepeatCartChoice.cancel;
+        if (choice == _RepeatCartChoice.cancel || !mounted) return;
+      }
+      final items = await widget.api.reorder(order.id, branchId: branchId);
+      if (!mounted) return;
+      final next = items.map((item) {
         final configuration = item['configuration'] is Map
             ? Map<String, dynamic>.from(item['configuration'])
             : null;
@@ -269,37 +339,53 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
         final quantityStep =
             num.tryParse('${item['quantityStep']}') ??
             (quantity % 1 != 0 ? 0.001 : 1);
-        final unit = _asString(
-          item['unit'],
-          fallback: quantityStep < 1 ? 'кг' : 'шт.',
+        final id = _asString(item['id']);
+        return CartItem(
+          id: id,
+          cartKey: configuration != null || modifiers.isNotEmpty
+              ? CartProvider.configuredCartKey(id, configuration, modifiers)
+              : id,
+          name: _asString(item['name']),
+          price: _asInt(item['price']),
+          basePrice: _asInt(item['basePrice'] ?? item['price']),
+          imageUrl: _asString(item['imageUrl']),
+          configuration: configuration,
+          modifiers: modifiers,
+          quantity: quantity,
+          quantityStep: quantityStep,
+          unit: _asString(
+            item['unit'],
+            fallback: quantityStep < 1 ? 'кг' : 'шт.',
+          ),
         );
-        if (configuration != null || modifiers.isNotEmpty) {
-          cart.addConfiguredItem(
-            productId: _asString(item['id']),
-            name: _asString(item['name']),
-            basePrice: _asInt(item['basePrice'] ?? item['price']),
-            unitPrice: _asInt(item['price']),
-            imageUrl: _asString(item['imageUrl']),
-            configuration: configuration,
-            modifiers: modifiers,
-            quantity: quantity,
-            quantityStep: quantityStep,
-            unit: unit,
-          );
-        } else {
-          cart.addItem(
-            productId: _asString(item['id']),
-            name: _asString(item['name']),
-            price: _asInt(item['price']),
-            quantityStep: quantityStep,
-            unit: unit,
-            imageUrl: _asString(item['imageUrl']),
-          );
-          cart.setQuantity(_asString(item['id']), quantity);
-        }
+      }).toList();
+      if (next.isEmpty ||
+          next.any(
+            (item) => item.id.isEmpty || item.price <= 0 || item.quantity <= 0,
+          )) {
+        throw ApiException('order_repeat_empty'.tr);
       }
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('selected_order_type', order.fulfillmentType);
+      await PendingForteOperationStore.prepareNewCheckout(widget.api);
+      if (!mounted) return;
+      if (choice == _RepeatCartChoice.merge) {
+        cart.mergeItems(next, reconcileMenu: false);
+      } else {
+        cart.replaceWithItems(next, reconcileMenu: false);
+      }
+      await cart.persisted;
+      await Future.wait([
+        prefs.setString('selected_order_type', order.fulfillmentType),
+        prefs.setString('selected_bakery_location', branch.displayLabel),
+        prefs.setString('selected_bakery_location_id', branch.id),
+        prefs.setString(
+          'selected_bakery_location_${order.fulfillmentType}',
+          branch.displayLabel,
+        ),
+        prefs.setString(
+          'selected_bakery_location_id_${order.fulfillmentType}',
+          branch.id,
+        ),
+      ]);
       final preorderFulfillmentKey = customerPreferenceKey(
         'checkout_preorder_fulfillment',
         widget.api.sessionCacheScope,
@@ -312,10 +398,6 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       } else {
         await prefs.remove(preorderFulfillmentKey);
       }
-      if (order.branch.trim().isNotEmpty) {
-        await prefs.setString('selected_bakery_location', order.branch);
-      }
-      await prefs.remove('selected_bakery_location_id');
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,

@@ -412,6 +412,8 @@ extension _CatalogInteractionController on _CatalogScreenState {
             },
             initialFavorite: _favoriteProductIds.contains(product.id),
             onToggleFavorite: () => _toggleFavorite(product),
+            onRequireAuth: widget.onRequireAuth,
+            orderType: _orderType,
             hasSelectedOrderType: widget.hasSelectedOrderType,
             onEnsureOrderTypeSelected: () => _ensureOrderTypeSelected(product),
           ),

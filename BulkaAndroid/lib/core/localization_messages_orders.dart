@@ -579,8 +579,26 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'en':
         'Replace the cart with the previous order or add its items to the current cart?',
   },
+  'order_repeat_replace_only_message': {
+    'ru':
+        'В корзине другой тип заказа или точка не выбрана. Повторить заказ можно после замены корзины.',
+    'kk':
+        'Себетте басқа тапсырыс түрі бар немесе нүкте таңдалмаған. Қайталау үшін себетті ауыстырыңыз.',
+    'en':
+        'Your cart uses another order type or has no selected branch. Replace the cart to reorder.',
+  },
   'order_repeat_replace': {'ru': 'Заменить', 'kk': 'Ауыстыру', 'en': 'Replace'},
   'order_repeat_merge': {'ru': 'Объединить', 'kk': 'Біріктіру', 'en': 'Merge'},
+  'order_repeat_choose_branch': {
+    'ru': 'Сначала выберите точку для повторного заказа',
+    'kk': 'Тапсырысты қайталау үшін алдымен нүктені таңдаңыз',
+    'en': 'Choose a branch before reordering',
+  },
+  'order_repeat_branch_unavailable': {
+    'ru': 'Эта точка сейчас недоступна. Выберите другую точку.',
+    'kk': 'Бұл нүкте қазір қолжетімсіз. Басқа нүктені таңдаңыз.',
+    'en': 'This branch is unavailable. Choose another branch.',
+  },
   'order_repeat_empty': {
     'ru': 'В этом заказе нет доступных для повтора товаров.',
     'kk': 'Бұл тапсырыста қайталауға болатын тауарлар жоқ.',
@@ -827,6 +845,43 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'ru': 'Избранное',
     'kk': 'Таңдаулылар',
     'en': 'Favorites',
+  },
+  'variant_my_variants': {
+    'ru': 'Мои варианты',
+    'kk': 'Менің нұсқаларым',
+    'en': 'My saved versions',
+  },
+  'variant_save': {
+    'ru': 'Сохранить вариант',
+    'kk': 'Нұсқаны сақтау',
+    'en': 'Save version',
+  },
+  'variant_saved': {
+    'ru': 'Вариант сохранён',
+    'kk': 'Нұсқа сақталды',
+    'en': 'Version saved',
+  },
+  'variant_name_title': {
+    'ru': 'Как назвать вариант?',
+    'kk': 'Нұсқаны қалай атаймыз?',
+    'en': 'Name this version',
+  },
+  'variant_name': {'ru': 'Название', 'kk': 'Атауы', 'en': 'Name'},
+  'variant_add': {'ru': 'Добавить', 'kk': 'Қосу', 'en': 'Add'},
+  'variant_added': {
+    'ru': 'Вариант добавлен в корзину',
+    'kk': 'Нұсқа себетке қосылды',
+    'en': 'Version added to cart',
+  },
+  'variant_delete': {
+    'ru': 'Удалить вариант',
+    'kk': 'Нұсқаны жою',
+    'en': 'Delete version',
+  },
+  'variant_retry': {
+    'ru': 'Не удалось загрузить варианты. Повторить',
+    'kk': 'Нұсқалар жүктелмеді. Қайталау',
+    'en': 'Could not load versions. Retry',
   },
   'catalog_add_favorite': {
     'ru': 'Добавить в избранное',

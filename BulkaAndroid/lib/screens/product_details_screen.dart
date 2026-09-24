@@ -11,6 +11,8 @@ class ProductDetailsScreen extends StatefulWidget {
     this.branchId,
     this.initialFavorite = false,
     this.onToggleFavorite,
+    this.onRequireAuth,
+    this.orderType = 'pickup',
     this.hasSelectedOrderType = true,
     this.onEnsureOrderTypeSelected,
     this.onOpenRelatedProduct,
@@ -25,6 +27,8 @@ class ProductDetailsScreen extends StatefulWidget {
   final void Function(CatalogProduct product, num quantity) onQuantityChanged;
   final bool initialFavorite;
   final Future<bool> Function()? onToggleFavorite;
+  final Future<bool> Function()? onRequireAuth;
+  final String orderType;
   final bool hasSelectedOrderType;
   final Future<bool> Function()? onEnsureOrderTypeSelected;
   final ValueChanged<CatalogProduct>? onOpenRelatedProduct;
@@ -51,6 +55,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   bool _uploadingReference = false;
   bool _loadingOptions = true;
   bool _optionsFailed = false;
+  bool _variantBusy = false;
+  List<Map<String, dynamic>> _savedVariants = const [];
+  String? _variantError;
   final _sheetGate = _AsyncActionGate();
   List<String> _boughtTogetherIds = const [];
 
@@ -66,6 +73,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       busy: () => _loadingOptions,
     );
     unawaited(_loadOptions());
+    if (widget.api.isAuthenticated) unawaited(_loadSavedVariants());
     unawaited(widget.api.recordProductView(widget.product.id));
     _recommendationsLive = _LiveRefresh(
       widget.api,
@@ -85,6 +93,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     _inscriptionController.dispose();
     super.dispose();
   }
+
+  void _updateVariantState(VoidCallback update) => setState(update);
 
   Future<void> _loadBoughtTogether() async {
     if (_loadingRecommendations) return;
@@ -588,17 +598,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       );
       return;
     }
-    final modifiers = <Map<String, dynamic>>[];
-    for (final raw in _options['modifierGroups'] as List? ?? const []) {
-      final group = _asMap(raw);
-      final selected = _selectedModifiers[_asString(group['id'])] ?? const {};
-      if (selected.isNotEmpty) {
-        modifiers.add({
-          'groupId': _asString(group['id']),
-          'optionIds': selected.toList(),
-        });
-      }
-    }
     cart.addConfiguredItem(
       productId: product.id,
       name: product.title,
@@ -608,16 +607,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       quantityStep: product.quantityStep,
       unit: product.unit,
       imageUrl: product.imageUrl,
-      configuration: {
-        if (_weight != null) 'weight': _weight,
-        if (_filling != null) 'filling': _filling,
-        if (_design != null) 'design': _design,
-        if (_inscriptionController.text.trim().isNotEmpty)
-          'inscription': _inscriptionController.text.trim(),
-        'candles': _candles,
-        if (_referenceUrl != null) 'referenceUrl': _referenceUrl,
-      },
-      modifiers: modifiers,
+      configuration: _selectedVariantConfiguration(),
+      modifiers: _selectedVariantModifiers(),
     );
     BulkaMotion.lightImpact();
   }
@@ -1248,6 +1239,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                         child: Text('retry_btn'.tr),
                                       ),
                                     ] else if (_hasCustomOptions) ...[
+                                      _buildSavedVariants(product),
                                       Builder(
                                         builder: (context) {
                                           final configuration = _asMap(
@@ -1456,6 +1448,23 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                                   ),
                                                 ),
                                               ],
+                                              const SizedBox(height: 12),
+                                              OutlinedButton.icon(
+                                                key: const ValueKey(
+                                                  'save-product-variant',
+                                                ),
+                                                onPressed:
+                                                    _variantBusy ||
+                                                        product.isStopListed
+                                                    ? null
+                                                    : () => _saveCurrentVariant(
+                                                        product,
+                                                      ),
+                                                icon: const Icon(
+                                                  Icons.bookmark_add_outlined,
+                                                ),
+                                                label: Text('variant_save'.tr),
+                                              ),
                                             ],
                                           );
                                         },

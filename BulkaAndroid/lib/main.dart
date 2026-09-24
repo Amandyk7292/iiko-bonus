@@ -200,6 +200,7 @@ part 'screens/catalog_filter_screen.dart';
 part 'screens/catalog_categories_screen.dart';
 part 'screens/product_details_widgets.dart';
 part 'screens/product_details_screen.dart';
+part 'screens/product_saved_variants.dart';
 part 'shell/main_shell.dart';
 part 'widgets/loyalty_panel.dart';
 part 'widgets/loyalty_tier_card.dart';

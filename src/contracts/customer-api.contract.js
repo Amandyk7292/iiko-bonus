@@ -118,6 +118,25 @@ const reorderBodySchema = z
     branchId: uuidSchema.optional(),
   })
   .strict();
+const savedVariantParamsSchema = z.object({ id: uuidSchema }).strict();
+const savedVariantListQuerySchema = z.object({ productId: resourceIdSchema.optional() }).strict();
+const savedVariantBodySchema = z
+  .object({
+    productId: resourceIdSchema,
+    name: z.string().trim().min(1).max(100),
+    branchId: uuidSchema,
+    orderType: z.enum(['pickup', 'delivery', 'preorder']),
+    configuration: cartConfigurationSchema.nullish(),
+    modifiers: z.array(cartModifierSchema).max(20).optional().default([]),
+  })
+  .strict();
+const savedVariantQuoteBodySchema = z
+  .object({
+    branchId: uuidSchema,
+    orderType: z.enum(['pickup', 'delivery', 'preorder']),
+    quantity: z.number().min(0.001).max(99).multipleOf(0.001).optional().default(1),
+  })
+  .strict();
 const cartSnapshotBodySchema = z
   .object({
     items: z.array(checkoutItemSchema).max(50),
@@ -725,6 +744,10 @@ module.exports = {
   referralRedeemBodySchema,
   registrationBodySchema,
   reorderBodySchema,
+  savedVariantBodySchema,
+  savedVariantListQuerySchema,
+  savedVariantParamsSchema,
+  savedVariantQuoteBodySchema,
   supportCreateBodySchema,
   supportMessageBodySchema,
   supportRequestParamsSchema,

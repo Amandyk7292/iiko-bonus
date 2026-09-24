@@ -1106,6 +1106,66 @@ class BulkaApiClient {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getSavedVariants(String productId) async {
+    if (!isAuthenticated) return const [];
+    final json = await _get(
+      '/api/customer/saved-variants?productId=${Uri.encodeQueryComponent(productId)}',
+    );
+    if (json['success'] != true || json['variants'] is! List) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
+    return (json['variants'] as List).map((value) => _asMap(value)).toList();
+  }
+
+  Future<Map<String, dynamic>> saveVariant({
+    required String productId,
+    required String name,
+    required String branchId,
+    required String orderType,
+    required Map<String, dynamic> configuration,
+    required List<Map<String, dynamic>> modifiers,
+  }) async {
+    final json = await _post('/api/customer/saved-variants', {
+      'productId': productId,
+      'name': name,
+      'branchId': branchId,
+      'orderType': orderType,
+      'configuration': configuration,
+      'modifiers': modifiers,
+    });
+    if (json['success'] != true || json['variant'] is! Map) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+    return _asMap(json['variant']);
+  }
+
+  Future<Map<String, dynamic>> quoteSavedVariant({
+    required String id,
+    required String branchId,
+    required String orderType,
+    required num quantity,
+  }) async {
+    final json = await _post(
+      '/api/customer/saved-variants/${Uri.encodeComponent(id)}/quote',
+      {'branchId': branchId, 'orderType': orderType, 'quantity': quantity},
+    );
+    if (json['success'] != true || json['item'] is! Map) {
+      throw ApiException(
+        _messageFrom(json, 'catalog_selected_product_unavailable'.tr),
+      );
+    }
+    return _asMap(json['item']);
+  }
+
+  Future<void> deleteSavedVariant(String id) async {
+    final json = await _delete(
+      '/api/customer/saved-variants/${Uri.encodeComponent(id)}',
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+  }
+
   Future<List<StockSubscription>> getStockSubscriptions() async {
     final json = await _get('/api/customer/stock-subscriptions');
     final values = json['subscriptions'];
