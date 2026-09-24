@@ -24,6 +24,24 @@ test.before(async () => {
   );
 });
 test.after(() => db.close());
+test('payment and refund notices format whole tenge and tiyn in every language', async () => {
+  await db.exec(fs.readFileSync('supabase/migrations/20260924160000_personal_pos_notice_amount.sql', 'utf8'));
+  for (const lang of ['ru', 'kk', 'en']) {
+    for (const amount of [2000, 2050, 2001]) {
+      const f = await fixture();
+      await start(f);
+      await db.query('update customers set preferred_language=$1 where id=$2', [lang, f.customer]);
+      await db.query('update personal_account_pos_payments set amount_minor=$1 where id=$2', [amount, f.id]);
+      for (const status of ['paid', 'refunded']) {
+        const { id } = await one('select personal_account_pos_notice($1,$2) id', [f.id, status]);
+        const { body, payload } = await one('select body,payload from customer_notifications where id=$1', [id]);
+        const expected = amount === 2000 ? '20' : lang === 'en' ? (amount / 100).toFixed(2) : (amount / 100).toFixed(2).replace('.', ',');
+        assert.ok(body.includes(expected + ' ₸'), body);
+        assert.equal(Number(payload.amount), amount / 100);
+      }
+    }
+  }
+});
 async function fixture() {
   const f = {
     id: crypto.randomUUID(),
