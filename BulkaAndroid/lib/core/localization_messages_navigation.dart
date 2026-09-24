@@ -80,16 +80,16 @@ const Map<String, Map<String, String>> _navigationAndProfileTranslations = {
   },
   'challenge_manual_excluded': {
     'ru':
-        'Вручную добавленные и неопределённые записи не засчитываются. Учитываются только шаги, записанные устройством или тренировкой.',
+        'Вручную добавленные и неопределённые записи не засчитываются. На iPhone используются только шаги датчика, на Android — подтверждённые записи Health Connect.',
     'kk':
-        'Қолмен қосылған және анықталмаған жазбалар есептелмейді. Құрылғы немесе жаттығу жазған қадамдар ғана саналады.',
+        'Қолмен қосылған және анықталмаған жазбалар есептелмейді. iPhone-да тек құрылғы датчигі, Android-та Health Connect растаған қадамдар саналады.',
     'en':
-        'Manual and unknown entries are excluded. Only device or workout-recorded steps count.',
+        'Manual and unknown entries are excluded. iPhone uses sensor-only steps; Android uses verified Health Connect records.',
   },
   'challenge_connect_health': {
-    'ru': 'Подключить здоровье',
-    'kk': 'Денсаулықты қосу',
-    'en': 'Connect health',
+    'ru': 'Подключить шаги',
+    'kk': 'Қадамдарды қосу',
+    'en': 'Connect steps',
   },
   'challenge_health_denied': {
     'ru': 'Нет доступа к шагам. Разрешите чтение шагов в настройках здоровья.',
@@ -98,9 +98,9 @@ const Map<String, Map<String, String>> _navigationAndProfileTranslations = {
     'en': 'Step access is denied. Allow step reading in health settings.',
   },
   'challenge_health_unavailable': {
-    'ru': 'Apple Health или Health Connect недоступен на этом устройстве.',
-    'kk': 'Бұл құрылғыда Apple Health немесе Health Connect қолжетімсіз.',
-    'en': 'Apple Health or Health Connect is unavailable on this device.',
+    'ru': 'Датчик шагов или Health Connect недоступен на этом устройстве.',
+    'kk': 'Бұл құрылғыда қадам датчигі немесе Health Connect қолжетімсіз.',
+    'en': 'Step sensing or Health Connect is unavailable on this device.',
   },
   'select_lang_title': {
     'ru': 'Выберите язык',

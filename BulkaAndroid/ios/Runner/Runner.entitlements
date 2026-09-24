@@ -12,7 +12,5 @@
 	<array>
 		<string>group.com.bulka.bonus</string>
 	</array>
-	<key>com.apple.developer.healthkit</key>
-	<true/>
 </dict>
 </plist>

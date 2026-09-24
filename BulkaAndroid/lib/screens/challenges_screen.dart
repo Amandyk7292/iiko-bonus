@@ -38,10 +38,35 @@ int verifiedStepTotal(Iterable<HealthDataPoint> points) {
 class _StepChallengeService {
   _StepChallengeService({Health? health}) : _health = health ?? Health();
   final Health _health;
+  static const _iosStepsChannel = MethodChannel(
+    'com.bulka.bonus/verified_steps',
+  );
 
   Future<_VerifiedSteps> readToday({required bool requestPermission}) async {
     if (kIsWeb || !(io.Platform.isIOS || io.Platform.isAndroid)) {
       throw const _HealthUnavailable();
+    }
+    if (io.Platform.isIOS) {
+      try {
+        final result = await _iosStepsChannel.invokeMapMethod<String, dynamic>(
+          'getTodaySteps',
+        );
+        if (result == null) throw const _HealthUnavailable();
+        return _VerifiedSteps(
+          steps: ((result['steps'] as num?)?.toInt() ?? 0)
+              .clamp(0, 1000000)
+              .toInt(),
+          sources: [
+            if ('${result['source'] ?? ''}'.trim().isNotEmpty)
+              '${result['source']}',
+          ],
+          checkedAt: DateTime.now(),
+        );
+      } on PlatformException catch (error) {
+        if (error.code == 'PERMISSION_DENIED') throw const _HealthDenied();
+        if (error.code == 'UNAVAILABLE') throw const _HealthUnavailable();
+        rethrow;
+      }
     }
     await _health.configure();
     if (io.Platform.isAndroid) {
@@ -91,19 +116,7 @@ class _StepChallengeService {
       if (source.isNotEmpty) sources.add(source);
     }
     return _VerifiedSteps(
-      // HealthKit's statistics query applies Apple's source priority and avoids
-      // double-counting overlapping iPhone and Watch samples. Android needs the
-      // raw recording method so unknown/manual entries can be excluded.
-      steps: io.Platform.isIOS
-          ? (await _health.getTotalStepsInInterval(
-                      start,
-                      now,
-                      includeManualEntry: false,
-                    ) ??
-                    0)
-                .clamp(0, 1000000)
-                .toInt()
-          : verifiedStepTotal(points),
+      steps: verifiedStepTotal(points),
       sources: sources.toList()..sort(),
       checkedAt: now,
     );
