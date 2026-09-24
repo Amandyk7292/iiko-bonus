@@ -106,6 +106,31 @@ function registerMenuAdminRoutes(router) {
       res.status(error.statusCode || 500).json({ success: false, error: error.message });
     }
   });
+  router.get(
+    '/admin/api/staff/reports/display-stock',
+    validateRequest({
+      query: z
+        .object({
+          date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          offset: z.coerce.number().int().min(0).max(100000).default(0),
+        })
+        .strict(),
+    }),
+    async (req, res, next) => {
+      try {
+        const branch = require('../../services/cashier-catalog.service').cashierBranch(req.admin);
+        const { data, error } = await supabase.rpc('cashier_display_stock_report', {
+          p_branch: branch,
+          p_date: req.query.date,
+          p_offset: Number(req.query.offset || 0),
+        });
+        if (error) throw error;
+        res.json({ success: true, ...data });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
   router.patch(
     '/admin/api/staff/catalog/:productId',
     validateRequest(adminMutationSchemas.cashierInventory),

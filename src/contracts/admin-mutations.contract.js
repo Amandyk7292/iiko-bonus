@@ -494,6 +494,9 @@ const inventoryBodySchema = z
 const cashierInventoryBodySchema = z
   .object({
     expectedRevision: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    stockReason: z.enum(['receipt', 'correction']).optional(),
+    unit: z.enum(['шт', 'кг']).optional(),
+    operationId: z.string().uuid().optional(),
     preorderStop: z.boolean().optional(),
     sourceQuantity: z.number().min(0).max(100000).multipleOf(0.001).optional(),
     manualStop: z.boolean().optional(),
