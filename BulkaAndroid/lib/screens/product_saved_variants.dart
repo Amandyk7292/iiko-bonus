@@ -258,7 +258,7 @@ extension _ProductSavedVariants on _ProductDetailsScreenState {
                     onPressed: _variantBusy
                         ? null
                         : () => _deleteSavedVariant(variant),
-                    icon: const Icon(Icons.delete_outline_rounded),
+                    icon: const Icon(Icons.close_rounded),
                   ),
                   FilledButton(
                     key: ValueKey('variant-add-${variant['id']}'),
