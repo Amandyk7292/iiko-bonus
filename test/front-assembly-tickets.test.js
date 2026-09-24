@@ -117,6 +117,8 @@ test('accept queues assembly once, locks one register and delays fiscal payment 
     (await f.db.query('select * from front_receipt_jobs where order_id=$1', [f.id])).rows[0];
   assert.equal((await read()).fiscal_due, false);
   assert.equal((await read()).assembly_status, 'pending');
+  // An accepted job must survive a multi-day register outage.
+  await f.db.query("update front_receipt_jobs set created_at=now()-interval '48 hours',updated_at=now()-interval '48 hours' where order_id=$1", [f.id]);
   const act = async (action, terminal = f.terminal) =>
     (
       await f.db.query('select front_receipt_job_action($1,$2,$3,$4,$5,$6,$7) r', [

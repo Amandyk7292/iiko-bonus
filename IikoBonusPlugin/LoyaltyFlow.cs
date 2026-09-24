@@ -926,32 +926,18 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     }
                 }
 
-                // Шаг 1: Спрашиваем телефон (открываем цифровую/телефонную клавиатуру по умолчанию)
+                // Identify customers only using their Bulka QR.
                 var searchSettings = new Resto.Front.Api.UI.ExtendedInputDialogSettings
                 {
-                    EnablePhone = true,
-                    NumericInputMode = Resto.Front.Api.UI.NumericInputMode.String,
-                    TabTitlePhone = "По номеру",
-                    TabTitleNumericString = "Последние цифры"
+                    EnableBarcode = true,
+                    TabTitleBarcode = "QR клиента"
                 };
-                var searchRes = vm.ShowExtendedInputDialog("Поиск клиента", "Введите последние цифры или номер", searchSettings, "Найти", "Отмена");
+                var searchRes = vm.ShowExtendedInputDialog("QR клиента", "Сканируйте QR из приложения Bulka", searchSettings, "Продолжить", "Отмена");
                 if (searchRes == null) return;
                 string query = "";
-                if (searchRes is Resto.Front.Api.Data.View.PhoneInputDialogResult phoneRes)
+                if (searchRes is Resto.Front.Api.Data.View.BarcodeInputDialogResult barcodeRes)
                 {
-                    query = phoneRes.PhoneNumber;
-                }
-                else if (searchRes is Resto.Front.Api.Data.View.StringInputDialogResult strRes)
-                {
-                    query = strRes.Result;
-                }
-                else if (searchRes is Resto.Front.Api.Data.View.NumberInputDialogResult numRes)
-                {
-                    query = numRes.Number.ToString();
-                }
-                else
-                {
-                    query = searchRes.ToString();
+                    query = barcodeRes.Barcode;
                 }
                 if (string.IsNullOrWhiteSpace(query)) return;
 
@@ -974,7 +960,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             if (string.IsNullOrWhiteSpace(barcode)) return false;
 
             // Обычные EAN-штрихкоды товаров часто состоят из 10-15 цифр. Их нельзя перехватывать.
-            // Телефон принимается только с явным знаком "+", карта и QR — только с префиксом Bulka.
+            // Customer identification accepts only Bulka QR/card prefixes.
             var normalizedBarcode = barcode.Trim();
             if (normalizedBarcode.StartsWith("bulka:pickup:", StringComparison.OrdinalIgnoreCase))
             {
@@ -988,11 +974,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     vm);
                 return true;
             }
-            string digitsOnly = new string(normalizedBarcode.Where(char.IsDigit).ToArray());
-            var isExplicitPhone = normalizedBarcode.StartsWith("+") && digitsOnly.Length >= 10 && digitsOnly.Length <= 15;
             var isLoyaltyCode = normalizedBarcode.StartsWith("BULKA-OTP-", StringComparison.OrdinalIgnoreCase) ||
                                 normalizedBarcode.StartsWith("CARD-", StringComparison.OrdinalIgnoreCase);
-            if (isExplicitPhone || isLoyaltyCode)
+            if (isLoyaltyCode)
             {
                 try
                 {
@@ -1214,6 +1198,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
         private static void RunSearchAndApply(IOrder order, IOperationService os, IViewManager vm, string query)
         {
+            if (string.IsNullOrWhiteSpace(query) ||
+                !(query.StartsWith("BULKA-OTP-", StringComparison.OrdinalIgnoreCase) ||
+                  query.StartsWith("CARD-", StringComparison.OrdinalIgnoreCase)))
+            { vm.ShowErrorPopup("Сканируйте QR клиента из приложения Bulka. Поиск по телефону отключён.", "ОК"); return; }
             try
             {
                 if (!EnsureApiConfiguration(vm)) return;

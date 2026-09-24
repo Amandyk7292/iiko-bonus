@@ -98,11 +98,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
             ThreadPool.QueueUserWorkItem(_ => {
                 try
                 {
-                    // Wait for iikoFront's active payment/dialog operation to finish.
-                    PluginContext.Operations.TryExecuteUiOperation(vm => {
-                        lock (gate) { if (disposed || !alerts.HasPending) return; }
-                        Show(vm, false, true);
-                    });
+                    // The board owns an STA window; it does not need iiko's modal UI lock.
+                    lock (gate) { if (disposed || !alerts.HasPending) return; }
+                    Show(null, false, true);
                 }
                 catch (Exception error) { PluginContext.Log.Warn("Bulka board open: " + error.Message); }
                 finally { Interlocked.Exchange(ref opening, 0); }
@@ -152,7 +150,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 }
             });
             thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
-            if (failure != null) vm.ShowErrorPopup("Не удалось открыть экран заказов: " + failure.Message, "ОК");
+            if (failure != null) {
+                PluginContext.Log.Warn("Bulka board open failed: " + failure);
+                if (vm != null) vm.ShowErrorPopup("Не удалось открыть экран заказов: " + failure.Message, "ОК");
+            }
             return selected;
         }
         private void Refresh()

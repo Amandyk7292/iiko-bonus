@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+ <PropertyGroup><TargetFramework>net472</TargetFramework><OutputType>Exe</OutputType><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup>
+ <ItemGroup>
+  <PackageReference Include="Resto.Front.Api.V9Preview7" Version="9.4.7024-alpha" />
+  <Compile Include="../../IikoBonusPlugin/OnlineReceiptDiscounts.cs" Link="OnlineReceiptDiscounts.cs" />
+  <None Include="$(NuGetPackageRoot)resto.front.api.v9preview7/9.4.7024-alpha/lib/netstandard2.0/Resto.Front.Api.V9Preview7.dll" Link="Resto.Front.Api.V9Preview7.dll" CopyToOutputDirectory="PreserveNewest" />
+ </ItemGroup>
+</Project>

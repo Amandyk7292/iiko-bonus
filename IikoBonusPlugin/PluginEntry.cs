@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Concurrent;
 using System.Xml.Linq;
 using Resto.Front.Api;
@@ -14,6 +15,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
     [UsedImplicitly]
     public sealed class PluginEntry : IFrontPlugin
     {
+        private IDisposable _deliveryButton;
+        private readonly System.Collections.Generic.List<Tuple<string,Action<ValueTuple<IOrder,IOperationService,IViewManager>>>> _orderActions =
+            new System.Collections.Generic.List<Tuple<string,Action<ValueTuple<IOrder,IOperationService,IViewManager>>>>();
+        private IDisposable RegisterOrderAction(string name,Action<ValueTuple<IOrder,IOperationService,IViewManager>> action,string icon=null)
+        {
+            _orderActions.Add(Tuple.Create(name,action));
+            return null;
+        }
         private IDisposable _buttonSubscription;
         private IDisposable _statusButtonSubscription;
         private IDisposable _giftButtonSubscription;
@@ -79,24 +88,24 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     _automaticReceipts = new OnlineReceiptSync(_sharedStock);
                 }
                 catch(Exception error) { PluginContext.Log.Error("Bulka online payment registration: " + error.Message); }
-                _assemblyReprintButton = PluginContext.Operations.AddButtonToOrderEditScreen("Сборочный чек Bulka",
+                _assemblyReprintButton = RegisterOrderAction("Сборочный чек Bulka",
                     (ValueTuple<IOrder,IOperationService,IViewManager> args) => AssemblyTicket.Reprint(args.Item1,args.Item2,args.Item3));
                 _inbox = new OnlineOrderInbox();
                 _pairingMenu = PluginContext.Operations.AddButtonToPluginsMenu("Привязать кассу", args => PosPairing.Show(args.Item1));
-                _pairingOrderButton = PluginContext.Operations.AddButtonToOrderEditScreen("Привязать кассу",
+                _pairingOrderButton = RegisterOrderAction("Привязать кассу",
                     (ValueTuple<IOrder,IOperationService,IViewManager> args) => PosPairing.Show(args.Item3));
-                _inboxMenu = PluginContext.Operations.AddButtonToPluginsMenu("Экран заказов Bulka", args => _inbox.Show(args.Item1));
-                _inboxOrderButton = PluginContext.Operations.AddButtonToOrderEditScreen("Экран заказов Bulka",
+                _inboxMenu = PluginContext.Operations.AddButtonToPluginsMenu("Доставка · Заказы Bulka", args => _inbox.Show(args.Item1));
+                _inboxOrderButton = RegisterOrderAction("Доставка · Заказы Bulka",
                     (ValueTuple<IOrder,IOperationService,IViewManager> args) => {
                         var selected = _inbox.Show(args.Item3, true);
                         if (selected.HasValue) _sharedStock.LinkOnline(args.Item1,args.Item2,args.Item3,selected.Value);
-                    });
+                    }, "M 2,5 L 15,5 15,17 2,17 Z M 15,9 L 20,9 24,13 24,17 15,17 Z M 5,17 A 3,3 0 1 0 11,17 A 3,3 0 1 0 5,17 M 17,17 A 3,3 0 1 0 23,17 A 3,3 0 1 0 17,17");
                 _recountButton = PluginContext.Operations.AddButtonToPluginsMenu("Сверить витрину", args =>
                     _sharedStock.Recount(PluginContext.Operations,args.Item1));
                 _reconciliationButton = PluginContext.Operations.AddButtonToPluginsMenu("Сверка чеков Bulka", args =>
                     _sharedStock.ShowReconciliation(PluginContext.Operations,args.Item1));
 
-                _buttonSubscription = PluginContext.Operations.AddButtonToOrderEditScreen(
+                _buttonSubscription = RegisterOrderAction(
                     "Бонусы",
                     (ValueTuple<IOrder, IOperationService, IViewManager> args) =>
                     {
@@ -116,7 +125,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     }
                 );
 
-                _statusButtonSubscription = PluginContext.Operations.AddButtonToOrderEditScreen(
+                _statusButtonSubscription = RegisterOrderAction(
                     "Статус бонусов",
                     (ValueTuple<IOrder, IOperationService, IViewManager> args) =>
                     {
@@ -138,7 +147,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     }
                 );
 
-                _giftButtonSubscription = PluginContext.Operations.AddButtonToOrderEditScreen(
+                _giftButtonSubscription = RegisterOrderAction(
                     "Сертификат",
                     (ValueTuple<IOrder, IOperationService, IViewManager> args) =>
                     {
@@ -147,6 +156,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     }
                 );
 
+                _deliveryButton = PluginContext.Operations.AddButtonToOrderEditScreen("Доставка", args => {
+                    var selected = args.Item3.ShowChooserPopup("Доставка и действия Bulka",
+                        _orderActions.Select(a=>a.Item1).ToArray(),0,ButtonWidth.Wider,"Закрыть");
+                    if(selected>=0 && selected<_orderActions.Count) _orderActions[selected].Item2(args);
+                }, "M2,5 L15,5 15,9 20,9 24,14 24,19 21,19 A3,3 0 0 1 15,19 L10,19 A3,3 0 0 1 4,19 L2,19 Z");
                 _orderSubscription = PluginContext.Notifications.OrderChanged.Subscribe(
                     new OrderChangedObserver(OnOrderChanged)
                 );
@@ -184,6 +198,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
         private void DisposeSubscriptions()
         {
+            TryDispose(_deliveryButton);
             TryDispose(_buttonSubscription);
             TryDispose(_statusButtonSubscription);
             TryDispose(_giftButtonSubscription);

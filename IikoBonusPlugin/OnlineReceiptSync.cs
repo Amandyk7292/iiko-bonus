@@ -122,7 +122,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             if(claim.ReceiptId!=null) saved.ReceiptId=claim.ReceiptId;
             IOrder order=null;
             if(Guid.TryParse(saved.ReceiptId,out var receiptId)) order=os.TryGetOrderById(receiptId);
-            else order=os.GetOrders(true,false).SingleOrDefault(o=>
+            if(order==null) order=os.GetOrders(true,false).SingleOrDefault(o=>
                 (o.ExternalNumber==Prefix+job.OrderId || o.ExternalNumber=="Bulka №"+job.Number) && OrderId(o)==job.OrderId);
             if(order==null)
             {
@@ -133,12 +133,30 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 if(table==null) throw new InvalidOperationException("На кассе не настроен зал со столом для онлайн-чеков.");
                 var edit=os.CreateEditSession();
                 var stub=edit.CreateOrder(new[]{table},true,false,null);
+                edit.AddOrderGuest("Bulka",stub);
                 edit.ChangeOrderExternalNumber("Bulka №"+job.Number,stub);
                 edit.AddOrderExternalData(OrderDataKey,new ExternalDataItem(job.OrderId,false),stub);
                 var credentials=os.GetDefaultCredentials();
                 saved.CreationStarted=true;
                 DurableJsonFile.Write(path,ledger); // Written before an uncertain create response.
-                order=os.SubmitChanges(edit,credentials).Get(stub);
+                try { order=os.SubmitChanges(edit,credentials).Get(stub); }
+                catch(Resto.Front.Api.Exceptions.ConstraintViolationException) {
+                    // Validation rejected the edit session; no order was committed.
+                    saved.CreationStarted=false;
+                    DurableJsonFile.Write(path,ledger);
+                    throw;
+                }
+                catch(Resto.Front.Api.Exceptions.CannotCreateEntityException) {
+                    // iiko rejected CreateOrder itself. A later poll may retry;
+                    // transport/unknown failures still retain CreationStarted.
+                    saved.CreationStarted=false;
+                    DurableJsonFile.Write(path,ledger);
+                    throw new InvalidOperationException("iikoFront отказал в создании заказа. Проверьте связь с главной кассой; повтор будет выполнен автоматически.");
+                }
+                catch(Exception error) {
+                    PluginContext.Log.Error("Bulka receipt creation failed for " + job.Number + ": " + error);
+                    throw;
+                }
             }
             saved.ReceiptId=order.Id.ToString();
             DurableJsonFile.Write(path,ledger);
