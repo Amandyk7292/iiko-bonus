@@ -19,6 +19,9 @@ test.before(async () => {
   await db.exec(
     fs.readFileSync('supabase/migrations/20260924010000_personal_account_pos.sql', 'utf8'),
   );
+  await db.exec(
+    fs.readFileSync('supabase/migrations/20260924050000_personal_pos_terminal_state.sql', 'utf8'),
+  );
 });
 test.after(() => db.close());
 async function fixture() {
@@ -89,6 +92,8 @@ test('code authorizes only; full debit and full refund are each applied once', a
     "update personal_account_pos_payments set expires_at=now()-interval '1 minute' where id=$1",
     [f.id],
   );
+  assert.equal((await action(f, 'status')).status, 'paid');
+  assert.equal((await action(f, 'confirm')).status, 'mismatch');
   assert.equal((await action(f, 'status')).status, 'paid');
   assert.equal((await action(f, 'refund')).status, 'refunded');
   assert.equal((await action(f, 'refund')).status, 'refunded');
