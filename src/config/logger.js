@@ -23,6 +23,7 @@ const logger = pino({
       '*.terminalToken',
       'req.body.terminalToken',
       'req.body.code',
+      'req.body.customerCode',
       '*.authorization',
       '*.cookie',
       '*.token',

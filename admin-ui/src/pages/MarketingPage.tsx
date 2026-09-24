@@ -6,7 +6,7 @@ import SelectControl from '../components/SelectControl';
 import PromotionFields from '../components/PromotionFields';
 import { useFeedback } from '../components/Feedback';
 import { api } from '../lib/api';
-import { contentLanguage, useI18n } from '../lib/i18n';
+import { useI18n } from '../lib/i18n';
 import { useSearchParams } from '../lib/router';
 
 type Tab = 'promotions' | 'gift-cards' | 'automations';
@@ -41,7 +41,7 @@ const marketingTabs = new Set<Tab>(['promotions', 'gift-cards', 'automations']);
 
 export default function MarketingPage() {
   const { formatDate, formatNumber, locale, t } = useI18n();
-  const contentLocale = contentLanguage(locale);
+  const contentLocale = locale === 'kk' ? 'kk' : locale === 'en' ? 'en' : 'ru';
   const { toast } = useFeedback();
   const [params, setParams] = useSearchParams();
   const requestedTab = params.get('tab') as Tab | null;
@@ -67,7 +67,12 @@ export default function MarketingPage() {
     expiresAt: '',
   });
   const [editingAutomation, setEditingAutomation] = useState<any | null>(null);
-  const [automationDraft, setAutomationDraft] = useState({ title: '', body: '' });
+  const [automationLanguage, setAutomationLanguage] = useState<'ru' | 'kk' | 'en'>('ru');
+  const [automationDraft, setAutomationDraft] = useState({
+    titles: {} as Record<string, string>,
+    bodies: {} as Record<string, string>,
+    birthdayBonusAmount: 0,
+  });
   const [issuedCode, setIssuedCode] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -197,23 +202,25 @@ export default function MarketingPage() {
   };
   const openAutomationEditor = (automation: any) => {
     setEditingAutomation(automation);
+    setAutomationLanguage(contentLocale);
     setAutomationDraft({
-      title: automation.title_translations?.[contentLocale] || '',
-      body: automation.body_translations?.[contentLocale] || '',
+      titles: { ...(automation.title_translations || {}) },
+      bodies: { ...(automation.body_translations || {}) },
+      birthdayBonusAmount: Number(automation.config?.birthdayBonusAmount || 0),
     });
   };
   const saveAutomationText = async (event: FormEvent) => {
     event.preventDefault();
     if (!editingAutomation || saving) return;
     const saved = await updateAutomation(editingAutomation, {
-      titleTranslations: {
-        ...(editingAutomation.title_translations || {}),
-        [contentLocale]: automationDraft.title.trim(),
+      config: {
+        ...(editingAutomation.config || {}),
+        ...(editingAutomation.trigger_type === 'birthday'
+          ? { birthdayBonusAmount: automationDraft.birthdayBonusAmount, maximumPerYear: 1 }
+          : {}),
       },
-      bodyTranslations: {
-        ...(editingAutomation.body_translations || {}),
-        [contentLocale]: automationDraft.body.trim(),
-      },
+      titleTranslations: automationDraft.titles,
+      bodyTranslations: automationDraft.bodies,
     });
     if (saved) setEditingAutomation(null);
   };
@@ -480,6 +487,19 @@ export default function MarketingPage() {
           className="modal-body form-stack"
           onSubmit={(event) => void saveAutomationText(event)}
         >
+          <div className="flex gap-2" role="group" aria-label="Language">
+            {(['ru', 'kk', 'en'] as const).map((language) => (
+              <button
+                key={language}
+                type="button"
+                aria-pressed={automationLanguage === language}
+                className={automationLanguage === language ? 'btn-primary' : 'btn-outline'}
+                onClick={() => setAutomationLanguage(language)}
+              >
+                {{ ru: 'Русский', kk: 'Қазақша', en: 'English' }[language]}
+              </button>
+            ))}
+          </div>
           <div className="field-group">
             <label className="field-label" htmlFor="automation-push-title">
               {t('marketing.pushTitlePrompt')}
@@ -488,9 +508,12 @@ export default function MarketingPage() {
               id="automation-push-title"
               name="automationTitle"
               className="input-classic"
-              value={automationDraft.title}
+              value={automationDraft.titles[automationLanguage] || ''}
               onChange={(event) =>
-                setAutomationDraft((current) => ({ ...current, title: event.target.value }))
+                setAutomationDraft((current) => ({
+                  ...current,
+                  titles: { ...current.titles, [automationLanguage]: event.target.value },
+                }))
               }
               maxLength={120}
               required
@@ -506,14 +529,40 @@ export default function MarketingPage() {
               name="automationBody"
               className="input-classic"
               rows={5}
-              value={automationDraft.body}
+              value={automationDraft.bodies[automationLanguage] || ''}
               onChange={(event) =>
-                setAutomationDraft((current) => ({ ...current, body: event.target.value }))
+                setAutomationDraft((current) => ({
+                  ...current,
+                  bodies: { ...current.bodies, [automationLanguage]: event.target.value },
+                }))
               }
               maxLength={500}
               required
             />
           </div>
+          {editingAutomation?.trigger_type === 'birthday' && (
+            <div className="field-group">
+              <label className="field-label" htmlFor="birthday-gift-amount">
+                {t('marketing.birthdayGiftAmount')}
+              </label>
+              <input
+                id="birthday-gift-amount"
+                className="input-classic"
+                type="number"
+                min={0}
+                max={100000}
+                step={1}
+                value={automationDraft.birthdayBonusAmount}
+                onChange={(event) =>
+                  setAutomationDraft((current) => ({
+                    ...current,
+                    birthdayBonusAmount: Number(event.target.value),
+                  }))
+                }
+              />
+              <p className="text-sm text-slate-500">{t('marketing.birthdayGiftHint')}</p>
+            </div>
+          )}
           <div className="modal-actions">
             <button
               className="btn-outline px-5"

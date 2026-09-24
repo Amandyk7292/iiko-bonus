@@ -33,6 +33,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private IDisposable _pairingMenu;
         private IDisposable _pairingOrderButton;
         private IDisposable _onlinePaymentRegistration;
+        private IDisposable _personalAccountPaymentRegistration;
+        private IDisposable _assemblyReprintButton;
         private OnlineReceiptSync _automaticReceipts;
         private static OfflineReceiptSync _offlineReceipts;
 
@@ -62,6 +64,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 PluginContext.Log.Info("IikoBonusPlugin: Initializing...");
                 LoyaltyFlow.RestoreActiveOrders();
                 GiftCertificateFlow.RestoreActiveOrders();
+                try { _personalAccountPaymentRegistration = PluginContext.Operations.RegisterPaymentSystem(
+                    new PersonalAccountPaymentProcessor(), false,
+                    Resto.Front.Api.Data.Payments.FiscalPaymentTypeGroup.NonCash); }
+                catch(Exception error) { PluginContext.Log.Error("Bulka personal account registration: " + error.Message); }
                 _sharedStock = new SharedStockGuard();
                 try { _offlineReceipts=new OfflineReceiptSync(); }
                 catch(Exception error) {PluginContext.Log.Error("Bulka offline receipt journal: "+error.Message);}
@@ -72,6 +78,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     _automaticReceipts = new OnlineReceiptSync(_sharedStock);
                 }
                 catch(Exception error) { PluginContext.Log.Error("Bulka online payment registration: " + error.Message); }
+                _assemblyReprintButton = PluginContext.Operations.AddButtonToOrderEditScreen("Сборочный чек Bulka",
+                    (ValueTuple<IOrder,IOperationService,IViewManager> args) => AssemblyTicket.Reprint(args.Item1,args.Item2,args.Item3));
                 _inbox = new OnlineOrderInbox();
                 _pairingMenu = PluginContext.Operations.AddButtonToPluginsMenu("Привязать кассу", args => PosPairing.Show(args.Item1));
                 _pairingOrderButton = PluginContext.Operations.AddButtonToOrderEditScreen("Привязать кассу",
@@ -193,6 +201,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
             TryDispose(_automaticReceipts);
             TryDispose(_offlineReceipts);
             TryDispose(_onlinePaymentRegistration);
+            TryDispose(_personalAccountPaymentRegistration);
+            TryDispose(_assemblyReprintButton);
             LoyaltyFlow.StopBackgroundRetry();
             GiftCertificateFlow.StopBackgroundRetry();
             TryDispose(_stockSync);

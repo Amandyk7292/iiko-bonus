@@ -947,6 +947,9 @@ const kk: Record<string, string> = {
   'marketing.promoSaveError': 'Промокод сақталмады',
   'marketing.giftIssued': 'Сертификат шығарылды',
   'marketing.giftIssueError': 'Сертификат шығарылмады',
+  'marketing.birthdayGiftAmount': 'Бонустық сыйлық',
+  'marketing.birthdayGiftHint':
+    '0 — тек құттықтау. Туған күн өзгертілсе де, сыйлық жылына бір рет беріледі. Жаңа сома келесі құттықтауларға қолданылады.',
   'marketing.automationSaved': 'Сценарий сақталды',
   'marketing.automationSaveError': 'Сценарий сақталмады',
   'marketing.heading': 'Адалдық және автоматтандыру',

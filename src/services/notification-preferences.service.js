@@ -152,6 +152,11 @@ function quietHoursResumeAt(preferences, now) {
 }
 
 async function notificationAllowed(customerId, data = {}, now = new Date()) {
+  if (
+    data.type === 'order_personal_account_code' &&
+    (!Number.isFinite(Date.parse(data.expiresAt)) || Date.parse(data.expiresAt) <= now.getTime())
+  )
+    return false;
   if (!customerId) return true;
   let preferences;
   try {

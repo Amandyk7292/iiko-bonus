@@ -1,10 +1,10 @@
 const { supabase } = require('../config/supabase');
 const { stockArgs, rpc } = require('./front-stock-guard.service');
-async function listAutoReceipts(branchId, { terminalId }) {
-  const { data, error } = await supabase
+async function listAutoReceipts(branchId, { terminalId, assemblyVersion }) {
+  let query = supabase
     .from('front_receipt_jobs')
     .select(
-      'order_id,receipt_id,terminal_id,created_at,kaspi_orders!inner(order_number,status,refund_status)',
+      'order_id,receipt_id,terminal_id,created_at,fiscal_due,assembly_status,kaspi_orders!inner(order_number,status,refund_status)',
     )
     .eq('branch_id', branchId)
     .neq('status', 'completed')
@@ -15,6 +15,8 @@ async function listAutoReceipts(branchId, { terminalId }) {
     .or(`terminal_id.is.null,terminal_id.eq.${terminalId}`)
     .order('updated_at', { ascending: true })
     .limit(20);
+  if (assemblyVersion !== 1) query = query.eq('fiscal_due', true);
+  const { data, error } = await query;
   if (error) throw error;
   return {
     jobs: (data || [])
@@ -26,6 +28,8 @@ async function listAutoReceipts(branchId, { terminalId }) {
       .map((row) => ({
         orderId: row.order_id,
         receiptId: row.receipt_id,
+        fiscalDue: row.fiscal_due,
+        assemblyStatus: row.assembly_status,
         number: Number(row.kaspi_orders.order_number),
       })),
   };

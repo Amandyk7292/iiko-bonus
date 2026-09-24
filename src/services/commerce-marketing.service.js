@@ -30,19 +30,31 @@ function renderAutomationCopy(automation = {}, payload = {}, requestedLanguage =
       (language === 'kk' ? 'өнім' : language === 'en' ? 'item' : 'товар'),
     quantity: Number(payload.quantity || 1),
     inactiveHours: Number(payload.inactiveHours || 0),
+    bonusAmount: Number(payload.bonusAmount || 0),
   };
   const render = (value) =>
-    String(value || '').replace(/\{\{(productName|quantity|inactiveHours)\}\}/g, (_, key) =>
-      String(variables[key]),
+    String(value || '').replace(
+      /\{\{(productName|quantity|inactiveHours|bonusAmount)\}\}/g,
+      (_, key) => String(variables[key]),
     );
+  const baseBody =
+    automation.body_translations?.[language] || automation.body_translations?.ru || '';
+  const giftSuffix =
+    automation.trigger_type === 'birthday' &&
+    variables.bonusAmount > 0 &&
+    !baseBody.includes('{{bonusAmount}}')
+      ? language === 'kk'
+        ? ` Сыйлыққа ${variables.bonusAmount} бонус есептелді!`
+        : language === 'en'
+          ? ` Your gift of ${variables.bonusAmount} bonuses has been credited!`
+          : ` Вам начислено ${variables.bonusAmount} подарочных бонусов!`
+      : '';
   return {
     language,
     title: render(
       automation.title_translations?.[language] || automation.title_translations?.ru || 'Bulka',
     ),
-    body: render(
-      automation.body_translations?.[language] || automation.body_translations?.ru || '',
-    ),
+    body: render(baseBody) + giftSuffix,
   };
 }
 

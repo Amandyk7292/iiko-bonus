@@ -998,6 +998,8 @@ const giftCardBodySchema = z
   .strict();
 const automationConfigSchema = z
   .object({
+    birthdayBonusAmount: z.coerce.number().int().min(0).max(100000).optional(),
+    maximumPerYear: z.literal(1).optional(),
     delayMinutes: z.coerce.number().int().min(1).max(525_600).optional(),
     cooldownHours: z.coerce.number().int().min(1).max(8_760).optional(),
     daysBefore: z.coerce.number().int().min(0).max(365).optional(),

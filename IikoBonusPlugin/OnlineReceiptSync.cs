@@ -88,7 +88,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             try
             {
                 var os=PluginContext.Operations;
-                var jobs=Request<AutomaticReceiptJobs>("poll",new InboxPoll {TerminalId=os.GetHostTerminal().Id.ToString()});
+                var jobs=Request<AutomaticReceiptJobs>("poll",new AutomaticReceiptPoll {TerminalId=os.GetHostTerminal().Id.ToString()});
                 if(jobs?.Jobs==null) throw new InvalidOperationException("Не читается очередь онлайн-чеков");
                 foreach(var job in jobs.Jobs)
                 {
@@ -107,7 +107,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         }
         private void Process(AutomaticReceiptJob job,IOperationService os)
         {
-            var paymentType=FindPaymentType(os); // Validate configuration before claiming work.
+            var paymentType=job.FiscalDue ? FindPaymentType(os) : null;
             var terminal=os.GetHostTerminal();
             if(os.GetHostTerminalsGroup().MainTerminal?.Id!=terminal.Id && !os.IsConnectedToMainTerminal())
                 throw new InvalidOperationException("Нет связи с главной кассой. Чек сохранён в очереди.");
@@ -142,6 +142,23 @@ namespace Resto.Front.Api.IikoBonusPlugin
             if(order.Status==OrderStatus.Deleted) throw new InvalidOperationException("Связанный чек удалён. Нужна сверка.");
             if(order.Status==OrderStatus.Closed) {Action(os,"complete",job.OrderId,order);return;}
             order=importer.ImportReceipt(order,job.Number,os,false);
+            if(job.AssemblyStatus!="printed")
+            {
+                if(saved.AssemblyPrinted) Action(os,"assembly-complete",job.OrderId,order);
+                else
+                {
+                    var printer=AssemblyTicket.Printer(os,order);
+                    var printClaim=Action(os,"assembly-claim",job.OrderId,order);
+                    if(printClaim.Status=="print")
+                    {
+                        AssemblyTicket.Print(os,printer,order,job.Number);
+                        saved.AssemblyPrinted=true;
+                        DurableJsonFile.Write(path,ledger);
+                        Action(os,"assembly-complete",job.OrderId,order);
+                    }
+                }
+            }
+            if(!job.FiscalDue) return;
             if(Action(os,"verify",job.OrderId,order).Status!="verified") throw new InvalidOperationException("Оплата Bulka не подтверждена");
             if(order.Payments.Count==0)
             {

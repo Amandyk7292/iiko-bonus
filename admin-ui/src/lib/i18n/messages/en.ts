@@ -948,6 +948,9 @@ const en: Record<string, string> = {
   'marketing.promoSaveError': 'Promo code was not saved',
   'marketing.giftIssued': 'Gift card issued',
   'marketing.giftIssueError': 'Gift card was not issued',
+  'marketing.birthdayGiftAmount': 'Birthday bonus gift',
+  'marketing.birthdayGiftHint':
+    '0 means greeting only. The gift is awarded once per year, even if the birthday changes. The new amount applies to future greetings.',
   'marketing.automationSaved': 'Automation saved',
   'marketing.automationSaveError': 'Automation was not saved',
   'marketing.heading': 'Loyalty and automation',

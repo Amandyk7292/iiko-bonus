@@ -953,6 +953,9 @@ const ru: Record<string, string> = {
   'marketing.promoSaveError': 'Промокод не сохранён',
   'marketing.giftIssued': 'Сертификат выпущен',
   'marketing.giftIssueError': 'Сертификат не выпущен',
+  'marketing.birthdayGiftAmount': 'Подарок в бонусах',
+  'marketing.birthdayGiftHint':
+    '0 — только поздравление. Подарок начисляется один раз в год, даже при изменении даты рождения. Новая сумма применяется к будущим поздравлениям.',
   'marketing.automationSaved': 'Сценарий сохранён',
   'marketing.automationSaveError': 'Сценарий не сохранён',
   'marketing.heading': 'Лояльность и автоматизация',
