@@ -2,7 +2,6 @@ const adminController = require('../../controllers/admin.controller');
 const {
   adminAuthMiddleware,
   requireAdminAction,
-  requireAdminMfa,
   CUSTOMER_ACTIONS,
   PAYMENT_ACTIONS,
 } = require('../../middlewares/auth.middleware');
@@ -112,7 +111,6 @@ const registerCustomerAdminRoutes = (router) => {
     '/admin/api/customers/:id/personal-account-adjustment',
     adminAuthMiddleware,
     requireAdminAction(PAYMENT_ACTIONS.MANAGE),
-    requireAdminMfa,
     validateRequest({
       params: adminCustomerParamsSchema,
       body: adminPersonalAccountAdjustmentSchema,

@@ -222,7 +222,7 @@ const requireAdminAction = (action) => (req, res, next) => {
 const requireAdminMfa = (req, res, next) => {
   if (req.admin?.mfa !== true) {
     return res.status(403).json({
-      error: 'Для денежной операции войдите с двухфакторной защитой',
+      error: 'Для выпуска денежного сертификата войдите с двухфакторной защитой',
       code: 'ADMIN_MFA_REQUIRED',
     });
   }

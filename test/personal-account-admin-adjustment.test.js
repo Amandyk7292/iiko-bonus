@@ -4,11 +4,11 @@ const test = require('node:test');
 const { randomUUID } = require('node:crypto');
 const { PGlite } = require('@electric-sql/pglite');
 
-test('personal account adjustment route requires financial permission and MFA', () => {
+test('personal account adjustment route requires financial permission and validation', () => {
   const source = fs.readFileSync('src/routes/admin/customer.routes.js', 'utf8');
   assert.match(
     source,
-    /personal-account-adjustment'[\s\S]*requireAdminAction\(PAYMENT_ACTIONS\.MANAGE\)[\s\S]*requireAdminMfa[\s\S]*adminPersonalAccountAdjustmentSchema/,
+    /personal-account-adjustment'[\s\S]*requireAdminAction\(PAYMENT_ACTIONS\.MANAGE\)[\s\S]*adminPersonalAccountAdjustmentSchema/,
   );
 });
 

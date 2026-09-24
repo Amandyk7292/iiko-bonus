@@ -563,7 +563,7 @@ export default function CustomersPage({ user }: CustomersPageProps) {
           loading={detailLoading}
           error={detailError}
           onRetry={() => detailCustomer && void loadCustomerDetails(detailCustomer)}
-          canAdjustAccount={canAdjustPersonalAccount && user?.mfaVerified === true}
+          canAdjustAccount={canAdjustPersonalAccount}
           onAdjustAccount={openAccountAdjustment}
         />
       </Modal>

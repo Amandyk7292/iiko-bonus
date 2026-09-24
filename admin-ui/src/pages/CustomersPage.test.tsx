@@ -86,7 +86,7 @@ it('opens bonus and personal account history for one customer', async () => {
 
 it('lets an MFA administrator adjust the personal account with a reason', async () => {
   const user = userEvent.setup();
-  show({ actions: ['customers:read', 'payments:manage'], mfaVerified: true } as AdminUser);
+  show({ actions: ['customers:read', 'payments:manage'] } as AdminUser);
   await user.click(await screen.findByRole('button', { name: 'Детали' }));
   await user.click(await screen.findByRole('button', { name: 'Редактировать' }));
   await user.selectOptions(screen.getByLabelText('Действие'), 'subtract');

@@ -488,7 +488,6 @@ export interface AdminUser {
   role: string;
   branchIds?: string[];
   actions?: string[];
-  mfaVerified?: boolean;
 }
 
 export type StaffPushPlatform = 'ios' | 'android';
