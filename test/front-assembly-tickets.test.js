@@ -29,6 +29,9 @@ async function fixture(
   await db.exec(
     readFileSync('supabase/migrations/20260924030000_front_assembly_tickets.sql', 'utf8'),
   );
+  await db.exec(
+    readFileSync('supabase/migrations/20260924040000_assembly_preserve_refunds.sql', 'utf8'),
+  );
   const branch = randomUUID(),
     terminal = randomUUID(),
     id = randomUUID(),
@@ -142,4 +145,41 @@ test('accept queues assembly once, locks one register and delays fiscal payment 
   assert.equal((await read()).assembly_status, 'printed');
   assert.equal((await read()).receipt_id, receipt);
   assert.equal((await act('verify')).status, 'verified');
+});
+
+test('assembly binding does not block partial refunds and fiscal claim uses remaining merchandise', async (t) => {
+  const f = await fixture(t),
+    receipt = randomUUID();
+  await f.db.query("update kaspi_orders set kitchen_status='queued' where id=$1", [f.id]);
+  await f.db.query("update kaspi_orders set kitchen_status='preparing' where id=$1", [f.id]);
+  const act = async (action) =>
+    (
+      await f.db.query('select front_receipt_job_action($1,$2,$3,$4,$5,$6,$7) r', [
+        f.branch,
+        f.terminal,
+        f.id,
+        action,
+        receipt,
+        { [f.product]: 1 },
+        300,
+      ])
+    ).rows[0].r;
+  await act('claim');
+  await act('bind');
+  await act('assembly-claim');
+  await act('assembly-complete');
+  assert.equal(
+    (await f.db.query('select fiscal_started from front_receipt_jobs where order_id=$1', [f.id]))
+      .rows[0].fiscal_started,
+    false,
+  );
+  await f.db.query('select assert_front_partial_refund($1,300)', [f.id]);
+  await f.refund(1, 300);
+  await f.db.query("update kaspi_orders set kitchen_status='handed_over' where id=$1", [f.id]);
+  await act('claim');
+  assert.equal((await act('verify')).status, 'verified');
+  await assert.rejects(
+    f.db.query('select assert_front_partial_refund($1,300)', [f.id]),
+    /завершите связанный чек/,
+  );
 });

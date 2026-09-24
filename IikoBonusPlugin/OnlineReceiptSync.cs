@@ -141,7 +141,6 @@ namespace Resto.Front.Api.IikoBonusPlugin
             Action(os,"bind",job.OrderId,order);
             if(order.Status==OrderStatus.Deleted) throw new InvalidOperationException("Связанный чек удалён. Нужна сверка.");
             if(order.Status==OrderStatus.Closed) {Action(os,"complete",job.OrderId,order);return;}
-            order=importer.ImportReceipt(order,job.Number,os,false);
             if(job.AssemblyStatus!="printed")
             {
                 if(saved.AssemblyPrinted) Action(os,"assembly-complete",job.OrderId,order);
@@ -159,6 +158,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 }
             }
             if(!job.FiscalDue) return;
+            order=importer.ImportReceipt(order,job.Number,os,false);
             if(Action(os,"verify",job.OrderId,order).Status!="verified") throw new InvalidOperationException("Оплата Bulka не подтверждена");
             if(order.Payments.Count==0)
             {

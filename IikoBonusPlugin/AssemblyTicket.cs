@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Xml.Linq;
+using System.Net.Http;
 using Resto.Front.Api.Data.Orders;
 using Resto.Front.Api.Data.Print;
 using Resto.Front.Api.UI;
@@ -40,11 +41,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 new XElement("f2",new XElement("center","ЗАКАЗ № "+order.Number)),
                 new XElement("center","СБОРОЧНЫЙ ЧЕК"),
                 new XElement("left","Bulka № "+number),new XElement("line"));
-            foreach(var item in order.Items.Where(i=>!i.Deleted).OfType<IOrderProductItem>())
-            {
-                doc.Add(new XElement("left",item.Amount.ToString("0.###")+" × "+
-                    (string.IsNullOrWhiteSpace(item.ProductCustomName) ? item.Product.Name : item.ProductCustomName)));
-            }
+            var response=LoyaltyFlow.SendApiRequest(HttpMethod.Post,"orders/receipt-draft",new ReceiptDraftRequest {Number=number});
+            var draft=LoyaltyFlow.DeserializeJson<ReceiptDraft>(response.Body);
+            if(!response.IsSuccessStatusCode || draft?.Items==null || draft.Items.Count==0)
+                throw new InvalidOperationException("Не удалось загрузить состав для сборки. Проверьте заказ перед повторной печатью.");
+            foreach(var item in draft.Items)
+                doc.Add(new XElement("left",item.Quantity.ToString("0.###")+" × "+
+                    (string.IsNullOrWhiteSpace(item.CustomName) ? item.Name : item.CustomName)));
             doc.Add(new XElement("line"),new XElement("center","Для сборки заказа. Не фискальный чек."));
             if(!os.Print(printer,(Document)doc,true))
                 throw new InvalidOperationException("Принтер не подтвердил сборочный чек. Проверьте бумагу перед повторной печатью.");
