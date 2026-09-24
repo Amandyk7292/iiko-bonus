@@ -42,6 +42,9 @@ jobs:
       IOS_APP_PROFILE: ${{ inputs.distribution == 'appstore' && secrets.IOS_STORE_APP_PROFILE || secrets.IOS_APP_PROFILE }}
       IOS_WIDGET_PROFILE: ${{ inputs.distribution == 'appstore' && secrets.IOS_STORE_WIDGET_PROFILE || secrets.IOS_WIDGET_PROFILE }}
       IOS_FIREBASE_PLIST: ${{ secrets.IOS_FIREBASE_PLIST }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
       SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
       OTA_ENABLED: ${{ inputs.ota }}
       BUILD_MODE: ${{ inputs.mode }}
@@ -67,6 +70,9 @@ jobs:
         with:
           cache: true
       - run: flutter pub get
+      - name: Refresh App Store profile for HealthKit
+        if: inputs.distribution == 'appstore'
+        run: python3 ../scripts/refresh-ios-appstore-profile.py
       - name: Prepare temporary signing keychain
         run: python3 ../scripts/prepare-ios-device-signing.py
       - name: Install CocoaPods dependencies
