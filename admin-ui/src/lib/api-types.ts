@@ -945,3 +945,55 @@ export interface AuditLog {
   user_agent?: string | null;
   created_at: string;
 }
+
+export interface CustomerFinancialBranch {
+  id: string;
+  name: string;
+  city?: string | null;
+}
+
+export interface CustomerBonusEntry {
+  id: string;
+  type: string;
+  amount: number;
+  description: string;
+  orderId?: string | null;
+  branchId?: string | null;
+  timestamp: string;
+  expiresAt?: string | null;
+  expiredAt?: string | null;
+  orderNumber?: number | null;
+  branch?: CustomerFinancialBranch | null;
+}
+
+export interface CustomerPersonalAccountEntry {
+  id: string;
+  amount: number;
+  kind: 'topup' | 'payment' | 'refund' | 'reversal' | string;
+  sourceKey: string;
+  createdAt: string;
+  orderNumber?: number | null;
+  branch?: CustomerFinancialBranch | null;
+  topupStatus?: string | null;
+}
+
+export interface CustomerFinancialDetailsResponse {
+  success: boolean;
+  customer: {
+    id: string;
+    name?: string | null;
+    phone?: string | null;
+    balance?: number | null;
+    total_spent?: number | null;
+  };
+  bonus: {
+    balance: number;
+    entries: CustomerBonusEntry[];
+  };
+  personalAccount: {
+    balance: number;
+    blocked: boolean;
+    updatedAt?: string | null;
+    entries: CustomerPersonalAccountEntry[];
+  };
+}

@@ -25,7 +25,7 @@
 .pos-version-policy p,
 .pos-reconciliation p {
   margin: 4px 0 0;
-  color: var(--text-muted);
+  color: var(--sagi-muted);
 }
 .pos-health-metrics {
   display: grid;
@@ -37,9 +37,9 @@
   grid-template-columns: auto 1fr;
   gap: 4px 8px;
   padding: 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--sagi-border);
   border-radius: 16px;
-  background: var(--surface);
+  background: #fff;
 }
 .pos-health-metrics strong {
   grid-column: 2;
@@ -57,7 +57,7 @@
 .pos-device-card {
   display: grid;
   gap: 12px;
-  border-left: 4px solid var(--line);
+  border-left: 4px solid var(--sagi-border);
 }
 .pos-device-card.state-healthy {
   border-left-color: #3b7b60;
@@ -80,7 +80,7 @@
 }
 .pos-device-card header span,
 .pos-device-card small {
-  color: var(--text-muted);
+  color: var(--sagi-muted);
 }
 .pos-device-card dl {
   display: grid;
@@ -94,7 +94,7 @@
 }
 .pos-device-card dt {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--sagi-muted);
 }
 .pos-device-card dd {
   display: flex;
@@ -136,7 +136,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--sagi-border);
   border-radius: 16px;
   border-left: 4px solid #c28a19;
 }
@@ -149,13 +149,13 @@
 }
 .pos-case-main > span {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--sagi-muted);
 }
 .pos-case-main p {
   margin: 0;
 }
 .pos-case-main small {
-  color: var(--text-muted);
+  color: var(--sagi-muted);
 }
 .pos-case-actions {
   display: flex;

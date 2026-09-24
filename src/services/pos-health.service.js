@@ -271,16 +271,26 @@ async function refreshDatabaseCases(branchIds, db = supabase) {
     .limit(500);
   let stockQuery = db
     .from('front_stock_terminals')
-    .select('branch_id,terminal_id,last_seen_at,guard_ready,guard_enabled')
+    .select('branch_id,terminal_id,last_seen_at,connected')
+    .limit(500);
+  let policyQuery = db
+    .from('front_stock_policies')
+    .select('branch_id,enabled,terminal_ids')
+    .eq('enabled', true)
     .limit(500);
   if (branchIds.length) {
     receiptQuery = receiptQuery.in('branch_id', branchIds);
     stockQuery = stockQuery.in('branch_id', branchIds);
+    policyQuery = policyQuery.in('branch_id', branchIds);
   }
-  const [{ data: jobs, error: jobsError }, { data: terminals, error: terminalsError }] =
-    await Promise.all([receiptQuery, stockQuery]);
+  const [
+    { data: jobs, error: jobsError },
+    { data: terminals, error: terminalsError },
+    { data: policies, error: policiesError },
+  ] = await Promise.all([receiptQuery, stockQuery, policyQuery]);
   if (jobsError) throw jobsError;
   if (terminalsError) throw terminalsError;
+  if (policiesError) throw policiesError;
   const now = Date.now();
   const cases = [];
   for (const job of jobs || []) {
@@ -311,21 +321,32 @@ async function refreshDatabaseCases(branchIds, db = supabase) {
       });
     }
   }
-  for (const terminal of terminals || []) {
-    const age = now - (Date.parse(terminal.last_seen_at) || 0);
-    if (terminal.guard_enabled && (!terminal.guard_ready || age > STALE_STOCK_MS)) {
-      cases.push({
-        source_key: `stock-terminal:${terminal.terminal_id}`,
-        branch_id: terminal.branch_id,
-        terminal_id: terminal.terminal_id,
-        kind: 'stock_sync',
-        severity: 'warning',
-        title: 'Остатки кассы давно не обновлялись',
-        details: terminal.guard_ready
-          ? 'Последняя связь с учётом остатков была более 5 минут назад.'
-          : 'Касса сообщает, что контроль остатков не готов.',
-        payload: { lastSeenAt: terminal.last_seen_at },
-      });
+  const terminalMap = new Map(
+    (terminals || []).map((terminal) => [
+      `${terminal.branch_id}:${terminal.terminal_id}`,
+      terminal,
+    ]),
+  );
+  for (const policy of policies || []) {
+    for (const terminalId of policy.terminal_ids || []) {
+      const terminal = terminalMap.get(`${policy.branch_id}:${terminalId}`);
+      const age = now - (Date.parse(terminal?.last_seen_at) || 0);
+      if (!terminal || terminal.connected !== true || age > STALE_STOCK_MS) {
+        cases.push({
+          source_key: `stock-terminal:${policy.branch_id}:${terminalId}`,
+          branch_id: policy.branch_id,
+          terminal_id: terminalId,
+          kind: 'stock_sync',
+          severity: 'warning',
+          title: 'Остатки кассы давно не обновлялись',
+          details: !terminal
+            ? 'Касса включена в общий учёт, но ещё не отправляла состояние.'
+            : terminal.connected !== true
+              ? 'Касса сообщает, что отключена от главного терминала.'
+              : 'Последняя связь с учётом остатков была более 5 минут назад.',
+          payload: { lastSeenAt: terminal?.last_seen_at || null },
+        });
+      }
     }
   }
   await upsertCases(cases, db);

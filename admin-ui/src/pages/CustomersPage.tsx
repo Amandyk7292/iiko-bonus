@@ -4,10 +4,11 @@ import { useSearchParams } from '../lib/router';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import { useFeedback } from '../components/Feedback';
-import { api, type AdminUser } from '../lib/api';
+import { api, type AdminUser, type CustomerFinancialDetailsResponse } from '../lib/api';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 import { csvCell } from '../lib/csv';
+import CustomerFinancialDetails from './customers/CustomerFinancialDetails';
 
 interface Customer {
   id: string;
@@ -41,6 +42,13 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   const [bonusAmount, setBonusAmount] = useState('');
   const [bonusMode, setBonusMode] = useState<'add' | 'subtract'>('add');
   const [bonusReason, setBonusReason] = useState('');
+  const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
+  const [customerDetails, setCustomerDetails] = useState<CustomerFinancialDetailsResponse | null>(
+    null,
+  );
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
+  const detailGeneration = useRef(0);
   const [submitting, setSubmitting] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [formError, setFormError] = useState('');
@@ -52,6 +60,38 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   const canBulkNotify = can('customers:bulk-notify');
   const canBulkExpire = can('customers:bulk-expire');
   const canManageCustomer = canAdjustBonus || canUpdateCustomer || canDeleteCustomer;
+  const canViewDetails = can('customers:read') || canAdjustBonus;
+  const showCustomerActions = canViewDetails || canManageCustomer;
+
+  const loadCustomerDetails = async (customer: Customer) => {
+    const generation = ++detailGeneration.current;
+    setDetailLoading(true);
+    setDetailError('');
+    try {
+      const details = await api.getCustomerFinancialDetails(customer.id);
+      if (generation === detailGeneration.current) setCustomerDetails(details);
+    } catch (caught) {
+      if (generation === detailGeneration.current) {
+        setDetailError(caught instanceof Error ? caught.message : t('common.loadError'));
+      }
+    } finally {
+      if (generation === detailGeneration.current) setDetailLoading(false);
+    }
+  };
+
+  const openCustomerDetails = (customer: Customer) => {
+    setDetailCustomer(customer);
+    setCustomerDetails(null);
+    void loadCustomerDetails(customer);
+  };
+
+  const closeCustomerDetails = () => {
+    detailGeneration.current += 1;
+    setDetailCustomer(null);
+    setCustomerDetails(null);
+    setDetailError('');
+    setDetailLoading(false);
+  };
 
   const fetchCustomers = useCallback(async () => {
     const generation = ++loadGeneration.current;
@@ -351,7 +391,7 @@ export default function CustomersPage({ user }: CustomersPageProps) {
                   <th scope="col" className="text-right">
                     {t('customers.purchases')}
                   </th>
-                  {canManageCustomer && (
+                  {showCustomerActions && (
                     <th scope="col" className="text-right">
                       {t('customers.manage')}
                     </th>
@@ -388,9 +428,20 @@ export default function CustomersPage({ user }: CustomersPageProps) {
                     <td data-label={t('customers.purchases')} className="text-right tabular">
                       {formatNumber(customer.total_spent ?? 0)}
                     </td>
-                    {canManageCustomer && (
+                    {showCustomerActions && (
                       <td data-label={t('customers.manage')}>
                         <div className="row-actions justify-end">
+                          {canViewDetails && (
+                            <button
+                              type="button"
+                              className="btn-outline px-3 inline-flex items-center gap-2"
+                              onClick={() => openCustomerDetails(customer)}
+                              aria-label={t('customers.details')}
+                              title={t('customers.details')}
+                            >
+                              {t('customers.details')}
+                            </button>
+                          )}
                           {canAdjustBonus && (
                             <button
                               type="button"
@@ -466,6 +517,26 @@ export default function CustomersPage({ user }: CustomersPageProps) {
           )}
         </section>
       )}
+
+      <Modal
+        open={Boolean(detailCustomer)}
+        onClose={closeCustomerDetails}
+        title={t('customers.detailsTitle')}
+        description={
+          detailCustomer
+            ? `${detailCustomer.name || t('customers.noName')} · ${detailCustomer.phone || '—'}`
+            : undefined
+        }
+        size="lg"
+      >
+        <CustomerFinancialDetails
+          key={detailCustomer?.id || 'customer-details'}
+          details={customerDetails}
+          loading={detailLoading}
+          error={detailError}
+          onRetry={() => detailCustomer && void loadCustomerDetails(detailCustomer)}
+        />
+      </Modal>
 
       <Modal
         open={Boolean(editingCustomer)}

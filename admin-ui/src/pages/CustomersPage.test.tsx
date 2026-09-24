@@ -6,7 +6,11 @@ import { BrowserRouter } from '../lib/router';
 import type { AdminUser } from '../lib/api';
 import CustomersPage from './CustomersPage';
 
-const api = vi.hoisted(() => ({ getCustomers: vi.fn(), addCustomerBonus: vi.fn() }));
+const api = vi.hoisted(() => ({
+  getCustomers: vi.fn(),
+  getCustomerFinancialDetails: vi.fn(),
+  addCustomerBonus: vi.fn(),
+}));
 vi.mock('../lib/api', () => ({ api }));
 vi.mock('../lib/admin-realtime', () => ({ useAdminRealtimeEvents: vi.fn() }));
 vi.mock('../components/Feedback', () => ({
@@ -17,7 +21,9 @@ const show = () =>
   render(
     <BrowserRouter>
       <I18nProvider>
-        <CustomersPage user={{ actions: ['customers:adjust-bonus'] } as AdminUser} />
+        <CustomersPage
+          user={{ actions: ['customers:read', 'customers:adjust-bonus'] } as AdminUser}
+        />
       </I18nProvider>
     </BrowserRouter>,
   );
@@ -25,7 +31,50 @@ const show = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   api.getCustomers.mockResolvedValue({ customers: [customer], total: 1 });
+  api.getCustomerFinancialDetails.mockResolvedValue({
+    success: true,
+    customer: { ...customer, total_spent: 5000 },
+    bonus: {
+      balance: 100,
+      entries: [
+        {
+          id: 'bonus',
+          type: 'manual_deposit',
+          amount: 25,
+          description: 'Компенсация клиенту',
+          timestamp: '2026-09-24T09:00:00Z',
+          orderNumber: null,
+          branch: { id: 'branch', name: '19А', city: 'Актау' },
+        },
+      ],
+    },
+    personalAccount: {
+      balance: 1250,
+      blocked: false,
+      updatedAt: '2026-09-24T09:00:00Z',
+      entries: [
+        {
+          id: 'account',
+          amount: 1000,
+          kind: 'topup',
+          sourceKey: 'topup:test',
+          createdAt: '2026-09-24T08:00:00Z',
+        },
+      ],
+    },
+  });
   api.addCustomerBonus.mockResolvedValue({ success: true });
+});
+
+it('opens bonus and personal account history for one customer', async () => {
+  const user = userEvent.setup();
+  show();
+  await user.click(await screen.findByRole('button', { name: 'Детали' }));
+  expect(await screen.findByText('Компенсация клиенту')).toBeInTheDocument();
+  expect(screen.getByText('1 250 ₸')).toBeInTheDocument();
+  await user.click(screen.getByRole('tab', { name: /Личный счёт/ }));
+  expect(screen.getByText('Пополнение счёта')).toBeInTheDocument();
+  expect(api.getCustomerFinancialDetails).toHaveBeenCalledWith('test');
 });
 
 it('shows disabled expiration and sends a negative adjustment through the explicit deduct action', async () => {

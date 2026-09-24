@@ -15,6 +15,9 @@ const {
 const { supabase } = require('../../config/supabase');
 const { branchScopeForAdmin } = require('../../utils/admin-scope.util');
 const { badRequest, notFound } = require('../../utils/app-error.util');
+const {
+  getCustomerFinancialDetails,
+} = require('../../services/customer-financial-details.service');
 
 const assertCustomerAccess = async (req, customerId) => {
   const allowedBranches = branchScopeForAdmin(req.admin);
@@ -80,6 +83,25 @@ const registerCustomerAdminRoutes = (router) => {
     requireAdminAction(CUSTOMER_ACTIONS.BULK_NOTIFY),
     validateRequest({ body: adminCustomerBulkBodySchema }),
     adminController.notifyInactiveHandler,
+  );
+  router.get(
+    '/admin/api/customers/:id/financial-details',
+    adminAuthMiddleware,
+    requireAdminAction(CUSTOMER_ACTIONS.READ),
+    validateRequest({ params: adminCustomerParamsSchema }),
+    customerAccessMiddleware,
+    async (req, res, next) => {
+      try {
+        res.json({
+          success: true,
+          ...(await getCustomerFinancialDetails(req.params.id, {
+            branchIds: branchScopeForAdmin(req.admin),
+          })),
+        });
+      } catch (error) {
+        next(error);
+      }
+    },
   );
   router.delete(
     '/admin/api/customers/:id',

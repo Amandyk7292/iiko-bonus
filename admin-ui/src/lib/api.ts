@@ -161,6 +161,9 @@ import type {
   TaplinkAdminResponse,
   TaplinkDocument,
   AuditLog,
+  CustomerBonusEntry,
+  CustomerPersonalAccountEntry,
+  CustomerFinancialDetailsResponse,
 } from './api-types';
 export type {
   LocalizedText,
@@ -222,6 +225,9 @@ export type {
   TaplinkAdminResponse,
   TaplinkDocument,
   AuditLog,
+  CustomerBonusEntry,
+  CustomerPersonalAccountEntry,
+  CustomerFinancialDetailsResponse,
 } from './api-types';
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -493,6 +499,10 @@ export const api = {
       `/customers?${params}`,
     );
   },
+  getCustomerFinancialDetails: (id: string) =>
+    request<CustomerFinancialDetailsResponse>(
+      `/customers/${encodeURIComponent(id)}/financial-details`,
+    ),
   getOrders: ({
     page = 1,
     pageSize = 50,

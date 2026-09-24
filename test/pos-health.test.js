@@ -50,6 +50,13 @@ test('POS health migration stores version policy and auditable reconciliation ca
   );
 });
 
+test('POS health uses physical terminal columns and scopes readiness through policies', () => {
+  const source = fs.readFileSync('src/services/pos-health.service.js', 'utf8');
+  assert.match(source, /front_stock_terminals'[\s\S]*last_seen_at,connected/);
+  assert.match(source, /front_stock_policies'[\s\S]*terminal_ids/);
+  assert.doesNotMatch(source, /front_stock_terminals'[\s\S]{0,180}guard_ready/);
+});
+
 test('version and telemetry rules identify outdated and financially unsafe registers', () => {
   assert.equal(compareVersions('1.10.0', '1.9.9'), 1);
   assert.equal(compareVersions('1.9.0', '1.9.0'), 0);
