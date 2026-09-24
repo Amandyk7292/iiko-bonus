@@ -8,14 +8,45 @@ const isStaffPushHeartbeatRequest = (req) =>
   ['/staff/push-heartbeat', '/admin/api/staff/push-heartbeat'].includes(String(req.path || ''));
 
 const adminRateLimit = rateLimit({
-  windowMs: 5 * 60 * 1000,
-  max: 120,
-  message: { error: 'Too many requests' },
+  windowMs: 60 * 1000,
+  max: 1200,
+  message: {
+    error: 'Слишком много запросов. Подождите немного и повторите.',
+    code: 'ADMIN_PREAUTH_RATE_LIMITED',
+  },
   standardHeaders: true,
   legacyHeaders: false,
   // Kitchen presence has its own authenticated limiter below. It must not
   // consume the shared admin quota for orders behind one branch NAT.
   skip: isStaffPushHeartbeatRequest,
+});
+
+const createAdminSessionRateLimit = ({ max = 300, windowMs = 60000, mutations = false } = {}) =>
+  rateLimit({
+    windowMs,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      error: 'Слишком частые запросы. Повторите через минуту.',
+      code: 'ADMIN_SESSION_RATE_LIMITED',
+    },
+    keyGenerator: (req) =>
+      crypto
+        .createHash('sha256')
+        .update(String(req.admin?.jti || req.admin?.sub || ipKeyGenerator(req.ip)))
+        .digest('hex'),
+    skip: (req) =>
+      isStaffPushHeartbeatRequest(req) ||
+      (mutations
+        ? ['GET', 'HEAD', 'OPTIONS'].includes(req.method)
+        : !['GET', 'HEAD'].includes(req.method)),
+  });
+const adminSessionReadRateLimit = createAdminSessionRateLimit();
+const adminSessionMutationRateLimit = createAdminSessionRateLimit({
+  max: 120,
+  windowMs: 300000,
+  mutations: true,
 });
 
 const createStaffPushHeartbeatPreAuthRateLimit = ({ windowMs = 60 * 1000, max = 180 } = {}) =>
@@ -139,6 +170,9 @@ const siteRateLimit = rateLimit({
 });
 
 module.exports = {
+  createAdminSessionRateLimit,
+  adminSessionReadRateLimit,
+  adminSessionMutationRateLimit,
   adminRateLimit,
   staffPushHeartbeatRateLimit,
   staffPushHeartbeatPreAuthRateLimit,

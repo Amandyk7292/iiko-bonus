@@ -20,6 +20,8 @@ const {
 } = require('../middlewares/auth.middleware');
 const {
   adminRateLimit,
+  adminSessionReadRateLimit,
+  adminSessionMutationRateLimit,
   staffPushHeartbeatPreAuthRateLimit,
 } = require('../middlewares/rate-limit.middleware');
 const {
@@ -310,6 +312,8 @@ router.use(
   adminAuthMiddleware,
   adminCsrfMiddleware,
   adminMutationRoleMiddleware,
+  adminSessionReadRateLimit,
+  adminSessionMutationRateLimit,
   adminAuditMiddleware,
 );
 
