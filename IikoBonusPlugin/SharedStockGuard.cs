@@ -70,6 +70,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private readonly bool enabledAtStartup;
         internal bool Enabled => enabledAtStartup || (PosPairing.Current?.SharedStockEnabled ?? false);
         internal string StatusText => status;
+        internal int PendingCount {get {lock(gate) return requests.Count;}}
 
         internal SharedStockGuard()
         {
@@ -130,6 +131,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 throw new InvalidOperationException("Эта касса не готова к продаже: проверьте связь, регистрацию кассы и режим учёта филиала.");
             status=result.Enabled && result.Ready ? "Общий учёт: кассы подключены" : "Общий учёт: продажи требуют настройки или восстановления связи";
         }
+        internal void RequestRetry() {ThreadPool.QueueUserWorkItem(_ => {
+            try {Heartbeat(PluginContext.Operations,false);}
+            catch(Exception error) {PluginContext.Log.Warn("Bulka stock retry: "+error.Message);}
+        });}
         private static GuardRequest Build(IOrder order,IOperationService os,long? number)
         {
             var items=new List<GuardItem>();

@@ -98,6 +98,17 @@ namespace Resto.Front.Api.IikoBonusPlugin
             catch(Exception) {throw Failure("Связь с Bulka потеряна. Результат неизвестен: повторите эту же оплату, не создавая новую.");}
             finally {request.code=null; request.customerCode=null; request.action=null;}
         }
+        internal static string CheckStatus(PersonalAccountLocalPayment payment)
+        {
+            if(payment==null || string.IsNullOrWhiteSpace(payment.PaymentId) ||
+                string.IsNullOrWhiteSpace(payment.Fingerprint))
+                throw Failure("Недостаточно данных для автоматической сверки. Проверьте операцию вручную.");
+            return Send(new PersonalPosRequest {
+                branchId=LoyaltyFlow.BranchId,orderId=payment.OrderId,amount=payment.Amount,
+                fingerprint=payment.Fingerprint,id=payment.PaymentId,
+                transactionId=payment.TransactionId
+            },"status").status;
+        }
         public void CollectData(Guid orderId,Guid paymentTypeId,IUser cashier,IReceiptPrinter printer,IViewManager vm,IPaymentDataContext context)
         {
             var order=PluginContext.Operations.GetOrderById(orderId);
@@ -148,7 +159,17 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 request.orderId!=order.Id.ToString() || request.fingerprint!=Fingerprint(order) ||
                 order.Payments.Any(p=>p.Id!=item.Id && p.Sum>0)) throw Failure("Оплатить можно только весь неизменённый чек. Запросите новый код.");
             request.requestId=null; request.transactionId=transaction.ToString(); Save(context,request);
-            if(Send(request,"pay").status!="paid") throw Failure("Списание не подтверждено.");
+            PersonalAccountLocalLedger.Begin(request);
+            try
+            {
+                if(Send(request,"pay").status!="paid") throw Failure("Списание не подтверждено.");
+                PersonalAccountLocalLedger.MarkPaid(request.orderId);
+            }
+            catch(Exception error)
+            {
+                PersonalAccountLocalLedger.MarkError(request.orderId,error.Message);
+                throw;
+            }
             context.SetInfoForReports(request.id,"Личный счёт Bulka"); Save(context,request);
         }
         public void Pay(decimal sum,IOrder order,IPaymentItem item,Guid transaction,IPointOfSale pos,IUser cashier,IOperationService os,IReceiptPrinter printer,IViewManager vm,IPaymentDataContext context)=>PayCore(sum,order,item,transaction,context);
@@ -164,6 +185,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             if(item.Status==PaymentStatus.Processed) throw Failure("Для оплаченного чека выполните возврат оплаты.");
             var request=Read(context);if(request?.id==null) return;request.requestId=null;Send(request,"cancel");
+            PersonalAccountLocalLedger.Remove(request.orderId);
         }
         private static void Refund(decimal sum,Guid? orderId,IPaymentDataContext context,Guid? transaction=null)
         {
@@ -172,8 +194,18 @@ namespace Resto.Front.Api.IikoBonusPlugin
             if(!orderId.HasValue || request.orderId!=orderId.Value.ToString() || sum!=request.amount) throw Failure("Доступен только полный возврат исходной оплаты.");
             request.requestId=null;
             if(string.IsNullOrEmpty(request.transactionId) && transaction.HasValue) request.transactionId=transaction.Value.ToString();
-            var result=Send(request,"refund");
-            if(result.status!="refunded" && result.status!="cancelled") throw Failure("Возврат ещё не подтверждён. Повторите операцию.");
+            PersonalAccountLocalLedger.Begin(request);
+            try
+            {
+                var result=Send(request,"refund");
+                if(result.status!="refunded" && result.status!="cancelled") throw Failure("Возврат ещё не подтверждён. Повторите операцию.");
+                PersonalAccountLocalLedger.Remove(request.orderId);
+            }
+            catch(Exception error)
+            {
+                PersonalAccountLocalLedger.MarkError(request.orderId,"Возврат: "+error.Message);
+                throw;
+            }
         }
         public void ReturnPayment(decimal sum,Guid? orderId,Guid paymentType,Guid transaction,IPointOfSale pos,IUser cashier,IReceiptPrinter printer,IViewManager vm,IPaymentDataContext context)=>Refund(sum,orderId,context);
         public void ReturnPaymentSilently(decimal sum,Guid? orderId,Guid paymentType,Guid transaction,IPointOfSale pos,IUser cashier,IReceiptPrinter printer,IPaymentDataContext context)=>Refund(sum,orderId,context);

@@ -9,11 +9,6 @@ const {
   readCustomerRefreshCookie,
   sendCustomerSession,
 } = require('../src/utils/customer-session-cookie.util');
-const {
-  normalizeNewsI18n,
-  parseNewsDescription,
-  serializeNewsDescription,
-} = require('../src/services/news.service');
 
 test('browser customer sessions use an HttpOnly Secure SameSite cookie', () => {
   const request = {
@@ -104,24 +99,6 @@ test('refresh cookie parser handles encoded values without accepting unrelated c
     },
   };
   assert.equal(readCustomerRefreshCookie(request), 'refresh.token');
-});
-
-test('News localization preserves the kz backend contract', () => {
-  const i18n = normalizeNewsI18n({
-    ru: { title: 'Новость', description: 'Текст', imageUrl: 'ru.webp' },
-    kk: { title: 'Жаңалық', description: 'Мәтін', imageUrl: 'kk.webp' },
-    en: { title: 'News', description: 'Text', imageUrl: 'en.webp' },
-  });
-  assert.equal(i18n.kz.title, 'Жаңалық');
-  assert.equal(i18n.kk, undefined);
-
-  const encoded = serializeNewsDescription(i18n.ru.description, i18n);
-  const restored = parseNewsDescription(encoded, {
-    title: i18n.ru.title,
-    imageUrl: i18n.ru.imageUrl,
-  });
-  assert.equal(restored.description, 'Текст');
-  assert.equal(restored.i18n.kz.description, 'Мәтін');
 });
 
 test('web storage and Android order status keep sensitive data private', () => {

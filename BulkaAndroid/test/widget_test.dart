@@ -2762,9 +2762,6 @@ class _FakeBulkaApiClient extends BulkaApiClient {
   ];
 
   @override
-  Future<List<NewsItem>> getNews() async => const [];
-
-  @override
   Future<Map<String, dynamic>> getProductOptions(String productId) async =>
       const {};
 

@@ -1,0 +1,213 @@
+.pos-health {
+  display: grid;
+  gap: 18px;
+}
+.pos-health-heading,
+.pos-version-policy > header,
+.pos-reconciliation > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.pos-health-heading > div,
+.pos-version-policy > header > div:first-child {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.pos-health-heading h3,
+.pos-version-policy h4,
+.pos-reconciliation h4 {
+  margin: 0;
+}
+.pos-health-heading p,
+.pos-version-policy p,
+.pos-reconciliation p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+}
+.pos-health-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+.pos-health-metrics article {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.pos-health-metrics strong {
+  grid-column: 2;
+  font-size: 24px;
+}
+.pos-version-policy {
+  display: grid;
+  gap: 16px;
+}
+.pos-device-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+.pos-device-card {
+  display: grid;
+  gap: 12px;
+  border-left: 4px solid var(--line);
+}
+.pos-device-card.state-healthy {
+  border-left-color: #3b7b60;
+}
+.pos-device-card.state-attention {
+  border-left-color: #c28a19;
+}
+.pos-device-card.state-error,
+.pos-device-card.state-offline {
+  border-left-color: #b94a3f;
+}
+.pos-device-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.pos-device-card header > div {
+  display: grid;
+  gap: 3px;
+}
+.pos-device-card header span,
+.pos-device-card small {
+  color: var(--text-muted);
+}
+.pos-device-card dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0;
+}
+.pos-device-card dl div {
+  display: grid;
+  gap: 2px;
+}
+.pos-device-card dt {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.pos-device-card dd {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  margin: 0;
+  font-weight: 650;
+}
+.pos-queue-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pos-queue-list span {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #fff3d8;
+  color: #704915;
+  font-size: 12px;
+  font-weight: 700;
+}
+.pos-device-error {
+  margin: 0;
+  padding: 10px;
+  border-radius: 12px;
+  background: #fff0ed;
+  color: #8f3028;
+}
+.pos-reconciliation {
+  display: grid;
+  gap: 14px;
+}
+.pos-case-list {
+  display: grid;
+  gap: 10px;
+}
+.pos-case {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  border-left: 4px solid #c28a19;
+}
+.pos-case.severity-critical {
+  border-left-color: #b94a3f;
+}
+.pos-case-main {
+  display: grid;
+  gap: 4px;
+}
+.pos-case-main > span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.pos-case-main p {
+  margin: 0;
+}
+.pos-case-main small {
+  color: var(--text-muted);
+}
+.pos-case-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: flex-end;
+  gap: 7px;
+}
+.pos-reconciliation-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 22px;
+  color: #3b7b60;
+}
+.btn-danger-outline {
+  border: 1px solid #c85c50;
+  background: #fff;
+  color: #9b332a;
+}
+.btn-danger {
+  border: 0;
+  background: #a83e34;
+  color: #fff;
+}
+.btn-danger,
+.btn-danger-outline {
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+.pos-version-policy > .btn-classic {
+  justify-self: end;
+}
+@media (max-width: 900px) {
+  .pos-health-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pos-health-heading,
+  .pos-version-policy > header,
+  .pos-reconciliation > header,
+  .pos-case {
+    flex-direction: column;
+  }
+  .pos-case-actions {
+    justify-content: flex-start;
+  }
+  .pos-device-card dl {
+    grid-template-columns: 1fr;
+  }
+  .pos-version-policy > .btn-classic {
+    justify-self: stretch;
+  }
+}

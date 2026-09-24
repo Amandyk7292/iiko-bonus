@@ -444,6 +444,29 @@ namespace Resto.Front.Api.IikoBonusPlugin
                    "\nДанные: " + DataDirectory + failedDetails;
         }
 
+        internal static int PendingQueueCount
+        {
+            get
+            {
+                try { return LoadQueue().Count(item => !item.terminal); }
+                catch { return 0; }
+            }
+        }
+
+        internal static int FailedQueueCount
+        {
+            get
+            {
+                try { return LoadQueue().Count(item => item.terminal); }
+                catch { return 1; }
+            }
+        }
+
+        internal static void RequestImmediateRetry()
+        {
+            ThreadPool.QueueUserWorkItem(_ => RunBackgroundTick());
+        }
+
         private static bool IsTokenConfigured()
         {
             if (PosPairing.IsPaired) return true;
@@ -549,6 +572,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 var paired = PosPairing.IsPaired ? PosPairing.Current : null;
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", paired?.Token ?? ApiToken);
                 request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                request.Headers.TryAddWithoutValidation(
+                    "X-Bulka-Plugin-Version",
+                    Assembly.GetExecutingAssembly().GetName().Version.ToString(3));
                 if (paired != null)
                 {
                     request.Headers.TryAddWithoutValidation("X-Bulka-Branch-Id", paired.BranchId);

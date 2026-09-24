@@ -21,7 +21,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private readonly Timer timer;
         private int busy;
         private volatile bool disposed;
+        private volatile int pendingCount;
         internal string StatusText {get;private set;}="Онлайн-чеки: ожидание привязки кассы";
+        internal int PendingCount => pendingCount;
         internal OnlineReceiptSync(SharedStockGuard guard)
         {
             importer=guard;
@@ -90,6 +92,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 var os=PluginContext.Operations;
                 var jobs=Request<AutomaticReceiptJobs>("poll",new AutomaticReceiptPoll {TerminalId=os.GetHostTerminal().Id.ToString()});
                 if(jobs?.Jobs==null) throw new InvalidOperationException("Не читается очередь онлайн-чеков");
+                pendingCount=jobs.Jobs.Count;
                 foreach(var job in jobs.Jobs)
                 {
                     if(disposed) break;
@@ -105,6 +108,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             catch(Exception error) {StatusText="Онлайн-чеки: "+error.Message;}
             finally {Interlocked.Exchange(ref busy,0);}
         }
+        internal void RequestRetry() {ThreadPool.QueueUserWorkItem(Tick);}
         private void Process(AutomaticReceiptJob job,IOperationService os)
         {
             var paymentType=job.FiscalDue ? FindPaymentType(os) : null;

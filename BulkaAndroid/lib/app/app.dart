@@ -710,7 +710,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       final activeOrder = orders
           .where((order) => order.paymentStatus == 'paid' && !order.isClosed)
           .firstOrNull;
-      _widgetOrder = activeOrder;
+      if (mounted) {
+        setState(() => _widgetOrder = activeOrder);
+      } else {
+        _widgetOrder = activeOrder;
+      }
       await HomeWidgetSync.update(
         customer: _customer ?? customer,
         activeOrder: activeOrder,
@@ -1570,6 +1574,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       onTabChanged: (tab) => unawaited(_saveMainTab(tab)),
       onOpenOrders: _openCustomerOrders,
       onOpenOrder: (orderId) => _openCustomerOrders(initialOrderId: orderId),
+      activeOrder: _widgetOrder,
     );
   }
 }

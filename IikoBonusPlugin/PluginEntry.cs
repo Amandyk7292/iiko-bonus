@@ -37,6 +37,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private IDisposable _assemblyReprintButton;
         private OnlineReceiptSync _automaticReceipts;
         private static OfflineReceiptSync _offlineReceipts;
+        private PosHealthSync _posHealth;
 
         public class OrderLoyaltyData
         {
@@ -126,7 +127,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                                 LoyaltyFlow.GetQueueStatusText() + "\n\n" +
                                 GiftCertificateFlow.GetStatusText() + "\n\n" + (_stockSync?.StatusText ?? "Остатки: обмен выключен") + "\n\n" + _sharedStock.StatusText
                                 + "\n\n" + (_automaticReceipts?.StatusText ?? "Внешняя оплата Bulka: обработчик не зарегистрирован. Проверьте журнал плагина.")
-                                + "\n\n" + (_offlineReceipts?.StatusText ?? "Продажи кассы: журнал недоступен, нужна сверка"),
+                                + "\n\n" + (_offlineReceipts?.StatusText ?? "Продажи кассы: журнал недоступен, нужна сверка")
+                                + "\n\n" + (_posHealth?.StatusText ?? "Мониторинг кассы: недоступен"),
                                 "ОК");
                         }
                         catch (Exception ex)
@@ -162,6 +164,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 GiftCertificateFlow.StartBackgroundRetry();
                 if (!string.Equals(LoyaltyFlow.ReadPluginSetting("IIKO_STOCK_SYNC_ENABLED"), "false", StringComparison.OrdinalIgnoreCase))
                     _stockSync = new StockSync();
+                _posHealth = new PosHealthSync(_sharedStock, _automaticReceipts, _offlineReceipts);
 
                 PluginContext.Log.Info("IikoBonusPlugin: Initialized successfully.");
             }
@@ -203,6 +206,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             TryDispose(_onlinePaymentRegistration);
             TryDispose(_personalAccountPaymentRegistration);
             TryDispose(_assemblyReprintButton);
+            TryDispose(_posHealth);
             LoyaltyFlow.StopBackgroundRetry();
             GiftCertificateFlow.StopBackgroundRetry();
             TryDispose(_stockSync);
@@ -236,6 +240,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
             catch(Exception error) {PluginContext.Log.Error("Bulka offline receipt capture: "+error.Message);}
             try { _sharedStock?.Observe(args.Entity); }
             catch (Exception error) { PluginContext.Log.Warn("Bulka stock receipt reconciliation pending: " + error.Message); }
+            try { PersonalAccountLocalLedger.Observe(args.Entity); }
+            catch (Exception error) { PluginContext.Log.Warn("Bulka personal account reconciliation pending: " + error.Message); }
             if (_sharedStock.IsLinked(args.Entity)) return;
             GiftCertificateFlow.OnOrderChanged(args);
             LoyaltyFlow.OnOrderChanged(args);

@@ -316,6 +316,7 @@ app.use(require('./routes/pos-pairing.routes'));
 app.use(require('./routes/front-inventory.routes'));
 app.use(require('./routes/front-auto-receipt.routes'));
 app.use(require('./routes/personal-account-pos.routes'));
+app.use(require('./routes/pos-health.routes'));
 app.use(require('./routes/front-order-board.routes'));
 app.use(loyaltyRoutes);
 app.use(walletRoutes);

@@ -144,8 +144,5 @@ class _AdaptiveNavigationApiClient extends BulkaApiClient {
   Future<List<PromoStory>> getStories() async => const [];
 
   @override
-  Future<List<NewsItem>> getNews() async => const [];
-
-  @override
   Future<List<BakeryLocation>> getFulfillmentLocations() async => const [];
 }

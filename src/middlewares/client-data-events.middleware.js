@@ -6,7 +6,7 @@ const publicDomains = (path) => {
   const resource = path.replace(/^\/admin\/api\//, '');
   if (/^(menu|inventory|staff\/catalog)(\/|$)/.test(resource)) return ['menu'];
   if (/^(locations|cities|points)(\/|$)/.test(resource)) return ['locations', 'menu'];
-  if (/^(stories|news|promotions)(\/|$)/.test(resource)) return ['content', 'checkout'];
+  if (/^(stories|promotions)(\/|$)/.test(resource)) return ['content', 'checkout'];
   if (/^contact-(cards|actions)(\/|$)/.test(resource)) return ['contacts'];
   if (/^gift-cards(\/|$)/.test(resource)) return ['rewards'];
   if (/^(settings|loyalty-tiers)(\/|$)/.test(resource)) return ['settings', 'loyalty', 'checkout'];

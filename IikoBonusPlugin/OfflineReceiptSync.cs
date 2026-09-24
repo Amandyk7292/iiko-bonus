@@ -27,6 +27,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private int busy;
         private bool disposed;
         internal string StatusText {get;private set;}="Продажи кассы: ожидание закрытых чеков";
+        internal int PendingCount {get {lock(gate) return pending.Count;}}
         internal OfflineReceiptSync()
         {
             pending=DurableJsonFile.Read<Dictionary<string,OfflineReceipt>>(path);
@@ -85,6 +86,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
             finally {Interlocked.Exchange(ref busy,0);}
         }
+        internal void RequestRetry() {ThreadPool.QueueUserWorkItem(Tick);}
         public void Dispose() {lock(gate) disposed=true;timer.Dispose();}
     }
 }

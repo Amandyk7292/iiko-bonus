@@ -644,7 +644,7 @@ void main() {
     expect(cleared.refreshToken, isNull);
   });
 
-  test('Stories and News map backend kz content to app kk', () {
+  test('Stories map backend kz content to app kk', () {
     final story = PromoStory.fromJson({
       'id': 1,
       'title': 'Русский заголовок',
@@ -659,28 +659,11 @@ void main() {
         },
       },
     });
-    final news = NewsItem.fromJson({
-      'id': 2,
-      'title': 'Русская новость',
-      'imageUrl': 'ru-news.webp',
-      'description': 'Русское описание',
-      'i18n': {
-        'kz': {
-          'title': 'Қазақша жаңалық',
-          'description': 'Қазақша мәтін',
-          'imageUrl': 'kk-news.webp',
-        },
-      },
-    });
-
     appLanguageNotifier.value = 'kk';
     expect(story.localizedTitle, 'Қазақша тақырып');
     expect(story.localizedDescription, 'Қазақша сипаттама');
     expect(story.localizedImageUrl, 'kk-cover.webp');
     expect(story.localizedContentUrl, 'kk-content.webp');
-    expect(news.localizedTitle, 'Қазақша жаңалық');
-    expect(news.localizedDescription, 'Қазақша мәтін');
-    expect(news.localizedImageUrl, 'kk-news.webp');
   });
 
   test('iOS privacy manifest declares linked customer data', () {

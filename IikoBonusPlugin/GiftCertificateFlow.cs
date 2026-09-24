@@ -351,6 +351,43 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
         }
 
+        internal static int PendingQueueCount
+        {
+            get
+            {
+                lock(StateLock)
+                {
+                    try
+                    {
+                        return (ReadFile<List<GiftReservationQueueItem>>(QueuePath) ??
+                            new List<GiftReservationQueueItem>()).Count(item => !item.Terminal);
+                    }
+                    catch { return 0; }
+                }
+            }
+        }
+
+        internal static int FailedQueueCount
+        {
+            get
+            {
+                lock(StateLock)
+                {
+                    try
+                    {
+                        return (ReadFile<List<GiftReservationQueueItem>>(QueuePath) ??
+                            new List<GiftReservationQueueItem>()).Count(item => item.Terminal);
+                    }
+                    catch { return 1; }
+                }
+            }
+        }
+
+        internal static void RequestImmediateRetry()
+        {
+            ThreadPool.QueueUserWorkItem(_ => FlushPendingOperations());
+        }
+
         internal static bool HasActiveOrder(Guid orderId) => ActiveOrders.ContainsKey(orderId);
 
         public static void Run(IOrder order, IOperationService operationService, IViewManager viewManager)

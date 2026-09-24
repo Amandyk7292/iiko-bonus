@@ -680,22 +680,6 @@ const uploadBodySchema = z
   })
   .strict();
 
-const contentLocaleSchema = z
-  .object({
-    title: shortText(255),
-    description: shortText(5_000),
-    coverUrl: nullableHttpsUrl.optional(),
-    contentUrl: nullableHttpsUrl.optional(),
-    imageUrl: nullableHttpsUrl.optional(),
-  })
-  .strict();
-const contentI18nSchema = z
-  .object({
-    ru: contentLocaleSchema,
-    kk: contentLocaleSchema,
-    en: contentLocaleSchema.optional(),
-  })
-  .strict();
 const storyLocaleSchema = z
   .object({
     title: shortText(255),
@@ -749,15 +733,6 @@ const storyBodySchema = z
       message: 'Дата окончания не может быть раньше даты начала',
     },
   );
-const newsBodySchema = z
-  .object({
-    id: z.union([numericIdSchema, z.coerce.number().int().positive()]).optional(),
-    title: shortText(255, 1),
-    imageUrl: httpsUrl,
-    description: shortText(5_000).optional(),
-    i18n: contentI18nSchema,
-  })
-  .strict();
 const numericParamsSchema = routeParams({ id: numericIdSchema });
 const legacyI18nSchema = z
   .object({
@@ -1241,8 +1216,6 @@ const adminMutationSchemas = {
   storyCreate: withBody(storyBodySchema),
   storyUpdate: { params: numericParamsSchema, body: storyBodySchema },
   numericDelete: withParams(numericParamsSchema),
-  newsCreate: withBody(newsBodySchema),
-  newsUpdate: { params: numericParamsSchema, body: newsBodySchema },
   legacyCityCreate: withBody(legacyCityBodySchema),
   legacyCityUpdate: { params: numericParamsSchema, body: legacyCityBodySchema },
   legacyPointCreate: withBody(legacyPointBodySchema),

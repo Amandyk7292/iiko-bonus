@@ -78,6 +78,10 @@
 		<string>Доступ к геолокации необходим для определения расстояния до ближайших пекарен Bulka, отображения их на карте и удобного выбора точки самовывоза.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Доступ к фотографиям нужен, чтобы прикрепить пример оформления торта или выпечки.</string>
+		<key>NSHealthShareUsageDescription</key>
+		<string>Bulka читает автоматически записанные шаги за сегодня, чтобы показывать прогресс челленджа. Вручную добавленные шаги не засчитываются.</string>
+		<key>NSHealthUpdateUsageDescription</key>
+		<string>Bulka не изменяет данные здоровья; разрешение используется системой Apple Health для подключения челленджей.</string>
 		<key>ITSAppUsesNonExemptEncryption</key>
 		<false/>
 		<key>CFBundleURLTypes</key>

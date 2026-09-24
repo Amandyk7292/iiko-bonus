@@ -11,7 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.webkit.CookieManager
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.text.SimpleDateFormat
@@ -19,7 +19,7 @@ import java.util.Date
 import java.util.Locale
 import java.net.HttpCookie
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     private val orderStatusChannel = "com.bulka.bonus/order_status"
     private val orderNotificationChannel = "bulka_order_status"
     private val staffOrderNotificationChannel = "bulka_staff_orders"

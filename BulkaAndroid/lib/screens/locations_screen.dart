@@ -29,6 +29,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
   final _searchController = TextEditingController();
   bool _loading = true;
   bool _loadFailed = false;
+  bool _usingCachedLocations = false;
+  DateTime? _locationsCachedAt;
 
   Map<String, List<BakeryLocation>> _cityLocations = {};
   bool get _deliveryList => widget.orderType == 'delivery';
@@ -69,7 +71,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
           : hasConfirmedSharedCity
           ? prefs.getString(_explicitFulfillmentCityKey) ?? ''
           : '';
-      final locations = await api.getFulfillmentLocations();
+      final result = await LocationCacheRepository(api: api).load();
+      final locations = result.locations;
       final locs = <String, List<BakeryLocation>>{};
       for (final location in locations) {
         if (!location.active || !location.supports(widget.orderType)) continue;
@@ -86,6 +89,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
       setState(() {
         _cityLocations = locs;
         _loadFailed = false;
+        _usingCachedLocations = result.fromCache;
+        _locationsCachedAt = result.cachedAt;
         final selected = silent ? _selectedCity : savedCity;
         _selectedCity = _cityLocations.containsKey(selected) ? selected : '';
         if (!silent || _selectedCity.isEmpty) {
@@ -231,9 +236,20 @@ class _LocationsScreenState extends State<LocationsScreen> {
                   actionLabel: 'retry_btn'.tr,
                   onAction: _loadLocations,
                 )
-              : (_showCities
-                    ? _buildCitiesList()
-                    : _buildLocationsList(filteredLocations)),
+              : Column(
+                  children: [
+                    if (_usingCachedLocations)
+                      LocationCacheNotice(
+                        cachedAt: _locationsCachedAt,
+                        onRetry: _loadLocations,
+                      ),
+                    Expanded(
+                      child: _showCities
+                          ? _buildCitiesList()
+                          : _buildLocationsList(filteredLocations),
+                    ),
+                  ],
+                ),
         ),
       ),
     );

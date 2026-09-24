@@ -156,7 +156,6 @@ class _StaffWorkspaceState extends State<StaffWorkspace> {
     if (_dashboardAllowed)
       'reviews': staffText('Отзывы', 'Пікірлер', 'Reviews'),
     if (_contentAllowed) 'stories': staffText('Истории', 'Оқиғалар', 'Stories'),
-    if (_contentAllowed) 'news': staffText('Новости', 'Жаңалықтар', 'News'),
     if (_contentAllowed)
       'bonus': staffText(
         'Бонусная программа',
@@ -379,7 +378,6 @@ class _StaffWorkspaceState extends State<StaffWorkspace> {
                       'support' => Icons.support_agent,
                       'reviews' => Icons.star_outline,
                       'stories' => Icons.auto_stories_outlined,
-                      'news' => Icons.article_outlined,
                       'bonus' => Icons.card_giftcard,
                       'settings' => Icons.settings_outlined,
                       'access' => Icons.admin_panel_settings_outlined,
@@ -564,13 +562,6 @@ class _StaffWorkspaceState extends State<StaffWorkspace> {
                       'stories' when _contentAllowed => StaffContent(
                         key: ValueKey('stories:${widget.api.scopeKey}'),
                         api: widget.api,
-                        stories: true,
-                        canEdit: true,
-                      ),
-                      'news' when _contentAllowed => StaffContent(
-                        key: ValueKey('news:${widget.api.scopeKey}'),
-                        api: widget.api,
-                        stories: false,
                         canEdit: true,
                       ),
                       'operations' when _operationsAllowed => StaffOverview(

@@ -10,7 +10,6 @@ const otpStore = require('../services/otpStore.service');
 const { supabase } = require('../config/supabase');
 const { getIikoClientForCity } = require('../services/iiko-city-profile.service');
 const { getStories } = require('../services/story.service');
-const { getNews } = require('../services/news.service');
 const path = require('path');
 const { signRegistrationToken } = require('../services/auth.service');
 const {
@@ -1015,15 +1014,6 @@ router.get('/api/guest/stories', async (req, res) => {
   try {
     const stories = await getStories();
     res.json({ success: true, stories });
-  } catch (err) {
-    sendApiError(res, err, { success: false });
-  }
-});
-
-router.get('/api/guest/news', async (req, res) => {
-  try {
-    const news = await getNews();
-    res.json({ success: true, news });
   } catch (err) {
     sendApiError(res, err, { success: false });
   }

@@ -326,13 +326,6 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'kk': 'WhatsApp-ты қайта ашу',
     'en': 'Open WhatsApp again',
   },
-  'news_title': {'ru': 'Новости', 'kk': 'Жаңалықтар', 'en': 'News'},
-  'news_sub': {
-    'ru': 'Свежие акции, сезонные вкусы и новости пекарни',
-    'kk': 'Жаңа акциялар, маусымдық дәмдер мен наубайхана жаңалықтары',
-    'en': 'Fresh promotions, seasonal tastes and bakery news',
-  },
-  'news_badge': {'ru': 'НОВОСТЬ', 'kk': 'ЖАҢАЛЫҚ', 'en': 'NEWS'},
   'collapse_tooltip': {'ru': 'Свернуть', 'kk': 'Жиыру', 'en': 'Collapse'},
   'expand_tooltip': {'ru': 'Развернуть', 'kk': 'Жаю', 'en': 'Expand'},
   'logout_confirm_title': {

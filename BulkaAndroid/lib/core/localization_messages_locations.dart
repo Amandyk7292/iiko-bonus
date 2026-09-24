@@ -1,6 +1,11 @@
 part of '../main.dart';
 
 const Map<String, Map<String, String>> _locationTranslations = {
+  'locations_cached_notice': {
+    'ru': 'Нет связи. Показаны сохранённые точки от {time}',
+    'kk': 'Байланыс жоқ. {time} уақытындағы сақталған нүктелер көрсетілді',
+    'en': 'Offline. Showing locations saved at {time}',
+  },
   'nav_locations': {'ru': 'Локации', 'kk': 'Нүктелер', 'en': 'Locations'},
   'directory_city': {
     'ru': 'Выберите город',

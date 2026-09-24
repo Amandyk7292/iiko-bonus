@@ -1,14 +1,9 @@
 part of '../main.dart';
 
 class StaffContent extends StatefulWidget {
-  const StaffContent({
-    required this.api,
-    required this.stories,
-    required this.canEdit,
-    super.key,
-  });
+  const StaffContent({required this.api, required this.canEdit, super.key});
   final StaffApiClient api;
-  final bool stories, canEdit;
+  final bool canEdit;
   @override
   State<StaffContent> createState() => _StaffContentState();
 }
@@ -18,7 +13,7 @@ class _StaffContentState extends State<StaffContent> {
   bool _loading = false;
   String? _error;
   late final StaffLiveRefresh _live;
-  String get _path => widget.stories ? '/stories' : '/news';
+  static const _path = '/stories';
   @override
   void initState() {
     super.initState();
@@ -38,7 +33,7 @@ class _StaffContentState extends State<StaffContent> {
       final data = await widget.api.request(_path);
       if (mounted) {
         setState(() {
-          _items = staffRows(data[widget.stories ? 'stories' : 'news']);
+          _items = staffRows(data['stories']);
           _error = null;
         });
       }
@@ -54,11 +49,7 @@ class _StaffContentState extends State<StaffContent> {
     await Navigator.push(
       context,
       StaffPageRoute<void>(
-        builder: (_) => _StaffContentEditor(
-          api: widget.api,
-          stories: widget.stories,
-          item: item,
-        ),
+        builder: (_) => _StaffContentEditor(api: widget.api, item: item),
       ),
     );
     if (mounted) unawaited(_load());
@@ -119,10 +110,9 @@ class _StaffContentState extends State<StaffContent> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if ('${item[widget.stories ? 'coverUrl' : 'imageUrl'] ?? item['imageurl'] ?? ''}'
-                    .isNotEmpty)
+                if ('${item['coverUrl'] ?? ''}'.isNotEmpty)
                   Image.network(
-                    '${item[widget.stories ? 'coverUrl' : 'imageUrl'] ?? item['imageurl']}',
+                    '${item['coverUrl']}',
                     height: 170,
                     fit: BoxFit.cover,
                     errorBuilder: (_, _, _) => const SizedBox(
@@ -176,13 +166,8 @@ class _StaffContentState extends State<StaffContent> {
 }
 
 class _StaffContentEditor extends StatefulWidget {
-  const _StaffContentEditor({
-    required this.api,
-    required this.stories,
-    this.item,
-  });
+  const _StaffContentEditor({required this.api, this.item});
   final StaffApiClient api;
-  final bool stories;
   final Map<String, dynamic>? item;
   @override
   State<_StaffContentEditor> createState() => _StaffContentEditorState();
@@ -197,8 +182,8 @@ class _StaffContentEditorState extends State<_StaffContentEditor> {
   List<String> get _localized => [
     'title',
     'description',
-    if (widget.stories) 'details',
-    if (widget.stories) 'contentUrl' else 'imageUrl',
+    'details',
+    'contentUrl',
   ];
   TextEditingController _c(String name) => _controllers[name]!;
   @override
@@ -324,7 +309,7 @@ class _StaffContentEditorState extends State<_StaffContentEditor> {
           ),
         );
       }
-      for (final field in widget.stories ? ['contentUrl'] : ['imageUrl']) {
+      for (final field in ['contentUrl']) {
         final uri = Uri.tryParse('${ru[field]}');
         if (uri?.scheme != 'https' || uri!.host.isEmpty) {
           throw Exception(
@@ -333,51 +318,49 @@ class _StaffContentEditorState extends State<_StaffContentEditor> {
         }
       }
       final body = <String, dynamic>{...ru, 'i18n': i18n};
-      if (widget.stories) {
-        body['coverUrl'] = ru['contentUrl'];
-        int integer(String key, int minimum, int maximum) {
-          final value = int.tryParse(_c(key).text);
-          if (value == null || value < minimum || value > maximum) {
-            throw Exception(
-              staffText(
-                'Проверьте длительность, порядок и остаток',
-                'Ұзақтықты, реттілікті және қалдықты тексеріңіз',
-                'Check duration, order and remaining count',
-              ),
-            );
-          }
-          return value;
-        }
-
-        if (_start != null && _end != null && _end!.isBefore(_start!)) {
+      body['coverUrl'] = ru['contentUrl'];
+      int integer(String key, int minimum, int maximum) {
+        final value = int.tryParse(_c(key).text);
+        if (value == null || value < minimum || value > maximum) {
           throw Exception(
             staffText(
-              'Окончание раньше начала',
-              'Аяқталу басталудан ерте',
-              'End precedes start',
+              'Проверьте длительность, порядок и остаток',
+              'Ұзақтықты, реттілікті және қалдықты тексеріңіз',
+              'Check duration, order and remaining count',
             ),
           );
         }
-        body.addAll({
-          'groupTitle': ru['title'],
-          'groupId': _c('groupId').text.trim().isEmpty
-              ? '${ru['title']}'.toLowerCase().replaceAll(RegExp(r'\s+'), '-')
-              : _c('groupId').text.trim(),
-          'duration': integer('duration', 3, 120),
-          'sortOrder': integer('sortOrder', 0, 1000000),
-          'promoType': _promo,
-          'startsAt': _start?.toUtc().toIso8601String(),
-          'endsAt': _end?.toUtc().toIso8601String(),
-          'remaining': _c('remaining').text.trim().isEmpty
-              ? null
-              : integer('remaining', 0, 1000000000),
-          'qrValue': _c('qrValue').text.trim().isEmpty
-              ? null
-              : _c('qrValue').text.trim(),
-          'createdAt': widget.item?['createdAt'],
-        });
+        return value;
       }
-      final path = widget.stories ? '/stories' : '/news';
+
+      if (_start != null && _end != null && _end!.isBefore(_start!)) {
+        throw Exception(
+          staffText(
+            'Окончание раньше начала',
+            'Аяқталу басталудан ерте',
+            'End precedes start',
+          ),
+        );
+      }
+      body.addAll({
+        'groupTitle': ru['title'],
+        'groupId': _c('groupId').text.trim().isEmpty
+            ? '${ru['title']}'.toLowerCase().replaceAll(RegExp(r'\s+'), '-')
+            : _c('groupId').text.trim(),
+        'duration': integer('duration', 3, 120),
+        'sortOrder': integer('sortOrder', 0, 1000000),
+        'promoType': _promo,
+        'startsAt': _start?.toUtc().toIso8601String(),
+        'endsAt': _end?.toUtc().toIso8601String(),
+        'remaining': _c('remaining').text.trim().isEmpty
+            ? null
+            : integer('remaining', 0, 1000000000),
+        'qrValue': _c('qrValue').text.trim().isEmpty
+            ? null
+            : _c('qrValue').text.trim(),
+        'createdAt': widget.item?['createdAt'],
+      });
+      const path = '/stories';
       await widget.api.request(
         widget.item == null
             ? path
@@ -397,13 +380,7 @@ class _StaffContentEditorState extends State<_StaffContentEditor> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.stories
-              ? staffText('История', 'Оқиға', 'Story')
-              : staffText('Новость', 'Жаңалық', 'News'),
-        ),
-      ),
+      appBar: AppBar(title: Text(staffText('История', 'Оқиға', 'Story'))),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -492,91 +469,86 @@ class _StaffContentEditorState extends State<_StaffContentEditor> {
                 ],
               ),
             ),
-          if (widget.stories)
-            ExpansionTile(
-              title: Text(
-                staffText(
-                  'Параметры публикации',
-                  'Жариялау параметрлері',
-                  'Publication settings',
-                ),
+          ExpansionTile(
+            title: Text(
+              staffText(
+                'Параметры публикации',
+                'Жариялау параметрлері',
+                'Publication settings',
               ),
-              children: [
-                for (final field in {
-                  'groupId': staffText('Группа', 'Топ', 'Group'),
-                  'duration': staffText(
-                    'Длительность, сек',
-                    'Ұзақтық, сек',
-                    'Duration, sec',
-                  ),
-                  'sortOrder': staffText('Порядок', 'Реті', 'Order'),
-                  'remaining': staffText('Осталось', 'Қалды', 'Remaining'),
-                  'qrValue': staffText(
-                    'Содержимое QR',
-                    'QR мазмұны',
-                    'QR value',
-                  ),
-                }.entries)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: TextField(
-                      controller: _c(field.key),
-                      enabled: !_busy,
-                      decoration: InputDecoration(labelText: field.value),
-                      keyboardType:
-                          [
-                            'duration',
-                            'sortOrder',
-                            'remaining',
-                          ].contains(field.key)
-                          ? TextInputType.number
-                          : null,
-                    ),
-                  ),
-                StaffPicker(
-                  label: staffText('Тип', 'Түрі', 'Type'),
-                  value: _promo,
-                  options: {
-                    'promotion': staffText('Акция', 'Акция', 'Promotion'),
-                    'discount': staffText('Скидка', 'Жеңілдік', 'Discount'),
-                    'subscription': staffText(
-                      'Подписка',
-                      'Жазылым',
-                      'Subscription',
-                    ),
-                  },
-                  onChanged: (value) => setState(() => _promo = value),
-                ),
-                Wrap(
-                  spacing: 12,
-                  children: [
-                    OutlinedButton(
-                      onPressed: _busy ? null : () => _date(true),
-                      child: Text(
-                        '${staffText('Начало', 'Басталуы', 'Start')}: ${staffDate(_start?.toIso8601String())}',
-                      ),
-                    ),
-                    OutlinedButton(
-                      onPressed: _busy ? null : () => _date(false),
-                      child: Text(
-                        '${staffText('Окончание', 'Аяқталуы', 'End')}: ${staffDate(_end?.toIso8601String())}',
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: _busy
-                          ? null
-                          : () => setState(() {
-                              _start = null;
-                              _end = null;
-                            }),
-                      child: Text(
-                        staffText('Без срока', 'Мерзімсіз', 'No dates'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
             ),
+            children: [
+              for (final field in {
+                'groupId': staffText('Группа', 'Топ', 'Group'),
+                'duration': staffText(
+                  'Длительность, сек',
+                  'Ұзақтық, сек',
+                  'Duration, sec',
+                ),
+                'sortOrder': staffText('Порядок', 'Реті', 'Order'),
+                'remaining': staffText('Осталось', 'Қалды', 'Remaining'),
+                'qrValue': staffText('Содержимое QR', 'QR мазмұны', 'QR value'),
+              }.entries)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: TextField(
+                    controller: _c(field.key),
+                    enabled: !_busy,
+                    decoration: InputDecoration(labelText: field.value),
+                    keyboardType:
+                        [
+                          'duration',
+                          'sortOrder',
+                          'remaining',
+                        ].contains(field.key)
+                        ? TextInputType.number
+                        : null,
+                  ),
+                ),
+              StaffPicker(
+                label: staffText('Тип', 'Түрі', 'Type'),
+                value: _promo,
+                options: {
+                  'promotion': staffText('Акция', 'Акция', 'Promotion'),
+                  'discount': staffText('Скидка', 'Жеңілдік', 'Discount'),
+                  'subscription': staffText(
+                    'Подписка',
+                    'Жазылым',
+                    'Subscription',
+                  ),
+                },
+                onChanged: (value) => setState(() => _promo = value),
+              ),
+              Wrap(
+                spacing: 12,
+                children: [
+                  OutlinedButton(
+                    onPressed: _busy ? null : () => _date(true),
+                    child: Text(
+                      '${staffText('Начало', 'Басталуы', 'Start')}: ${staffDate(_start?.toIso8601String())}',
+                    ),
+                  ),
+                  OutlinedButton(
+                    onPressed: _busy ? null : () => _date(false),
+                    child: Text(
+                      '${staffText('Окончание', 'Аяқталуы', 'End')}: ${staffDate(_end?.toIso8601String())}',
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _busy
+                        ? null
+                        : () => setState(() {
+                            _start = null;
+                            _end = null;
+                          }),
+                    child: Text(
+                      staffText('Без срока', 'Мерзімсіз', 'No dates'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.all(12),

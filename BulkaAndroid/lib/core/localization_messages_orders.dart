@@ -53,11 +53,6 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'Бонустар есептен шығарылды',
     'en': 'Points deducted',
   },
-  'fresh_news_fallback': {
-    'ru': 'Свежая новость',
-    'kk': 'Жаңа жаңалық',
-    'en': 'Latest news',
-  },
   'story_offer_fallback': {
     'ru': 'Специальное предложение Bulka',
     'kk': 'Bulka арнайы ұсынысы',

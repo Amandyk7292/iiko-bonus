@@ -11,13 +11,15 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import PageState from '../components/PageState';
-import { api, type IntegrationHealthService } from '../lib/api';
+import { api, type IntegrationHealthService, type PosHealthResponse } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import type {
   PaymentDiagnostics,
   PaymentProviderDiagnostic,
   PaymentWebhookDiagnostic,
 } from '../lib/payment-diagnostics';
+import PosHealthPanel from './integrations/PosHealthPanel';
+import './integrations/pos-health.css';
 
 const stateCopy = {
   healthy: 'Работает',
@@ -139,6 +141,7 @@ export default function IntegrationsPage() {
   const [services, setServices] = useState<IntegrationHealthService[]>([]);
   const [payments, setPayments] = useState<PaymentDiagnostics | null>(null);
   const [checkedAt, setCheckedAt] = useState('');
+  const [posHealth, setPosHealth] = useState<PosHealthResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<'probe' | 'mode' | ''>('');
   const [actionMessage, setActionMessage] = useState('');
@@ -147,10 +150,11 @@ export default function IntegrationsPage() {
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const response = await api.getIntegrationHealth();
+      const [response, pos] = await Promise.all([api.getIntegrationHealth(), api.getPosHealth()]);
       setServices(response.services);
       setPayments(response.payments);
       setCheckedAt(response.checkedAt);
+      setPosHealth(pos);
       setError('');
     } catch (caught) {
       if (!silent)
@@ -230,7 +234,7 @@ export default function IntegrationsPage() {
     <div className="page-stack">
       <div className="page-actions-row">
         <div>
-          <h2 className="content-heading">Состояние внешних сервисов</h2>
+          <h2 className="content-heading">Кассы и интеграции</h2>
         </div>
         <button
           type="button"
@@ -244,6 +248,8 @@ export default function IntegrationsPage() {
       </div>
 
       {error && <div className="inline-alert inline-alert-error">{error}</div>}
+
+      {posHealth && <PosHealthPanel data={posHealth} reload={() => load(true)} />}
 
       {payments && (
         <section className="card payment-diagnostics" aria-labelledby="payment-diagnostics-title">

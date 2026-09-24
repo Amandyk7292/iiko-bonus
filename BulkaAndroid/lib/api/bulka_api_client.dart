@@ -452,15 +452,6 @@ class BulkaApiClient {
     return const [];
   }
 
-  Future<List<NewsItem>> getNews() async {
-    final json = await _get('/api/guest/news');
-    final news = json['news'];
-    if (json['success'] == true && news is List) {
-      return news.map((item) => NewsItem.fromJson(_asMap(item))).toList();
-    }
-    return const [];
-  }
-
   Future<List<AppContactCard>> getContactCards() async {
     final json = await _get('/api/public/contact-center');
     final cards = json['cards'];

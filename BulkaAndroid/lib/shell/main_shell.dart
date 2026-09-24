@@ -13,6 +13,7 @@ class MainShell extends StatefulWidget {
     this.onTabChanged,
     this.onOpenOrders,
     this.onOpenOrder,
+    this.activeOrder,
     this.staff,
     this.onOpenStaffPortal,
     this.onStaffLogout,
@@ -30,6 +31,7 @@ class MainShell extends StatefulWidget {
   final ValueChanged<int>? onTabChanged;
   final Future<void> Function()? onOpenOrders;
   final Future<void> Function(String? orderId)? onOpenOrder;
+  final CustomerOrder? activeOrder;
   final StaffAccountSession? staff;
   final Future<void> Function()? onOpenStaffPortal, onStaffLogout;
 
@@ -264,6 +266,7 @@ class _MainShellState extends State<MainShell> {
         onOpenCatalog: _openCatalogFor,
         onOpenNotificationTab: _changeTab,
         onOpenOrders: widget.onOpenOrder,
+        activeOrder: widget.activeOrder,
       ),
       CatalogScreen(
         key: _catalogKey,
