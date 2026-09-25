@@ -12,6 +12,10 @@ on:
         type: choice
         options: [staging, stable]
         default: staging
+      allow_reviewed_icon_removal:
+        description: Preserve the installed font for the reviewed stock-label patch only
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -56,6 +60,7 @@ jobs:
       BUILD_MODE: release
       RELEASE_VERSION: ${{ inputs.release_version }}
       PATCH_TRACK: ${{ inputs.track }}
+      ALLOW_REVIEWED_ICON_REMOVAL: ${{ inputs.allow_reviewed_icon_removal }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Validate release and credentials
@@ -84,7 +89,20 @@ jobs:
         run: ruby ../scripts/apply-ios-device-profiles.rb
       - name: Build and publish compatible patch
         run: |
+          extra_args=()
+          if [[ "$ALLOW_REVIEWED_ICON_REMOVAL" == "true" ]]; then
+            # Run 36128398260 verified the only asset diff is MaterialIcons.
+            # This exact app tree only removes Icons.add_alert_rounded and
+            # Icons.notifications_active_rounded. The installed font contains
+            # all remaining glyphs. Fail closed for any other app source tree.
+            if [[ "$RELEASE_VERSION" != "1.0.8+43" || "$(git rev-parse HEAD:BulkaAndroid)" != "12282171a5b3469f0e5a2a924ebff2796b7ddf07" ]]; then
+              echo "::error::Icon-removal exception requires the reviewed 1.0.8+43 app tree."
+              exit 1
+            fi
+            extra_args+=(--allow-asset-diffs)
+          fi
           shorebird patch ios --release-version="$RELEASE_VERSION" \
+            "${extra_args[@]}" \
             --track="$PATCH_TRACK" \
             --build-name="${RELEASE_VERSION%+*}" \
             --build-number="${RELEASE_VERSION##*+}" \
