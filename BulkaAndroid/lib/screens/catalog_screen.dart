@@ -28,7 +28,6 @@ class _CatalogScreenState extends State<CatalogScreen>
     with WidgetsBindingObserver {
   static const _menuRefreshInterval = Duration(seconds: 60);
   static const _menuRetryInterval = Duration(seconds: 15);
-  DateTime? _lastMenuAttempt;
   bool _menuScopeReady = false;
   bool _wasActive = false;
   StreamSubscription<void>? _networkRecoverySubscription;
@@ -51,6 +50,7 @@ class _CatalogScreenState extends State<CatalogScreen>
   bool _favoritesOnly = false;
   Map<String, String> _apiCategoryImages = {};
   String? _openedCategory;
+  double _catalogContentExtent = 0;
   bool _orderTypeDialogOpen = false;
   String? _productPendingFulfillment;
   final _navigationGate = _AsyncActionGate();
@@ -111,6 +111,8 @@ class _CatalogScreenState extends State<CatalogScreen>
       busy: () => !_menuScopeReady || _activeMenuLoads > 0,
       active: () => mounted && (_wasActive || _productRouteOpen),
       acceptEvent: _matchesCatalogBranch,
+      // The retry timer already handles the healthy/offline intervals.
+      fallbackInterval: null,
     );
     _branchLive = _LiveRefresh(
       _api,
@@ -122,14 +124,20 @@ class _CatalogScreenState extends State<CatalogScreen>
     _networkRecoverySubscription = networkRecoveryEvents().listen(
       (_) => _refreshIfActive(),
     );
-    _autoRefreshTimer = Timer.periodic(_menuRetryInterval, (_) {
-      final interval = _usingCachedMenu || _loadError != null
-          ? _menuRetryInterval
-          : _menuRefreshInterval;
-      if (_lastMenuAttempt == null ||
-          DateTime.now().difference(_lastMenuAttempt!) >= interval) {
-        _refreshIfActive();
-      }
+    _scheduleMenuRefresh();
+  }
+
+  void _scheduleMenuRefresh() {
+    _autoRefreshTimer?.cancel();
+    if (!mounted) return;
+    final interval = _usingCachedMenu || _loadError != null
+        ? _menuRetryInterval
+        : _menuRefreshInterval;
+    _autoRefreshTimer = Timer(interval, () {
+      _refreshIfActive();
+      // Keep polling after a hidden tab skips a refresh. Completed requests
+      // restart this one timer with the latest healthy/offline interval.
+      _scheduleMenuRefresh();
     });
   }
 
@@ -225,7 +233,9 @@ class _CatalogScreenState extends State<CatalogScreen>
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) =>
-        _buildCatalogScreen(context, max(0.0, constraints.maxWidth - 32)),
+    builder: (context, constraints) {
+      _catalogContentExtent = max(0.0, constraints.maxWidth - 32);
+      return _buildCatalogScreen(context, _catalogContentExtent);
+    },
   );
 }

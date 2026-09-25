@@ -2175,7 +2175,7 @@ void main() {
         of: find.byType(FloatingNavBar),
         matching: find.byType(BackdropFilter),
       ),
-      findsOneWidget,
+      findsNothing,
     );
 
     final preorderClip = tester.widget<Material>(

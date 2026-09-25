@@ -18,7 +18,7 @@ class _LiveRefresh with WidgetsBindingObserver {
     this.busy,
     this.active,
     this.acceptEvent,
-    Duration fallbackInterval = const Duration(seconds: 60),
+    Duration? fallbackInterval = const Duration(seconds: 60),
   }) {
     _events = api.customerEvents.listen((event) {
       if (_dataEventMatches(event, domains) &&
@@ -28,7 +28,9 @@ class _LiveRefresh with WidgetsBindingObserver {
     });
     _network = networkRecoveryEvents().listen((_) => _recover());
     WidgetsBinding.instance.addObserver(this);
-    _fallback = Timer.periodic(fallbackInterval, (_) => request());
+    if (fallbackInterval != null) {
+      _fallback = Timer.periodic(fallbackInterval, (_) => request());
+    }
   }
 
   final BulkaApiClient api;

@@ -9,11 +9,9 @@ class PromosScreen extends StatefulWidget {
   State<PromosScreen> createState() => _PromosScreenState();
 }
 
-class _PromosScreenState extends State<PromosScreen>
-    with WidgetsBindingObserver {
+class _PromosScreenState extends State<PromosScreen> {
   List<PromoStory> _stories = const [];
   late final _LiveRefresh _live;
-  Timer? _refreshTimer;
   bool _loading = true;
   bool _refreshing = false;
   bool _loadFailed = false;
@@ -23,7 +21,6 @@ class _PromosScreenState extends State<PromosScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _live = _LiveRefresh(
       widget.api,
       {'content'},
@@ -31,23 +28,12 @@ class _PromosScreenState extends State<PromosScreen>
       busy: () => _refreshing,
     );
     unawaited(_load());
-    _refreshTimer = Timer.periodic(
-      const Duration(minutes: 1),
-      (_) => unawaited(_load(silent: true)),
-    );
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _live.dispose();
-    _refreshTimer?.cancel();
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_load(silent: true));
   }
 
   Future<void> _load({bool silent = false}) async {
@@ -163,60 +149,60 @@ class _PromosScreenState extends State<PromosScreen>
       ),
       body: SafeArea(
         top: false,
-        child: _loading
-            ? const _PromoCardsLoading()
-            : _loadFailed
-            ? _PromosState(
-                icon: Icons.cloud_off_outlined,
-                title: 'promos_load_failed'.tr,
-                actionLabel: 'retry_btn'.tr,
-                onAction: _load,
-              )
-            : groups.isEmpty
-            ? _PromosState(
-                icon: Icons.local_offer_outlined,
-                title: 'promos_empty'.tr,
-                actionLabel: 'refresh_btn'.tr,
-                onAction: _load,
-              )
-            : RefreshIndicator(
-                onRefresh: _load,
-                color: _caramel,
-                child: ScrollConfiguration(
-                  key: const ValueKey('promos-scroll-configuration'),
-                  behavior: ScrollConfiguration.of(
-                    context,
-                  ).copyWith(scrollbars: false),
-                  child: CustomScrollView(
-                    key: const PageStorageKey('promos-list'),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: _PromoTypeTabs(
-                          selectedType: _selectedType,
-                          onSelected: (value) =>
-                              setState(() => _selectedType = value),
+        child: LayoutBuilder(
+          builder: (context, constraints) => _loading
+              ? const _PromoCardsLoading()
+              : _loadFailed
+              ? _PromosState(
+                  icon: Icons.cloud_off_outlined,
+                  title: 'promos_load_failed'.tr,
+                  actionLabel: 'retry_btn'.tr,
+                  onAction: _load,
+                )
+              : groups.isEmpty
+              ? _PromosState(
+                  icon: Icons.local_offer_outlined,
+                  title: 'promos_empty'.tr,
+                  actionLabel: 'refresh_btn'.tr,
+                  onAction: _load,
+                )
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  color: _caramel,
+                  child: ScrollConfiguration(
+                    key: const ValueKey('promos-scroll-configuration'),
+                    behavior: ScrollConfiguration.of(
+                      context,
+                    ).copyWith(scrollbars: false),
+                    child: CustomScrollView(
+                      key: const PageStorageKey('promos-list'),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: [
+                        SliverToBoxAdapter(
+                          child: _PromoTypeTabs(
+                            selectedType: _selectedType,
+                            onSelected: (value) =>
+                                setState(() => _selectedType = value),
+                          ),
                         ),
-                      ),
-                      if (filteredGroups.isEmpty)
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: _PromoCategoryEmpty(
-                            showRefresh: groups.isEmpty,
-                            onRefresh: _load,
-                          ),
-                        )
-                      else
-                        SliverPadding(
-                          padding: EdgeInsets.fromLTRB(
-                            20,
-                            8,
-                            20,
-                            BulkaLayout.bottomNavContentInset(context),
-                          ),
-                          sliver: SliverLayoutBuilder(
-                            builder: (context, constraints) {
-                              if (constraints.crossAxisExtent < 720) {
+                        if (filteredGroups.isEmpty)
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: _PromoCategoryEmpty(
+                              showRefresh: groups.isEmpty,
+                              onRefresh: _load,
+                            ),
+                          )
+                        else
+                          SliverPadding(
+                            padding: EdgeInsets.fromLTRB(
+                              20,
+                              8,
+                              20,
+                              BulkaLayout.bottomNavContentInset(context),
+                            ),
+                            sliver: (() {
+                              if (constraints.maxWidth - 40 < 720) {
                                 return SliverList(
                                   delegate: SliverChildBuilderDelegate(
                                     (context, index) => Padding(
@@ -258,13 +244,13 @@ class _PromosScreenState extends State<PromosScreen>
                                   childCount: filteredGroups.length,
                                 ),
                               );
-                            },
+                            })(),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
+        ),
       ),
     );
   }

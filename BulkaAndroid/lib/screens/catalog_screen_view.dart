@@ -217,17 +217,13 @@ extension _CatalogScreenView on _CatalogScreenState {
                       _catalogContentBottomInset(context),
                     ),
                     sliver: (() {
-                      const spacing = 14.0;
-                      final extent = contentExtent;
-                      final columnCount = extent >= 980
-                          ? 4
-                          : extent >= 620
-                          ? 3
-                          : 2;
+                      final geometry = catalogCategoryGridGeometry(
+                        contentExtent,
+                      );
                       return _buildProductRows(
                         products,
-                        columnCount,
-                        spacing,
+                        geometry.columns,
+                        geometry.spacing,
                         key: ValueKey('catalog-category-grid-$category'),
                       );
                     })(),

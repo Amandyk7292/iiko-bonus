@@ -61,7 +61,6 @@ extension _CatalogDataController on _CatalogScreenState {
       return;
     }
     _activeMenuLoads++;
-    _lastMenuAttempt = DateTime.now();
     final revision = ++_menuLoadRevision;
     final endpoint = _menuEndpoint;
     final cacheKey = _menuCacheKey;
@@ -167,6 +166,7 @@ extension _CatalogDataController on _CatalogScreenState {
       });
     } finally {
       _activeMenuLoads--;
+      _scheduleMenuRefresh();
     }
   }
 
@@ -429,11 +429,12 @@ extension _CatalogDataController on _CatalogScreenState {
   }
 
   Future<void> _warmProductImages(List<CatalogProduct> products) async {
-    if (!mounted) return;
-    final logicalExtent = min(
-      217.0,
-      max(120.0, (MediaQuery.sizeOf(context).width - 44) / 2 - 18),
-    );
+    final category = _openedCategory;
+    if (!mounted || category == null || _catalogContentExtent <= 0) return;
+    // Use the actual category grid width, not a separate phone-only estimate.
+    final logicalExtent = catalogCategoryGridGeometry(
+      _catalogContentExtent,
+    ).cardExtent;
     final pixelSize = _imagePixelBucket(
       logicalExtent *
           networkImageDevicePixelRatio(
@@ -441,33 +442,36 @@ extension _CatalogDataController on _CatalogScreenState {
             isWeb: kIsWeb,
           ),
     );
-    final urls = products
-        .where((product) => !product.isStopListed)
+    final visibleProducts = _applyActiveProductFilters(
+      products.where((product) => product.category == category),
+      includeSearch: false,
+      includeFavorites: false,
+    );
+    final urls = visibleProducts
         .map((product) => product.imageUrl.trim())
         .where((url) => url.isNotEmpty)
         .toSet()
         .take(4);
-
-    await Future.wait(
-      urls.map((url) async {
-        final effectiveUrl = optimizedNetworkImageUrl(
-          url,
-          pixelWidth: pixelSize,
-          pixelHeight: pixelSize,
-          resizeMode: 'cover',
-        );
-        final provider = networkImageCacheProvider(
-          effectiveUrl,
-          pixelWidth: pixelSize,
-          pixelHeight: pixelSize,
-        );
-        try {
-          await precacheImage(provider, context);
-        } catch (_) {
-          // The normal image error state remains available in the card.
-        }
-      }),
-    );
+    // Avoid a burst of unrelated decodes while the user opens a category.
+    for (final url in urls) {
+      if (!mounted || category != _openedCategory) return;
+      final effectiveUrl = optimizedNetworkImageUrl(
+        url,
+        pixelWidth: pixelSize,
+        pixelHeight: pixelSize,
+        resizeMode: 'cover',
+      );
+      final provider = networkImageCacheProvider(
+        effectiveUrl,
+        pixelWidth: pixelSize,
+        pixelHeight: pixelSize,
+      );
+      try {
+        await precacheImage(provider, context);
+      } catch (_) {
+        // The normal image error state remains available in the card.
+      }
+    }
   }
 
   void _syncCartWithMenu(List<CatalogProduct> products) {

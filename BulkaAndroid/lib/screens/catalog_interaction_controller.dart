@@ -203,6 +203,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
     });
     _pendingClientUri = _CatalogScreenState._categoryClientUri(category);
     publishClientRoute(_pendingClientUri!);
+    unawaited(_warmProductImages(_allProducts));
   }
 
   List<MapEntry<String, List<CatalogProduct>>> get _categoryGroups {

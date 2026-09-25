@@ -168,7 +168,7 @@ class BulkaPressScale extends StatefulWidget {
     required this.child,
     this.enabled = true,
     this.pressedScale = 0.985,
-    this.pressedOpacity = 0.96,
+    this.pressedOpacity = 1,
     super.key,
   });
 
@@ -200,6 +200,7 @@ class _BulkaPressScaleState extends State<BulkaPressScale>
   late final AnimationController _scaleController =
       AnimationController.unbounded(vsync: this, value: 1);
   bool _pressed = false;
+  Offset? _pointerOrigin;
 
   void _setPressed(bool value) {
     if (!widget.enabled || _pressed == value) return;
@@ -223,11 +224,17 @@ class _BulkaPressScaleState extends State<BulkaPressScale>
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
+    if (!_pressed) return;
+    final origin = _pointerOrigin;
+    if (origin != null && (event.position - origin).distance > 18) {
+      _setPressed(false);
+      return;
+    }
     final renderObject = context.findRenderObject();
-    if (renderObject is! RenderBox) return;
-    _setPressed(
-      (Offset.zero & renderObject.size).contains(event.localPosition),
-    );
+    if (renderObject is RenderBox &&
+        !(Offset.zero & renderObject.size).contains(event.localPosition)) {
+      _setPressed(false);
+    }
   }
 
   @override
@@ -258,7 +265,10 @@ class _BulkaPressScaleState extends State<BulkaPressScale>
   Widget build(BuildContext context) {
     return Listener(
       behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => _setPressed(true),
+      onPointerDown: (event) {
+        _pointerOrigin = event.position;
+        _setPressed(true);
+      },
       onPointerMove: _handlePointerMove,
       onPointerUp: (_) => _setPressed(false),
       onPointerCancel: (_) => _setPressed(false),
@@ -275,7 +285,9 @@ class _BulkaPressScaleState extends State<BulkaPressScale>
           return Transform.scale(
             scale: scale,
             transformHitTests: false,
-            child: Opacity(opacity: opacity, child: child),
+            child: widget.pressedOpacity == 1
+                ? child
+                : Opacity(opacity: opacity, child: child),
           );
         },
       ),

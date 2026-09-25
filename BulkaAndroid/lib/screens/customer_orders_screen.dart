@@ -24,9 +24,7 @@ class CustomerOrdersScreen extends StatefulWidget {
   State<CustomerOrdersScreen> createState() => _CustomerOrdersScreenState();
 }
 
-class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
-    with WidgetsBindingObserver {
-  Timer? _refreshTimer;
+class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
   StreamSubscription<Map<String, dynamic>>? _pushOrderSubscription;
   late final _LiveRefresh _ordersLive;
   bool _loading = true;
@@ -48,8 +46,6 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     super.initState();
     _paymentReturnNotice = widget.paymentReturnNotice;
     _pendingInitialOrderId = widget.initialOrderId?.trim();
-    WidgetsBinding.instance.addObserver(this);
-    _startRefreshTimer();
     _pushOrderSubscription = PushNotifications.orderEvents.listen(
       (_) => unawaited(_load(silent: true)),
     );
@@ -65,35 +61,16 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       },
       () => _load(silent: true),
       busy: () => _refreshInFlight,
+      fallbackInterval: const Duration(seconds: 15),
     );
     unawaited(_load());
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _refreshTimer?.cancel();
     _pushOrderSubscription?.cancel();
     _ordersLive.dispose();
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _startRefreshTimer();
-      unawaited(_load(silent: true));
-    } else {
-      _refreshTimer?.cancel();
-    }
-  }
-
-  void _startRefreshTimer() {
-    _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(
-      const Duration(seconds: 15),
-      (_) => unawaited(_load(silent: true)),
-    );
   }
 
   Future<void> _load({bool silent = false}) async {

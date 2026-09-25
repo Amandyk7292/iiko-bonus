@@ -451,12 +451,11 @@ class FloatingNavBar extends StatelessWidget {
     final compact = BulkaLayout.compactNavigation(context);
     final narrow = MediaQuery.sizeOf(context).width < 360;
     final highContrast = MediaQuery.highContrastOf(context);
-    final useBlur = !kIsWeb && !highContrast && !BulkaMotion.reduced(context);
     final bar = Container(
       height: BulkaLayout.navigationBarHeight(context) + safeBottom,
       padding: EdgeInsets.only(bottom: safeBottom),
       decoration: BoxDecoration(
-        color: scheme.surface.withValues(alpha: useBlur ? 0.84 : 1),
+        color: scheme.surface,
         border: Border(
           top: BorderSide(
             color: highContrast
@@ -504,13 +503,9 @@ class FloatingNavBar extends StatelessWidget {
         ),
       ),
     );
-    if (!useBlur) return bar;
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: bar,
-      ),
-    );
+    // A live backdrop samples scrolling content on every raster frame.
+    // Keep navigation independently paintable across all customer tabs.
+    return RepaintBoundary(child: bar);
   }
 }
 
