@@ -46,8 +46,6 @@ class _CatalogScreenState extends State<CatalogScreen>
   Set<String> _dietaryFilters = const {};
   Set<String> _excludedAllergens = const {};
   Set<String> _favoriteProductIds = const {};
-  Map<String, StockSubscription> _stockSubscriptions = const {};
-  Set<String> _stockSubscriptionBusy = const {};
   Set<String> _configurableProductIds = const {};
   Set<String> _resolvedProductOptionIds = const {};
   bool _favoritesOnly = false;
@@ -106,7 +104,6 @@ class _CatalogScreenState extends State<CatalogScreen>
       }),
     );
     unawaited(_loadFavorites());
-    unawaited(_loadStockSubscriptions());
     _menuLive = _LiveRefresh(
       _api,
       {'menu', 'locations', 'menu.updated'},

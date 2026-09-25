@@ -6,9 +6,6 @@ extension _CatalogProductCard on _CatalogScreenState {
     final scheme = Theme.of(context).colorScheme;
     final favorite = _favoriteProductIds.contains(product.id);
     final unavailable = product.isStopListed;
-    final stockKey = _stockSubscriptionKey(product.id, _selectedBakeryId);
-    final stockSubscribed = _stockSubscriptions.containsKey(stockKey);
-    final stockBusy = _stockSubscriptionBusy.contains(stockKey);
     return Semantics(
       container: true,
       explicitChildNodes: true,
@@ -87,7 +84,7 @@ extension _CatalogProductCard on _CatalogScreenState {
                   ),
                 ),
               ),
-              if (!unavailable && product.badges.isNotEmpty)
+              if (product.badges.isNotEmpty)
                 Positioned(
                   left: 8,
                   top: 8,
@@ -96,38 +93,8 @@ extension _CatalogProductCard on _CatalogScreenState {
                     child: ProductBadgeChips(badges: product.badges),
                   ),
                 ),
-              if (unavailable)
-                Positioned(
-                  left: 8,
-                  top: 8,
-                  child: ExcludeSemantics(
-                    child: Container(
-                      key: ValueKey('catalog-stop-list-${product.id}'),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0EEEB).withValues(alpha: 0.96),
-                        borderRadius: BorderRadius.circular(BulkaRadii.small),
-                        border: Border.all(
-                          color: colors.cardBorder,
-                          width: BulkaStrokes.hairline,
-                        ),
-                      ),
-                      child: Text(
-                        'catalog_stop_list'.tr,
-                        style: TextStyle(
-                          color: colors.mutedText,
-                          fontFamily: _descriptionFont,
-                          fontSize: BulkaTypeScale.badge,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
               Positioned(
+                left: unavailable ? 0 : null,
                 right: 7,
                 bottom: -20,
                 child: AnimatedSwitcher(
@@ -142,47 +109,37 @@ extension _CatalogProductCard on _CatalogScreenState {
                     child: ScaleTransition(scale: animation, child: child),
                   ),
                   child: unavailable
-                      ? Semantics(
-                          key: ValueKey('catalog-stock-notify-${product.id}'),
-                          button: true,
-                          toggled: stockSubscribed,
-                          label: stockSubscribed
-                              ? 'stock_notify_enabled'.tr
-                              : 'stock_notify_enable'.tr,
-                          child: IconButton.filled(
-                            key: ValueKey('stock-notify-${product.id}'),
-                            tooltip: stockSubscribed
-                                ? 'stock_notify_enabled'.tr
-                                : 'stock_notify_enable'.tr,
-                            onPressed: stockBusy
-                                ? null
-                                : () => unawaited(
-                                    _toggleStockSubscription(product),
-                                  ),
-                            style: IconButton.styleFrom(
-                              minimumSize: const Size(48, 48),
-                              backgroundColor: stockSubscribed
-                                  ? colors.brandBrown
-                                  : _bulkaYellow,
-                              foregroundColor: stockSubscribed
-                                  ? Colors.white
-                                  : _textDark,
-                              disabledBackgroundColor: colors.disabledSurface,
-                              disabledForegroundColor: colors.mutedText,
+                      ? ExcludeSemantics(
+                          key: ValueKey('catalog-stop-list-${product.id}'),
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Container(
+                              constraints: const BoxConstraints(minHeight: 40),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 9,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF0EEEB),
+                                borderRadius: BorderRadius.circular(
+                                  BulkaRadii.small,
+                                ),
+                                border: Border.all(
+                                  color: colors.cardBorder,
+                                  width: BulkaStrokes.hairline,
+                                ),
+                              ),
+                              child: Text(
+                                'catalog_stop_list'.tr,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: colors.mutedText,
+                                  fontFamily: _descriptionFont,
+                                  fontSize: BulkaTypeScale.badge,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
-                            icon: stockBusy
-                                ? SizedBox.square(
-                                    dimension: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: colors.brandBrown,
-                                    ),
-                                  )
-                                : Icon(
-                                    stockSubscribed
-                                        ? Icons.notifications_active_rounded
-                                        : Icons.add_alert_rounded,
-                                  ),
                           ),
                         )
                       : _CatalogImageQuantityControl(
