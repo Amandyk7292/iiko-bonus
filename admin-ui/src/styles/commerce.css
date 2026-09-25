@@ -139,7 +139,7 @@
 }
 .kitchen-board {
   display: grid;
-  grid-template-columns: repeat(3, minmax(260px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   align-items: start;
   overflow-x: auto;

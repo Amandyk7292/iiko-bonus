@@ -77,6 +77,7 @@
     box-sizing: border-box;
   }
   html {
+    touch-action: manipulation;
     min-width: 320px;
     max-width: 100%;
     overflow-x: hidden;
@@ -292,6 +293,9 @@
 
   .sagi-shell {
     display: block;
+    width: 100%;
+    min-width: 0;
+    overflow-x: clip;
   }
   .sagi-sidebar {
     transform: translateX(-102%);
@@ -1993,6 +1997,21 @@
 }
 
 @media (max-width: 767px) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    overflow-x: clip;
+  }
+  .sagi-page > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
   .location-city-filter {
     align-items: stretch;
     flex-direction: column;
