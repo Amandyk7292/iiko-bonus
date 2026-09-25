@@ -83,6 +83,10 @@ test('guest menu starts override reads before slow iiko completes and preserves 
       return [];
     });
   }
+  t.mock.method(require('../src/services/product-badges.service'), 'publicBadgeMap', async () => {
+    started.push('publicBadgeMap');
+    return new Map();
+  });
   const res = response();
   const request = handler({ query: {}, headers: {} }, res);
   await new Promise(setImmediate);
@@ -90,7 +94,8 @@ test('guest menu starts override reads before slow iiko completes and preserves 
   const startedBeforeMenu = [...started];
   finishMenu(menu);
   await request;
-  assert.equal(startedBeforeMenu.length, 3);
+  assert.equal(startedBeforeMenu.length, 4);
+  assert.ok(startedBeforeMenu.includes('publicBadgeMap'));
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.products[0].price, 300);
   assert.equal(res.body.products[0].onlineOrderable, false);

@@ -768,6 +768,7 @@ router.get('/api/guest/menu', async (req, res) => {
       categoryOverrides,
       customProducts,
       branchAvailability,
+      productBadges,
     ] = await Promise.all([
       // Keep iiko authentication ordered while fetching independent database
       // sources concurrently with its remote menu request.
@@ -787,12 +788,12 @@ router.get('/api/guest/menu', async (req, res) => {
       branchId
         ? getBranchAvailability(branchId, { strict: true, preorder: orderType === 'preorder' })
         : Promise.resolve(new Map()),
+      require('../services/product-badges.service').publicBadgeMap(),
     ]);
     const rawGroups = Array.isArray(rawMenu.groups) ? rawMenu.groups : [];
     const rawProducts = Array.isArray(rawMenu.products) ? rawMenu.products : [];
 
     const prodOverridesMap = new Map(productOverrides.map((o) => [o.iiko_product_id, o]));
-    const productBadges = await require('../services/product-badges.service').publicBadgeMap();
     const catOverridesMap = new Map(categoryOverrides.map((o) => [o.iiko_category_id, o]));
     const branchSupportsOrderType =
       !branchSettings ||
