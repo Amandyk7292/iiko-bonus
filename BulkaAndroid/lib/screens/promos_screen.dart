@@ -105,9 +105,7 @@ class _PromosScreenState extends State<PromosScreen> {
     await _navigationGate.run(() async {
       await showModalBottomSheet<void>(
         context: context,
-        sheetAnimationStyle: BulkaMotion.reduced(context)
-            ? AnimationStyle.noAnimation
-            : null,
+        sheetAnimationStyle: BulkaMotion.sheetStyle(context),
         useRootNavigator: true,
         isScrollControlled: true,
         backgroundColor: Colors.white,

@@ -5,9 +5,8 @@ extension _CatalogScreenLayout on _CatalogScreenState {
     final cart = context.watch<CartProvider>();
     final openedCategory = _openedCategory;
     if (openedCategory != null) {
-      return BulkaMotionSwitcher(
-        duration: BulkaMotion.emphasized,
-        offset: const Offset(0.025, 0),
+      return BulkaPageSwitcher(
+        reverse: false,
         child: KeyedSubtree(
           key: ValueKey('catalog-category-$openedCategory'),
           child: _buildCategoryPage(openedCategory, cart, contentExtent),
@@ -44,9 +43,8 @@ extension _CatalogScreenLayout on _CatalogScreenState {
         ? '$_fulfillmentSourceLabel: $fulfillmentSourceText'
         : fulfillmentSourceText;
 
-    return BulkaMotionSwitcher(
-      duration: BulkaMotion.emphasized,
-      offset: const Offset(0.025, 0),
+    return BulkaPageSwitcher(
+      reverse: true,
       child: KeyedSubtree(
         key: const ValueKey('catalog-root'),
         child: Scaffold(

@@ -79,6 +79,29 @@ void main() {
     );
   });
 
+  testWidgets(
+    'category back keeps both pages through a directional transition',
+    (tester) async {
+      await _pumpCategory(tester);
+      await tester.tap(find.byKey(const ValueKey('catalog-category-back')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120));
+      final root = find.byKey(const ValueKey('catalog-root'));
+      expect(
+        find.byKey(const ValueKey('catalog-category-page-Булочки')),
+        findsOneWidget,
+      );
+      expect(tester.getTopLeft(root).dx, inExclusiveRange(-100, 0));
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(root).dx, closeTo(0, 0.1));
+      expect(
+        find.byKey(const ValueKey('catalog-category-page-Булочки')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('category scrolling keeps existing product widgets', (
     tester,
   ) async {

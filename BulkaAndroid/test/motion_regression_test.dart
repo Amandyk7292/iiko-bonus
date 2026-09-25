@@ -114,6 +114,46 @@ void main() {
     });
   }
 
+  testWidgets('ordinary iOS pages animate the back arrow for 420ms', (
+    tester,
+  ) async {
+    late MaterialPageRoute<void> route;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme().copyWith(platform: TargetPlatform.iOS),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () {
+                route = MaterialPageRoute<void>(
+                  builder: (_) => Scaffold(
+                    appBar: AppBar(title: const Text('Details')),
+                    body: const Text('Second screen'),
+                  ),
+                );
+                Navigator.of(context).push(route);
+              },
+              child: const Text('Open page'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open page'));
+    await tester.pumpAndSettle();
+    expect(route.transitionDuration, const Duration(milliseconds: 420));
+    expect(route.reverseTransitionDuration, const Duration(milliseconds: 420));
+    await tester.tap(find.byType(BackButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(route.animation!.status, AnimationStatus.reverse);
+    expect(route.animation!.value, inExclusiveRange(0, 1));
+    expect(find.text('Second screen'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('Second screen'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('avatar sheet opens and closes without motion when requested', (
     tester,
   ) async {

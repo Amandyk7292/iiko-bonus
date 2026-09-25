@@ -156,16 +156,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
-        sheetAnimationStyle: AnimationStyle(
-          duration: BulkaMotion.duration(
-            context,
-            const Duration(milliseconds: 300),
-          ),
-          reverseDuration: BulkaMotion.duration(
-            context,
-            const Duration(milliseconds: 240),
-          ),
-        ),
+        sheetAnimationStyle: BulkaMotion.sheetStyle(context),
         builder: (sheetContext) => FractionallySizedBox(
           heightFactor: 0.9,
           child: _CatalogFilterScreen(

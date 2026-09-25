@@ -782,9 +782,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     await _sheetGate.run(() async {
       await showModalBottomSheet<void>(
         context: context,
-        sheetAnimationStyle: BulkaMotion.reduced(context)
-            ? AnimationStyle.noAnimation
-            : null,
+        sheetAnimationStyle: BulkaMotion.sheetStyle(context),
         isScrollControlled: true,
         useSafeArea: true,
         backgroundColor: Colors.white,

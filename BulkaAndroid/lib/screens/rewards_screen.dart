@@ -150,9 +150,7 @@ class _RewardsScreenState extends State<RewardsScreen> {
   Future<void> _purchaseGift() async {
     final result = await showModalBottomSheet<_GiftPurchaseResult>(
       context: context,
-      sheetAnimationStyle: BulkaMotion.reduced(context)
-          ? AnimationStyle.noAnimation
-          : null,
+      sheetAnimationStyle: BulkaMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => _GiftCertificatePurchaseSheet(
