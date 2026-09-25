@@ -120,7 +120,11 @@ extension _CatalogScreenView on _CatalogScreenState {
     );
   }
 
-  Widget _buildCategoryPage(String category, CartProvider cart) {
+  Widget _buildCategoryPage(
+    String category,
+    CartProvider cart,
+    double contentExtent,
+  ) {
     final allProducts = _stopListedLast(
       catalogProductsAlphabetically(
         _allProducts.where((product) => product.category == category),
@@ -212,23 +216,21 @@ extension _CatalogScreenView on _CatalogScreenState {
                       16,
                       _catalogContentBottomInset(context),
                     ),
-                    sliver: SliverLayoutBuilder(
-                      builder: (context, constraints) {
-                        const spacing = 14.0;
-                        final extent = constraints.crossAxisExtent;
-                        final columnCount = extent >= 980
-                            ? 4
-                            : extent >= 620
-                            ? 3
-                            : 2;
-                        return _buildProductRows(
-                          products,
-                          columnCount,
-                          spacing,
-                          key: ValueKey('catalog-category-grid-$category'),
-                        );
-                      },
-                    ),
+                    sliver: (() {
+                      const spacing = 14.0;
+                      final extent = contentExtent;
+                      final columnCount = extent >= 980
+                          ? 4
+                          : extent >= 620
+                          ? 3
+                          : 2;
+                      return _buildProductRows(
+                        products,
+                        columnCount,
+                        spacing,
+                        key: ValueKey('catalog-category-grid-$category'),
+                      );
+                    })(),
                   ),
               ],
             ),

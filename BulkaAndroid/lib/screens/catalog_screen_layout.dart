@@ -1,7 +1,7 @@
 part of '../main.dart';
 
 extension _CatalogScreenLayout on _CatalogScreenState {
-  Widget _buildCatalogScreen(BuildContext context) {
+  Widget _buildCatalogScreen(BuildContext context, double contentExtent) {
     final cart = context.watch<CartProvider>();
     final openedCategory = _openedCategory;
     if (openedCategory != null) {
@@ -10,7 +10,7 @@ extension _CatalogScreenLayout on _CatalogScreenState {
         offset: const Offset(0.025, 0),
         child: KeyedSubtree(
           key: ValueKey('catalog-category-$openedCategory'),
-          child: _buildCategoryPage(openedCategory, cart),
+          child: _buildCategoryPage(openedCategory, cart, contentExtent),
         ),
       );
     }
@@ -33,7 +33,8 @@ extension _CatalogScreenLayout on _CatalogScreenState {
         !hasSearchQuery &&
         _selectedCategory == _catalogAllCategoryKey &&
         !filterActive;
-    final branchName = _selectedBakeryLocation?.name.trim() ??
+    final branchName =
+        _selectedBakeryLocation?.name.trim() ??
         _selectedBakery.split(',').first.trim();
     final fulfillmentSourceText = _orderType == 'delivery'
         ? (_selectedDeliveryAddress?.displayAddress ??
@@ -97,8 +98,7 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                               ),
                               child: Semantics(
                                 button: true,
-                                label:
-                                    '$_catalogMenuTitle. $sourceCaption',
+                                label: '$_catalogMenuTitle. $sourceCaption',
                                 child: BulkaPressScale(
                                   child: Material(
                                     color: Colors.transparent,
@@ -368,68 +368,66 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                           16,
                           _catalogContentBottomInset(context),
                         ),
-                        sliver: SliverLayoutBuilder(
-                          builder: (context, constraints) {
-                            const spacing = 14.0;
-                            final extent = constraints.crossAxisExtent;
-                            final largeText =
-                                MediaQuery.textScalerOf(context).scale(1) > 1.3;
-                            final columnCount = largeText && extent < 620
-                                ? 1
-                                : extent >= 980
-                                ? 4
-                                : extent >= 620
-                                ? 3
-                                : 2;
-                            final cardWidth =
-                                (extent - spacing * (columnCount - 1)) /
-                                columnCount;
-                            final textScale = MediaQuery.textScalerOf(
-                              context,
-                            ).scale(1);
-                            var titleHeight = 0.0;
-                            for (final group in categoryGroups) {
-                              final painter = TextPainter(
-                                text: TextSpan(
-                                  text: group.key,
-                                  style: const TextStyle(
-                                    fontFamily: _descriptionFont,
-                                    fontSize: BulkaTypeScale.body,
-                                    height: 1.16,
-                                    fontWeight: FontWeight.w700,
+                        sliver: (() {
+                          const spacing = 14.0;
+                          final extent = contentExtent;
+                          final largeText =
+                              MediaQuery.textScalerOf(context).scale(1) > 1.3;
+                          final columnCount = largeText && extent < 620
+                              ? 1
+                              : extent >= 980
+                              ? 4
+                              : extent >= 620
+                              ? 3
+                              : 2;
+                          final cardWidth =
+                              (extent - spacing * (columnCount - 1)) /
+                              columnCount;
+                          final textScale = MediaQuery.textScalerOf(
+                            context,
+                          ).scale(1);
+                          var titleHeight = 0.0;
+                          for (final group in categoryGroups) {
+                            final painter = TextPainter(
+                              text: TextSpan(
+                                text: group.key,
+                                style: const TextStyle(
+                                  fontFamily: _descriptionFont,
+                                  fontSize: BulkaTypeScale.body,
+                                  height: 1.16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              textDirection: Directionality.of(context),
+                              textScaler: MediaQuery.textScalerOf(context),
+                            )..layout(maxWidth: max(1, cardWidth - 32));
+                            titleHeight = max(titleHeight, painter.height);
+                            painter.dispose();
+                          }
+                          return SliverGrid(
+                            key: const ValueKey('catalog-category-grid'),
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: columnCount,
+                                  mainAxisSpacing: spacing,
+                                  crossAxisSpacing: spacing,
+                                  mainAxisExtent: max(
+                                    cardWidth + (textScale > 1.2 ? 24 : 0),
+                                    titleHeight + 88,
                                   ),
                                 ),
-                                textDirection: Directionality.of(context),
-                                textScaler: MediaQuery.textScalerOf(context),
-                              )..layout(maxWidth: max(1, cardWidth - 32));
-                              titleHeight = max(titleHeight, painter.height);
-                              painter.dispose();
-                            }
-                            return SliverGrid(
-                              key: const ValueKey('catalog-category-grid'),
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: columnCount,
-                                    mainAxisSpacing: spacing,
-                                    crossAxisSpacing: spacing,
-                                    mainAxisExtent: max(
-                                      cardWidth + (textScale > 1.2 ? 24 : 0),
-                                      titleHeight + 88,
-                                    ),
-                                  ),
-                              delegate: SliverChildBuilderDelegate((
-                                context,
-                                index,
-                              ) {
-                                final group = categoryGroups[index];
-                                return _buildCategoryGridCard(
-                                  group.key,
-                                  group.value,
-                                );
-                              }, childCount: categoryGroups.length),
-                            );
-                          },
-                        ),
+                            delegate: SliverChildBuilderDelegate((
+                              context,
+                              index,
+                            ) {
+                              final group = categoryGroups[index];
+                              return _buildCategoryGridCard(
+                                group.key,
+                                group.value,
+                              );
+                            }, childCount: categoryGroups.length),
+                          );
+                        })(),
                       )
                     else
                       SliverPadding(
@@ -439,23 +437,21 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                           16,
                           _catalogContentBottomInset(context),
                         ),
-                        sliver: SliverLayoutBuilder(
-                          builder: (context, constraints) {
-                            const maxCardWidth = 235.0;
-                            const crossSpacing = 12.0;
-                            final columnCount = max(
-                              1,
-                              ((constraints.crossAxisExtent + crossSpacing) /
-                                      (maxCardWidth + crossSpacing))
-                                  .ceil(),
-                            ).toInt();
-                            return _buildProductRows(
-                              visibleProducts,
-                              columnCount,
-                              crossSpacing,
-                            );
-                          },
-                        ),
+                        sliver: (() {
+                          const maxCardWidth = 235.0;
+                          const crossSpacing = 12.0;
+                          final columnCount = max(
+                            1,
+                            ((contentExtent + crossSpacing) /
+                                    (maxCardWidth + crossSpacing))
+                                .ceil(),
+                          ).toInt();
+                          return _buildProductRows(
+                            visibleProducts,
+                            columnCount,
+                            crossSpacing,
+                          );
+                        })(),
                       ),
                     if (needsBakerySelection ||
                         _isLoading ||

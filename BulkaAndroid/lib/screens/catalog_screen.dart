@@ -227,5 +227,8 @@ class _CatalogScreenState extends State<CatalogScreen>
   /// Тихое обновление — без спиннера, данные просто подменяются
 
   @override
-  Widget build(BuildContext context) => _buildCatalogScreen(context);
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) =>
+        _buildCatalogScreen(context, max(0.0, constraints.maxWidth - 32)),
+  );
 }
