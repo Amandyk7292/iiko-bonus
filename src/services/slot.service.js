@@ -65,7 +65,9 @@ async function listAvailableSlots({
     Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate()) +
     (orderType === 'preorder' ? Math.floor(productBounds.minimumHours / 24) * 86400000 : 0);
   const queryStart = new Date(startLocalDay - safeOffset * 60000).toISOString();
-  const queryEnd = new Date(startLocalDay + safeDays * 86400000 - safeOffset * 60000).toISOString();
+  const queryEnd = new Date(
+    startLocalDay + (safeDays + 1) * 86400000 - safeOffset * 60000,
+  ).toISOString();
   const { data: reservations, error: reservationsError } = await supabase
     .from('fulfillment_slot_reservations')
     .select('scheduled_at,status,expires_at')
@@ -98,21 +100,25 @@ async function listAvailableSlots({
   const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
   const slots = [];
 
-  for (let dayOffset = 0; dayOffset < safeDays; dayOffset += 1) {
+  const emitted = new Set();
+  for (let dayOffset = -1; dayOffset < safeDays; dayOffset += 1) {
     const localDayMs = startLocalDay + dayOffset * 86400000;
     const localDay = new Date(localDayMs);
     const schedule = location.hours?.[dayKeys[localDay.getUTCDay()]] || location.hours?.daily;
     if (!schedule || schedule.closed === true) continue;
     const open = parseClock(schedule.open);
-    const close = parseClock(schedule.close);
-    if (open == null || close == null || open >= close) continue;
+    let close = parseClock(schedule.close);
+    if (open == null || close == null || open === close || open === 1440) continue;
+    if (close < open) close += 1440;
     const first = Math.ceil(open / interval) * interval;
     for (let minute = first; minute < close; minute += interval) {
       const instant = new Date(localDayMs + minute * 60000 - safeOffset * 60000);
       if (instant.getTime() < earliest || instant.getTime() > productBounds.latest) continue;
       const key = instant.toISOString();
+      if (instant.getTime() < new Date(queryStart).getTime() || emitted.has(key)) continue;
       const used = held.get(key) || 0;
       if (used >= capacity) continue;
+      emitted.add(key);
       slots.push({
         startsAt: key,
         endsAt: new Date(

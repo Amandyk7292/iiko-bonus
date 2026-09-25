@@ -571,12 +571,12 @@ const clockSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 const dayHoursSchema = z
   .object({
     open: clockSchema,
-    close: clockSchema,
+    close: z.union([clockSchema, z.literal('24:00')]),
     closed: z.boolean().optional(),
   })
   .strict()
-  .refine((value) => value.closed === true || value.open < value.close, {
-    message: 'Время закрытия должно быть позже времени открытия',
+  .refine((value) => value.closed === true || value.open !== value.close, {
+    message: 'Время открытия и закрытия не должно совпадать',
   });
 const hoursSchema = z
   .object({

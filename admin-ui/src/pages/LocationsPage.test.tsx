@@ -36,6 +36,27 @@ const branch = {
   deliveryEnabled: false,
   hours: { daily: { open: '08:00', close: '21:00' } },
 };
+it('saves a branch closing at 02:00 the following day', async () => {
+  api.getFulfillmentLocations.mockResolvedValue({
+    locations: [{ ...branch, hours: { daily: { open: '08:00', close: '02:00' } } }],
+  });
+  const user = userEvent.setup();
+  render(
+    <BrowserRouter>
+      <I18nProvider>
+        <LocationsPage user={null} />
+      </I18nProvider>
+    </BrowserRouter>,
+  );
+  await user.click(await screen.findByRole('button', { name: 'Редактировать' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Сохранить' }));
+  await waitFor(() =>
+    expect(api.updateFulfillmentLocation).toHaveBeenCalledWith(
+      branch.id,
+      expect.objectContaining({ hours: { daily: { open: '08:00', close: '02:00' } } }),
+    ),
+  );
+});
 beforeEach(() => {
   localStorage.setItem('adminLocale', 'ru');
   api.getFulfillmentLocations.mockResolvedValue({ locations: [branch] });
