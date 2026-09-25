@@ -533,7 +533,7 @@ class _GiftCertificatePurchaseSheetState
   }
 
   Future<void> _submit() async {
-    if (_submitting || !_formKey.currentState!.validate()) return;
+    if (_submitting || !validateBulkaForm(_formKey)) return;
     final amount = _amount;
     final phone = _normalizedPhone;
     if (amount == null || amount < 500 || phone == null) return;

@@ -61,10 +61,10 @@ void main() {
       findsNothing,
     );
 
-    final selectedIndicator = tester.widget<AnimatedContainer>(
+    final selectedIndicator = tester.widget<DecoratedBox>(
       find.descendant(
-        of: find.byKey(const ValueKey('nav-1')),
-        matching: find.byType(AnimatedContainer),
+        of: find.byKey(const ValueKey('nav-selection-indicator')),
+        matching: find.byType(DecoratedBox),
       ),
     );
     final idleCartIndicator = tester.widget<AnimatedContainer>(
@@ -73,11 +73,8 @@ void main() {
         matching: find.byType(AnimatedContainer),
       ),
     );
-    expect(
-      (selectedIndicator.decoration! as BoxDecoration).gradient,
-      isNotNull,
-    );
-    final selectedDecoration = selectedIndicator.decoration! as BoxDecoration;
+    expect((selectedIndicator.decoration as BoxDecoration).gradient, isNotNull);
+    final selectedDecoration = selectedIndicator.decoration as BoxDecoration;
     expect(selectedDecoration.border, isNotNull);
     expect(
       (selectedDecoration.border! as Border).top.width,

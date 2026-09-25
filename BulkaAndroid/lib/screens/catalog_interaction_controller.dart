@@ -148,9 +148,27 @@ extension _CatalogInteractionController on _CatalogScreenState {
 
   Future<void> _openFilterModal() async {
     await _navigationGate.run(() async {
-      final result = await Navigator.of(context).push<_CatalogFilterResult>(
-        MaterialPageRoute(
-          builder: (_) => _CatalogFilterScreen(
+      final result = await showModalBottomSheet<_CatalogFilterResult>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        clipBehavior: Clip.antiAlias,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        sheetAnimationStyle: AnimationStyle(
+          duration: BulkaMotion.duration(
+            context,
+            const Duration(milliseconds: 300),
+          ),
+          reverseDuration: BulkaMotion.duration(
+            context,
+            const Duration(milliseconds: 240),
+          ),
+        ),
+        builder: (sheetContext) => FractionallySizedBox(
+          heightFactor: 0.9,
+          child: _CatalogFilterScreen(
             initialSort: _sort,
             dietaryTags: _availableDietaryTags,
             allergens: _availableAllergens,
@@ -169,11 +187,13 @@ extension _CatalogInteractionController on _CatalogScreenState {
   }
 
   void _clearSearch() {
+    _searchDebounce?.cancel();
     _searchController.clear();
     _updateCatalogState(() => _searchQuery = '');
   }
 
   void _resetCatalogFilters() {
+    _searchDebounce?.cancel();
     _searchController.clear();
     _updateCatalogState(() {
       _searchQuery = '';

@@ -434,7 +434,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
       _showLocationError(message);
       return;
     }
-    if (!_formKey.currentState!.validate()) return;
+    if (!validateBulkaForm(_formKey)) return;
     Navigator.of(context).pop(
       DeliveryAddress(
         id:

@@ -25,7 +25,7 @@ class CatalogScreen extends StatefulWidget {
 }
 
 class _CatalogScreenState extends State<CatalogScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   static const _menuRefreshInterval = Duration(seconds: 60);
   static const _menuRetryInterval = Duration(seconds: 15);
   bool _menuScopeReady = false;
@@ -33,6 +33,9 @@ class _CatalogScreenState extends State<CatalogScreen>
   StreamSubscription<void>? _networkRecoverySubscription;
 
   final _searchController = TextEditingController();
+  Timer? _searchDebounce;
+  late final AnimationController _categoryEntrance;
+  double _catalogViewportHeight = 0;
   final ValueNotifier<Map<String, CatalogProduct>> _liveProducts =
       ValueNotifier(const {});
   String _selectedBakery = '';
@@ -93,6 +96,11 @@ class _CatalogScreenState extends State<CatalogScreen>
   @override
   void initState() {
     super.initState();
+    _categoryEntrance = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+      value: 1,
+    );
     WidgetsBinding.instance.addObserver(this);
     appLanguageNotifier.addListener(_onLanguageChanged);
     _pendingClientUri = widget.initialClientUri;
@@ -151,6 +159,7 @@ class _CatalogScreenState extends State<CatalogScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (BulkaMotion.reduced(context)) _categoryEntrance.value = 1;
     final active = TickerMode.of(context);
     if (active && !_wasActive) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _refreshIfActive());
@@ -169,7 +178,33 @@ class _CatalogScreenState extends State<CatalogScreen>
   static String _formatPrice(BuildContext context, int price) =>
       formatUiInteger(context, price);
 
-  void _updateCatalogState(VoidCallback update) => setState(update);
+  void _updateCatalogState(VoidCallback update) {
+    final previousCategory = _openedCategory;
+    setState(update);
+    if (_openedCategory != null && _openedCategory != previousCategory) {
+      if (BulkaMotion.reduced(context)) {
+        _categoryEntrance.value = 1;
+      } else {
+        _categoryEntrance.forward(from: 0);
+      }
+    }
+  }
+
+  void _queueSearch(String value) {
+    _searchDebounce?.cancel();
+    if (value.isEmpty) {
+      _updateCatalogState(() => _searchQuery = '');
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 180), () {
+      if (mounted) _updateCatalogState(() => _searchQuery = value);
+    });
+  }
+
+  void _submitSearch(String value) {
+    _searchDebounce?.cancel();
+    _updateCatalogState(() => _searchQuery = value);
+  }
 
   void _onLanguageChanged() {
     _loadMenu();
@@ -183,6 +218,7 @@ class _CatalogScreenState extends State<CatalogScreen>
         oldWidget.selectionRevision == widget.selectionRevision) {
       return;
     }
+    _searchDebounce?.cancel();
     setState(() {
       _menuScopeReady = false;
       _menuLoadRevision++;
@@ -215,6 +251,8 @@ class _CatalogScreenState extends State<CatalogScreen>
     _networkRecoverySubscription?.cancel();
     _menuLive.dispose();
     _branchLive.dispose();
+    _searchDebounce?.cancel();
+    _categoryEntrance.dispose();
     _searchController.dispose();
     _liveProducts.dispose();
     WidgetsBinding.instance.removeObserver(this);
@@ -234,6 +272,7 @@ class _CatalogScreenState extends State<CatalogScreen>
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
+      _catalogViewportHeight = constraints.maxHeight;
       _catalogContentExtent = max(0.0, constraints.maxWidth - 32);
       return _buildCatalogScreen(context, _catalogContentExtent);
     },

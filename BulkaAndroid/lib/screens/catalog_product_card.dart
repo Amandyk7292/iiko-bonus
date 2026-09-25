@@ -75,12 +75,7 @@ extension _CatalogProductCard on _CatalogScreenState {
                       ),
                       shape: const CircleBorder(),
                     ),
-                    icon: Icon(
-                      favorite
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      size: 23,
-                    ),
+                    icon: BulkaFavoriteGlyph(selected: favorite, size: 23),
                   ),
                 ),
               ),
@@ -94,7 +89,7 @@ extension _CatalogProductCard on _CatalogScreenState {
                   ),
                 ),
               Positioned(
-                left: unavailable ? 0 : null,
+                left: 0,
                 right: 7,
                 bottom: -20,
                 child: AnimatedSwitcher(
@@ -102,7 +97,15 @@ extension _CatalogProductCard on _CatalogScreenState {
                     context,
                     const Duration(milliseconds: 220),
                   ),
-                  switchInCurve: Curves.easeOutBack,
+                  layoutBuilder: (current, previous) => Stack(
+                    alignment: Alignment.centerRight,
+                    children: [
+                      for (final child in previous)
+                        ExcludeSemantics(child: IgnorePointer(child: child)),
+                      ?current,
+                    ],
+                  ),
+                  switchInCurve: Curves.easeOutCubic,
                   switchOutCurve: Curves.easeIn,
                   transitionBuilder: (child, animation) => FadeTransition(
                     opacity: animation,

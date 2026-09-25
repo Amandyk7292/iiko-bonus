@@ -121,6 +121,7 @@ part 'core/localization_messages_locations.dart';
 part 'core/localization_messages_account.dart';
 part 'core/localization_messages_orders.dart';
 part 'core/motion.dart';
+part 'core/customer_motion.dart';
 part 'core/order_live_status.dart';
 part 'core/session_store.dart';
 part 'core/push_notifications.dart';

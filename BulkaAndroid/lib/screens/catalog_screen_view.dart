@@ -253,8 +253,8 @@ extension _CatalogScreenView on _CatalogScreenState {
                     child: TextField(
                       key: const ValueKey('catalog-sticky-search'),
                       controller: _searchController,
-                      onChanged: (val) =>
-                          _updateCatalogState(() => _searchQuery = val),
+                      onChanged: _queueSearch,
+                      onSubmitted: _submitSearch,
                       textInputAction: TextInputAction.search,
                       autofillHints: const <String>[],
                       autocorrect: false,

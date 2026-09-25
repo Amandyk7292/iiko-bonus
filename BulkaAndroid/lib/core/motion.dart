@@ -24,19 +24,60 @@ abstract final class BulkaMotion {
 
   static Future<void> lightImpact() => HapticFeedback.lightImpact();
 
+  static DateTime? _lastErrorFeedback;
+  static Future<void> error() async {
+    final now = DateTime.now();
+    if (_lastErrorFeedback != null &&
+        now.difference(_lastErrorFeedback!) <
+            const Duration(milliseconds: 400)) {
+      return;
+    }
+    _lastErrorFeedback = now;
+    await HapticFeedback.lightImpact();
+  }
+
   static Future<void> confirm() => HapticFeedback.mediumImpact();
 }
 
 class BulkaHero extends StatelessWidget {
-  const BulkaHero({required this.tag, required this.child, super.key});
+  const BulkaHero({
+    required this.tag,
+    required this.child,
+    this.freezeImageDuringFlight = false,
+    super.key,
+  });
 
   final Object tag;
+  final bool freezeImageDuringFlight;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     if (BulkaMotion.reduced(context)) return child;
-    return Hero(tag: tag, transitionOnUserGestures: true, child: child);
+    return Hero(
+      tag: tag,
+      transitionOnUserGestures: true,
+      createRectTween: freezeImageDuringFlight
+          ? (begin, end) => RectTween(begin: begin, end: end)
+          : null,
+      flightShuttleBuilder: freezeImageDuringFlight
+          ? (flightContext, animation, direction, fromContext, toContext) {
+              final source = fromContext.widget as Hero;
+              final render = fromContext.findRenderObject();
+              final size = render is RenderBox && render.hasSize
+                  ? render.size
+                  : const Size(200, 200);
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(BulkaRadii.card),
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox.fromSize(size: size, child: source.child),
+                ),
+              );
+            }
+          : null,
+      child: child,
+    );
   }
 }
 

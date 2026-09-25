@@ -132,12 +132,15 @@ class _CartCheckoutBar extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    '${_formatCartMoney(total)} ₸',
-                    key: const ValueKey('cart-checkout-total'),
-                    style: const TextStyle(
-                      fontSize: BulkaTypeScale.body,
-                      fontWeight: FontWeight.w700,
+                  BulkaValueTransition(
+                    value: total,
+                    child: Text(
+                      '${_formatCartMoney(total)} ₸',
+                      key: const ValueKey('cart-checkout-total'),
+                      style: const TextStyle(
+                        fontSize: BulkaTypeScale.body,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ],

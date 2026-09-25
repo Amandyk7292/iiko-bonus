@@ -489,7 +489,15 @@ extension _LoginScreenForms on _LoginScreenState {
               context: context,
               label: 'phone_label'.tr,
               prefix: '+7 ',
-              error: _error,
+              error:
+                  const [
+                    'auth_password_required',
+                    'auth_password_rules',
+                    'auth_password_too_long',
+                    'auth_passwords_mismatch',
+                  ].any((key) => _error == key.tr)
+                  ? null
+                  : _error,
               icon: Icons.phone_rounded,
             ).copyWith(
               labelText: MediaQuery.textScalerOf(context).scale(1) > 1.3
@@ -617,7 +625,9 @@ extension _LoginScreenForms on _LoginScreenState {
           _inputDecoration(
             context: context,
             label: label,
-            error: _error,
+            error: _error == 'auth_passwords_mismatch'.tr
+                ? (confirm ? _error : null)
+                : (confirm ? null : _error),
             icon: Icons.lock_outline_rounded,
           ).copyWith(
             suffixIcon: IconButton(

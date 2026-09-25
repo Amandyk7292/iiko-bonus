@@ -24,7 +24,8 @@ class _ProductPhotoHeaderState extends State<_ProductPhotoHeader> {
     final colors = context.bulkaColors;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final hasPhoto = product.imageUrl.trim().isNotEmpty && !_failed;
+        final reservesPhotoSpace = product.imageUrl.trim().isNotEmpty;
+        final hasPhoto = reservesPhotoSpace && !_failed;
         final extent = (constraints.maxWidth * 1.16).clamp(360.0, 520.0);
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -35,6 +36,7 @@ class _ProductPhotoHeaderState extends State<_ProductPhotoHeader> {
                 Positioned.fill(
                   child: BulkaHero(
                     tag: 'catalog-product-${product.id}',
+                    freezeImageDuringFlight: true,
                     child: _NetworkImage(
                       url: product.imageUrl,
                       fit: BoxFit.cover,
@@ -69,7 +71,7 @@ class _ProductPhotoHeaderState extends State<_ProductPhotoHeader> {
               Padding(
                 padding: EdgeInsets.fromLTRB(
                   24,
-                  hasPhoto ? extent - 78 : 88,
+                  reservesPhotoSpace ? extent - 78 : 88,
                   24,
                   20,
                 ),

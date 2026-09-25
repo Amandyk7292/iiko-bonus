@@ -222,13 +222,16 @@ InputDecoration _inputDecoration({
     ),
     enabledBorder: OutlineInputBorder(
       borderSide: BorderSide(
-        color: colors.cardBorder,
-        width: BulkaStrokes.hairline,
+        color: error == null ? colors.cardBorder : colors.danger,
+        width: error == null ? BulkaStrokes.hairline : 2,
       ),
       borderRadius: BorderRadius.circular(BulkaRadii.control),
     ),
     focusedBorder: OutlineInputBorder(
-      borderSide: BorderSide(color: colors.brandGold, width: 2),
+      borderSide: BorderSide(
+        color: error == null ? colors.brandGold : colors.danger,
+        width: 2,
+      ),
       borderRadius: BorderRadius.circular(BulkaRadii.control),
     ),
     errorBorder: OutlineInputBorder(

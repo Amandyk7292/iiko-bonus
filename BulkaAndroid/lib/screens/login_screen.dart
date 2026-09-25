@@ -71,7 +71,13 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _otpDeliveryHasLink = false;
   Uri? _otpWhatsappUri;
 
-  void _update(VoidCallback callback) => setState(callback);
+  void _update(VoidCallback callback) {
+    final previousError = _error;
+    setState(callback);
+    if (_error != null && _error != previousError) {
+      unawaited(BulkaMotion.error());
+    }
+  }
 
   String get _fullPhone => '+7${_phoneController.text}';
 

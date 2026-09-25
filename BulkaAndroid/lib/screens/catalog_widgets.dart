@@ -57,6 +57,7 @@ class _CatalogProductImage extends StatelessWidget {
               fit: BoxFit.cover,
               animate: false,
               semanticLabel: semanticLabel,
+              loadingPlaceholder: placeholder,
               errorPlaceholder: placeholder,
             ),
           ),
@@ -64,7 +65,11 @@ class _CatalogProductImage extends StatelessWidget {
       ),
     );
     if (heroTag != null) {
-      image = BulkaHero(tag: heroTag!, child: image);
+      image = BulkaHero(
+        tag: heroTag!,
+        freezeImageDuringFlight: true,
+        child: image,
+      );
     }
     return AspectRatio(aspectRatio: 1, child: image);
   }
@@ -367,15 +372,18 @@ class _CatalogImageQuantityControl extends StatelessWidget {
             ),
             SizedBox(
               width: unit.isEmpty ? 28 : 66,
-              child: Text(
-                '${productQuantityText(quantity)}${unit.isEmpty ? '' : ' $unit'}',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: _headingFont,
-                  color: colors.brandBrown,
-                  fontSize: BulkaTypeScale.body,
-                  fontWeight: FontWeight.w700,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+              child: BulkaValueTransition(
+                value: quantity,
+                child: Text(
+                  '${productQuantityText(quantity)}${unit.isEmpty ? '' : ' $unit'}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: _headingFont,
+                    color: colors.brandBrown,
+                    fontSize: BulkaTypeScale.body,
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
             ),

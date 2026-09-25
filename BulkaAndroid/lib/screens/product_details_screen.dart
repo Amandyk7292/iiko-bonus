@@ -880,12 +880,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             onPressed: widget.onToggleFavorite == null
                 ? null
                 : _toggleProductFavorite,
-            icon: Icon(
-              _isFavorite
-                  ? Icons.favorite_rounded
-                  : Icons.favorite_border_rounded,
-              size: 24,
-            ),
+            icon: BulkaFavoriteGlyph(selected: _isFavorite),
             tooltip: 'catalog_favorites'.tr,
             style: IconButton.styleFrom(
               minimumSize: const Size(48, 48),

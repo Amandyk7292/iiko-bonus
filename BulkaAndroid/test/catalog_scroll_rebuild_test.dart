@@ -20,6 +20,65 @@ void main() {
     });
   });
 
+  testWidgets('category entrance finishes once and does not replay on scroll', (
+    tester,
+  ) async {
+    await _pumpCategory(tester, settleEntrance: false);
+    final row = find.byKey(const ValueKey('catalog-row-enter-Булочки-0'));
+    Finder transform() =>
+        find.descendant(of: row, matching: find.byType(Transform)).first;
+    expect(
+      tester.widget<Transform>(transform()).transform.entry(1, 3),
+      closeTo(10, 0.1),
+    );
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(
+      tester.widget<Transform>(transform()).transform.entry(1, 3),
+      inExclusiveRange(0, 10),
+    );
+    await tester.pumpAndSettle();
+    _categoryScrollPosition(tester).jumpTo(30);
+    await tester.pump();
+    expect(tester.widget<Transform>(transform()).transform.entry(1, 3), 0);
+  });
+
+  testWidgets('search waits for typing and clearing cancels queued results', (
+    tester,
+  ) async {
+    await _pumpCategory(tester);
+    await tester.tap(find.byKey(const ValueKey('catalog-category-back')));
+    await tester.pumpAndSettle();
+    final field = find.byKey(const ValueKey('catalog-sticky-search'));
+    await tester.enterText(field, 'Булочка 03');
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+      find.byKey(const ValueKey('catalog-product-image-bun-3')),
+      findsNothing,
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+      find.byKey(const ValueKey('catalog-product-image-bun-3')),
+      findsOneWidget,
+    );
+    await tester.enterText(field, 'Булочка 04');
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+      find.byKey(const ValueKey('catalog-product-image-bun-3')),
+      findsOneWidget,
+    );
+    await tester.enterText(field, '');
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(
+      find.byKey(const ValueKey('catalog-product-image-bun-4')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('catalog-category-card-Булочки')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('category scrolling keeps existing product widgets', (
     tester,
   ) async {
@@ -122,7 +181,10 @@ ScrollPosition _categoryScrollPosition(WidgetTester tester) => tester
     )
     .position;
 
-Future<CartProvider> _pumpCategory(WidgetTester tester) async {
+Future<CartProvider> _pumpCategory(
+  WidgetTester tester, {
+  bool settleEntrance = true,
+}) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -177,6 +239,10 @@ Future<CartProvider> _pumpCategory(WidgetTester tester) async {
   final category = find.byKey(const ValueKey('catalog-category-card-Булочки'));
   await tester.ensureVisible(category);
   await tester.tap(category);
-  await tester.pumpAndSettle();
+  if (settleEntrance) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
   return cart;
 }

@@ -558,17 +558,11 @@ ThemeData buildBulkaTheme() {
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(BulkaRadii.control),
-        borderSide: const BorderSide(
-          color: _errorRed,
-          width: BulkaStrokes.hairline,
-        ),
+        borderSide: const BorderSide(color: _errorRed, width: 2),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(BulkaRadii.control),
-        borderSide: const BorderSide(
-          color: _errorRed,
-          width: BulkaStrokes.hairline,
-        ),
+        borderSide: const BorderSide(color: _errorRed, width: 2),
       ),
     ),
     bottomSheetTheme: const BottomSheetThemeData(

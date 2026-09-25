@@ -151,14 +151,17 @@ class _CartQuantityStepper extends StatelessWidget {
             value: '${productQuantityText(quantity)} $unit',
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Text(
-                '${productQuantityText(quantity)}${unit.isEmpty ? '' : ' $unit'}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontFamily: _headingFont,
-                  color: _textDark,
-                  fontSize: BulkaTypeScale.body,
-                  fontWeight: FontWeight.w700,
+              child: BulkaValueTransition(
+                value: quantity,
+                child: Text(
+                  '${productQuantityText(quantity)}${unit.isEmpty ? '' : ' $unit'}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: _headingFont,
+                    color: _textDark,
+                    fontSize: BulkaTypeScale.body,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -193,4 +196,80 @@ class _PickupSlot {
   final int timezoneOffsetMinutes;
   final DateTime serverNow;
   final int? remaining;
+}
+
+class _AnimatedCartList extends StatefulWidget {
+  const _AnimatedCartList({required this.items, required this.itemBuilder});
+  final List<CartItem> items;
+  final Widget Function(BuildContext, CartItem) itemBuilder;
+  @override
+  State<_AnimatedCartList> createState() => _AnimatedCartListState();
+}
+
+class _AnimatedCartListState extends State<_AnimatedCartList> {
+  final _listKey = GlobalKey<AnimatedListState>();
+  late final List<CartItem> _items = [...widget.items];
+
+  @override
+  void didUpdateWidget(covariant _AnimatedCartList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final wanted = widget.items.map((item) => item.cartKey).toSet();
+    final duration = BulkaMotion.duration(
+      context,
+      const Duration(milliseconds: 200),
+    );
+    for (var i = _items.length - 1; i >= 0; i--) {
+      if (!wanted.contains(_items[i].cartKey)) {
+        final removed = _items.removeAt(i);
+        _listKey.currentState?.removeItem(
+          i,
+          (context, animation) => ExcludeSemantics(
+            child: IgnorePointer(child: _row(removed, animation)),
+          ),
+          duration: duration,
+        );
+      }
+    }
+    for (var i = 0; i < widget.items.length; i++) {
+      final item = widget.items[i];
+      if (i < _items.length && _items[i].cartKey == item.cartKey) {
+        _items[i] = item;
+        continue;
+      }
+      final previous = _items.indexWhere((row) => row.cartKey == item.cartKey);
+      if (previous >= 0) {
+        _items.removeAt(previous);
+        _listKey.currentState?.removeItem(
+          previous,
+          (_, _) => const SizedBox.shrink(),
+          duration: Duration.zero,
+        );
+      }
+      _items.insert(i, item);
+      _listKey.currentState?.insertItem(
+        i,
+        duration: previous >= 0 ? Duration.zero : duration,
+      );
+    }
+  }
+
+  Widget _row(CartItem item, Animation<double> animation) => SizeTransition(
+    sizeFactor: animation.drive(CurveTween(curve: Curves.easeOutCubic)),
+    axisAlignment: -1,
+    child: FadeTransition(
+      opacity: animation,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: widget.itemBuilder(context, item),
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) => AnimatedList(
+    key: _listKey,
+    padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
+    initialItemCount: _items.length,
+    itemBuilder: (_, index, animation) => _row(_items[index], animation),
+  );
 }

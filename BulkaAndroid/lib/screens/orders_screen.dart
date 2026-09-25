@@ -410,9 +410,19 @@ class _OrdersScreenState extends State<OrdersScreen> {
           ),
         ],
       ),
-      body: cart.items.isEmpty
-          ? _buildEmptyState(context)
-          : _buildCartItems(context, cart),
+      body: BulkaMotionSwitcher(
+        duration: const Duration(milliseconds: 200),
+        scale: 1,
+        offset: Offset.zero,
+        child: KeyedSubtree(
+          key: ValueKey(
+            cart.items.isEmpty ? 'cart-empty-body' : 'cart-items-body',
+          ),
+          child: cart.items.isEmpty
+              ? _buildEmptyState(context)
+              : _buildCartItems(context, cart),
+        ),
+      ),
     );
   }
 
@@ -423,12 +433,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
     return Column(
       children: [
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
-            itemCount: items.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 14),
-            itemBuilder: (context, index) {
-              final item = items[index];
+          child: _AnimatedCartList(
+            items: items,
+            itemBuilder: (context, item) {
               return _CartProductCard(
                 item: item,
                 onDecrease: () => cart.setQuantity(

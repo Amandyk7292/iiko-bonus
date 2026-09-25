@@ -305,6 +305,7 @@ class _PersonalAccountScreenState extends State<PersonalAccountScreen> {
     if (_busy || _session != widget.api.sessionCacheScope) return;
     final amount = int.tryParse(_amount.text.trim());
     if (amount == null || amount < 100 || amount > 200000) {
+      unawaited(BulkaMotion.error());
       setState(() => _error = _accountText('invalid'));
       return;
     }
@@ -401,7 +402,15 @@ class _PersonalAccountScreenState extends State<PersonalAccountScreen> {
               enabled: enabled && !_busy && _requestId == null,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(labelText: _accountText('amount')),
+              onChanged: (_) {
+                if (_error == _accountText('invalid')) {
+                  setState(() => _error = null);
+                }
+              },
+              decoration: InputDecoration(
+                labelText: _accountText('amount'),
+                errorText: _error == _accountText('invalid') ? _error : null,
+              ),
             ),
             const SizedBox(height: 12),
             FilledButton(
@@ -418,7 +427,7 @@ class _PersonalAccountScreenState extends State<PersonalAccountScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text(_accountText('pending')),
               ),
-            if (_error != null)
+            if (_error != null && _error != _accountText('invalid'))
               Text(
                 _error!,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),

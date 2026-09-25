@@ -388,7 +388,7 @@ class _PersistentTabSwitcherState extends State<_PersistentTabSwitcher>
     super.initState();
     _transition = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 260),
+      duration: const Duration(milliseconds: 420),
       value: 1,
     )..addStatusListener(_finishTransition);
   }
@@ -554,22 +554,77 @@ class FloatingNavBar extends StatelessWidget {
               BulkaLayout.floatingNavBarHorizontalPadding,
               compact ? 3 : BulkaLayout.floatingNavBarBottomPadding,
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var i = 0; i < items.length; i++)
-                  Expanded(
-                    child: _NavButton(
-                      key: ValueKey('nav-$i'),
-                      item: items[i],
-                      selected: i == selectedIndex,
-                      badgeCount: i == 2 ? cartCount : 0,
-                      compact: compact,
-                      narrow: narrow,
-                      onTap: () => onChanged(i),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final center = selectedIndex == 2;
+                final diameter =
+                    (center
+                        ? (compact || narrow
+                              ? 40.0
+                              : BulkaLayout.centerNavIconSize)
+                        : (compact || narrow ? 38.0 : 44.0)) *
+                    1.02;
+                final slot = Directionality.of(context) == TextDirection.rtl
+                    ? items.length - 1 - selectedIndex
+                    : selectedIndex;
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    AnimatedPositioned(
+                      key: const ValueKey('nav-selection-indicator'),
+                      duration: BulkaMotion.duration(
+                        context,
+                        const Duration(milliseconds: 420),
+                      ),
+                      curve: Curves.easeInOutCubic,
+                      left:
+                          constraints.maxWidth / items.length * (slot + 0.5) -
+                          diameter / 2,
+                      top: center ? 0 : (compact ? 3 : 4),
+                      width: diameter,
+                      height: diameter,
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: _bulkaGlassGradient,
+                            border: Border.all(
+                              color: context.bulkaColors.brandBrown.withValues(
+                                alpha: 0.72,
+                              ),
+                              width: BulkaStrokes.hairline,
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x2BFFB300),
+                                blurRadius: 7,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-              ],
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (var i = 0; i < items.length; i++)
+                          Expanded(
+                            child: _NavButton(
+                              key: ValueKey('nav-$i'),
+                              item: items[i],
+                              selected: i == selectedIndex,
+                              badgeCount: i == 2 ? cartCount : 0,
+                              compact: compact,
+                              narrow: narrow,
+                              onTap: () => onChanged(i),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -655,28 +710,7 @@ class _NavButton extends StatelessWidget {
                                 : narrow
                                 ? 38
                                 : 44),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: selected ? _bulkaGlassGradient : null,
-                        color: selected ? _bulkaYellow : Colors.transparent,
-                        border: selected
-                            ? Border.all(
-                                color: colors.brandBrown.withValues(
-                                  alpha: 0.72,
-                                ),
-                                width: BulkaStrokes.hairline,
-                              )
-                            : null,
-                        boxShadow: selected
-                            ? const [
-                                BoxShadow(
-                                  color: Color(0x2BFFB300),
-                                  blurRadius: 7,
-                                  offset: Offset(0, 2),
-                                ),
-                              ]
-                            : null,
-                      ),
+                      decoration: const BoxDecoration(shape: BoxShape.circle),
                       child: Stack(
                         clipBehavior: Clip.none,
                         alignment: Alignment.center,
