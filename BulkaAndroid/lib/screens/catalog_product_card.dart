@@ -132,14 +132,18 @@ extension _CatalogProductCard on _CatalogScreenState {
                                   width: BulkaStrokes.hairline,
                                 ),
                               ),
-                              child: Text(
-                                'catalog_stop_list'.tr,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: colors.mutedText,
-                                  fontFamily: _descriptionFont,
-                                  fontSize: BulkaTypeScale.badge,
-                                  fontWeight: FontWeight.w700,
+                              child: Center(
+                                widthFactor: 1,
+                                heightFactor: 1,
+                                child: Text(
+                                  'catalog_stop_list'.tr,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: colors.mutedText,
+                                    fontFamily: _descriptionFont,
+                                    fontSize: BulkaTypeScale.badge,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                             ),

@@ -1,6 +1,16 @@
 part of '../main.dart';
 
 extension _CatalogRouteController on _CatalogScreenState {
+  void cancelPendingProductNavigation() {
+    if (!_productRouteOpen &&
+        _pendingClientUri != null &&
+        productIdFromClientUri(_pendingClientUri!) != null) {
+      _pendingClientUri = _openedCategory == null
+          ? Uri(path: '/catalog')
+          : _CatalogScreenState._categoryClientUri(_openedCategory!);
+    }
+  }
+
   void applyClientUri(Uri uri) {
     _pendingClientUri = normalizedClientUri(uri);
     if (_menuScopeReady &&
@@ -62,6 +72,7 @@ extension _CatalogRouteController on _CatalogScreenState {
             unawaited(_openProductDetails(product!, updateClientRoute: false));
           }
         });
+        WidgetsBinding.instance.ensureVisualUpdate();
       }
       return;
     }

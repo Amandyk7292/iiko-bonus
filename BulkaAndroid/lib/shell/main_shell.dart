@@ -44,6 +44,7 @@ class _MainShellState extends State<MainShell> {
     debugLabel: 'catalog-tab',
   );
   late int _tab;
+  Uri? _pendingCatalogProduct;
   String _catalogOrderType = 'pickup';
   String? _lastOrderableCartType;
   int _catalogSelectionRevision = 0;
@@ -118,6 +119,10 @@ class _MainShellState extends State<MainShell> {
   void _onClientRouteChanged() {
     if (!mounted) return;
     final uri = clientRouteNotifier.value;
+    if (_pendingCatalogProduct != null && uri != _pendingCatalogProduct) {
+      _pendingCatalogProduct = null;
+      _catalogKey.currentState?.cancelPendingProductNavigation();
+    }
     if (uri.path == '/promos') {
       Navigator.of(context).push<void>(
         MaterialPageRoute(builder: (_) => PromosScreen(api: widget.api)),
@@ -220,17 +225,24 @@ class _MainShellState extends State<MainShell> {
 
   void _openCatalogProduct(String id) {
     final uri = productClientUri(id);
+    _pendingCatalogProduct = uri;
     setState(() => _tab = 1);
     widget.onTabChanged?.call(1);
     publishClientRoute(uri);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && clientRouteNotifier.value == uri) {
+      if (mounted &&
+          _tab == 1 &&
+          _pendingCatalogProduct == uri &&
+          (!kIsWeb || clientRouteNotifier.value == uri)) {
+        _pendingCatalogProduct = null;
         _catalogKey.currentState?.applyClientUri(uri);
       }
     });
   }
 
   void _changeTab(int index) {
+    _pendingCatalogProduct = null;
+    _catalogKey.currentState?.cancelPendingProductNavigation();
     if (index == _tab) {
       if (index == 1) {
         _catalogKey.currentState?.closeCategoryPage();
@@ -276,7 +288,7 @@ class _MainShellState extends State<MainShell> {
         selectionRevision: _catalogSelectionRevision,
         onRequestOrderType: () => _changeTab(0),
         onRequireAuth: _requireAuth,
-        initialClientUri: clientRouteNotifier.value,
+        initialClientUri: _pendingCatalogProduct ?? clientRouteNotifier.value,
       ),
       OrdersScreen(
         key: const PageStorageKey('orders-tab'),

@@ -183,7 +183,7 @@ class _ProductPurchaseBar extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: colors.brandGold,
                 foregroundColor: colors.brandBrown,
-                disabledBackgroundColor: colors.surfaceCream,
+                disabledBackgroundColor: const Color(0xFFE4E1DD),
                 disabledForegroundColor: colors.mutedText,
                 minimumSize: const Size(double.infinity, 68),
                 padding: const EdgeInsets.symmetric(
