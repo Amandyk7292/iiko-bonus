@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { request } from '../../lib/api';
 type Badge = { id: string; label: string; background: string; foreground: string };
-export default function ProductBadges({ productId }: { productId?: string }) {
+export default function ProductBadges({
+  productId,
+  onSaved,
+}: {
+  productId?: string;
+  onSaved?: () => void;
+}) {
   const [badges, setBadges] = useState<Badge[]>([]),
     [selected, setSelected] = useState<string[]>([]);
   const [editing, setEditing] = useState<string>(),
@@ -50,6 +56,7 @@ export default function ProductBadges({ productId }: { productId?: string }) {
       setEditing(undefined);
       setLabel('');
       setMessage('Метка сохранена в общем справочнике');
+      onSaved?.();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Не удалось сохранить');
     } finally {
@@ -66,6 +73,7 @@ export default function ProductBadges({ productId }: { productId?: string }) {
         body: JSON.stringify({ productId, badgeIds: selected }),
       });
       setMessage('Метки товара сохранены');
+      onSaved?.();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Не удалось сохранить');
     } finally {

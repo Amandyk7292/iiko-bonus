@@ -6,6 +6,7 @@ const { adminMutationSchemas } = require('../../contracts/admin-mutations.contra
 const { z } = require('../../middlewares/validation.middleware');
 const { supabase } = require('../../config/supabase');
 const menuService = require('../../services/menu.service');
+const { publicBadgeMap } = require('../../services/product-badges.service');
 const {
   getIikoClientForBranch,
   invalidateAllIikoCaches,
@@ -166,11 +167,13 @@ function registerMenuAdminRoutes(router) {
     try {
       const selectedIikoApi = await getIikoClientForBranch(req.admin?.selectedBranchId);
       const rawMenu = await selectedIikoApi.getMenu();
-      const [productOverrides, categoryOverrides, customProducts] = await Promise.all([
-        menuService.getProductOverrides({ profileKey: selectedIikoApi.profileKey }),
-        menuService.getCategoryOverrides({ profileKey: selectedIikoApi.profileKey }),
-        menuService.getCustomProducts({ profileKey: selectedIikoApi.profileKey }),
-      ]);
+      const [productOverrides, categoryOverrides, customProducts, productBadges] =
+        await Promise.all([
+          menuService.getProductOverrides({ profileKey: selectedIikoApi.profileKey }),
+          menuService.getCategoryOverrides({ profileKey: selectedIikoApi.profileKey }),
+          menuService.getCustomProducts({ profileKey: selectedIikoApi.profileKey }),
+          publicBadgeMap(),
+        ]);
       const overridesById = new Map(productOverrides.map((row) => [row.iiko_product_id, row]));
       const products = (rawMenu.products || []).map((product) => {
         const override = overridesById.get(product.id);
@@ -190,6 +193,7 @@ function registerMenuAdminRoutes(router) {
         );
         return {
           ...product,
+          badges: productBadges.get(String(product.id)) || [],
           nameKk: override?.name_translations?.kk || (kazakhName !== russianName ? kazakhName : ''),
           descriptionRu: russianDescription,
           descriptionKk:
@@ -204,7 +208,10 @@ function registerMenuAdminRoutes(router) {
         overrides: {
           products: productOverrides,
           categories: categoryOverrides,
-          customProducts,
+          customProducts: customProducts.map((product) => ({
+            ...product,
+            badges: productBadges.get(String(product.id)) || [],
+          })),
         },
         profileKey: selectedIikoApi.profileKey,
         profiles: profileStatus(),

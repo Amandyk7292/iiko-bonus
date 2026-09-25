@@ -83,9 +83,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
               />
             </div>
           ))}
-          <p className="page-help">
-            Если KZ не заполнен, приложение использует русское название.
-          </p>
+          <p className="page-help">Если KZ не заполнен, приложение использует русское название.</p>
           <div className="modal-actions">
             <button
               type="button"
@@ -216,7 +214,11 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
             value={editForm}
             onChange={(key, value) => setEditForm((current) => ({ ...current, [key]: value }))}
           />
-          <ProductBadges key={editingProduct?.id} productId={editingProduct?.id} />
+          <ProductBadges
+            key={editingProduct?.id}
+            productId={editingProduct?.id}
+            onSaved={() => void controller.fetchMenu(true)}
+          />
 
           <FulfillmentTypeFields
             idPrefix="edit-fulfillment"
@@ -880,7 +882,11 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
             value={customForm}
             onChange={(key, value) => setCustomForm((current) => ({ ...current, [key]: value }))}
           />
-          <ProductBadges key={customForm.id || 'new'} productId={customForm.id} />
+          <ProductBadges
+            key={customForm.id || 'new'}
+            productId={customForm.id}
+            onSaved={() => void controller.fetchMenu(true)}
+          />
 
           <FulfillmentTypeFields
             idPrefix="custom-fulfillment"
