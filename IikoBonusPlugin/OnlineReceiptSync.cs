@@ -109,6 +109,27 @@ namespace Resto.Front.Api.IikoBonusPlugin
             finally {Interlocked.Exchange(ref busy,0);}
         }
         internal void RequestRetry() {ThreadPool.QueueUserWorkItem(Tick);}
+        internal string CheckAndRecover()
+        {
+            if(disposed || Interlocked.CompareExchange(ref busy,1,0)!=0)
+                return "Очередь уже обрабатывается. Повторите проверку после завершения текущей операции.";
+            try {
+                if(PosPairing.Current==null) return "Сначала привяжите кассу.";
+                var os=PluginContext.Operations;
+                var jobs=Request<AutomaticReceiptJobs>("poll",new AutomaticReceiptPoll {TerminalId=os.GetHostTerminal().Id.ToString()});
+                if(jobs?.Jobs==null) throw new InvalidOperationException("Нет ответа об очереди чеков.");
+                if(jobs.Jobs.Count==0) return "Сервер не сообщает незавершённых заданий для этой кассы.";
+                var result=new List<string>();
+                foreach(var job in jobs.Jobs) {
+                    try { Process(job,os); result.Add("№"+job.Number+": обработан текущий доступный этап"); }
+                    catch(Exception error) {
+                        result.Add("№"+job.Number+": "+error.Message);
+                        try {Action(os,"problem",job.OrderId,error:error.Message.Substring(0,Math.Min(400,error.Message.Length)));} catch {}
+                    }
+                }
+                return string.Join("\n\n",result);
+            } finally {Interlocked.Exchange(ref busy,0);}
+        }
         private void Process(AutomaticReceiptJob job,IOperationService os)
         {
             var paymentType=job.FiscalDue ? FindPaymentType(os) : null;

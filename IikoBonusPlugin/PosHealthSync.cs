@@ -66,6 +66,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember(Name="status")] public string Status {get;set;}
         [DataMember(Name="policy")] public PosHealthPolicy Policy {get;set;}
         [DataMember(Name="commands")] public List<PosHealthCommand> Commands {get;set;}
+        [DataMember(Name="branchVersions")] public List<string> BranchVersions {get;set;}
         [DataMember(Name="error")] public string Error {get;set;}
     }
 
@@ -86,7 +87,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             timer=new Timer(Tick,null,TimeSpan.FromSeconds(5),TimeSpan.FromSeconds(20));
         }
 
-        private static string Version => Assembly.GetExecutingAssembly().GetName().Version.ToString(3);
+        internal static string Version => Assembly.GetExecutingAssembly().GetName().Version.ToString(3);
         private static string Safe(string value) => string.IsNullOrWhiteSpace(value) ? "Нет данных" :
             value.Substring(0,Math.Min(1000,value.Length));
         private static bool Problem(string value)
@@ -172,9 +173,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     throw new InvalidOperationException(parsed?.Error ?? "Сервер не подтвердил состояние кассы");
                 foreach(var command in parsed.Commands ?? new List<PosHealthCommand>()) Execute(command);
                 var policy=parsed.Policy;
-                StatusText=policy!=null && Version!=policy.LatestVersion
+                StatusText=policy!=null && System.Version.TryParse(policy.LatestVersion,out var latest) &&
+                    latest>System.Version.Parse(Version)
                     ? "Мониторинг кассы: доступно обновление "+policy.LatestVersion+" (установлено "+Version+")"
                     : "Мониторинг кассы: данные переданы в админку";
+                var versions=parsed.BranchVersions;
+                if(versions!=null && versions.Any(v=>v!=Version))
+                    StatusText += "\nВнимание: на кассах филиала разные версии: "+string.Join(", ",versions)+". Обновите все кассы.";
             }
             catch(Exception error)
             {

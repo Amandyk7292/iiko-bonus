@@ -75,6 +75,19 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $buildDirectory = Join-Path $projectDirectory "bin\$Configuration"
+Push-Location $root
+try {
+    foreach ($suite in @('native-board/BoardViewTests', 'native-discounts/DiscountTests', 'native-loyalty/OfflineLoyaltyTests', 'native-diagnostics/DiagnosticsTests')) {
+        dotnet build "test/$suite.csproj" -c $Configuration
+        if ($LASTEXITCODE -ne 0) { throw "Required plugin suite build failed: $suite" }
+        $suiteDirectory = Split-Path "test/$suite" -Parent
+        $suiteName = Split-Path $suite -Leaf
+        & "$suiteDirectory/bin/$Configuration/net472/$suiteName.exe" (Join-Path $env:TEMP 'bulka-plugin-test-renders')
+        if ($LASTEXITCODE -ne 0) { throw "Required plugin suite failed: $suite" }
+    }
+    node --require ./test/test-env.cjs --test test/front-assembly-tickets.test.js test/front-automatic-receipts.test.js test/front-receipt-draft.test.js
+    if ($LASTEXITCODE -ne 0) { throw 'Required receipt recovery and multi-register tests failed.' }
+} finally { Pop-Location }
 $pluginDll = Join-Path $buildDirectory 'Resto.Front.Api.IikoBonusPlugin.dll'
 $manifest = Join-Path $projectDirectory 'Manifest.xml'
 $templateConfig = Join-Path $projectDirectory 'Resto.Front.Api.IikoBonusPlugin.dll.config.example'

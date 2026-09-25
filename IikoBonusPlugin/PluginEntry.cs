@@ -126,14 +126,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 );
 
                 _statusButtonSubscription = RegisterOrderAction(
-                    "Статус бонусов",
+                    "Статус Bulka",
                     (ValueTuple<IOrder, IOperationService, IViewManager> args) =>
                     {
                         try
                         {
                             args.Item3.ShowOkPopup(
                                 "Статус Bulka",
-                                LoyaltyFlow.GetQueueStatusText() + "\n\n" +
+                                "Версия плагина: " + PosHealthSync.Version + "\n\n" + LoyaltyFlow.GetQueueStatusText() + "\n\n" +
                                 GiftCertificateFlow.GetStatusText() + "\n\n" + (_stockSync?.StatusText ?? "Остатки: обмен выключен") + "\n\n" + _sharedStock.StatusText
                                 + "\n\n" + (_automaticReceipts?.StatusText ?? "Внешняя оплата Bulka: обработчик не зарегистрирован. Проверьте журнал плагина.")
                                 + "\n\n" + (_offlineReceipts?.StatusText ?? "Продажи кассы: журнал недоступен, нужна сверка")
@@ -156,6 +156,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     }
                 );
 
+                RegisterOrderAction("Проверить и восстановить", args => {
+                    try {
+                        args.Item3.ShowOkPopup("Проверка очереди",_automaticReceipts?.CheckAndRecover() ?? "Обработчик чеков недоступен.","ОК");
+                    } catch(Exception error) {args.Item3.ShowErrorPopup(error.Message,"ОК");}
+                });
+                RegisterOrderAction("Собрать диагностику", args => {
+                    try { args.Item3.ShowOkPopup("Диагностика сохранена",PluginDiagnostics.Export(),"ОК"); }
+                    catch(Exception error) {args.Item3.ShowErrorPopup("Не удалось сохранить архив: "+error.Message,"ОК");}
+                });
                 _deliveryButton = PluginContext.Operations.AddButtonToOrderEditScreen("Доставка", args => {
                     var selected = args.Item3.ShowChooserPopup("Доставка и действия Bulka",
                         _orderActions.Select(a=>a.Item1).ToArray(),0,ButtonWidth.Wider,"Закрыть");

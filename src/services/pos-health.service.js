@@ -248,9 +248,22 @@ async function recordHeartbeat(branchId, payload, db = supabase) {
     .order('retry_requested_at')
     .limit(20);
   if (commandError) throw commandError;
+  const { data: peers, error: peersError } = await db
+    .from('pos_devices')
+    .select('plugin_version')
+    .eq('branch_id', branchId)
+    .eq('active', true);
+  if (peersError) throw peersError;
   return {
     status,
     policy,
+    branchVersions: [
+      ...new Set(
+        (peers || [])
+          .map((row) => row.plugin_version)
+          .filter((value) => /^\d+\.\d+\.\d+$/.test(value || '')),
+      ),
+    ],
     commands: (commands || []).map((item) => ({
       id: item.id,
       kind: item.kind,
