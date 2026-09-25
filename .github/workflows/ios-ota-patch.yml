@@ -94,10 +94,10 @@ jobs:
             # Run 36128398260 verified the only asset diff is MaterialIcons.
             # Compared with the release, this tree removes Icons.add_alert_rounded and
             # Icons.notifications_active_rounded. The installed font contains
-            # all remaining glyphs. The refresh optimization changes preserve the icon
+            # all remaining glyphs. The product navigation changes preserve the icon
             # inventory and touch no assets, native files, or dependencies.
             # Fail closed for any other app source tree.
-            if [[ "$RELEASE_VERSION" != "1.0.8+43" || "$(git rev-parse HEAD:BulkaAndroid)" != "aa718735ab721eb212bdf2b303392deb3dbc47a5" ]]; then
+            if [[ "$RELEASE_VERSION" != "1.0.8+43" || "$(git rev-parse HEAD:BulkaAndroid)" != "df71cd84a1ae380494dd2c987846c92d2168f185" ]]; then
               echo "::error::Icon-removal exception requires the reviewed 1.0.8+43 app tree."
               exit 1
             fi
