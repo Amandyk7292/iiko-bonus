@@ -1,5 +1,10 @@
 part of '../main.dart';
 
+Object? _parseApiJsonBytes(List<int> bytes) {
+  final text = utf8.decode(bytes);
+  return text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
+}
+
 String get _apiBaseUrl => bulkaApiBaseUrl;
 
 @visibleForTesting
@@ -1885,7 +1890,18 @@ class BulkaApiClient {
         code: 'SESSION_IDENTITY_CHANGED',
       );
     }
-    return _decode(response);
+    final decoded = await _decodeResponse(response);
+    // Parsing a large response yields to another isolate. Do not expose its
+    // result if the customer changes while that work is in flight.
+    if (allowRefresh &&
+        bearerToken == null &&
+        requestRevision != _sessionRevision) {
+      throw ApiException(
+        'error_session_changed'.tr,
+        code: 'SESSION_IDENTITY_CHANGED',
+      );
+    }
+    return decoded;
   }
 
   Future<bool> restoreSession({bool force = false}) async {
@@ -2015,11 +2031,17 @@ class BulkaApiClient {
     _client.close();
   }
 
-  Map<String, dynamic> _decode(http.Response response) {
-    final text = utf8.decode(response.bodyBytes);
-    dynamic decoded;
+  Future<Map<String, dynamic>> _decodeResponse(http.Response response) async {
+    if (kIsWeb || response.bodyBytes.length < 64 * 1024) {
+      return _decode(response);
+    }
+    Object? decoded;
     try {
-      decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
+      decoded = await compute(
+        _parseApiJsonBytes,
+        response.bodyBytes,
+        debugLabel: 'bulka-api-json',
+      );
     } on FormatException {
       throw ApiException(
         'error_network'.tr,
@@ -2027,6 +2049,27 @@ class BulkaApiClient {
         code: 'INVALID_API_RESPONSE',
       );
     }
+    return _validateDecodedResponse(response, decoded);
+  }
+
+  Map<String, dynamic> _decode(http.Response response) {
+    Object? decoded;
+    try {
+      decoded = _parseApiJsonBytes(response.bodyBytes);
+    } on FormatException {
+      throw ApiException(
+        'error_network'.tr,
+        statusCode: response.statusCode,
+        code: 'INVALID_API_RESPONSE',
+      );
+    }
+    return _validateDecodedResponse(response, decoded);
+  }
+
+  Map<String, dynamic> _validateDecodedResponse(
+    http.Response response,
+    Object? decoded,
+  ) {
     final json = _asMap(decoded);
     final responseRequestId =
         _requestIdFrom(json) ??

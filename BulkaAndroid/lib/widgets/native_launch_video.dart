@@ -65,8 +65,11 @@ class _NativeLaunchVideoGateState extends State<NativeLaunchVideoGate> {
   void _finish() {
     if (!mounted || _finished) return;
     _timer?.cancel();
+    final controller = _controller;
+    _controller = null;
     setState(() => _finished = true);
-    unawaited(_controller?.pause());
+    // The gate lives as long as the app; release decoder/texture resources now.
+    unawaited(controller?.dispose());
   }
 
   @override

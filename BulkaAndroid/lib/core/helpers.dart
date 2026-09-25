@@ -1,5 +1,26 @@
 part of '../main.dart';
 
+bool _sameJsonValue(Object? left, Object? right) {
+  if (identical(left, right) || left == right) return true;
+  if (left is List && right is List) {
+    if (left.length != right.length) return false;
+    for (var i = 0; i < left.length; i++) {
+      if (!_sameJsonValue(left[i], right[i])) return false;
+    }
+    return true;
+  }
+  if (left is Map && right is Map) {
+    if (left.length != right.length) return false;
+    for (final key in left.keys) {
+      if (!right.containsKey(key) || !_sameJsonValue(left[key], right[key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
 SnackBar bulkaSnackBar({
   Key? key,
   required Widget content,

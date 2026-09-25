@@ -9,6 +9,11 @@ extension _CatalogDataController on _CatalogScreenState {
     final branch = locations
         .where((b) => b.id == id && b.active && b.supports(_orderType))
         .firstOrNull;
+    if (_selectedBakery == (branch?.displayLabel ?? '') &&
+        _selectedBakeryId == (branch?.id ?? '') &&
+        _sameJsonValue(_selectedBakeryLocation?.toJson(), branch?.toJson())) {
+      return;
+    }
     _updateCatalogState(() {
       _selectedBakery = branch?.displayLabel ?? '';
       _selectedBakeryId = branch?.id ?? '';
@@ -84,6 +89,30 @@ extension _CatalogDataController on _CatalogScreenState {
       final json = await _api._get(endpoint);
       if (!_isCurrentMenuRequest(revision, endpoint)) return;
 
+      final snapshot = <String, dynamic>{
+        'categories': json['categories'],
+        'products': json['products'],
+        'iikoProfile': json['iikoProfile'],
+      };
+      if (silent &&
+          !_usingCachedMenu &&
+          _loadError == null &&
+          _allProducts.isNotEmpty &&
+          _lastLiveMenuScope == cacheKey &&
+          _sameJsonValue(_lastLiveMenu, snapshot)) {
+        // Reconcile newly added cart lines, but keep displayed widgets and
+        // details notifiers intact when the server sends the same menu.
+        if (_lastMenuCacheWrite == null ||
+            DateTime.now().difference(_lastMenuCacheWrite!) >=
+                const Duration(minutes: 5)) {
+          unawaited(_cacheMenu(json, cacheKey: cacheKey));
+        }
+        _syncCartWithMenu(_allProducts, notifyDetails: false);
+        unawaited(_refreshProductOptionFlags(_allProducts));
+        _resumeProductAfterFulfillment();
+        _applyPendingClientUri();
+        return;
+      }
       final categoriesRaw = json['categories'] as List? ?? [];
       final productsRaw = json['products'] as List? ?? [];
 
@@ -115,6 +144,8 @@ extension _CatalogDataController on _CatalogScreenState {
         }
       }
 
+      _lastLiveMenu = snapshot;
+      _lastLiveMenuScope = cacheKey;
       unawaited(_cacheMenu(json, cacheKey: cacheKey));
       _syncCartWithMenu(products);
 
@@ -181,14 +212,18 @@ extension _CatalogDataController on _CatalogScreenState {
       );
       if (!mounted || revision != _productOptionsRevision) return;
       final currentIds = _allProducts.map((product) => product.id).toSet();
+      final resolved = optionFlags.keys.where(currentIds.contains).toSet();
+      final configurable = optionFlags.entries
+          .where((entry) => currentIds.contains(entry.key) && entry.value)
+          .map((entry) => entry.key)
+          .toSet();
+      if (setEquals(resolved, _resolvedProductOptionIds) &&
+          setEquals(configurable, _configurableProductIds)) {
+        return;
+      }
       _updateCatalogState(() {
-        _resolvedProductOptionIds = optionFlags.keys
-            .where(currentIds.contains)
-            .toSet();
-        _configurableProductIds = optionFlags.entries
-            .where((entry) => currentIds.contains(entry.key) && entry.value)
-            .map((entry) => entry.key)
-            .toSet();
+        _resolvedProductOptionIds = resolved;
+        _configurableProductIds = configurable;
       });
     } catch (_) {
       // Product details still performs authoritative option validation.
@@ -346,6 +381,7 @@ extension _CatalogDataController on _CatalogScreenState {
     required String cacheKey,
   }) async {
     final cachedAt = DateTime.now();
+    _lastMenuCacheWrite = cachedAt;
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
@@ -474,36 +510,43 @@ extension _CatalogDataController on _CatalogScreenState {
     }
   }
 
-  void _syncCartWithMenu(List<CatalogProduct> products) {
-    final liveProducts = {for (final product in products) product.id: product};
-    for (final previous in _liveProducts.value.values) {
-      if (liveProducts.containsKey(previous.id)) continue;
-      liveProducts[previous.id] = CatalogProduct(
-        id: previous.id,
-        title: previous.title,
-        price: previous.price,
-        category: previous.category,
-        imageUrl: previous.imageUrl,
-        inStockCount: previous.inStockCount,
-        quantityStep: previous.quantityStep,
-        unit: previous.unit,
-        preparationMinutes: previous.preparationMinutes,
-        description: previous.description,
-        ingredients: previous.ingredients,
-        allergens: previous.allergens,
-        dietaryTags: previous.dietaryTags,
-        badges: previous.badges,
-        searchKeywords: previous.searchKeywords,
-        weightGrams: previous.weightGrams,
-        caloriesKcal: previous.caloriesKcal,
-        proteinGrams: previous.proteinGrams,
-        fatGrams: previous.fatGrams,
-        carbsGrams: previous.carbsGrams,
-        storageConditions: previous.storageConditions,
-        isStopListed: true,
-      );
+  void _syncCartWithMenu(
+    List<CatalogProduct> products, {
+    bool notifyDetails = true,
+  }) {
+    if (notifyDetails) {
+      final liveProducts = {
+        for (final product in products) product.id: product,
+      };
+      for (final previous in _liveProducts.value.values) {
+        if (liveProducts.containsKey(previous.id)) continue;
+        liveProducts[previous.id] = CatalogProduct(
+          id: previous.id,
+          title: previous.title,
+          price: previous.price,
+          category: previous.category,
+          imageUrl: previous.imageUrl,
+          inStockCount: previous.inStockCount,
+          quantityStep: previous.quantityStep,
+          unit: previous.unit,
+          preparationMinutes: previous.preparationMinutes,
+          description: previous.description,
+          ingredients: previous.ingredients,
+          allergens: previous.allergens,
+          dietaryTags: previous.dietaryTags,
+          badges: previous.badges,
+          searchKeywords: previous.searchKeywords,
+          weightGrams: previous.weightGrams,
+          caloriesKcal: previous.caloriesKcal,
+          proteinGrams: previous.proteinGrams,
+          fatGrams: previous.fatGrams,
+          carbsGrams: previous.carbsGrams,
+          storageConditions: previous.storageConditions,
+          isStopListed: true,
+        );
+      }
+      _liveProducts.value = liveProducts;
     }
-    _liveProducts.value = liveProducts;
     context.read<CartProvider>().reconcileMenu(
       products.map(
         (product) => CartProductSnapshot(

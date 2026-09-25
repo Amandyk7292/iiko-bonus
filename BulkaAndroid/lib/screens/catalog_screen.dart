@@ -69,6 +69,9 @@ class _CatalogScreenState extends State<CatalogScreen>
   String _trackedCatalogKey = '';
   int _menuLoadRevision = 0;
   String _menuProfileKey = '';
+  String? _lastLiveMenuScope;
+  Map<String, dynamic>? _lastLiveMenu;
+  DateTime? _lastMenuCacheWrite;
   int _productOptionsRevision = 0;
   Future<void>? _silentRefreshRequest;
   int _activeMenuLoads = 0;
