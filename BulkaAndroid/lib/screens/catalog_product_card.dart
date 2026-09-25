@@ -26,8 +26,7 @@ extension _CatalogProductCard on _CatalogScreenState {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              BulkaPressScale(
-                pressedScale: 0.975,
+              RepaintBoundary(
                 child: Material(
                   color: Colors.transparent,
                   child: Semantics(

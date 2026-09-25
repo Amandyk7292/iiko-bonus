@@ -166,14 +166,12 @@ class _CatalogProductImage extends StatelessWidget {
         child: Center(
           child: Padding(
             padding: url.trim().isEmpty ? EdgeInsets.zero : safePadding,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(BulkaRadii.control),
-              child: _NetworkImage(
-                url: url,
-                fit: BoxFit.cover,
-                semanticLabel: semanticLabel,
-                errorPlaceholder: placeholder,
-              ),
+            child: _NetworkImage(
+              url: url,
+              fit: BoxFit.cover,
+              animate: false,
+              semanticLabel: semanticLabel,
+              errorPlaceholder: placeholder,
             ),
           ),
         ),

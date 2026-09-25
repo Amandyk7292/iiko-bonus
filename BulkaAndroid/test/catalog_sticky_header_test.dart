@@ -317,6 +317,17 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Плюшка'), findsOneWidget);
+    final productImage = find.byKey(
+      const ValueKey('catalog-product-image-bun-1'),
+    );
+    expect(
+      find.ancestor(of: productImage, matching: find.byType(BulkaPressScale)),
+      findsNothing,
+    );
+    expect(
+      find.ancestor(of: productImage, matching: find.byType(RepaintBoundary)),
+      findsWidgets,
+    );
     expect(find.text('Слойка'), findsOneWidget);
     expect(find.text('Булочки'), findsOneWidget);
     expect(
