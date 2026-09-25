@@ -39,6 +39,7 @@ const { adminMutationSchemas } = require('../src/contracts/admin-mutations.contr
 const { registerMenuAdminRoutes } = require('../src/routes/admin/menu.routes');
 const routes = [];
 registerMenuAdminRoutes({
+  put() {},
   post: (paths, ...handlers) => routes.push({ paths, handlers }),
   get() {},
   patch() {},

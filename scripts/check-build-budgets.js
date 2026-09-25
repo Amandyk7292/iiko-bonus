@@ -46,7 +46,8 @@ if (adminDirectory) {
     javascriptGzip.reduce((sum, size) => sum + size, 0),
     // Core admin routes measure about 407 KB after the city-specific label controls.
     // The PDF engine is a separate lazy chunk and has its own budget below.
-    412_000,
+    // Shared product-badge editor adds about 1 KiB gzip to the menu route.
+    414_000,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   assertBudget(

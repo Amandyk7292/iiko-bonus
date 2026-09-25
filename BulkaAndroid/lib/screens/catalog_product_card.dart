@@ -88,6 +88,15 @@ extension _CatalogProductCard on _CatalogScreenState {
                   ),
                 ),
               ),
+              if (!unavailable && product.badges.isNotEmpty)
+                Positioned(
+                  left: 8,
+                  top: 8,
+                  right: 56,
+                  child: IgnorePointer(
+                    child: ProductBadgeChips(badges: product.badges),
+                  ),
+                ),
               if (unavailable)
                 Positioned(
                   left: 8,

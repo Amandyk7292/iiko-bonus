@@ -1,5 +1,6 @@
 import { Copy, LoaderCircle, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import Modal from '../../components/Modal';
+import ProductBadges from './ProductBadges';
 import SelectControl from '../../components/SelectControl';
 import {
   FulfillmentTypeFields,
@@ -215,6 +216,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
             value={editForm}
             onChange={(key, value) => setEditForm((current) => ({ ...current, [key]: value }))}
           />
+          <ProductBadges key={editingProduct?.id} productId={editingProduct?.id} />
 
           <FulfillmentTypeFields
             idPrefix="edit-fulfillment"
@@ -878,6 +880,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
             value={customForm}
             onChange={(key, value) => setCustomForm((current) => ({ ...current, [key]: value }))}
           />
+          <ProductBadges key={customForm.id || 'new'} productId={customForm.id} />
 
           <FulfillmentTypeFields
             idPrefix="custom-fulfillment"

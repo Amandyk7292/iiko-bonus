@@ -58,6 +58,7 @@ const validateUploadedImage = (req, res, next) => {
 };
 
 function registerMenuAdminRoutes(router) {
+  require('./product-badges.routes').registerProductBadgeRoutes(router);
   registerPriceLabelRoutes(router);
   router.post(
     '/admin/api/menu/products/category',

@@ -194,6 +194,7 @@ part 'screens/catalog_screen_view.dart';
 part 'screens/catalog_screen_layout.dart';
 part 'screens/catalog_product_grid.dart';
 part 'screens/catalog_product_card.dart';
+part 'widgets/product_badge_chips.dart';
 part 'screens/catalog_stock_badge.dart';
 part 'screens/catalog_models.dart';
 part 'screens/catalog_widgets.dart';

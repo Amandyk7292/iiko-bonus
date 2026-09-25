@@ -2,6 +2,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const iiko = require('../src/services/iiko.service');
 const menuService = require('../src/services/menu.service');
+test.beforeEach((t) =>
+  t.mock.method(
+    require('../src/services/product-badges.service'),
+    'publicBadgeMap',
+    async () => new Map(),
+  ),
+);
 const router = require('../src/routes/legacy.routes');
 const handler = router.stack.find((layer) => layer.route?.path === '/api/guest/menu').route.stack[0]
   .handle;

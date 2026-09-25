@@ -792,6 +792,7 @@ router.get('/api/guest/menu', async (req, res) => {
     const rawProducts = Array.isArray(rawMenu.products) ? rawMenu.products : [];
 
     const prodOverridesMap = new Map(productOverrides.map((o) => [o.iiko_product_id, o]));
+    const productBadges = await require('../services/product-badges.service').publicBadgeMap();
     const catOverridesMap = new Map(categoryOverrides.map((o) => [o.iiko_category_id, o]));
     const branchSupportsOrderType =
       !branchSettings ||
@@ -904,6 +905,7 @@ router.get('/api/guest/menu', async (req, res) => {
         ),
         ingredients: getLocalized(override, 'ingredients', ''),
         allergens: Array.isArray(override?.allergens) ? override.allergens : [],
+        badges: productBadges.get(String(p.id)) || [],
         dietaryTags: Array.isArray(override?.dietary_tags) ? override.dietary_tags : [],
         searchKeywords: Array.isArray(override?.search_keywords) ? override.search_keywords : [],
         weightGrams: override?.weight_grams == null ? null : Number(override.weight_grams),
@@ -963,6 +965,7 @@ router.get('/api/guest/menu', async (req, res) => {
         ),
         ingredients: getLocalized(cp, 'ingredients', ''),
         allergens: Array.isArray(cp.allergens) ? cp.allergens : [],
+        badges: productBadges.get(String(cp.id)) || [],
         dietaryTags: Array.isArray(cp.dietary_tags) ? cp.dietary_tags : [],
         searchKeywords: Array.isArray(cp.search_keywords) ? cp.search_keywords : [],
         weightGrams: cp.weight_grams == null ? null : Number(cp.weight_grams),

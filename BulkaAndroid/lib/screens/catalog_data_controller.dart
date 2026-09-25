@@ -320,6 +320,11 @@ extension _CatalogDataController on _CatalogScreenState {
       ingredients: _asString(product['ingredients']),
       allergens: _productStringList(product, 'allergens'),
       dietaryTags: _productStringList(product, 'dietaryTags'),
+      badges: (product['badges'] is List ? product['badges'] as List : const [])
+          .whereType<Map>()
+          .take(3)
+          .map((b) => Map<String, dynamic>.from(b))
+          .toList(),
       searchKeywords: _productStringList(product, 'searchKeywords'),
       weightGrams: _productNumber(product['weightGrams'])?.round(),
       caloriesKcal: _productNumber(nutrition['caloriesKcal']),
@@ -483,6 +488,7 @@ extension _CatalogDataController on _CatalogScreenState {
         ingredients: previous.ingredients,
         allergens: previous.allergens,
         dietaryTags: previous.dietaryTags,
+        badges: previous.badges,
         searchKeywords: previous.searchKeywords,
         weightGrams: previous.weightGrams,
         caloriesKcal: previous.caloriesKcal,
