@@ -2323,6 +2323,19 @@ void main() {
     expect(find.textContaining('Дарим 5%'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('nav-4')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    final slide = tester.widget<SlideTransition>(
+      find.byKey(const ValueKey('tab-slide-4')),
+    );
+    expect(slide.position.value.dx, inExclusiveRange(0, 1));
+    final outgoingHero = find
+        .descendant(
+          of: find.byKey(const ValueKey('tab-slot-0')),
+          matching: find.byType(HeroMode),
+        )
+        .first;
+    expect(tester.widget<HeroMode>(outgoingHero).enabled, isFalse);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('nav-0')));
     await tester.pumpAndSettle();

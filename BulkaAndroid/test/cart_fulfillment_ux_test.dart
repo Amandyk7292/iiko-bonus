@@ -44,10 +44,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Самовывоз · ЖК Дукат'), findsOneWidget);
-    expect(
-      find.text('Войдите, чтобы увидеть бонусы за заказ.'),
-      findsOneWidget,
-    );
+    expect(find.text('Войдите, чтобы увидеть бонусы за заказ.'), findsNothing);
     expect(find.text('Вернуться: Предзаказ'), findsOneWidget);
     expect(find.textContaining('+ 0 бонусов'), findsNothing);
     await tester.tap(find.text('Вернуться: Предзаказ'));

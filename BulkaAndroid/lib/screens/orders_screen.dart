@@ -451,9 +451,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
           ),
           child: _CartCheckoutBar(
             total: cart.totalAmount,
-            cashbackPercent: widget.customer?.cashbackPercent ?? 0,
             hasUnavailableItems: hasUnavailableItems,
-            isGuest: widget.customer == null,
             orderType: widget.orderType,
             fulfillmentLabel: _fulfillmentLabel,
             returnOrderType: widget.returnOrderType,

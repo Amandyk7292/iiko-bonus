@@ -378,43 +378,115 @@ class _PersistentTabSwitcher extends StatefulWidget {
   State<_PersistentTabSwitcher> createState() => _PersistentTabSwitcherState();
 }
 
-class _PersistentTabSwitcherState extends State<_PersistentTabSwitcher> {
+class _PersistentTabSwitcherState extends State<_PersistentTabSwitcher>
+    with SingleTickerProviderStateMixin {
   late final Set<int> _visited = {widget.index};
+  late final AnimationController _transition;
+
+  @override
+  void initState() {
+    super.initState();
+    _transition = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+      value: 1,
+    )..addStatusListener(_finishTransition);
+  }
+
+  int? _outgoingIndex;
+  Animation<Offset> _incoming = const AlwaysStoppedAnimation(Offset.zero);
+  Animation<Offset> _outgoing = const AlwaysStoppedAnimation(Offset.zero);
+
+  void _finishTransition(AnimationStatus status) {
+    if (status == AnimationStatus.completed &&
+        _outgoingIndex != null &&
+        mounted) {
+      setState(() => _outgoingIndex = null);
+    }
+  }
 
   @override
   void didUpdateWidget(covariant _PersistentTabSwitcher oldWidget) {
     super.didUpdateWidget(oldWidget);
     _visited.add(widget.index);
+    if (oldWidget.index == widget.index) return;
+    if (BulkaMotion.reduced(context)) {
+      _outgoingIndex = null;
+      _transition.value = 1;
+      _incoming = const AlwaysStoppedAnimation(Offset.zero);
+      return;
+    }
+    final direction = widget.index > oldWidget.index ? 1.0 : -1.0;
+    final outgoingStart = _incoming.value;
+    final incomingStart = widget.index == _outgoingIndex
+        ? _outgoing.value
+        : Offset(direction, 0);
+    _outgoingIndex = oldWidget.index;
+    final curve = _transition.drive(CurveTween(curve: Curves.easeInOutCubic));
+    _incoming = Tween<Offset>(
+      begin: incomingStart,
+      end: Offset.zero,
+    ).animate(curve);
+    _outgoing = Tween<Offset>(
+      begin: outgoingStart,
+      end: Offset(-direction, 0),
+    ).animate(curve);
+    _transition.forward(from: 0);
   }
 
   @override
-  Widget build(BuildContext context) {
-    // iOS tabs switch immediately. Keeping the transition on the small nav
-    // controls avoids compositing two full-screen CanvasKit/SkWasm surfaces on
-    // every frame, which is a common source of scroll and tap jank on Safari.
-    return Stack(
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (BulkaMotion.reduced(context)) {
+      _outgoingIndex = null;
+      _transition.value = 1;
+      _incoming = const AlwaysStoppedAnimation(Offset.zero);
+    }
+  }
+
+  @override
+  void dispose() {
+    _transition.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ClipRect(
+    child: Stack(
       fit: StackFit.expand,
       children: [
         for (var i = 0; i < widget.children.length; i++)
           if (_visited.contains(i)) _buildTabSlot(i),
       ],
-    );
-  }
+    ),
+  );
 
   Widget _buildTabSlot(int slotIndex) {
-    final visible = slotIndex == widget.index;
+    final active = slotIndex == widget.index;
+    final outgoing = slotIndex == _outgoingIndex;
     return Offstage(
       key: ValueKey('tab-slot-$slotIndex'),
-      offstage: !visible,
-      child: TickerMode(
-        enabled: visible,
-        child: ExcludeSemantics(
-          excluding: !visible,
-          child: ExcludeFocus(
-            excluding: !visible,
-            child: IgnorePointer(
-              ignoring: !visible,
-              child: RepaintBoundary(child: widget.children[slotIndex]),
+      offstage: !active && !outgoing,
+      child: SlideTransition(
+        key: ValueKey('tab-slide-$slotIndex'),
+        position: active
+            ? _incoming
+            : outgoing
+            ? _outgoing
+            : const AlwaysStoppedAnimation(Offset.zero),
+        child: TickerMode(
+          enabled: active,
+          child: ExcludeSemantics(
+            excluding: !active,
+            child: ExcludeFocus(
+              excluding: !active,
+              child: IgnorePointer(
+                ignoring: !active,
+                child: HeroMode(
+                  enabled: active,
+                  child: RepaintBoundary(child: widget.children[slotIndex]),
+                ),
+              ),
             ),
           ),
         ),

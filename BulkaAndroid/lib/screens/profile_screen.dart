@@ -281,6 +281,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(
+        // The scroll padding already reserves the overlaid navigation bar.
+        bottom: false,
         child: SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
             20,

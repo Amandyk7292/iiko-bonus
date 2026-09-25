@@ -3,9 +3,7 @@ part of '../main.dart';
 class _CartCheckoutBar extends StatelessWidget {
   const _CartCheckoutBar({
     required this.total,
-    required this.cashbackPercent,
     required this.hasUnavailableItems,
-    required this.isGuest,
     required this.orderType,
     required this.fulfillmentLabel,
     this.returnOrderType,
@@ -15,9 +13,7 @@ class _CartCheckoutBar extends StatelessWidget {
   });
 
   final int total;
-  final int cashbackPercent;
   final bool hasUnavailableItems;
-  final bool isGuest;
   final String orderType;
   final String fulfillmentLabel;
   final String? returnOrderType;
@@ -31,7 +27,7 @@ class _CartCheckoutBar extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 18, 24, 20),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       decoration: BoxDecoration(
         color: scheme.surface,
         border: Border(
@@ -48,9 +44,12 @@ class _CartCheckoutBar extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Text(
               '${_orderTypeFromWire(orderType).label}${fulfillmentLabel.isEmpty ? '' : ' · $fulfillmentLabel'}',
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: BulkaTypeScale.caption,
+                color: colors.mutedText,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -109,18 +108,6 @@ class _CartCheckoutBar extends StatelessWidget {
               ),
             const SizedBox(height: 12),
           ],
-          if (isGuest)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text('cart_guest_bonus_hint'.tr),
-            )
-          else
-            _CartSummaryLine(
-              label: 'cart_reward'.tr,
-              value:
-                  '+ ${(total * cashbackPercent / 100).round()} ${'cart_points'.tr}',
-            ),
-          const SizedBox(height: 12),
           if (orderType == 'delivery') ...[
             Align(
               alignment: Alignment.centerLeft,
@@ -128,23 +115,32 @@ class _CartCheckoutBar extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
-          _CartSummaryLine(
-            label: 'cart_total'.tr,
-            value: '${_formatCartMoney(total)} ₸',
-            emphasized: true,
-          ),
-          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: GradientButton(
               onPressed: onCheckout,
-              child: Text(
-                'cart_checkout'.tr,
-                style: const TextStyle(
-                  fontFamily: _headingFont,
-                  fontSize: BulkaTypeScale.body,
-                  fontWeight: FontWeight.w700,
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'cart_checkout'.tr,
+                      style: const TextStyle(
+                        fontFamily: _headingFont,
+                        fontSize: BulkaTypeScale.body,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '${_formatCartMoney(total)} ₸',
+                    key: const ValueKey('cart-checkout-total'),
+                    style: const TextStyle(
+                      fontSize: BulkaTypeScale.body,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
