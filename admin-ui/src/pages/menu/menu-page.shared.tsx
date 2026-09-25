@@ -4,6 +4,7 @@ import SelectControl from '../../components/SelectControl';
 export type ProductBadge = {
   id: string;
   label: string;
+  labelKk?: string;
   background: string;
   foreground: string;
 };

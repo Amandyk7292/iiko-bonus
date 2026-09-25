@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { request } from '../../lib/api';
-type Badge = { id: string; label: string; background: string; foreground: string };
+import type { ProductBadge as Badge } from './menu-page.shared';
 export default function ProductBadges({
   productId,
   onSaved,
@@ -12,6 +12,7 @@ export default function ProductBadges({
     [selected, setSelected] = useState<string[]>([]);
   const [editing, setEditing] = useState<string>(),
     [label, setLabel] = useState(''),
+    [labelKk, setLabelKk] = useState(''),
     [background, setBackground] = useState('#782b0e'),
     [foreground, setForeground] = useState('#ffffff');
   const [busy, setBusy] = useState(false),
@@ -48,6 +49,7 @@ export default function ProductBadges({
         body: JSON.stringify({
           ...(editing ? { id: editing } : {}),
           label: label.trim(),
+          labelKk: labelKk.trim(),
           background,
           foreground,
         }),
@@ -55,6 +57,7 @@ export default function ProductBadges({
       setBadges((current) => [...current.filter((b) => b.id !== badge.id), badge]);
       setEditing(undefined);
       setLabel('');
+      setLabelKk('');
       setMessage('Метка сохранена в общем справочнике');
       onSaved?.();
     } catch (error) {
@@ -119,6 +122,7 @@ export default function ProductBadges({
               onClick={() => {
                 setEditing(b.id);
                 setLabel(b.label);
+                setLabelKk(b.labelKk || '');
                 setBackground(b.background);
                 setForeground(b.foreground);
               }}
@@ -136,7 +140,7 @@ export default function ProductBadges({
         <p>Сначала сохраните товар, затем откройте его редактирование для выбора меток.</p>
       )}
       <label>
-        Название метки
+        Название на русском
         <input
           className="input-classic"
           value={label}
@@ -145,6 +149,20 @@ export default function ProductBadges({
           onChange={(e) => setLabel(e.target.value)}
         />
       </label>
+      <label>
+        Название на казахском
+        <input
+          className="input-classic"
+          value={labelKk}
+          maxLength={24}
+          placeholder="Ащы, Жаңа"
+          onChange={(e) => setLabelKk(e.target.value)}
+        />
+      </label>
+      <p className="text-sm text-gray-500">
+        Клиенты увидят метку на выбранном языке. Если казахское название не заполнено, показывается
+        русское.
+      </p>
       <div className="flex flex-wrap gap-4">
         <label>
           Фон{' '}
@@ -154,9 +172,16 @@ export default function ProductBadges({
           Текст{' '}
           <input type="color" value={foreground} onChange={(e) => setForeground(e.target.value)} />
         </label>
-        <span style={{ background, color: foreground, borderRadius: 12, padding: '6px 12px' }}>
-          {label || 'Предпросмотр'}
-        </span>
+        <div className="flex flex-wrap items-center gap-2" aria-label="Предпросмотр метки">
+          <span className="text-xs">RU</span>
+          <span style={{ background, color: foreground, borderRadius: 12, padding: '6px 12px' }}>
+            {label || 'Предпросмотр'}
+          </span>
+          <span className="text-xs">KK</span>
+          <span style={{ background, color: foreground, borderRadius: 12, padding: '6px 12px' }}>
+            {labelKk || label || 'Алдын ала қарау'}
+          </span>
+        </div>
       </div>
       <button
         type="button"
@@ -172,6 +197,7 @@ export default function ProductBadges({
           onClick={() => {
             setEditing(undefined);
             setLabel('');
+            setLabelKk('');
           }}
         >
           Отмена редактирования метки

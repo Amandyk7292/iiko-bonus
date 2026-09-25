@@ -788,7 +788,7 @@ router.get('/api/guest/menu', async (req, res) => {
       branchId
         ? getBranchAvailability(branchId, { strict: true, preorder: orderType === 'preorder' })
         : Promise.resolve(new Map()),
-      require('../services/product-badges.service').publicBadgeMap(),
+      require('../services/product-badges.service').publicBadgeMap(undefined, lang),
     ]);
     const rawGroups = Array.isArray(rawMenu.groups) ? rawMenu.groups : [];
     const rawProducts = Array.isArray(rawMenu.products) ? rawMenu.products : [];

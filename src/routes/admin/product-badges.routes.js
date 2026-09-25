@@ -1,6 +1,6 @@
 const { supabase } = require('../../config/supabase');
 const { z, validateRequest } = require('../../middlewares/validation.middleware');
-const { badgeCatalog } = require('../../services/product-badges.service');
+const { badgeCatalog, badgeDto } = require('../../services/product-badges.service');
 const realtime = require('../../services/realtime.service');
 const productId = z
   .string()
@@ -37,6 +37,7 @@ module.exports.registerProductBadgeRoutes = (router) => {
         .object({
           id: z.string().uuid().optional(),
           label: z.string().trim().min(1).max(24),
+          labelKk: z.string().trim().max(24).optional(),
           background: z.string().regex(/^#[0-9a-f]{6}$/i),
           foreground: z.string().regex(/^#[0-9a-f]{6}$/i),
         })
@@ -44,14 +45,19 @@ module.exports.registerProductBadgeRoutes = (router) => {
     }),
     async (req, res, next) => {
       try {
+        const { labelKk, ...fields } = req.body;
         const { data, error } = await supabase
           .from('product_badges')
-          .upsert({ ...req.body, updated_at: new Date().toISOString() })
-          .select('id,label,background,foreground')
+          .upsert({
+            ...fields,
+            ...(labelKk !== undefined ? { label_kk: labelKk } : {}),
+            updated_at: new Date().toISOString(),
+          })
+          .select('id,label,label_kk,background,foreground')
           .single();
         if (error) throw error;
         realtime.publish('menu.updated', {});
-        res.json({ badge: data });
+        res.json({ badge: badgeDto(data) });
       } catch (error) {
         next(error);
       }

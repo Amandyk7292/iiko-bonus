@@ -115,3 +115,25 @@ test('guest menu fails closed when an override source fails', async (t) => {
   assert.equal(res.body.success, false);
   assert.equal(res.body.products, undefined);
 });
+
+test('guest menu uses the Kazakh label requested by the app', async (t) => {
+  t.mock.method(iiko, 'getMenu', async () => menu);
+  t.mock.method(iiko, 'getStopListProductIds', async () => new Set());
+  t.mock.method(menuService, 'getProductOverrides', async () => []);
+  t.mock.method(menuService, 'getCategoryOverrides', async () => []);
+  t.mock.method(menuService, 'getCustomProducts', async () => []);
+  t.mock.method(
+    require('../src/services/product-badges.service'),
+    'publicBadgeMap',
+    async (_db, language) => {
+      assert.equal(language, 'kk');
+      return new Map([
+        ['bun', [{ id: 'spicy', label: 'Ащы', background: '#dd4422', foreground: '#ffffff' }]],
+      ]);
+    },
+  );
+  const res = response();
+  await handler({ query: {}, headers: { 'accept-language': 'kk-KZ,ru;q=0.8' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.products[0].badges[0].label, 'Ащы');
+});

@@ -16,12 +16,25 @@ test('shared badge persists once and editing it changes both product projections
     "insert into product_badge_assignments(product_id,badge_ids) values('one',array[$1::uuid]),('two',array[$1::uuid])",
     [id],
   );
+  await db.exec(
+    fs.readFileSync('supabase/migrations/20260925190000_product_badge_kazakh_labels.sql', 'utf8'),
+  );
+  const legacy = await db.query('select label,label_kk from product_badges where id=$1', [id]);
+  assert.deepEqual(legacy.rows[0], { label: 'Хит', label_kk: '' });
+  await db.query("update product_badges set label_kk='Ащы' where id=$1", [id]);
   await db.query("update product_badges set label='Острое',background='#ff0000' where id=$1", [id]);
   const result = await db.query(
-    'select b.label,b.background from product_badge_assignments a join product_badges b on b.id=any(a.badge_ids)',
+    'select b.label,b.label_kk,b.background from product_badge_assignments a join product_badges b on b.id=any(a.badge_ids)',
   );
   assert.equal(result.rows.length, 2);
-  assert.ok(result.rows.every((row) => row.label === 'Острое' && row.background === '#ff0000'));
+  assert.ok(
+    result.rows.every(
+      (row) => row.label === 'Острое' && row.label_kk === 'Ащы' && row.background === '#ff0000',
+    ),
+  );
+  await assert.rejects(
+    db.query('update product_badges set label_kk=$2 where id=$1', [id, 'Ә'.repeat(25)]),
+  );
   await assert.rejects(
     db.query("update product_badges set background='url(javascript:bad)' where id=$1", [id]),
   );
