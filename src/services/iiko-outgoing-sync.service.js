@@ -1,4 +1,5 @@
 const { randomUUID } = require('node:crypto');
+const { isDeepStrictEqual } = require('node:util');
 const { supabase } = require('../config/supabase');
 const { logger } = require('../config/logger');
 const { IikoDashboardClient } = require('./iiko-dashboard-client');
@@ -36,6 +37,52 @@ class IikoOutgoingSync {
       throw failure('IIKO_OUTGOING_STORAGE');
     }
     return data;
+  }
+  async changedDocuments(city, documents, startedAt) {
+    const boundary = Date.parse(startedAt);
+    if (!Number.isFinite(boundary)) throw failure('IIKO_OUTGOING_RESPONSE');
+    const previous = new Map();
+    // Bound the UUID filter below typical proxy URI limits. Read while holding
+    // the city lease; all changed documents still go through the SQL lease and
+    // recount guards. JSONB object key order is not an invoice revision.
+    for (let offset = 0; offset < documents.length; offset += 100) {
+      const ids = documents.slice(offset, offset + 100).map((document) => document.id);
+      let response;
+      try {
+        response = await this.db
+          .from('iiko_outgoing_stock_documents')
+          .select('document_id,payload', { count: 'exact' })
+          .eq('city', city)
+          .in('document_id', ids)
+          .abortSignal(AbortSignal.timeout(15_000))
+          .limit(ids.length);
+      } catch {
+        throw failure('IIKO_OUTGOING_STORAGE');
+      }
+      const { data, error, count } = response || {};
+      // A truncated result must not make a known, backdated revision look like
+      // untracked history. Unknown or incomplete storage responses fail closed.
+      if (error || !Array.isArray(data) || count !== data.length)
+        throw failure('IIKO_OUTGOING_STORAGE');
+      for (const row of data) {
+        if (
+          !row ||
+          !ids.includes(row.document_id) ||
+          previous.has(row.document_id) ||
+          !row.payload ||
+          typeof row.payload !== 'object' ||
+          Array.isArray(row.payload) ||
+          row.payload.id !== row.document_id
+        )
+          throw failure('IIKO_OUTGOING_STORAGE');
+        previous.set(row.document_id, row.payload);
+      }
+    }
+    return documents.filter((document) =>
+      previous.has(document.id)
+        ? !isDeepStrictEqual(previous.get(document.id), document)
+        : Date.parse(document.postedAt) > boundary,
+    );
   }
   async sync() {
     const cities = String(this.env.IIKO_OUTGOING_CITIES ?? 'aktau,astana')
@@ -112,7 +159,8 @@ class IikoOutgoingSync {
           if (localDate(document.postedAt) < from || localDate(document.postedAt) > to)
             throw failure('IIKO_OUTGOING_RANGE');
         }
-        for (const document of documents) {
+        const changed = await this.changedDocuments(source.city, documents, state.started_at);
+        for (const document of changed) {
           const result = await this.rpc('apply_iiko_outgoing_invoice', {
             ...args,
             p_document: document,

@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { isDeepStrictEqual } = require('node:util');
 const {
   bindings,
   loadOutgoingDocuments,
@@ -286,11 +287,52 @@ function workerFixture({
   const state = { started_at: startedAt, scan_date: scanDate };
   const calls = [],
     ranges = [],
+    ledgerReads = [],
     published = [],
     warnings = [],
     applied = new Map();
-  const options = { failFetch: false, loseApplyReply: false };
+  const options = { failFetch: false, loseApplyReply: false, failLedger: false };
   const db = {
+    from: (table) => {
+      assert.equal(table, 'iiko_outgoing_stock_documents');
+      assert.equal(calls[0]?.name, 'claim_iiko_outgoing_sync');
+      const query = {};
+      return {
+        select(columns, options) {
+          assert.equal(columns, 'document_id,payload');
+          assert.deepEqual(options, { count: 'exact' });
+          return this;
+        },
+        eq(column, value) {
+          assert.equal(column, 'city');
+          query.city = value;
+          return this;
+        },
+        in(column, ids) {
+          assert.equal(column, 'document_id');
+          query.ids = ids;
+          return this;
+        },
+        abortSignal(signal) {
+          assert.ok(signal instanceof AbortSignal);
+          query.signal = signal;
+          return this;
+        },
+        async limit(limit) {
+          assert.equal(limit, query.ids.length);
+          assert.equal(query.city, server.city);
+          assert.ok(limit <= 100);
+          ledgerReads.push(query);
+          if (query.signal.aborted) return { error: { message: 'fixture ledger request aborted' } };
+          if (options.failLedger) return { error: { message: 'fixture ledger unavailable' } };
+          const data = query.ids
+            .filter((id) => applied.has(id))
+            .map((id) => ({ document_id: id, payload: applied.get(id) }));
+          if (options.ledgerResponse) return options.ledgerResponse(data);
+          return { data, count: data.length };
+        },
+      };
+    },
     rpc: async (name, args) => {
       calls.push({ name, args });
       if (name === 'claim_iiko_outgoing_sync') return { data: locked ? null : { ...state } };
@@ -300,7 +342,7 @@ function workerFixture({
       }
       assert.equal(name, 'apply_iiko_outgoing_invoice');
       const key = args.p_document.id;
-      const duplicate = applied.has(key);
+      const duplicate = isDeepStrictEqual(applied.get(key), args.p_document);
       if (!duplicate) applied.set(key, args.p_document);
       if (options.loseApplyReply) {
         options.loseApplyReply = false;
@@ -338,7 +380,7 @@ function workerFixture({
     publish: (...args) => published.push(args),
     log: { error: () => {}, warn: (...args) => warnings.push(args) },
   });
-  return { worker, state, calls, ranges, published, warnings, applied, options };
+  return { worker, state, calls, ranges, ledgerReads, published, warnings, applied, options };
 }
 
 test('outgoing worker obeys lease ownership and uses the same lease through apply and finish', async () => {
@@ -393,7 +435,7 @@ test('outgoing offline releases its lease without advancing cursor and resumes t
   assert.deepEqual(context.ranges[1], { from: '2026-09-08', to: '2026-09-14' });
 });
 
-test('outgoing response loss after apply repeats identity without a second stock effect', async () => {
+test('outgoing response loss after apply reads the durable identity without another apply RPC', async () => {
   const context = workerFixture({ documents: [invoice()] });
   context.options.loseApplyReply = true;
   await assert.rejects(context.worker.syncSource(server, mapping), {
@@ -404,11 +446,179 @@ test('outgoing response loss after apply repeats identity without a second stock
   await context.worker.syncSource(server, mapping);
   assert.equal(
     context.calls.filter(({ name }) => name === 'apply_iiko_outgoing_invoice').length,
-    2,
+    1,
   );
   assert.equal(context.applied.size, 1);
   assert.equal(context.published.length, 0);
   assert.equal(context.warnings.length, 0);
+});
+
+test('outgoing ledger prefilter uses bounded city-scoped reads and ignores JSONB key order', async () => {
+  const documents = Array.from({ length: 205 }, (_, index) => invoice({ id: id(index + 100) }));
+  const context = workerFixture({ documents });
+  const reorder = (value) =>
+    Array.isArray(value)
+      ? value.map(reorder)
+      : value && typeof value === 'object'
+        ? Object.fromEntries(
+            Object.entries(value)
+              .reverse()
+              .map(([key, item]) => [key, reorder(item)]),
+          )
+        : value;
+  for (const document of normalizeDocuments(dataset(documents), server, mapping))
+    context.applied.set(document.id, reorder(document));
+  await context.worker.syncSource(server, mapping);
+  assert.deepEqual(
+    context.ledgerReads.map(({ city, ids }) => [city, ids.length]),
+    [
+      ['aktau', 100],
+      ['aktau', 100],
+      ['aktau', 5],
+    ],
+  );
+  assert.deepEqual(
+    context.calls.map(({ name }) => name),
+    ['claim_iiko_outgoing_sync', 'finish_iiko_outgoing_sync'],
+  );
+  assert.equal(context.calls.at(-1).args.p_next_date, '2026-09-26');
+});
+
+test('outgoing first cycle skips untracked earlier or exact-boundary documents after checking identities', async () => {
+  const context = workerFixture({
+    startedAt: '2026-09-26T09:00:00Z',
+    documents: [
+      invoice(),
+      invoice({ id: id(7), dateIncoming: '2026-09-26T14:00:00' }),
+      invoice({ id: id(8), dateIncoming: '2026-09-26T14:00:01' }),
+    ],
+  });
+  await context.worker.syncSource(server, mapping);
+  assert.equal(context.ledgerReads[0].ids.length, 3);
+  assert.deepEqual(
+    context.calls
+      .filter(({ name }) => name === 'apply_iiko_outgoing_invoice')
+      .map(({ args }) => args.p_document.id),
+    [id(8)],
+  );
+  assert.equal(context.applied.size, 1);
+});
+
+test('outgoing known revision moved before tracking is still sent to the SQL recount guard', async () => {
+  const changed = invoice({ dateIncoming: '2026-09-26T13:00:00' });
+  const context = workerFixture({ startedAt: '2026-09-26T09:00:00Z', documents: [changed] });
+  context.applied.set(
+    invoiceId,
+    normalizeDocuments(
+      dataset([invoice({ dateIncoming: '2026-09-26T14:30:00' })]),
+      server,
+      mapping,
+    )[0],
+  );
+  const original = context.worker.db.rpc;
+  context.worker.db.rpc = async (name, args) =>
+    name === 'apply_iiko_outgoing_invoice'
+      ? { error: { message: 'Outgoing invoice date crossed a physical count; recount required' } }
+      : original(name, args);
+  await assert.rejects(context.worker.syncSource(server, mapping), {
+    code: 'IIKO_OUTGOING_RECOUNT_REQUIRED',
+  });
+  assert.equal(context.calls.at(-1).args.p_next_date, null);
+  assert.equal(context.published.length, 0);
+});
+
+test('outgoing delayed edits with the same timestamp, cancellations and item removals reach apply', async () => {
+  for (const revised of [
+    invoice({ items: { item: { productId: product, amount: '3' } } }),
+    invoice({ status: 'DELETED', items: undefined }),
+    invoice({ status: 'NEW', items: undefined }),
+    invoice({ items: undefined }),
+  ]) {
+    const context = workerFixture({
+      startedAt: '2026-09-01T00:00:00Z',
+      scanDate: '2026-09-08',
+      documents: ({ from }) => (from === '2026-09-25' ? [revised] : []),
+    });
+    context.applied.set(invoiceId, normalizeDocuments(dataset(), server, mapping)[0]);
+    await context.worker.syncSource(server, mapping);
+    assert.equal(
+      context.calls.filter(({ name }) => name === 'apply_iiko_outgoing_invoice').length,
+      1,
+    );
+    assert.deepEqual(
+      context.applied.get(invoiceId),
+      normalizeDocuments(dataset([revised]), server, mapping)[0],
+    );
+    assert.equal(context.published.length, 1);
+  }
+});
+
+test('outgoing ledger failures and incomplete responses never apply or advance the cursor', async () => {
+  for (const response of [
+    () => ({ error: { message: 'read failed' } }),
+    () => {
+      throw new Error('connection lost');
+    },
+    () => ({ data: null, count: 0 }),
+    () => ({ data: [], count: 1 }),
+    () => ({ data: [], count: null }),
+    () => ({ data: [{ document_id: invoiceId, payload: null }], count: 1 }),
+    () => ({ data: [{ document_id: id(999), payload: { id: id(999) } }], count: 1 }),
+  ]) {
+    const context = workerFixture({
+      startedAt: '2026-09-01T00:00:00Z',
+      scanDate: '2026-09-08',
+      documents: [invoice()],
+    });
+    context.options.ledgerResponse = response;
+    await assert.rejects(context.worker.syncSource(server, mapping), {
+      code: 'IIKO_OUTGOING_STORAGE',
+    });
+    assert.equal(context.applied.size, 0);
+    assert.equal(context.calls.at(-1).args.p_next_date, null);
+    assert.equal(context.state.scan_date, '2026-09-08');
+  }
+});
+
+test('outgoing reads every ledger chunk before applying any candidate and retries a failed later chunk', async () => {
+  const documents = Array.from({ length: 101 }, (_, index) => invoice({ id: id(index + 100) }));
+  const context = workerFixture({ documents });
+  context.options.ledgerResponse = (data) =>
+    context.ledgerReads.length === 2
+      ? { error: { message: 'second chunk unavailable' } }
+      : { data, count: data.length };
+  await assert.rejects(context.worker.syncSource(server, mapping), {
+    code: 'IIKO_OUTGOING_STORAGE',
+  });
+  assert.equal(context.applied.size, 0);
+  assert.equal(context.calls.at(-1).args.p_next_date, null);
+  context.options.ledgerResponse = undefined;
+  await context.worker.syncSource(server, mapping);
+  assert.equal(context.applied.size, 101);
+  assert.equal(
+    context.calls.filter(({ name }) => name === 'apply_iiko_outgoing_invoice').length,
+    101,
+  );
+});
+
+test('outgoing ledger read has a bounded timeout and an abort releases the lease without advancing', async (t) => {
+  let timeouts = 0;
+  t.mock.method(AbortSignal, 'timeout', (milliseconds) => {
+    assert.equal(milliseconds, 15_000);
+    timeouts++;
+    const controller = new AbortController();
+    controller.abort();
+    return controller.signal;
+  });
+  const context = workerFixture({ documents: [invoice()] });
+  await assert.rejects(context.worker.syncSource(server, mapping), {
+    code: 'IIKO_OUTGOING_STORAGE',
+  });
+  assert.equal(timeouts, 1);
+  assert.equal(context.ledgerReads[0].signal.aborted, true);
+  assert.equal(context.applied.size, 0);
+  assert.equal(context.calls.at(-1).name, 'finish_iiko_outgoing_sync');
+  assert.equal(context.calls.at(-1).args.p_next_date, null);
 });
 
 test('outgoing full export is validated before any mutation or cursor advance', async () => {
