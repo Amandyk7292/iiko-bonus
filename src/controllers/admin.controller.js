@@ -26,7 +26,6 @@ const {
 const { deleteCustomerData } = require('../services/privacy.service');
 const { setAdminAuditContext } = require('../services/admin-audit.service');
 const { getStories, addStory, updateStory, deleteStory } = require('../services/story.service');
-const { getNews, addNews, updateNews, deleteNews } = require('../services/news.service');
 const {
   getCitiesWithPoints,
   createCity,
@@ -439,40 +438,6 @@ const deleteStoryHandler = async (req, res) => {
   }
 };
 
-// News
-const getNewsHandler = async (req, res) => {
-  try {
-    const news = await getNews();
-    res.json({ success: true, news });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-const addNewsHandler = async (req, res) => {
-  try {
-    const newsItem = await addNews(req.body);
-    res.json({ success: true, news: newsItem });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-const updateNewsHandler = async (req, res) => {
-  try {
-    const newsItem = await updateNews(req.params.id, req.body);
-    res.json({ success: true, news: newsItem });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-const deleteNewsHandler = async (req, res) => {
-  try {
-    await deleteNews(req.params.id);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
 // Cities and Points
 const getCitiesHandler = async (req, res) => {
   try {
@@ -561,10 +526,6 @@ module.exports = {
   addStoryHandler,
   updateStoryHandler,
   deleteStoryHandler,
-  getNewsHandler,
-  addNewsHandler,
-  updateNewsHandler,
-  deleteNewsHandler,
   getCitiesHandler,
   addCityHandler,
   updateCityHandler,

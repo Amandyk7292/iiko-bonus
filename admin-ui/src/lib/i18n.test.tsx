@@ -24,7 +24,7 @@ describe('admin interface locale', () => {
     expect(document.documentElement.lang).toBe('kk');
   });
 
-  it('falls back from an unsupported stored locale and localizes missing keys', () => {
+  it('falls back obsolete English preferences to Russian', () => {
     localStorage.setItem('adminLocale', 'en');
     const { result } = renderHook(() => useI18n(), { wrapper });
     expect(result.current.locale).toBe('ru');

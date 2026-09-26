@@ -580,7 +580,7 @@ async function addManualBonus(customerId, amount, reason, { branchId = null, ope
   return data;
 }
 
-async function searchCustomers(query) {
+async function searchCustomers(query, { qrTime = Date.now() } = {}) {
   if (!query) return [];
   const trimQuery = query.trim();
 
@@ -592,7 +592,7 @@ async function searchCustomers(query) {
       const phone = parts[2];
       const timeWindow = parseInt(parts[3], 10);
       const hash = parts[4];
-      const currentWindow = Math.floor(Date.now() / 300000); // 300000 ms = 5 minutes
+      const currentWindow = Math.floor(qrTime / 300000); // 300000 ms = 5 minutes
 
       if (!/^\d{10,15}$/.test(phone) || !/^\d+$/.test(parts[3]) || !/^[0-9a-f]{16}$/i.test(hash)) {
         throw customerError('Некорректный QR-код клиента');
@@ -920,58 +920,6 @@ async function checkAndNotifyInactiveCustomers(inactivityDays = 30, expirationDa
   return { notifiedCount, totalNotifiedBalance };
 }
 
-async function checkAndNotifyBirthdays(settings = {}) {
-  const { sendPushToCustomer } = require('./push.service');
-  const now = new Date();
-  const currentMonth = now.getMonth() + 1; // 1-12
-  const currentDay = now.getDate();
-
-  // Ищем клиентов, у которых сегодня день рождения (нужно разобрать birthdate: YYYY-MM-DD или DD.MM.YYYY)
-  if (settings.bonus_birthday?.enabled === false) return { notifiedCount: 0 };
-  const { data: customers, error } = await supabase
-    .from('customers')
-    .select('*')
-    .not('birth_date', 'is', null);
-  if (error || !customers) return;
-
-  let notifiedCount = 0;
-
-  for (const c of customers) {
-    if (!c.birth_date) continue;
-    let bMonth, bDay;
-    if (c.birth_date.includes('-')) {
-      // YYYY-MM-DD
-      const parts = c.birth_date.split('-');
-      if (parts.length === 3) {
-        bMonth = parseInt(parts[1], 10);
-        bDay = parseInt(parts[2], 10);
-      }
-    } else if (c.birth_date.includes('.')) {
-      // DD.MM.YYYY
-      const parts = c.birth_date.split('.');
-      if (parts.length === 3) {
-        bDay = parseInt(parts[0], 10);
-        bMonth = parseInt(parts[1], 10);
-      }
-    }
-
-    if (bMonth === currentMonth && bDay === currentDay) {
-      const pushResult = await sendPushToCustomer(
-        c.id,
-        'С днём рождения!',
-        settings.bonus_birthday?.message ||
-          'Поздравляем с днём рождения! Заходите к нам за праздничным кофе и выпечкой!',
-        {},
-        c.fcm_token,
-      );
-      if (pushResult.delivered > 0 || pushResult.queued) {
-        notifiedCount++;
-      }
-    }
-  }
-  return { notifiedCount };
-}
-
 async function activatePendingBonusesSafe() {
   try {
     const result = await activatePendingBonuses();
@@ -986,7 +934,6 @@ async function activatePendingBonusesSafe() {
 
 module.exports = {
   activatePendingBonusesSafe,
-  checkAndNotifyBirthdays,
   getCustomerByPhone,
   getCustomerById,
   getOrCreateCustomerByPhone,

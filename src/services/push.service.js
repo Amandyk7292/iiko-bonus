@@ -383,11 +383,21 @@ async function sendPushToCustomer(customerId, title, body, data = {}, fallbackTo
   if (customerId && data.notificationId) {
     require('./realtime.service').publish('notification.created', {}, { customerId });
   }
-  if (!(await notificationAllowed(customerId, data))) {
-    return { attempted: 0, delivered: 0, failed: 0, skipped: 'preferences' };
+  let preferenceError;
+  try {
+    if (!(await notificationAllowed(customerId, data))) {
+      return { attempted: 0, delivered: 0, failed: 0, skipped: 'preferences' };
+    }
+  } catch (error) {
+    // Queue for a later preference check; never turn a database error into consent.
+    if (!['PUSH_PREFERENCES_UNAVAILABLE', 'PUSH_QUIET_HOURS'].includes(error.code)) throw error;
+    preferenceError = error;
   }
   const tokens = await getCustomerPushTokens(customerId, fallbackToken);
-  if (!tokens.length) return { attempted: 0, delivered: 0, failed: 0 };
+  if (!tokens.length) {
+    if (preferenceError) throw preferenceError;
+    return { attempted: 0, delivered: 0, failed: 0 };
+  }
   if (customerId) {
     let queued;
     try {
@@ -440,6 +450,7 @@ async function sendPushToCustomer(customerId, title, body, data = {}, fallbackTo
       }
     }
   }
+  if (preferenceError) throw preferenceError;
   const results = await Promise.all(
     tokens.map((token) => sendPushNotificationDetailed(token, title, body, data)),
   );

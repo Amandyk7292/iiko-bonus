@@ -3,6 +3,7 @@ const {
   adminAuthMiddleware,
   requireAdminAction,
   CUSTOMER_ACTIONS,
+  PAYMENT_ACTIONS,
 } = require('../../middlewares/auth.middleware');
 const { validateRequest } = require('../../middlewares/validation.middleware');
 const {
@@ -11,10 +12,16 @@ const {
   adminCustomerListQuerySchema,
   adminCustomerParamsSchema,
   adminCustomerUpdateBodySchema,
+  adminPersonalAccountAdjustmentSchema,
 } = require('../../contracts/admin-customer.contract');
 const { supabase } = require('../../config/supabase');
 const { branchScopeForAdmin } = require('../../utils/admin-scope.util');
 const { badRequest, notFound } = require('../../utils/app-error.util');
+const { setAdminAuditContext } = require('../../services/admin-audit.service');
+const {
+  adjustPersonalAccount,
+  getCustomerFinancialDetails,
+} = require('../../services/customer-financial-details.service');
 
 const assertCustomerAccess = async (req, customerId) => {
   const allowedBranches = branchScopeForAdmin(req.admin);
@@ -80,6 +87,55 @@ const registerCustomerAdminRoutes = (router) => {
     requireAdminAction(CUSTOMER_ACTIONS.BULK_NOTIFY),
     validateRequest({ body: adminCustomerBulkBodySchema }),
     adminController.notifyInactiveHandler,
+  );
+  router.get(
+    '/admin/api/customers/:id/financial-details',
+    adminAuthMiddleware,
+    requireAdminAction(CUSTOMER_ACTIONS.READ),
+    validateRequest({ params: adminCustomerParamsSchema }),
+    customerAccessMiddleware,
+    async (req, res, next) => {
+      try {
+        res.json({
+          success: true,
+          ...(await getCustomerFinancialDetails(req.params.id, {
+            branchIds: branchScopeForAdmin(req.admin),
+          })),
+        });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+  router.post(
+    '/admin/api/customers/:id/personal-account-adjustment',
+    adminAuthMiddleware,
+    requireAdminAction(PAYMENT_ACTIONS.MANAGE),
+    validateRequest({
+      params: adminCustomerParamsSchema,
+      body: adminPersonalAccountAdjustmentSchema,
+    }),
+    customerAccessMiddleware,
+    async (req, res, next) => {
+      try {
+        setAdminAuditContext(req, {
+          actionCode: 'customer.personal-account.adjust',
+          targetType: 'customer',
+          targetId: req.params.id,
+          reason: req.body.reason,
+          amountChange: Number(req.body.amount),
+        });
+        res.json({
+          success: true,
+          adjustment: await adjustPersonalAccount(req.params.id, {
+            ...req.body,
+            adminSubject: req.admin?.sub || req.admin?.username,
+          }),
+        });
+      } catch (error) {
+        next(error);
+      }
+    },
   );
   router.delete(
     '/admin/api/customers/:id',

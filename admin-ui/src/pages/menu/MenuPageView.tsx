@@ -29,6 +29,7 @@ import {
 import type { MenuPageController } from './use-menu-page-controller';
 import MenuEditorModals from './MenuEditorModals';
 import MenuCategoryMove from './MenuCategoryMove';
+import ProductBadgeChips from './ProductBadgeChips';
 
 export default function MenuPageView({ controller }: { controller: MenuPageController }) {
   const {
@@ -89,7 +90,6 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
         productsCount={productsInVisibleCategories.length}
         categoriesCount={rawGroups.length}
       />
-
       {selectedBranchId && (
         <MenuWorkspaceToolbar
           profileKey={activeProfileKey}
@@ -214,7 +214,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                       Выбрать для переноса
                     </label>
                     <div
-                      className={`relative ${imgUrl ? 'h-32 bg-amber-50' : 'h-16'} rounded-t-2xl overflow-hidden`}
+                      className={`relative ${imgUrl || p.badges?.length ? 'h-32 bg-amber-50' : 'h-16'} rounded-t-2xl overflow-hidden`}
                     >
                       {imgUrl ? (
                         <img
@@ -255,17 +255,19 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                           }}
                         />
                       </label>
-                      {/* Статус badges */}
-                      {isHidden && (
-                        <span className="absolute top-2 left-2 px-2 py-0.5 bg-gray-800/70 text-white text-[10px] font-medium rounded-md">
-                          Скрыт
-                        </span>
-                      )}
-                      {isStop && !isHidden && (
-                        <span className="absolute top-2 left-2 px-2 py-0.5 bg-red-600/80 text-white text-[10px] font-medium rounded-md">
-                          Стоп
-                        </span>
-                      )}
+                      <div className="pointer-events-none absolute top-2 left-2 right-16 flex flex-col items-start gap-1">
+                        <ProductBadgeChips badges={p.badges} />
+                        {isHidden && (
+                          <span className="px-2 py-0.5 bg-gray-800/70 text-white text-[10px] font-medium rounded-md">
+                            Скрыт
+                          </span>
+                        )}
+                        {isStop && !isHidden && (
+                          <span className="px-2 py-0.5 bg-red-600/80 text-white text-[10px] font-medium rounded-md">
+                            Стоп
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Контент */}
@@ -536,6 +538,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                         )}
                         <div>
                           <h3 className="font-semibold text-gray-900 text-sm">{cp.name}</h3>
+                          <ProductBadgeChips badges={cp.badges} />
                           <IncompleteDescription
                             russianName={cp.name}
                             kazakhName={cp.name_translations?.kk}
@@ -610,7 +613,6 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
           )}
         </div>
       )}
-
       <MenuEditorModals controller={controller} />
     </div>
   );

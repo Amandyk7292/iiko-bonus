@@ -194,7 +194,16 @@ describe('Kitchen optimistic workflow', () => {
         undefined,
       ),
     );
-    expect(screen.queryByText('№100043')).not.toBeInTheDocument();
+    expect(
+      within(document.querySelector<HTMLElement>('#kitchen-column-handed_over')!).getByText(
+        '№100043',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByText('№100043').closest('article')!).queryByRole('button', {
+        name: 'Выдать клиенту',
+      }),
+    ).not.toBeInTheDocument();
 
     await act(async () => {
       resolveStart({
@@ -236,7 +245,7 @@ describe('Kitchen optimistic workflow', () => {
     expect(await screen.findByText('queue offline')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Повторить' }));
     expect(await screen.findByRole('button', { name: 'Обновить' })).toBeInTheDocument();
-    expect(screen.getAllByText('Заказов нет')).toHaveLength(3);
+    expect(screen.getAllByText('Заказов нет')).toHaveLength(4);
   });
 
   it('explains delivery dispatch and accepts without a manual-entry checkbox', async () => {

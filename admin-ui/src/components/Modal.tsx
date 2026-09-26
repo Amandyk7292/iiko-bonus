@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { motionDurations, useReducedMotion } from '../lib/motion';
+import { isTopmostModal, lockModalScroll } from '../lib/modal-scroll-lock';
 
 interface ModalProps {
   open: boolean;
@@ -61,10 +62,10 @@ export default function Modal({
     const timer = window.setTimeout(() => {
       const firstAutofocus = panelRef.current?.querySelector<HTMLElement>('[autofocus]');
       const firstFocusable = panelRef.current?.querySelector<HTMLElement>(focusableSelector);
-      (firstAutofocus ?? firstFocusable ?? closeRef.current)?.focus();
+      (firstAutofocus ?? firstFocusable ?? closeRef.current)?.focus({ preventScroll: true });
     }, 0);
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
+      if (event.defaultPrevented || !isTopmostModal(panelRef.current)) return;
       if (event.key === 'Escape') {
         onCloseRef.current();
         return;
@@ -89,12 +90,12 @@ export default function Modal({
       }
     };
     document.addEventListener('keydown', onKeyDown);
-    document.body.classList.add('modal-open');
+    const unlockScroll = lockModalScroll();
     return () => {
       window.clearTimeout(timer);
       document.removeEventListener('keydown', onKeyDown);
-      document.body.classList.remove('modal-open');
-      previous?.focus();
+      unlockScroll();
+      previous?.focus({ preventScroll: true });
     };
   }, [mounted]);
 

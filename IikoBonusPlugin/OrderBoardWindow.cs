@@ -112,6 +112,37 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 Padding = new Thickness(12, 7, 12, 7), VerticalContentAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(10, 4, 12, 4) };
             searchLabel.Target = searchInput;
+            var keypad = new System.Windows.Controls.Primitives.Popup {
+                PlacementTarget = searchInput, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+                StaysOpen = false, AllowsTransparency = true };
+            var keys = new System.Windows.Controls.Primitives.UniformGrid { Columns = 3 };
+            foreach (var key in new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9", "Очистить", "0", "⌫" })
+            {
+                var digit = key;
+                var button = Button(digit, () => {
+                    searchTimer.Stop();
+                    if (digit == "Очистить") searchInput.Clear();
+                    else if (digit == "⌫") {
+                        if (searchInput.Text.Length > 0) searchInput.Text = searchInput.Text.Substring(0, searchInput.Text.Length - 1);
+                    }
+                    else if (searchInput.Text.Length < 15) searchInput.Text += digit;
+                    searchTimer.Stop();
+                    searchInput.CaretIndex = searchInput.Text.Length;
+                });
+                button.MinHeight = 60; button.MinWidth = 90;
+                keys.Children.Add(button);
+            }
+            var keypadContent = new StackPanel(); keypadContent.Children.Add(keys);
+            keypadContent.Children.Add(Button("Найти заказ", () => { keypad.IsOpen = false; SubmitSearch(); }));
+            keypad.Child = new Border { Background = Brushes.White, BorderBrush = Brush("#E5DED5"),
+                BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12),
+                Padding = new Thickness(10), Child = keypadContent };
+            searchInput.PreviewMouseLeftButtonUp += (_, __) => { keypad.IsOpen = true; };
+            searchInput.PreviewTextInput += (_, e) => e.Handled = e.Text.Any(c => c < '0' || c > '9');
+            System.Windows.DataObject.AddPastingHandler(searchInput, (_, e) => {
+                var text = e.DataObject.GetData(typeof(string)) as string;
+                if (text == null || text.Any(c => c < '0' || c > '9')) e.CancelCommand();
+            });
             System.Windows.Automation.AutomationProperties.SetName(searchInput, "Номер заказа");
             searchTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
             searchTimer.Tick += (_, __) => SubmitSearch();

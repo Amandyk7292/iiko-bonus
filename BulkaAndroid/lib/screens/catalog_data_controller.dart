@@ -9,6 +9,11 @@ extension _CatalogDataController on _CatalogScreenState {
     final branch = locations
         .where((b) => b.id == id && b.active && b.supports(_orderType))
         .firstOrNull;
+    if (_selectedBakery == (branch?.displayLabel ?? '') &&
+        _selectedBakeryId == (branch?.id ?? '') &&
+        _sameJsonValue(_selectedBakeryLocation?.toJson(), branch?.toJson())) {
+      return;
+    }
     _updateCatalogState(() {
       _selectedBakery = branch?.displayLabel ?? '';
       _selectedBakeryId = branch?.id ?? '';
@@ -61,7 +66,6 @@ extension _CatalogDataController on _CatalogScreenState {
       return;
     }
     _activeMenuLoads++;
-    _lastMenuAttempt = DateTime.now();
     final revision = ++_menuLoadRevision;
     final endpoint = _menuEndpoint;
     final cacheKey = _menuCacheKey;
@@ -85,6 +89,30 @@ extension _CatalogDataController on _CatalogScreenState {
       final json = await _api._get(endpoint);
       if (!_isCurrentMenuRequest(revision, endpoint)) return;
 
+      final snapshot = <String, dynamic>{
+        'categories': json['categories'],
+        'products': json['products'],
+        'iikoProfile': json['iikoProfile'],
+      };
+      if (silent &&
+          !_usingCachedMenu &&
+          _loadError == null &&
+          _allProducts.isNotEmpty &&
+          _lastLiveMenuScope == cacheKey &&
+          _sameJsonValue(_lastLiveMenu, snapshot)) {
+        // Reconcile newly added cart lines, but keep displayed widgets and
+        // details notifiers intact when the server sends the same menu.
+        if (_lastMenuCacheWrite == null ||
+            DateTime.now().difference(_lastMenuCacheWrite!) >=
+                const Duration(minutes: 5)) {
+          unawaited(_cacheMenu(json, cacheKey: cacheKey));
+        }
+        _syncCartWithMenu(_allProducts, notifyDetails: false);
+        unawaited(_refreshProductOptionFlags(_allProducts));
+        _resumeProductAfterFulfillment();
+        _applyPendingClientUri();
+        return;
+      }
       final categoriesRaw = json['categories'] as List? ?? [];
       final productsRaw = json['products'] as List? ?? [];
 
@@ -116,6 +144,8 @@ extension _CatalogDataController on _CatalogScreenState {
         }
       }
 
+      _lastLiveMenu = snapshot;
+      _lastLiveMenuScope = cacheKey;
       unawaited(_cacheMenu(json, cacheKey: cacheKey));
       _syncCartWithMenu(products);
 
@@ -167,6 +197,7 @@ extension _CatalogDataController on _CatalogScreenState {
       });
     } finally {
       _activeMenuLoads--;
+      _scheduleMenuRefresh();
     }
   }
 
@@ -181,14 +212,18 @@ extension _CatalogDataController on _CatalogScreenState {
       );
       if (!mounted || revision != _productOptionsRevision) return;
       final currentIds = _allProducts.map((product) => product.id).toSet();
+      final resolved = optionFlags.keys.where(currentIds.contains).toSet();
+      final configurable = optionFlags.entries
+          .where((entry) => currentIds.contains(entry.key) && entry.value)
+          .map((entry) => entry.key)
+          .toSet();
+      if (setEquals(resolved, _resolvedProductOptionIds) &&
+          setEquals(configurable, _configurableProductIds)) {
+        return;
+      }
       _updateCatalogState(() {
-        _resolvedProductOptionIds = optionFlags.keys
-            .where(currentIds.contains)
-            .toSet();
-        _configurableProductIds = optionFlags.entries
-            .where((entry) => currentIds.contains(entry.key) && entry.value)
-            .map((entry) => entry.key)
-            .toSet();
+        _resolvedProductOptionIds = resolved;
+        _configurableProductIds = configurable;
       });
     } catch (_) {
       // Product details still performs authoritative option validation.
@@ -320,6 +355,11 @@ extension _CatalogDataController on _CatalogScreenState {
       ingredients: _asString(product['ingredients']),
       allergens: _productStringList(product, 'allergens'),
       dietaryTags: _productStringList(product, 'dietaryTags'),
+      badges: (product['badges'] is List ? product['badges'] as List : const [])
+          .whereType<Map>()
+          .take(3)
+          .map((b) => Map<String, dynamic>.from(b))
+          .toList(),
       searchKeywords: _productStringList(product, 'searchKeywords'),
       weightGrams: _productNumber(product['weightGrams'])?.round(),
       caloriesKcal: _productNumber(nutrition['caloriesKcal']),
@@ -341,6 +381,7 @@ extension _CatalogDataController on _CatalogScreenState {
     required String cacheKey,
   }) async {
     final cachedAt = DateTime.now();
+    _lastMenuCacheWrite = cachedAt;
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
@@ -424,11 +465,12 @@ extension _CatalogDataController on _CatalogScreenState {
   }
 
   Future<void> _warmProductImages(List<CatalogProduct> products) async {
-    if (!mounted) return;
-    final logicalExtent = min(
-      217.0,
-      max(120.0, (MediaQuery.sizeOf(context).width - 44) / 2 - 18),
-    );
+    final category = _openedCategory;
+    if (!mounted || category == null || _catalogContentExtent <= 0) return;
+    // Use the actual category grid width, not a separate phone-only estimate.
+    final logicalExtent = catalogCategoryGridGeometry(
+      _catalogContentExtent,
+    ).cardExtent;
     final pixelSize = _imagePixelBucket(
       logicalExtent *
           networkImageDevicePixelRatio(
@@ -436,64 +478,75 @@ extension _CatalogDataController on _CatalogScreenState {
             isWeb: kIsWeb,
           ),
     );
-    final urls = products
-        .where((product) => !product.isStopListed)
+    final visibleProducts = _applyActiveProductFilters(
+      products.where((product) => product.category == category),
+      includeSearch: false,
+      includeFavorites: false,
+    );
+    final urls = visibleProducts
         .map((product) => product.imageUrl.trim())
         .where((url) => url.isNotEmpty)
         .toSet()
         .take(4);
-
-    await Future.wait(
-      urls.map((url) async {
-        final effectiveUrl = optimizedNetworkImageUrl(
-          url,
-          pixelWidth: pixelSize,
-          pixelHeight: pixelSize,
-          resizeMode: 'cover',
-        );
-        final provider = networkImageCacheProvider(
-          effectiveUrl,
-          pixelWidth: pixelSize,
-          pixelHeight: pixelSize,
-        );
-        try {
-          await precacheImage(provider, context);
-        } catch (_) {
-          // The normal image error state remains available in the card.
-        }
-      }),
-    );
+    // Avoid a burst of unrelated decodes while the user opens a category.
+    for (final url in urls) {
+      if (!mounted || category != _openedCategory) return;
+      final effectiveUrl = optimizedNetworkImageUrl(
+        url,
+        pixelWidth: pixelSize,
+        pixelHeight: pixelSize,
+        resizeMode: 'cover',
+      );
+      final provider = networkImageCacheProvider(
+        effectiveUrl,
+        pixelWidth: pixelSize,
+        pixelHeight: pixelSize,
+      );
+      try {
+        await precacheImage(provider, context);
+      } catch (_) {
+        // The normal image error state remains available in the card.
+      }
+    }
   }
 
-  void _syncCartWithMenu(List<CatalogProduct> products) {
-    final liveProducts = {for (final product in products) product.id: product};
-    for (final previous in _liveProducts.value.values) {
-      if (liveProducts.containsKey(previous.id)) continue;
-      liveProducts[previous.id] = CatalogProduct(
-        id: previous.id,
-        title: previous.title,
-        price: previous.price,
-        category: previous.category,
-        imageUrl: previous.imageUrl,
-        inStockCount: previous.inStockCount,
-        quantityStep: previous.quantityStep,
-        unit: previous.unit,
-        preparationMinutes: previous.preparationMinutes,
-        description: previous.description,
-        ingredients: previous.ingredients,
-        allergens: previous.allergens,
-        dietaryTags: previous.dietaryTags,
-        searchKeywords: previous.searchKeywords,
-        weightGrams: previous.weightGrams,
-        caloriesKcal: previous.caloriesKcal,
-        proteinGrams: previous.proteinGrams,
-        fatGrams: previous.fatGrams,
-        carbsGrams: previous.carbsGrams,
-        storageConditions: previous.storageConditions,
-        isStopListed: true,
-      );
+  void _syncCartWithMenu(
+    List<CatalogProduct> products, {
+    bool notifyDetails = true,
+  }) {
+    if (notifyDetails) {
+      final liveProducts = {
+        for (final product in products) product.id: product,
+      };
+      for (final previous in _liveProducts.value.values) {
+        if (liveProducts.containsKey(previous.id)) continue;
+        liveProducts[previous.id] = CatalogProduct(
+          id: previous.id,
+          title: previous.title,
+          price: previous.price,
+          category: previous.category,
+          imageUrl: previous.imageUrl,
+          inStockCount: previous.inStockCount,
+          quantityStep: previous.quantityStep,
+          unit: previous.unit,
+          preparationMinutes: previous.preparationMinutes,
+          description: previous.description,
+          ingredients: previous.ingredients,
+          allergens: previous.allergens,
+          dietaryTags: previous.dietaryTags,
+          badges: previous.badges,
+          searchKeywords: previous.searchKeywords,
+          weightGrams: previous.weightGrams,
+          caloriesKcal: previous.caloriesKcal,
+          proteinGrams: previous.proteinGrams,
+          fatGrams: previous.fatGrams,
+          carbsGrams: previous.carbsGrams,
+          storageConditions: previous.storageConditions,
+          isStopListed: true,
+        );
+      }
+      _liveProducts.value = liveProducts;
     }
-    _liveProducts.value = liveProducts;
     context.read<CartProvider>().reconcileMenu(
       products.map(
         (product) => CartProductSnapshot(
@@ -507,121 +560,5 @@ extension _CatalogDataController on _CatalogScreenState {
         ),
       ),
     );
-  }
-
-  Future<void> _loadSelectedBakery() async {
-    final requestedOrderType = _orderType;
-    final prefs = await SharedPreferences.getInstance();
-    if (requestedOrderType == 'delivery') {
-      DeliveryAddress? address;
-      BakeryLocation? branch;
-      try {
-        address = await AddressRepository(api: _api).loadSelectedAddress();
-      } catch (_) {
-        address = null;
-      }
-      try {
-        if (address != null) {
-          branch = await _resolveDeliveryBranch(address);
-        }
-      } catch (_) {
-        branch = null;
-      }
-      if (!mounted || requestedOrderType != _orderType) return;
-      _updateCatalogState(() {
-        _selectedBakery = branch?.displayLabel ?? '';
-        _selectedBakeryId = branch?.id ?? '';
-        _selectedBakeryLocation = branch;
-        _selectedDeliveryAddress = address;
-      });
-      return;
-    }
-    final typeKey = 'selected_bakery_location_$requestedOrderType';
-    final typeIdKey = 'selected_bakery_location_id_$requestedOrderType';
-    final selectedType = prefs.getString('selected_order_type')?.trim() ?? '';
-    final selected =
-        prefs.getString(typeKey)?.trim() ??
-        (selectedType == requestedOrderType
-            ? prefs.getString('selected_bakery_location')?.trim()
-            : null) ??
-        '';
-    final selectedId =
-        prefs.getString(typeIdKey)?.trim() ??
-        (selectedType == requestedOrderType
-            ? prefs.getString('selected_bakery_location_id')?.trim()
-            : null) ??
-        '';
-    if (!mounted || requestedOrderType != _orderType) return;
-    _updateCatalogState(() {
-      _selectedBakery = selected;
-      _selectedBakeryId = selectedId;
-      _selectedBakeryLocation = null;
-      _selectedDeliveryAddress = null;
-    });
-    // Menu and live branch metadata can load together. Checkout still validates
-    // availability and the branch schedule before accepting an order.
-    if (selectedId.isNotEmpty) _branchLive.request(immediate: true);
-  }
-
-  Future<void> _selectFulfillmentSource() async {
-    await _navigationGate.run(() async {
-      if (_orderType == 'delivery') {
-        final selected = await Navigator.of(context).push<DeliveryAddress>(
-          MaterialPageRoute(builder: (_) => AddressSelectionScreen(api: _api)),
-        );
-        if (!mounted || selected == null) return;
-        BakeryLocation? branch;
-        try {
-          branch = await _resolveDeliveryBranch(selected);
-        } catch (_) {
-          branch = null;
-        }
-        if (!mounted) return;
-        _updateCatalogState(() {
-          _selectedDeliveryAddress = selected;
-          _selectedBakery = branch?.displayLabel ?? '';
-          _selectedBakeryId = branch?.id ?? '';
-          _selectedBakeryLocation = branch;
-        });
-        await _loadMenu();
-        return;
-      }
-      final selected = await Navigator.of(context).push<String>(
-        MaterialPageRoute(
-          builder: (_) => LocationsScreen(orderType: _orderType),
-        ),
-      );
-      if (!mounted || selected == null || selected.trim().isEmpty) return;
-      final value = selected.trim();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('selected_bakery_location', value);
-      final selectedId =
-          prefs.getString('selected_bakery_location_id')?.trim() ?? '';
-      if (mounted) {
-        BakeryLocation? branch;
-        if (selectedId.isNotEmpty) {
-          try {
-            final locations = await _api.getFulfillmentLocations();
-            branch = locations
-                .where(
-                  (location) =>
-                      location.id == selectedId &&
-                      location.active &&
-                      location.supports(_orderType),
-                )
-                .firstOrNull;
-          } catch (_) {
-            // The selected label and id still allow the menu to load offline.
-          }
-        }
-        if (!mounted) return;
-        _updateCatalogState(() {
-          _selectedBakery = branch?.displayLabel ?? value;
-          _selectedBakeryId = branch?.id ?? selectedId;
-          _selectedBakeryLocation = branch;
-        });
-        await _loadMenu();
-      }
-    });
   }
 }

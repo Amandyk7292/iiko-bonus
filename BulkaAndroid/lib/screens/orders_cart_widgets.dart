@@ -151,14 +151,17 @@ class _CartQuantityStepper extends StatelessWidget {
             value: '${productQuantityText(quantity)} $unit',
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Text(
-                '${productQuantityText(quantity)}${unit.isEmpty ? '' : ' $unit'}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontFamily: _headingFont,
-                  color: _textDark,
-                  fontSize: BulkaTypeScale.body,
-                  fontWeight: FontWeight.w700,
+              child: BulkaValueTransition(
+                value: quantity,
+                child: Text(
+                  '${productQuantityText(quantity)}${unit.isEmpty ? '' : ' $unit'}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: _headingFont,
+                    color: _textDark,
+                    fontSize: BulkaTypeScale.body,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -169,95 +172,6 @@ class _CartQuantityStepper extends StatelessWidget {
             constraints: const BoxConstraints.tightFor(width: 44, height: 48),
             padding: EdgeInsets.zero,
             icon: const Icon(Icons.add_rounded, size: 20),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CartCheckoutBar extends StatelessWidget {
-  const _CartCheckoutBar({
-    required this.total,
-    required this.cashbackPercent,
-    required this.hasUnavailableItems,
-    required this.onCheckout,
-  });
-
-  final int total;
-  final int cashbackPercent;
-  final bool hasUnavailableItems;
-  final VoidCallback? onCheckout;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.bulkaColors;
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 18, 24, 20),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        border: Border(
-          top: BorderSide(
-            color: colors.cardBorder,
-            width: BulkaStrokes.hairline,
-          ),
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (hasUnavailableItems) ...[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.info_outline_rounded,
-                  size: 20,
-                  color: context.bulkaColors.danger,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'cart_unavailable_hint'.tr,
-                    style: TextStyle(
-                      color: context.bulkaColors.danger,
-                      fontSize: BulkaTypeScale.bodySmall,
-                      height: 1.25,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-          ],
-          _CartSummaryLine(
-            label: 'cart_reward'.tr,
-            value:
-                '+ ${(total * cashbackPercent / 100).round()} ${'cart_points'.tr}',
-          ),
-          const SizedBox(height: 12),
-          _CartSummaryLine(
-            label: 'cart_total'.tr,
-            value: '${_formatCartMoney(total)} ₸',
-            emphasized: true,
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: GradientButton(
-              onPressed: onCheckout,
-              child: Text(
-                'cart_checkout'.tr,
-                style: const TextStyle(
-                  fontFamily: _headingFont,
-                  fontSize: BulkaTypeScale.body,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
           ),
         ],
       ),
@@ -284,43 +198,78 @@ class _PickupSlot {
   final int? remaining;
 }
 
-class _CartSummaryLine extends StatelessWidget {
-  const _CartSummaryLine({
-    required this.label,
-    required this.value,
-    this.emphasized = false,
-  });
-  final String label;
-  final String value;
-  final bool emphasized;
+class _AnimatedCartList extends StatefulWidget {
+  const _AnimatedCartList({required this.items, required this.itemBuilder});
+  final List<CartItem> items;
+  final Widget Function(BuildContext, CartItem) itemBuilder;
   @override
-  Widget build(BuildContext context) {
-    final style = TextStyle(
-      fontSize: emphasized ? BulkaTypeScale.titleSmall : BulkaTypeScale.body,
-      fontWeight: emphasized ? FontWeight.w600 : FontWeight.w400,
+  State<_AnimatedCartList> createState() => _AnimatedCartListState();
+}
+
+class _AnimatedCartListState extends State<_AnimatedCartList> {
+  final _listKey = GlobalKey<AnimatedListState>();
+  late final List<CartItem> _items = [...widget.items];
+
+  @override
+  void didUpdateWidget(covariant _AnimatedCartList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final wanted = widget.items.map((item) => item.cartKey).toSet();
+    final duration = BulkaMotion.duration(
+      context,
+      const Duration(milliseconds: 200),
     );
-    if (MediaQuery.textScalerOf(context).scale(1) > 1.3) {
-      return SizedBox(
-        width: double.infinity,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: style),
-            const SizedBox(height: 4),
-            Text(value, style: style),
-          ],
-        ),
+    for (var i = _items.length - 1; i >= 0; i--) {
+      if (!wanted.contains(_items[i].cartKey)) {
+        final removed = _items.removeAt(i);
+        _listKey.currentState?.removeItem(
+          i,
+          (context, animation) => ExcludeSemantics(
+            child: IgnorePointer(child: _row(removed, animation)),
+          ),
+          duration: duration,
+        );
+      }
+    }
+    for (var i = 0; i < widget.items.length; i++) {
+      final item = widget.items[i];
+      if (i < _items.length && _items[i].cartKey == item.cartKey) {
+        _items[i] = item;
+        continue;
+      }
+      final previous = _items.indexWhere((row) => row.cartKey == item.cartKey);
+      if (previous >= 0) {
+        _items.removeAt(previous);
+        _listKey.currentState?.removeItem(
+          previous,
+          (_, _) => const SizedBox.shrink(),
+          duration: Duration.zero,
+        );
+      }
+      _items.insert(i, item);
+      _listKey.currentState?.insertItem(
+        i,
+        duration: previous >= 0 ? Duration.zero : duration,
       );
     }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: Text(label, style: style)),
-        const SizedBox(width: 12),
-        Flexible(
-          child: Text(value, textAlign: TextAlign.end, style: style),
-        ),
-      ],
-    );
   }
+
+  Widget _row(CartItem item, Animation<double> animation) => SizeTransition(
+    sizeFactor: animation.drive(CurveTween(curve: Curves.easeOutCubic)),
+    axisAlignment: -1,
+    child: FadeTransition(
+      opacity: animation,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: widget.itemBuilder(context, item),
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) => AnimatedList(
+    key: _listKey,
+    padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
+    initialItemCount: _items.length,
+    itemBuilder: (_, index, animation) => _row(_items[index], animation),
+  );
 }

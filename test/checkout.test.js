@@ -269,13 +269,17 @@ test('retired polygon and radius settings never block a valid delivery address',
   assert.equal(checkout.branchId, primaryBranchId);
   assert.ok(checkout.deliveryDistanceKm > 10);
   assert.equal(checkout.deliveryFee, 0);
-  const ignoredSelection = validateCheckout({
-    orderType: 'delivery', branchId: cities[0].points[1].id,
-    scheduledAt: '2026-07-13T18:00:00+05:00',
-    deliveryAddress: {city: 'Актау', address: 'Дом клиента', latitude: 43.8, longitude: 51.5},
-  }, cities, {now: new Date('2026-07-13T12:00:00Z'), env});
+  const ignoredSelection = validateCheckout(
+    {
+      orderType: 'delivery',
+      branchId: cities[0].points[1].id,
+      scheduledAt: '2026-07-13T18:00:00+05:00',
+      deliveryAddress: { city: 'Актау', address: 'Дом клиента', latitude: 43.8, longitude: 51.5 },
+    },
+    cities,
+    { now: new Date('2026-07-13T12:00:00Z'), env },
+  );
   assert.equal(ignoredSelection.branchId, primaryBranchId);
-
 });
 
 test('preorder enforces lead time and the selected branch hours', () => {
@@ -507,16 +511,22 @@ test('delivery address never silently substitutes another city', () => {
   assert.equal(address.house, '14');
 });
 
-
 test('delivery ignores a manually selected branch and chooses the nearest enabled origin', () => {
   const points = structuredClone(cities);
   points[0].points[1].deliveryEnabled = true;
   const payload = {
-    orderType: 'delivery', branchId: primaryBranchId, branch: 'ТЦ Ardager',
+    orderType: 'delivery',
+    branchId: primaryBranchId,
+    branch: 'ТЦ Ardager',
     scheduledAt: '2026-07-13T18:00:00+05:00',
-    deliveryAddress: {city: 'Актау', address: '18A микрорайон, 1', latitude: 43.6419, longitude: 51.1707},
+    deliveryAddress: {
+      city: 'Актау',
+      address: '18A микрорайон, 1',
+      latitude: 43.6419,
+      longitude: 51.1707,
+    },
   };
-  const options = {env, now: new Date('2026-07-13T07:00:00.000Z')};
+  const options = { env, now: new Date('2026-07-13T07:00:00.000Z') };
   assert.equal(validateCheckout(payload, points, options).branchId, points[0].points[1].id);
   points[0].points[1].active = false;
   assert.equal(validateCheckout(payload, points, options).branchId, primaryBranchId);

@@ -371,6 +371,22 @@ class BakeryLocation {
       deliveryEnabled: json['deliveryEnabled'] == true,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'address': address,
+    'city': city,
+    'phone': phone,
+    'twoGisId': twoGisId,
+    'latitude': latitude,
+    'longitude': longitude,
+    'hours': hours,
+    'active': active,
+    'pickupEnabled': pickupEnabled,
+    'preorderEnabled': preorderEnabled,
+    'deliveryEnabled': deliveryEnabled,
+  };
 }
 
 Map<String, String> _localizedLabels(

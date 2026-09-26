@@ -17,36 +17,45 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   bool _defaultUpdateInFlight = false;
   bool _adding = false;
   bool _reconcilingReturn = false;
+  String? _pendingSetupId;
 
   @override
   void initState() {
     super.initState();
-    final cardSetupReturn = forteCardSetupReturnFromUri(currentClientUri());
-    if (cardSetupReturn == null) {
-      unawaited(_load());
-    } else {
-      _reconcilingReturn = true;
-      publishClientRoute(Uri(path: '/profile'), replace: true);
-      unawaited(_reconcileCardSetupReturn(cardSetupReturn));
+    unawaited(_restoreSetup());
+  }
+
+  Future<void> _restoreSetup() async {
+    final returned = forteCardSetupReturnFromUri(currentClientUri());
+    String? pending;
+    try {
+      pending = await PendingCardSetupStore.load(widget.api);
+    } catch (_) {}
+    if (!mounted) return;
+    final id = returned?.operationId ?? pending;
+    if (id == null) {
+      await _load();
+      return;
     }
+    _pendingSetupId = id;
+    if (returned != null) {
+      await PendingCardSetupStore.save(widget.api, id);
+      publishClientRoute(Uri(path: '/profile'), replace: true);
+    }
+    await _reconcileCardSetupReturn((
+      operationId: id,
+      outcome: returned?.outcome ?? ForteCheckoutReturn.completed,
+    ));
   }
 
   Future<void> _reconcileCardSetupReturn(
     ({String operationId, ForteCheckoutReturn outcome}) cardSetupReturn,
   ) async {
-    if (cardSetupReturn.outcome == ForteCheckoutReturn.cancelled) {
-      _reconcilingReturn = false;
-      await _load();
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(bulkaSnackBar(content: Text('card_setup_cancelled'.tr)));
-      }
-      return;
-    }
-
+    final session = widget.api.sessionCacheScope;
     if (mounted) {
       setState(() {
+        _reconcilingReturn = true;
+        _pendingSetupId = cardSetupReturn.operationId;
         _loading = true;
         _error = null;
       });
@@ -54,20 +63,32 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     var status = 'pending';
     var cardSaved = false;
     String? refundStatus;
+    final deadline = DateTime.now().add(const Duration(seconds: 20));
     try {
       for (var attempt = 0; attempt < 10; attempt++) {
-        final result = await widget.api.checkForteCardSetupStatus(
-          cardSetupReturn.operationId,
-        );
+        if (!mounted || session != widget.api.sessionCacheScope) return;
+        final remaining = deadline.difference(DateTime.now());
+        if (remaining <= Duration.zero) break;
+        final result = await widget.api
+            .checkForteCardSetupStatus(cardSetupReturn.operationId)
+            .timeout(remaining);
         status = (result['paymentStatus'] ?? result['status'] ?? 'pending')
             .toString()
             .toLowerCase();
         cardSaved = result['cardSaved'] == true;
         refundStatus = result['refundStatus']?.toString().toLowerCase();
+        if (session != widget.api.sessionCacheScope) return;
         if (cardSaved || const {'paid', 'failed', 'expired'}.contains(status)) {
           break;
         }
         await Future<void>.delayed(const Duration(seconds: 2));
+      }
+      if (cardSaved || status == 'paid' || isTerminalForteFailure(status)) {
+        await PendingCardSetupStore.clear(
+          widget.api,
+          cardSetupReturn.operationId,
+        );
+        _pendingSetupId = null;
       }
       await _load();
       if (!mounted) return;
@@ -83,16 +104,26 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                 : status == 'paid'
                 ? 'card_setup_success'.tr
                 : status == 'pending'
-                ? 'card_setup_token_missing'.tr
+                ? 'card_setup_pending_hint'.tr
                 : 'card_setup_failed_hint'.tr,
           ),
         ),
       );
-    } catch (_) {
+    } catch (error) {
+      if (session != widget.api.sessionCacheScope) return;
+      if (error is ApiException &&
+          error.statusCode == 404 &&
+          error.code == 'FORTE_WIDGET_CARD_SETUP_NOT_FOUND') {
+        await PendingCardSetupStore.clear(
+          widget.api,
+          cardSetupReturn.operationId,
+        );
+        _pendingSetupId = null;
+      }
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          bulkaSnackBar(content: Text('card_setup_token_missing'.tr)),
+          bulkaSnackBar(content: Text('card_setup_check_unavailable'.tr)),
         );
       }
     } finally {
@@ -163,7 +194,8 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
 
   Future<void> _addCard() async {
     if (_adding) return;
-    if (_methods.length >= _maximumSavedPaymentMethods) {
+    if (_pendingSetupId == null &&
+        _methods.length >= _maximumSavedPaymentMethods) {
       ScaffoldMessenger.of(context).showSnackBar(
         bulkaSnackBar(content: Text('payment_methods_limit_reached'.tr)),
       );
@@ -172,17 +204,26 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     setState(() => _adding = true);
     try {
       final session = widget.api.sessionCacheScope;
-      final result = await widget.api.createForteCardSetup();
+      final result = await PendingCardSetupStore.createOrResume(widget.api);
       if (!mounted || session != widget.api.sessionCacheScope) return;
       if (result['paymentStatus'] == 'paid') {
+        _pendingSetupId = null;
         await _load();
         return;
+      }
+      if (isTerminalForteFailure((result['paymentStatus'] ?? '').toString())) {
+        _pendingSetupId = null;
+        throw ApiException(
+          'card_setup_failed_hint'.tr,
+          code: 'CARD_SETUP_CLOSED',
+        );
       }
       final operationId = (result['operationId'] ?? '').toString();
       final redirectUrl = (result['redirectUrl'] ?? '').toString();
       if (operationId.isEmpty || redirectUrl.isEmpty) {
         throw ApiException('payment_methods_add_error'.tr);
       }
+      _pendingSetupId = operationId;
       if (!mounted) return;
       final setupResult = await Navigator.of(context).push<FortePaymentResult>(
         MaterialPageRoute(
@@ -194,6 +235,11 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
           ),
         ),
       );
+      if (setupResult != null &&
+          setupResult.outcome != FortePaymentOutcome.pending) {
+        await PendingCardSetupStore.clear(widget.api, operationId);
+        _pendingSetupId = null;
+      }
       if (setupResult?.paid == true) {
         await widget.api.isFortePaymentAvailable();
         await _load();
@@ -327,11 +373,39 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: GradientButton(
-                        onPressed: _adding || reachedLimit ? null : _addCard,
+                        onPressed:
+                            _adding ||
+                                _reconcilingReturn ||
+                                (reachedLimit && _pendingSetupId == null)
+                            ? null
+                            : _addCard,
                         loading: _adding,
-                        child: Text('payment_methods_add'.tr),
+                        child: Text(
+                          (_pendingSetupId == null
+                                  ? 'payment_methods_add'
+                                  : 'card_setup_resume')
+                              .tr,
+                        ),
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'payment_methods_verification_hint'.tr,
+                      style: TextStyle(color: colors.mutedText, height: 1.4),
+                    ),
+                    if (_pendingSetupId != null) ...[
+                      const SizedBox(height: 12),
+                      Text('card_setup_pending_hint'.tr),
+                      TextButton(
+                        onPressed: _reconcilingReturn || _adding
+                            ? null
+                            : () => _reconcileCardSetupReturn((
+                                operationId: _pendingSetupId!,
+                                outcome: ForteCheckoutReturn.completed,
+                              )),
+                        child: Text('forte_payment_check_status'.tr),
+                      ),
+                    ],
                     if (reachedLimit) ...[
                       const SizedBox(height: 10),
                       Row(

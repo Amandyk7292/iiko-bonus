@@ -25,15 +25,17 @@ class CatalogScreen extends StatefulWidget {
 }
 
 class _CatalogScreenState extends State<CatalogScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   static const _menuRefreshInterval = Duration(seconds: 60);
   static const _menuRetryInterval = Duration(seconds: 15);
-  DateTime? _lastMenuAttempt;
   bool _menuScopeReady = false;
   bool _wasActive = false;
   StreamSubscription<void>? _networkRecoverySubscription;
 
   final _searchController = TextEditingController();
+  Timer? _searchDebounce;
+  late final AnimationController _categoryEntrance;
+  double _catalogViewportHeight = 0;
   final ValueNotifier<Map<String, CatalogProduct>> _liveProducts =
       ValueNotifier(const {});
   String _selectedBakery = '';
@@ -46,13 +48,12 @@ class _CatalogScreenState extends State<CatalogScreen>
   Set<String> _dietaryFilters = const {};
   Set<String> _excludedAllergens = const {};
   Set<String> _favoriteProductIds = const {};
-  Map<String, StockSubscription> _stockSubscriptions = const {};
-  Set<String> _stockSubscriptionBusy = const {};
   Set<String> _configurableProductIds = const {};
   Set<String> _resolvedProductOptionIds = const {};
   bool _favoritesOnly = false;
   Map<String, String> _apiCategoryImages = {};
   String? _openedCategory;
+  double _catalogContentExtent = 0;
   bool _orderTypeDialogOpen = false;
   String? _productPendingFulfillment;
   final _navigationGate = _AsyncActionGate();
@@ -68,6 +69,9 @@ class _CatalogScreenState extends State<CatalogScreen>
   String _trackedCatalogKey = '';
   int _menuLoadRevision = 0;
   String _menuProfileKey = '';
+  String? _lastLiveMenuScope;
+  Map<String, dynamic>? _lastLiveMenu;
+  DateTime? _lastMenuCacheWrite;
   int _productOptionsRevision = 0;
   Future<void>? _silentRefreshRequest;
   int _activeMenuLoads = 0;
@@ -76,7 +80,6 @@ class _CatalogScreenState extends State<CatalogScreen>
   Timer? _autoRefreshTimer;
   late final _LiveRefresh _menuLive;
   late final _LiveRefresh _branchLive;
-  late final _LiveRefresh _stockLive;
 
   BulkaApiClient get _api => widget.api;
 
@@ -96,6 +99,11 @@ class _CatalogScreenState extends State<CatalogScreen>
   @override
   void initState() {
     super.initState();
+    _categoryEntrance = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+      value: 1,
+    );
     WidgetsBinding.instance.addObserver(this);
     appLanguageNotifier.addListener(_onLanguageChanged);
     _pendingClientUri = widget.initialClientUri;
@@ -107,18 +115,16 @@ class _CatalogScreenState extends State<CatalogScreen>
       }),
     );
     unawaited(_loadFavorites());
-    unawaited(_loadStockSubscriptions());
     _menuLive = _LiveRefresh(
       _api,
       {'menu', 'locations', 'menu.updated'},
       _silentRefresh,
       busy: () => !_menuScopeReady || _activeMenuLoads > 0,
       active: () => mounted && (_wasActive || _productRouteOpen),
-      acceptEvent: (event) =>
-          _matchesCatalogBranch(event) &&
-          _asMap(event['data'])['inventory'] != true,
+      acceptEvent: _matchesCatalogBranch,
+      // The retry timer already handles the healthy/offline intervals.
+      fallbackInterval: null,
     );
-    _stockLive = _createStockRefresh();
     _branchLive = _LiveRefresh(
       _api,
       {'locations'},
@@ -129,16 +135,20 @@ class _CatalogScreenState extends State<CatalogScreen>
     _networkRecoverySubscription = networkRecoveryEvents().listen(
       (_) => _refreshIfActive(),
     );
-    _autoRefreshTimer = Timer.periodic(_menuRetryInterval, (_) {
-      final interval = _usingCachedMenu || _loadError != null
-          ? _menuRetryInterval
-          : _menuRefreshInterval;
-      if (_lastMenuAttempt == null ||
-          DateTime.now().difference(_lastMenuAttempt!) >= interval) {
-        _refreshIfActive();
-      } else {
-        _stockLive.request();
-      }
+    _scheduleMenuRefresh();
+  }
+
+  void _scheduleMenuRefresh() {
+    _autoRefreshTimer?.cancel();
+    if (!mounted) return;
+    final interval = _usingCachedMenu || _loadError != null
+        ? _menuRetryInterval
+        : _menuRefreshInterval;
+    _autoRefreshTimer = Timer(interval, () {
+      _refreshIfActive();
+      // Keep polling after a hidden tab skips a refresh. Completed requests
+      // restart this one timer with the latest healthy/offline interval.
+      _scheduleMenuRefresh();
     });
   }
 
@@ -152,6 +162,7 @@ class _CatalogScreenState extends State<CatalogScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (BulkaMotion.reduced(context)) _categoryEntrance.value = 1;
     final active = TickerMode.of(context);
     if (active && !_wasActive) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _refreshIfActive());
@@ -170,7 +181,33 @@ class _CatalogScreenState extends State<CatalogScreen>
   static String _formatPrice(BuildContext context, int price) =>
       formatUiInteger(context, price);
 
-  void _updateCatalogState(VoidCallback update) => setState(update);
+  void _updateCatalogState(VoidCallback update) {
+    final previousCategory = _openedCategory;
+    setState(update);
+    if (_openedCategory != null && _openedCategory != previousCategory) {
+      if (BulkaMotion.reduced(context)) {
+        _categoryEntrance.value = 1;
+      } else {
+        _categoryEntrance.forward(from: 0);
+      }
+    }
+  }
+
+  void _queueSearch(String value) {
+    _searchDebounce?.cancel();
+    if (value.isEmpty) {
+      _updateCatalogState(() => _searchQuery = '');
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 180), () {
+      if (mounted) _updateCatalogState(() => _searchQuery = value);
+    });
+  }
+
+  void _submitSearch(String value) {
+    _searchDebounce?.cancel();
+    _updateCatalogState(() => _searchQuery = value);
+  }
 
   void _onLanguageChanged() {
     _loadMenu();
@@ -184,6 +221,7 @@ class _CatalogScreenState extends State<CatalogScreen>
         oldWidget.selectionRevision == widget.selectionRevision) {
       return;
     }
+    _searchDebounce?.cancel();
     setState(() {
       _menuScopeReady = false;
       _menuLoadRevision++;
@@ -216,7 +254,8 @@ class _CatalogScreenState extends State<CatalogScreen>
     _networkRecoverySubscription?.cancel();
     _menuLive.dispose();
     _branchLive.dispose();
-    _stockLive.dispose();
+    _searchDebounce?.cancel();
+    _categoryEntrance.dispose();
     _searchController.dispose();
     _liveProducts.dispose();
     WidgetsBinding.instance.removeObserver(this);
@@ -234,5 +273,11 @@ class _CatalogScreenState extends State<CatalogScreen>
   /// Тихое обновление — без спиннера, данные просто подменяются
 
   @override
-  Widget build(BuildContext context) => _buildCatalogScreen(context);
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      _catalogViewportHeight = constraints.maxHeight;
+      _catalogContentExtent = max(0.0, constraints.maxWidth - 32);
+      return _buildCatalogScreen(context, _catalogContentExtent);
+    },
+  );
 }

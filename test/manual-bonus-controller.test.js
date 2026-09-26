@@ -1,5 +1,8 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
+// Build a local client whose methods are replaced below, even in a clean release checkout.
+process.env.SUPABASE_URL = 'https://manual-bonus-test.invalid';
+process.env.SUPABASE_SERVICE_ROLE_KEY = 'manual-bonus-test-service-role';
 const { supabase } = require('../src/config/supabase');
 const customers = require('../src/services/customer.service');
 const branchId = '11111111-1111-4111-8111-111111111111';

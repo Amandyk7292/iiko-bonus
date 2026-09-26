@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:bulka_bonus/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,15 +24,15 @@ void main() {
       courierComment: 'Вход со двора, ориентир — синяя вывеска',
       isDefault: true,
     );
-    SharedPreferences.setMockInitialValues({
-      'delivery_addresses_guest': [jsonEncode(address.toJson())],
-      'selected_delivery_address_id_guest': address.id,
-    });
+    SharedPreferences.setMockInitialValues({});
+    final api = BulkaApiClient();
+    addTearDown(api.dispose);
+    await AddressRepository(api: api).saveAddress(address);
 
     await tester.pumpWidget(
       MaterialApp(
         theme: buildBulkaTheme(),
-        home: const AddressSelectionScreen(),
+        home: AddressSelectionScreen(api: api),
       ),
     );
     await tester.pumpAndSettle();

@@ -94,6 +94,25 @@ test('owner controls Widget and runs a safe probe without SSH', async ({ page },
         }),
       });
     }
+    if (url.pathname === '/admin/api/integrations/pos') {
+      return route.fulfill({
+        json: {
+          success: true,
+          canManage: true,
+          checkedAt: '2026-07-27T12:00:00.000Z',
+          policy: {
+            latestVersion: '1.11.1',
+            minimumVersion: '1.9.0',
+            enforceMinimum: false,
+            downloadUrl: '/plugin.zip',
+            guideUrl: '/guide',
+          },
+          summary: { total: 0, online: 0, attention: 0, outdated: 0, openCases: 0 },
+          devices: [],
+          cases: [],
+        },
+      });
+    }
     if (url.pathname === '/admin/api/integrations/payments/widget' && method === 'PUT') {
       const body = request.postDataJSON();
       mutations.push({ method, path: url.pathname, body });

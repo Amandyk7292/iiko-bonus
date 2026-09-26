@@ -159,9 +159,11 @@ function buildReceiptRecord(order, overrides = {}) {
   if (!order?.id || !order?.order_number) throw new Error('Paid order is required');
   const provider =
     cleanText(overrides.provider, 40) ||
-    (String(order.payment_method || '').startsWith('forte')
-      ? 'ForteBank'
-      : 'Исторический способ оплаты');
+    (order.payment_method === 'personal_account'
+      ? 'Личный счёт'
+      : String(order.payment_method || '').startsWith('forte')
+        ? 'ForteBank'
+        : 'Исторический способ оплаты');
   const isForte = provider.toLocaleLowerCase('ru-RU').includes('forte');
   const firstSix = digits(overrides.cardFirstSix ?? order.provider_card_first_six, 6);
   const lastFour = digits(overrides.cardLastFour ?? order.provider_card_last_four, 4);

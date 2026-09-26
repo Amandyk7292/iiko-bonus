@@ -41,12 +41,7 @@ class _CartApi extends BulkaApiClient {
   Future<bool> isFortePaymentAvailable() async => true;
   @override
   Future<List<Map<String, dynamic>>> getFortePaymentMethods() async => [
-    {
-      'id': 'card-one',
-      'brand': 'visa',
-      'lastFour': '0000',
-      'isDefault': true,
-    },
+    {'id': 'card-one', 'brand': 'visa', 'lastFour': '0000', 'isDefault': true},
   ];
   @override
   Future<List<BakeryLocation>> getFulfillmentLocations() async => [
@@ -62,6 +57,7 @@ class _CartApi extends BulkaApiClient {
     required String branchId,
     required String orderType,
     int days = 7,
+    List<String> productIds = const [],
   }) async => [
     FulfillmentSlot(
       startsAt: time,

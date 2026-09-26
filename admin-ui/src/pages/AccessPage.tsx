@@ -10,8 +10,10 @@ import {
   RefreshCw,
   RotateCcw,
   Save,
+  Search,
   ShieldCheck,
   UserCog,
+  ChevronDown,
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import BranchAccessPicker, { type AccessBranch } from '../components/BranchAccessPicker';
@@ -92,6 +94,16 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
   const [onlineOrdering, setOnlineOrdering] = useState<OnlineOrderingConfig>(emptyOnlineOrdering);
   const [savingOnlineOrdering, setSavingOnlineOrdering] = useState(false);
   const [disableOrderingConfirmOpen, setDisableOrderingConfirmOpen] = useState(false);
+  const [profileQuery, setProfileQuery] = useState('');
+  const [expandedProfile, setExpandedProfile] = useState<string | null>(null);
+
+  const visibleProfiles = profiles.filter((profile) => {
+    const query = profileQuery.trim().toLocaleLowerCase('ru-RU');
+    if (!query) return true;
+    return [profile.display_name, profile.username, roleLabels[profile.role]]
+      .filter(Boolean)
+      .some((value) => String(value).toLocaleLowerCase('ru-RU').includes(query));
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -358,11 +370,25 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
         {t('access.accountsHint', { count: configured.length })}
       </div>
 
+      <label className="access-account-search">
+        <span className="field-label">{t('access.searchAccounts')}</span>
+        <span className="access-account-search-control">
+          <Search aria-hidden="true" size={18} />
+          <input
+            className="input-classic"
+            type="search"
+            value={profileQuery}
+            onChange={(event) => setProfileQuery(event.target.value)}
+            placeholder={t('access.searchAccountsHint')}
+          />
+        </span>
+      </label>
+
       <section className="access-grid">
-        {profiles.length === 0 ? (
+        {visibleProfiles.length === 0 ? (
           <PageState type="empty" title={t('access.noAccounts')} />
         ) : (
-          profiles.map((profile) => {
+          visibleProfiles.map((profile) => {
             const selfOwner =
               user?.username === profile.username && ['owner', 'admin'].includes(user.role);
             const phoneLogin = isPhoneProfile(profile.username);
@@ -373,25 +399,42 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
                 ? staffRoleLabels
                 : environmentRoleLabels;
             return (
-              <article className="card access-card" key={profile.username}>
+              <article
+                className={`card access-card ${expandedProfile === profile.username ? 'is-expanded' : ''}`}
+                key={profile.username}
+              >
                 <header>
-                  <div className="access-avatar">
-                    <UserCog size={21} />
-                  </div>
-                  <div>
-                    <h3>{profile.display_name || profile.username}</h3>
-                    <p className="mono">{profile.username}</p>
-                    {(phoneLogin || cashierProfile) && (
-                      <p className="access-login-method">
+                  <button
+                    className="access-card-summary"
+                    type="button"
+                    aria-expanded={expandedProfile === profile.username}
+                    onClick={() =>
+                      setExpandedProfile((current) =>
+                        current === profile.username ? null : profile.username,
+                      )
+                    }
+                  >
+                    <span className="access-avatar">
+                      <UserCog size={21} />
+                    </span>
+                    <span className="access-card-identity">
+                      <strong>{profile.display_name || profile.username}</strong>
+                      <span className="mono">{profile.username}</span>
+                      <span className="access-login-method">
                         {cashierProfile ? (
                           <KeyRound aria-hidden="true" size={13} />
                         ) : (
                           <Phone aria-hidden="true" size={13} />
                         )}
-                        {cashierProfile ? t('access.passwordLogin') : t('access.whatsappLogin')}
-                      </p>
-                    )}
-                  </div>
+                        {cashierProfile
+                          ? t('access.passwordLogin')
+                          : phoneLogin
+                            ? t('access.whatsappLogin')
+                            : roleLabels[profile.role]}
+                      </span>
+                    </span>
+                    <ChevronDown className="access-card-chevron" aria-hidden="true" size={20} />
+                  </button>
                   <label className="switch-row">
                     <input
                       type="checkbox"
@@ -408,69 +451,75 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
                   </label>
                 </header>
 
-                <div className="form-grid form-grid-2">
-                  <label className="field-group">
-                    <span className="field-label">{t('access.staffName')}</span>
-                    <input
-                      name={`displayName-${profile.username}`}
-                      autoComplete="off"
-                      className="input-classic"
-                      value={profile.display_name || ''}
-                      onChange={(event) =>
-                        patchProfile(profile.username, { display_name: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label className="field-group">
-                    <span className="field-label">{t('access.roleAndPermissions')}</span>
-                    <SelectControl
-                      name={`role-${profile.username}`}
-                      value={profile.role}
-                      onChange={(value) => patchProfile(profile.username, { role: value })}
-                      disabled={cashierProfile || selfOwner}
-                      options={Object.entries(availableRoles).map(([value, label]) => ({
-                        value,
-                        label,
-                      }))}
-                    />
-                  </label>
-                </div>
+                {expandedProfile === profile.username && (
+                  <div className="access-card-details">
+                    <div className="form-grid form-grid-2">
+                      <label className="field-group">
+                        <span className="field-label">{t('access.staffName')}</span>
+                        <input
+                          name={`displayName-${profile.username}`}
+                          autoComplete="off"
+                          className="input-classic"
+                          value={profile.display_name || ''}
+                          onChange={(event) =>
+                            patchProfile(profile.username, { display_name: event.target.value })
+                          }
+                        />
+                      </label>
+                      <label className="field-group">
+                        <span className="field-label">{t('access.roleAndPermissions')}</span>
+                        <SelectControl
+                          name={`role-${profile.username}`}
+                          value={profile.role}
+                          onChange={(value) => patchProfile(profile.username, { role: value })}
+                          disabled={cashierProfile || selfOwner}
+                          options={Object.entries(availableRoles).map(([value, label]) => ({
+                            value,
+                            label,
+                          }))}
+                        />
+                      </label>
+                    </div>
 
-                {profile.role !== 'owner' && (
-                  <BranchAccessPicker
-                    locations={locations}
-                    selectedIds={profile.branch_ids || []}
-                    single={cashierProfile}
-                    onChange={(branchIds) =>
-                      patchProfile(profile.username, { branch_ids: branchIds })
-                    }
-                  />
+                    {profile.role !== 'owner' && (
+                      <BranchAccessPicker
+                        locations={locations}
+                        selectedIds={profile.branch_ids || []}
+                        single={cashierProfile}
+                        onChange={(branchIds) =>
+                          patchProfile(profile.username, { branch_ids: branchIds })
+                        }
+                      />
+                    )}
+
+                    <div className="action-cluster">
+                      {cashierProfile && (
+                        <button
+                          className="btn-outline inline-flex items-center gap-2"
+                          type="button"
+                          onClick={() => openPasswordReset(profile)}
+                        >
+                          <RotateCcw aria-hidden="true" size={16} />
+                          {t('access.resetPassword')}
+                        </button>
+                      )}
+                      <button
+                        className="btn-classic inline-flex items-center gap-2"
+                        type="button"
+                        disabled={
+                          saving === profile.username ||
+                          (cashierProfile && profile.branch_ids.length !== 1)
+                        }
+                        onClick={() => void save(profile)}
+                      >
+                        <Save aria-hidden="true" size={16} />
+                        {saving === profile.username
+                          ? t('common.saving')
+                          : t('access.savePermissions')}
+                      </button>
+                    </div>
+                  </div>
                 )}
-
-                <div className="action-cluster">
-                  {cashierProfile && (
-                    <button
-                      className="btn-outline inline-flex items-center gap-2"
-                      type="button"
-                      onClick={() => openPasswordReset(profile)}
-                    >
-                      <RotateCcw aria-hidden="true" size={16} />
-                      {t('access.resetPassword')}
-                    </button>
-                  )}
-                  <button
-                    className="btn-classic inline-flex items-center gap-2"
-                    type="button"
-                    disabled={
-                      saving === profile.username ||
-                      (cashierProfile && profile.branch_ids.length !== 1)
-                    }
-                    onClick={() => void save(profile)}
-                  >
-                    <Save aria-hidden="true" size={16} />
-                    {saving === profile.username ? t('common.saving') : t('access.savePermissions')}
-                  </button>
-                </div>
               </article>
             );
           })

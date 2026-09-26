@@ -140,7 +140,6 @@ test('public topics cover the client-facing admin resources and exclude access c
     'online-ordering',
     'contact-cards/a/actions',
     'gift-cards',
-    'news/a',
     'integrations/payments/widget',
   ]) {
     assert.ok(publicDomains(`/admin/api/${path}`).length, path);

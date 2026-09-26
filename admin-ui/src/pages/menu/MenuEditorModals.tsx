@@ -1,5 +1,6 @@
 import { Copy, LoaderCircle, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import Modal from '../../components/Modal';
+import ProductBadges from './ProductBadges';
 import SelectControl from '../../components/SelectControl';
 import {
   FulfillmentTypeFields,
@@ -82,9 +83,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
               />
             </div>
           ))}
-          <p className="page-help">
-            Если KZ не заполнен, приложение использует русское название.
-          </p>
+          <p className="page-help">Если KZ не заполнен, приложение использует русское название.</p>
           <div className="modal-actions">
             <button
               type="button"
@@ -214,6 +213,11 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
             idPrefix="edit-product"
             value={editForm}
             onChange={(key, value) => setEditForm((current) => ({ ...current, [key]: value }))}
+          />
+          <ProductBadges
+            key={editingProduct?.id}
+            productId={editingProduct?.id}
+            onSaved={() => void controller.fetchMenu(true)}
           />
 
           <FulfillmentTypeFields
@@ -877,6 +881,11 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
             idPrefix="custom-product"
             value={customForm}
             onChange={(key, value) => setCustomForm((current) => ({ ...current, [key]: value }))}
+          />
+          <ProductBadges
+            key={customForm.id || 'new'}
+            productId={customForm.id}
+            onSaved={() => void controller.fetchMenu(true)}
           />
 
           <FulfillmentTypeFields

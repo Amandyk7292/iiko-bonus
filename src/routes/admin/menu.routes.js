@@ -6,6 +6,7 @@ const { adminMutationSchemas } = require('../../contracts/admin-mutations.contra
 const { z } = require('../../middlewares/validation.middleware');
 const { supabase } = require('../../config/supabase');
 const menuService = require('../../services/menu.service');
+const { publicBadgeMap } = require('../../services/product-badges.service');
 const {
   getIikoClientForBranch,
   invalidateAllIikoCaches,
@@ -58,6 +59,7 @@ const validateUploadedImage = (req, res, next) => {
 };
 
 function registerMenuAdminRoutes(router) {
+  require('./product-badges.routes').registerProductBadgeRoutes(router);
   registerPriceLabelRoutes(router);
   router.post(
     '/admin/api/menu/products/category',
@@ -106,6 +108,31 @@ function registerMenuAdminRoutes(router) {
       res.status(error.statusCode || 500).json({ success: false, error: error.message });
     }
   });
+  router.get(
+    '/admin/api/staff/reports/display-stock',
+    validateRequest({
+      query: z
+        .object({
+          date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          offset: z.coerce.number().int().min(0).max(100000).default(0),
+        })
+        .strict(),
+    }),
+    async (req, res, next) => {
+      try {
+        const branch = require('../../services/cashier-catalog.service').cashierBranch(req.admin);
+        const { data, error } = await supabase.rpc('cashier_display_stock_report', {
+          p_branch: branch,
+          p_date: req.query.date,
+          p_offset: Number(req.query.offset || 0),
+        });
+        if (error) throw error;
+        res.json({ success: true, ...data });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
   router.patch(
     '/admin/api/staff/catalog/:productId',
     validateRequest(adminMutationSchemas.cashierInventory),
@@ -140,11 +167,13 @@ function registerMenuAdminRoutes(router) {
     try {
       const selectedIikoApi = await getIikoClientForBranch(req.admin?.selectedBranchId);
       const rawMenu = await selectedIikoApi.getMenu();
-      const [productOverrides, categoryOverrides, customProducts] = await Promise.all([
-        menuService.getProductOverrides({ profileKey: selectedIikoApi.profileKey }),
-        menuService.getCategoryOverrides({ profileKey: selectedIikoApi.profileKey }),
-        menuService.getCustomProducts({ profileKey: selectedIikoApi.profileKey }),
-      ]);
+      const [productOverrides, categoryOverrides, customProducts, productBadges] =
+        await Promise.all([
+          menuService.getProductOverrides({ profileKey: selectedIikoApi.profileKey }),
+          menuService.getCategoryOverrides({ profileKey: selectedIikoApi.profileKey }),
+          menuService.getCustomProducts({ profileKey: selectedIikoApi.profileKey }),
+          publicBadgeMap(),
+        ]);
       const overridesById = new Map(productOverrides.map((row) => [row.iiko_product_id, row]));
       const products = (rawMenu.products || []).map((product) => {
         const override = overridesById.get(product.id);
@@ -164,6 +193,7 @@ function registerMenuAdminRoutes(router) {
         );
         return {
           ...product,
+          badges: productBadges.get(String(product.id)) || [],
           nameKk: override?.name_translations?.kk || (kazakhName !== russianName ? kazakhName : ''),
           descriptionRu: russianDescription,
           descriptionKk:
@@ -178,7 +208,10 @@ function registerMenuAdminRoutes(router) {
         overrides: {
           products: productOverrides,
           categories: categoryOverrides,
-          customProducts,
+          customProducts: customProducts.map((product) => ({
+            ...product,
+            badges: productBadges.get(String(product.id)) || [],
+          })),
         },
         profileKey: selectedIikoApi.profileKey,
         profiles: profileStatus(),

@@ -10,7 +10,6 @@ const otpStore = require('../services/otpStore.service');
 const { supabase } = require('../config/supabase');
 const { getIikoClientForCity } = require('../services/iiko-city-profile.service');
 const { getStories } = require('../services/story.service');
-const { getNews } = require('../services/news.service');
 const path = require('path');
 const { signRegistrationToken } = require('../services/auth.service');
 const {
@@ -769,6 +768,7 @@ router.get('/api/guest/menu', async (req, res) => {
       categoryOverrides,
       customProducts,
       branchAvailability,
+      productBadges,
     ] = await Promise.all([
       // Keep iiko authentication ordered while fetching independent database
       // sources concurrently with its remote menu request.
@@ -788,6 +788,7 @@ router.get('/api/guest/menu', async (req, res) => {
       branchId
         ? getBranchAvailability(branchId, { strict: true, preorder: orderType === 'preorder' })
         : Promise.resolve(new Map()),
+      require('../services/product-badges.service').publicBadgeMap(undefined, lang),
     ]);
     const rawGroups = Array.isArray(rawMenu.groups) ? rawMenu.groups : [];
     const rawProducts = Array.isArray(rawMenu.products) ? rawMenu.products : [];
@@ -905,6 +906,7 @@ router.get('/api/guest/menu', async (req, res) => {
         ),
         ingredients: getLocalized(override, 'ingredients', ''),
         allergens: Array.isArray(override?.allergens) ? override.allergens : [],
+        badges: productBadges.get(String(p.id)) || [],
         dietaryTags: Array.isArray(override?.dietary_tags) ? override.dietary_tags : [],
         searchKeywords: Array.isArray(override?.search_keywords) ? override.search_keywords : [],
         weightGrams: override?.weight_grams == null ? null : Number(override.weight_grams),
@@ -964,6 +966,7 @@ router.get('/api/guest/menu', async (req, res) => {
         ),
         ingredients: getLocalized(cp, 'ingredients', ''),
         allergens: Array.isArray(cp.allergens) ? cp.allergens : [],
+        badges: productBadges.get(String(cp.id)) || [],
         dietaryTags: Array.isArray(cp.dietary_tags) ? cp.dietary_tags : [],
         searchKeywords: Array.isArray(cp.search_keywords) ? cp.search_keywords : [],
         weightGrams: cp.weight_grams == null ? null : Number(cp.weight_grams),
@@ -1015,15 +1018,6 @@ router.get('/api/guest/stories', async (req, res) => {
   try {
     const stories = await getStories();
     res.json({ success: true, stories });
-  } catch (err) {
-    sendApiError(res, err, { success: false });
-  }
-});
-
-router.get('/api/guest/news', async (req, res) => {
-  try {
-    const news = await getNews();
-    res.json({ success: true, news });
   } catch (err) {
     sendApiError(res, err, { success: false });
   }

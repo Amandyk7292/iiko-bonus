@@ -58,6 +58,7 @@ class _CheckoutApi extends BulkaApiClient {
     required String branchId,
     required String orderType,
     int days = 7,
+    List<String> productIds = const [],
   }) async {
     final waiting = pendingSlots;
     pendingSlots = null;

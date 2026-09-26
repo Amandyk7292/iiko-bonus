@@ -227,7 +227,8 @@ class PersonalAccountScreen extends StatefulWidget {
   State<PersonalAccountScreen> createState() => _PersonalAccountScreenState();
 }
 
-class _PersonalAccountScreenState extends State<PersonalAccountScreen> {
+class _PersonalAccountScreenState extends State<PersonalAccountScreen>
+    with WidgetsBindingObserver {
   final _amount = TextEditingController(text: '1000');
   Map<String, dynamic>? _account;
   String? _error;
@@ -237,17 +238,43 @@ class _PersonalAccountScreenState extends State<PersonalAccountScreen> {
   bool _busy = false;
   bool _refreshing = false;
   Timer? _timer;
+  bool _visible = true;
   late final String? _session;
   String get _key => customerPreferenceKey('personal_account_topup', _session);
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _session = widget.api.sessionCacheScope;
     _cachedBalance = widget.initialBalance;
     unawaited(_restore());
     _timer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (!_busy) unawaited(_refresh());
+      _refreshIfVisible();
     });
+  }
+
+  void _refreshIfVisible() {
+    final state = WidgetsBinding.instance.lifecycleState;
+    if (mounted &&
+        _visible &&
+        !_busy &&
+        (state == null || state == AppLifecycleState.resumed)) {
+      unawaited(_refresh());
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final wasVisible = _visible;
+    _visible =
+        TickerMode.of(context) && (ModalRoute.of(context)?.isCurrent ?? true);
+    if (_visible && !wasVisible) _refreshIfVisible();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshIfVisible();
   }
 
   Future<void> _restore() async {
@@ -307,11 +334,24 @@ class _PersonalAccountScreenState extends State<PersonalAccountScreen> {
       final account = await widget.api.getPersonalAccount();
       if (mounted && _session == widget.api.sessionCacheScope) {
         final balance = _asDouble(account['balance']);
-        await (await SharedPreferences.getInstance()).setDouble(
-          customerPreferenceKey('personal_account_balance', _session),
-          balance,
-        );
+        if (_cachedBalance != balance) {
+          await (await SharedPreferences.getInstance()).setDouble(
+            customerPreferenceKey('personal_account_balance', _session),
+            balance,
+          );
+        }
         if (!mounted || _session != widget.api.sessionCacheScope) return;
+        final previous = _account == null
+            ? null
+            : (Map<String, dynamic>.from(_account!)..remove('_requestId'));
+        final current = Map<String, dynamic>.from(account)
+          ..remove('_requestId');
+        if (_sameJsonValue(previous, current) &&
+            _cachedBalance == balance &&
+            _error == statusError) {
+          _account = account;
+          return;
+        }
         setState(() {
           _account = account;
           _cachedBalance = balance;
@@ -331,6 +371,7 @@ class _PersonalAccountScreenState extends State<PersonalAccountScreen> {
     if (_busy || _session != widget.api.sessionCacheScope) return;
     final amount = int.tryParse(_amount.text.trim());
     if (amount == null || amount < 100 || amount > 200000) {
+      unawaited(BulkaMotion.error());
       setState(() => _error = _accountText('invalid'));
       return;
     }
@@ -372,6 +413,7 @@ class _PersonalAccountScreenState extends State<PersonalAccountScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _amount.dispose();
     super.dispose();
@@ -427,7 +469,15 @@ class _PersonalAccountScreenState extends State<PersonalAccountScreen> {
               enabled: enabled && !_busy && _requestId == null,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(labelText: _accountText('amount')),
+              onChanged: (_) {
+                if (_error == _accountText('invalid')) {
+                  setState(() => _error = null);
+                }
+              },
+              decoration: InputDecoration(
+                labelText: _accountText('amount'),
+                errorText: _error == _accountText('invalid') ? _error : null,
+              ),
             ),
             const SizedBox(height: 12),
             FilledButton(
@@ -444,7 +494,7 @@ class _PersonalAccountScreenState extends State<PersonalAccountScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text(_accountText('pending')),
               ),
-            if (_error != null)
+            if (_error != null && _error != _accountText('invalid'))
               Text(
                 _error!,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),

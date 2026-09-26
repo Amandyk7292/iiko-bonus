@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const multer = require('multer');
 const router = express.Router();
+const { sendApiError } = require('../utils/http.util');
 const publicController = require('../controllers/public.controller');
 const tierController = require('../controllers/tier.controller');
 const orderController = require('../controllers/order.controller');
@@ -35,6 +36,7 @@ const { readCookieToken } = require('../services/auth.service');
 const { getProductOptionFlags, getProductOptions } = require('../services/product-options.service');
 const { getAppReleasePolicy } = require('../services/app-release.service');
 const personalization = require('../services/personalization.service');
+const savedVariants = require('../services/saved-variants.service');
 const reviews = require('../services/review.service');
 const marketing = require('../services/commerce-marketing.service');
 const notificationPreferences = require('../services/notification-preferences.service');
@@ -64,6 +66,7 @@ const {
   favoriteMutationBodySchema,
   forteCardSetupBodySchema,
   forteOperationParamsSchema,
+  forteCheckoutParamsSchema,
   fortePaymentMethodParamsSchema,
   forteWidgetWebhookBodySchema,
   giftCardRedeemBodySchema,
@@ -76,6 +79,10 @@ const {
   referralRedeemBodySchema,
   registrationBodySchema,
   reorderBodySchema,
+  savedVariantBodySchema,
+  savedVariantListQuerySchema,
+  savedVariantParamsSchema,
+  savedVariantQuoteBodySchema,
   supportCreateBodySchema,
   supportMessageBodySchema,
   supportRequestParamsSchema,
@@ -657,6 +664,60 @@ router.put(
     }
   },
 );
+router.get(
+  '/api/customer/saved-variants',
+  validateRequest({ query: savedVariantListQuerySchema }),
+  async (req, res) => {
+    try {
+      res.json({
+        success: true,
+        variants: await savedVariants.listSavedVariants(req.customerAuth.id, req.query.productId),
+      });
+    } catch (error) {
+      sendApiError(res, error, { success: false });
+    }
+  },
+);
+router.post(
+  '/api/customer/saved-variants',
+  validateRequest({ body: savedVariantBodySchema }),
+  async (req, res) => {
+    try {
+      res.json({
+        success: true,
+        variant: await savedVariants.saveVariant(req.customerAuth.id, req.body),
+      });
+    } catch (error) {
+      sendApiError(res, error, { success: false });
+    }
+  },
+);
+router.post(
+  '/api/customer/saved-variants/:id/quote',
+  validateRequest({ params: savedVariantParamsSchema, body: savedVariantQuoteBodySchema }),
+  async (req, res) => {
+    try {
+      res.json({
+        success: true,
+        item: await savedVariants.quoteSavedVariant(req.customerAuth.id, req.params.id, req.body),
+      });
+    } catch (error) {
+      sendApiError(res, error, { success: false });
+    }
+  },
+);
+router.delete(
+  '/api/customer/saved-variants/:id',
+  validateRequest({ params: savedVariantParamsSchema }),
+  async (req, res) => {
+    try {
+      await savedVariants.deleteSavedVariant(req.customerAuth.id, req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      sendApiError(res, error, { success: false });
+    }
+  },
+);
 router.post(
   '/api/customer/recent/:productId',
   validateRequest({
@@ -862,6 +923,11 @@ router.patch(
 
 // ForteBank PaymentGateway: HPP redirect plus server-side status polling.
 const forteController = require('../controllers/forte.controller');
+require('./personal-account.routes').registerPersonalAccountRoutes(router);
+router.use('/api/customer/forte-pay', (_req, res, next) => {
+  res.set('Cache-Control', 'private, no-store');
+  next();
+});
 router.get('/api/customer/forte-pay/availability', forteController.availability);
 router.post(
   '/api/customer/forte-pay/create',
@@ -876,6 +942,11 @@ router.post(
   forteController.quotePayment,
 );
 router.get('/api/customer/forte-pay/status/:operationId', forteController.checkStatus);
+router.get(
+  '/api/customer/forte-pay/checkout/:checkoutId',
+  validateRequest({ params: forteCheckoutParamsSchema }),
+  forteController.checkCheckoutStatus,
+);
 router.get('/api/customer/forte-pay/methods', forteController.listPaymentMethods);
 router.post(
   '/api/customer/forte-pay/card-setup',
@@ -965,6 +1036,10 @@ router.get('/api/public/fulfillment-slots', async (req, res) => {
       branchId: req.query.branchId,
       orderType: String(req.query.orderType || 'pickup'),
       days: req.query.days,
+      productIds:
+        typeof req.query.productIds === 'string'
+          ? req.query.productIds.split(',').filter(Boolean)
+          : [],
     });
     res.set('Cache-Control', 'private, no-store');
     res.json({ success: true, ...result });

@@ -99,7 +99,16 @@ test('mobile association files open catalog links in installed apps', async (t) 
   assert.deepEqual(assetLinks[0].target.sha256_cert_fingerprints, fingerprints);
 
   const manifest = fs.readFileSync(
-    path.join(__dirname, '..', 'BulkaAndroid', 'android', 'app', 'src', 'main', 'AndroidManifest.xml'),
+    path.join(
+      __dirname,
+      '..',
+      'BulkaAndroid',
+      'android',
+      'app',
+      'src',
+      'main',
+      'AndroidManifest.xml',
+    ),
     'utf8',
   );
   assert.match(manifest, /android:autoVerify="true"/);
@@ -169,6 +178,28 @@ test('Flutter shell stays fresh while the current versioned bundle is immutable'
   const versionedBootstrap = await fetch(`${origin}/app/flutter_bootstrap.js?v=fixture-release`);
   assert.equal(versionedBootstrap.status, 200);
   assert.match(versionedBootstrap.headers.get('cache-control') || '', /no-store/);
+});
+
+test('plugin update package and installation guide are public files', async (t) => {
+  const server = http.createServer(app);
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  t.after(() => server.close());
+  const origin = `http://127.0.0.1:${server.address().port}`;
+
+  const download = await fetch(`${origin}/downloads/BulkaPlugin-1.10.0-full.zip`);
+  assert.equal(download.status, 200);
+  assert.match(download.headers.get('content-type') || '', /application\/zip/);
+  assert.equal(download.headers.get('content-disposition'), 'attachment');
+  assert.ok((await download.arrayBuffer()).byteLength > 100000);
+
+  const guide = await fetch(`${origin}/docs/iiko-plugin-installation.html`);
+  assert.equal(guide.status, 200);
+  assert.match(guide.headers.get('content-type') || '', /text\/html/);
+  assert.match(await guide.text(), /Установка плагина Bulka/);
+  assert.match(guide.headers.get('content-security-policy') || '', /style-src 'self' 'sha256-/);
 });
 
 test('taplink exposes delivery and city links as a fast standalone page', async (t) => {
@@ -343,8 +374,8 @@ test('Forte widget shell is private, pinned to official hosts and never reflects
   assert.equal(response.headers.get('cross-origin-embedder-policy'), null);
   assert.doesNotMatch(html, new RegExp(leakedToken));
   assert.match(html, /https:\/\/js\.fortebank\.com\/widget\/be_gateway\.js/);
-  assert.match(html, /\/assets\/forte-widget\.js\?v=4/);
-  assert.match(html, /\/assets\/forte-widget\.css\?v=4/);
+  assert.match(html, /\/assets\/forte-widget\.js\?v=5/);
+  assert.match(html, /\/assets\/forte-widget\.css\?v=5/);
   assert.match(html, /class="phone-frame"/);
   assert.match(html, /class="phone-screen"/);
   assert.match(csp, /script-src 'self' https:\/\/js\.fortebank\.com/);
@@ -352,7 +383,7 @@ test('Forte widget shell is private, pinned to official hosts and never reflects
   assert.doesNotMatch(csp, /script-src[^;]*unsafe-eval/);
 
   const styleResponse = await fetch(
-    `http://127.0.0.1:${server.address().port}/assets/forte-widget.css?v=4`,
+    `http://127.0.0.1:${server.address().port}/assets/forte-widget.css?v=5`,
   );
   const styles = await styleResponse.text();
   assert.equal(styleResponse.status, 200);
@@ -362,7 +393,7 @@ test('Forte widget shell is private, pinned to official hosts and never reflects
   assert.match(styles, /html\.embedded-app \.payment-header/);
 
   const scriptResponse = await fetch(
-    `http://127.0.0.1:${server.address().port}/assets/forte-widget.js?v=4`,
+    `http://127.0.0.1:${server.address().port}/assets/forte-widget.js?v=5`,
   );
   const script = await scriptResponse.text();
   assert.equal(scriptResponse.status, 200);

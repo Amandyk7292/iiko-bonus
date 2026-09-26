@@ -268,7 +268,10 @@ async function priceOrder(
     getSettings(),
   ]);
   const basePriced = calculateOrderTotal(items, catalog);
-  const priced = await validateCartOptions(basePriced.canonicalItems);
+  const priced = await validateCartOptions(basePriced.canonicalItems, {
+    scheduledAt,
+    asap: fulfillmentType === 'delivery' && !scheduledAt,
+  });
   const targetedPromotion = await resolveTargetedPromotion(priced.subtotal, promoCode, {
     customerId,
     branchId,

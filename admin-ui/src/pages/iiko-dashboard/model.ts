@@ -14,6 +14,45 @@ export interface ServerMutation {
   login: string;
   password: string;
 }
+export interface ProductChoice {
+  id: string;
+  name: string;
+  archived: boolean;
+}
+export interface ProductSalesQuery {
+  serverId: string;
+  productId: string;
+  from: string;
+  to: string;
+  department: string;
+}
+export interface ProductSalesRow {
+  date: string;
+  department: string;
+  quantity: number;
+  net: number;
+  gross: number;
+}
+export interface ProductSalesResult {
+  product: ProductChoice;
+  unit: string;
+  city: Server['city'];
+  selectedDepartment: string;
+  period: { from: string; to: string };
+  rows: ProductSalesRow[];
+  daily: Omit<ProductSalesRow, 'department'>[];
+  byDepartment: Omit<ProductSalesRow, 'date'>[];
+  summary: { quantity: number; net: number; gross: number };
+  fetchedAt: string;
+}
+export function retailDepartmentsForCity(city: Server['city'], departments: string[]) {
+  return departments.filter((name) => {
+    if (!/^Bulka\s/iu.test(name)) return false;
+    if (city === 'aktau')
+      return !/^Bulka\s+(?:Ozen|Атырау|Астана|Доставка|ЦО|ЦЕХ)(?:\s|$)/iu.test(name);
+    return /^Bulka\s+Астана(?:\s|$)/iu.test(name) && !/\sЦО(?:\s|$)/iu.test(name);
+  });
+}
 export interface Column {
   name: string;
   type: string;

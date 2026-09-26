@@ -20,6 +20,8 @@ const {
 } = require('../middlewares/auth.middleware');
 const {
   adminRateLimit,
+  adminSessionReadRateLimit,
+  adminSessionMutationRateLimit,
   staffPushHeartbeatPreAuthRateLimit,
 } = require('../middlewares/rate-limit.middleware');
 const {
@@ -103,6 +105,7 @@ const {
 } = require('../services/voice-note.service');
 const { getOperationsSummary } = require('../services/operations-dashboard.service');
 const { registerPaymentIntegrationAdminRoutes } = require('./admin/payment-integration.routes');
+const { registerPosHealthAdminRoutes } = require('./admin/pos-health.routes');
 const { registerOrderSubstitutionAdminRoutes } = require('./admin/order-substitution.routes');
 const { registerBackendSafetyAdminRoutes } = require('./admin/backend-safety.routes');
 const { registerBusinessFoundationAdminRoutes } = require('./admin/business-foundation.routes');
@@ -309,6 +312,8 @@ router.use(
   adminAuthMiddleware,
   adminCsrfMiddleware,
   adminMutationRoleMiddleware,
+  adminSessionReadRateLimit,
+  adminSessionMutationRateLimit,
   adminAuditMiddleware,
 );
 
@@ -375,6 +380,7 @@ router.get('/admin/api/operations/summary', async (req, res) => {
   }
 });
 registerPaymentIntegrationAdminRoutes(router);
+registerPosHealthAdminRoutes(router);
 registerOrderSubstitutionAdminRoutes(router, { assertOrderAccess });
 registerBackendSafetyAdminRoutes(router, { assertOrderAccess });
 registerBusinessFoundationAdminRoutes(router, { assertOrderAccess });
@@ -1103,26 +1109,6 @@ router.delete(
   adminAuthMiddleware,
   validateRequest(adminMutationSchemas.numericDelete),
   adminController.deleteStoryHandler,
-);
-
-router.get('/admin/api/news', adminAuthMiddleware, adminController.getNewsHandler);
-router.post(
-  '/admin/api/news',
-  adminAuthMiddleware,
-  validateRequest(adminMutationSchemas.newsCreate),
-  adminController.addNewsHandler,
-);
-router.put(
-  '/admin/api/news/:id',
-  adminAuthMiddleware,
-  validateRequest(adminMutationSchemas.newsUpdate),
-  adminController.updateNewsHandler,
-);
-router.delete(
-  '/admin/api/news/:id',
-  adminAuthMiddleware,
-  validateRequest(adminMutationSchemas.numericDelete),
-  adminController.deleteNewsHandler,
 );
 
 router.get('/admin/api/cities', adminAuthMiddleware, adminController.getCitiesHandler);

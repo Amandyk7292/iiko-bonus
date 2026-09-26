@@ -88,4 +88,68 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     cart.dispose();
   });
+
+  testWidgets(
+    'selected branch still shows suggestions when stock sync marks everything unavailable',
+    (tester) async {
+      appLanguageNotifier.value = 'ru';
+      SharedPreferences.setMockInitialValues({
+        'selected_order_type': 'pickup',
+        'selected_bakery_location_id_pickup':
+            '62fa7ada-3d67-4f85-bb37-5b13f0e1345c',
+      });
+      final client = MockClient(
+        (request) async => http.Response(
+          jsonEncode({
+            'success': true,
+            'products': [
+              for (var index = 1; index <= 3; index++)
+                {
+                  'id': 'branch-$index',
+                  'name': 'Товар точки $index',
+                  'price': 500 + index,
+                  'onlineOrderable': false,
+                  'inStopList': true,
+                  'availableQuantity': 0,
+                },
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        ),
+      );
+      addTearDown(client.close);
+      final cart = CartProvider();
+      await cart.restored;
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: cart,
+          child: MaterialApp(
+            theme: buildBulkaTheme(),
+            home: OrdersScreen(
+              api: BulkaApiClient(client: client),
+              customer: null,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('cart-popular-products')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('cart-popular-product-branch-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('cart-popular-product-branch-3')),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      cart.dispose();
+    },
+  );
 }

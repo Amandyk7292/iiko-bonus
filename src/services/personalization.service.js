@@ -1,5 +1,6 @@
 const { supabase } = require('../config/supabase');
 const { priceOrder } = require('./order.service');
+const { previewScheduledAt } = require('./saved-variants.service');
 const { normalizeMenuOrderType } = require('../utils/menu-visibility.util');
 
 const appError = (message, statusCode = 400) => Object.assign(new Error(message), { statusCode });
@@ -130,6 +131,42 @@ async function recommendations(customerId, limit = 16) {
     .map((entry) => ({ ...entry, reasons: [...entry.reasons] }));
 }
 
+function reorderItemSelection(item) {
+  const stored =
+    item.configuration && typeof item.configuration === 'object' ? item.configuration : null;
+  const configuration =
+    stored &&
+    Object.fromEntries(
+      Object.entries(stored)
+        .filter(([key]) => key !== 'readyAt' && key !== 'priceDelta')
+        .map(([key, value]) => [
+          key,
+          ['weight', 'filling', 'design'].includes(key) && value && typeof value === 'object'
+            ? value.code || value.id
+            : value,
+        ]),
+    );
+  const modifiers = (Array.isArray(item.modifiers) ? item.modifiers : []).map((group) => ({
+    groupId: group.groupId || group.id,
+    optionIds:
+      group.optionIds ||
+      (Array.isArray(group.options)
+        ? group.options.map((option) => option.id || option.code).filter(Boolean)
+        : []),
+  }));
+  return { configuration, modifiers };
+}
+
+function distinctReorderSelections(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = JSON.stringify([item.id, item.configuration, item.modifiers]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 async function reorder(customerId, orderId, branchId = null) {
   const { data: order, error } = await supabase
     .from('kaspi_orders')
@@ -144,16 +181,24 @@ async function reorder(customerId, orderId, branchId = null) {
   const items = source.map((item) => ({
     id: String(item.id || item.productId || ''),
     quantity: Number(item.quantity || 1),
-    configuration: item.configuration || null,
-    modifiers: Array.isArray(item.modifiers) ? item.modifiers : [],
+    ...reorderItemSelection(item),
   }));
   const orderType = normalizeMenuOrderType(order.fulfillment_type) || 'pickup';
+  const scheduledAt = await previewScheduledAt(items.map((item) => item.id));
   const priced = await priceOrder(items, null, {
     branchId: branchId || order.branch_id || null,
     orderType,
+    scheduledAt,
   });
+  const selections = distinctReorderSelections(items);
+  if (selections.length !== priced.canonicalItems.length)
+    throw appError('Не удалось проверить состав повторного заказа', 409);
   return {
-    items: priced.canonicalItems,
+    items: priced.canonicalItems.map((pricedItem, index) => ({
+      ...pricedItem,
+      configuration: selections[index].configuration,
+      modifiers: selections[index].modifiers,
+    })),
     subtotal: priced.subtotal,
     total: priced.total,
     orderType,
@@ -278,6 +323,8 @@ module.exports = {
   recommendations,
   recordProductView,
   reorder,
+  reorderItemSelection,
+  distinctReorderSelections,
   saveCartSnapshot,
   setFavorite,
   usualOrder,

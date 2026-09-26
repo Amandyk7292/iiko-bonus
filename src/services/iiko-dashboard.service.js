@@ -136,6 +136,12 @@ class IikoDashboardService {
     const report = await this.report(analyticsQuery(input));
     return analyticsReport(report, input);
   }
+  async searchProducts(input) {
+    return require('./iiko-dashboard-product-sales').searchProducts(this, input);
+  }
+  async productSales(input) {
+    return require('./iiko-dashboard-product-sales').productSales(this, input);
+  }
   async controls(input) {
     return require('./iiko-dashboard-controls.service').controls(this, input);
   }

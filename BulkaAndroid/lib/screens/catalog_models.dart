@@ -77,6 +77,7 @@ class CatalogProduct {
     this.ingredients = '',
     this.allergens = const [],
     this.dietaryTags = const [],
+    this.badges = const [],
     this.searchKeywords = const [],
     this.weightGrams,
     this.caloriesKcal,
@@ -125,6 +126,7 @@ class CatalogProduct {
     ingredients: ingredients,
     allergens: allergens,
     dietaryTags: dietaryTags,
+    badges: badges,
     searchKeywords: searchKeywords,
     weightGrams: weightGrams,
     caloriesKcal: caloriesKcal,
@@ -136,6 +138,7 @@ class CatalogProduct {
   final String ingredients;
   final List<String> allergens;
   final List<String> dietaryTags;
+  final List<Map<String, dynamic>> badges;
   final List<String> searchKeywords;
   final int? weightGrams;
   final double? caloriesKcal;

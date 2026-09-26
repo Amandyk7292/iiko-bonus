@@ -154,7 +154,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       !_onlineOrderingDisabled &&
       (_usePersonalAccount
           ? _personalAccountAvailable
-          : _forteAvailable == true && _selectedPaymentMethodId != null);
+          : _forteAvailable == true &&
+                (_selectedPaymentMethodId != null ||
+                    !widget.api.forteCardSetupAvailable));
 
   void _refreshPromoButton() {
     // TextEditingController also notifies about cursor/focus changes.
@@ -233,6 +235,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         branchId: location.id,
         orderType: _orderType.wireValue,
         days: _orderType == _OrderType.preorder ? 7 : 1,
+        productIds: widget.cartItems
+            .map((item) => _asString(item['id']))
+            .toList(),
       );
       FulfillmentSlot? matchingSlot;
       for (final slot in slots) {
@@ -438,9 +443,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       if (_isPreorder) {
         selectedDay = await showModalBottomSheet<DateTime>(
           context: context,
-          sheetAnimationStyle: BulkaMotion.reduced(context)
-              ? AnimationStyle.noAnimation
-              : null,
+          sheetAnimationStyle: BulkaMotion.sheetStyle(context),
           isScrollControlled: true,
           backgroundColor: Colors.white,
           builder: (sheetContext) => _liveScheduleSheet(calendar: true),
@@ -449,9 +452,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       }
       final selected = await showModalBottomSheet<_PickupSlot>(
         context: context,
-        sheetAnimationStyle: BulkaMotion.reduced(context)
-            ? AnimationStyle.noAnimation
-            : null,
+        sheetAnimationStyle: BulkaMotion.sheetStyle(context),
         isScrollControlled: true,
         backgroundColor: Colors.white,
         builder: (sheetContext) => _liveScheduleSheet(day: selectedDay),

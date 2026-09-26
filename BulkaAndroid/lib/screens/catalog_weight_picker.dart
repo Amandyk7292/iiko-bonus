@@ -23,9 +23,7 @@ Future<num?> showCatalogWeightPicker(
   var selectedIndex = 0;
   return showModalBottomSheet<num>(
     context: context,
-    sheetAnimationStyle: BulkaMotion.reduced(context)
-        ? AnimationStyle.noAnimation
-        : null,
+    sheetAnimationStyle: BulkaMotion.sheetStyle(context),
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Colors.transparent,

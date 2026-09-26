@@ -95,6 +95,7 @@ describe('cashier access management', () => {
     await screen.findByText('Кассир Актау');
 
     expect(screen.queryByDisplayValue(/Bulka/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Кассир Актау.*cashier\.aktau\.1/ }));
     await user.click(screen.getByRole('button', { name: 'Сменить пароль' }));
     const dialog = screen.getByRole('dialog', { name: 'Сменить пароль' });
     await user.type(within(dialog).getByLabelText('Новый пароль'), 'NewBulka2027');

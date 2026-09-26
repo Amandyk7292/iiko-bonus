@@ -38,7 +38,7 @@ it('Back and Forward restore the rendered dashboard tab without adding history e
   await screen.findByTestId('settings');
   const before = window.history.length;
   const nav = screen.getByRole('navigation');
-  fireEvent.click(within(nav).getAllByRole('button')[4]);
+  fireEvent.click(within(nav).getByRole('button', { name: /^(Накладные|Жүкқұжаттар|Invoices)$/ }));
   await screen.findByTestId('invoices');
   expect(window.history.length).toBe(before + 1);
   await act(async () => {

@@ -88,10 +88,10 @@ test('push outbox retries only transiently failed device tokens', async () => {
     },
     { status: 'retry', attempted: 2, delivered: 1, queued: true },
   );
-  assert.equal(db.updates[0].values.status, 'retry');
-  assert.deepEqual(db.updates[0].values.pending_tokens, ['device-token-retry-123456']);
-  assert.equal(db.updates[0].values.attempted_tokens, 2);
-  assert.equal(db.updates[0].values.delivered_tokens, 1);
+  assert.equal(db.updates.at(-1).values.status, 'retry');
+  assert.deepEqual(db.updates.at(-1).values.pending_tokens, ['device-token-retry-123456']);
+  assert.equal(db.updates.at(-1).values.attempted_tokens, 2);
+  assert.equal(db.updates.at(-1).values.delivered_tokens, 1);
 });
 
 test('push outbox does not retry invalid tokens', async () => {
@@ -114,8 +114,8 @@ test('push outbox does not retry invalid tokens', async () => {
 
   assert.equal(outcome.status, 'skipped');
   assert.equal(outcome.queued, false);
-  assert.equal(db.updates[0].values.status, 'skipped');
-  assert.deepEqual(db.updates[0].values.pending_tokens, []);
+  assert.equal(db.updates.at(-1).values.status, 'skipped');
+  assert.deepEqual(db.updates.at(-1).values.pending_tokens, []);
 });
 
 test('push enqueue is idempotent and strips internal dedupe metadata', async () => {
@@ -188,13 +188,7 @@ test('push outbox migration provides locked claims and privacy cleanup', () => {
 
 test('push outbox lease expansion is an immutable follow-up migration', () => {
   const sql = fs.readFileSync(
-    path.join(
-      __dirname,
-      '..',
-      'supabase',
-      'migrations',
-      '20260729171000_push_outbox_leases.sql',
-    ),
+    path.join(__dirname, '..', 'supabase', 'migrations', '20260729171000_push_outbox_leases.sql'),
     'utf8',
   );
   assert.match(sql, /add column if not exists lease_token uuid/i);

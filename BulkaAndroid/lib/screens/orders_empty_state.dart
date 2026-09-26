@@ -121,7 +121,7 @@ extension _OrdersCartEmptyView on _OrdersScreenState {
       for (var index = 0; index < recommendationIds.length; index++)
         recommendationIds[index]: index,
     };
-    final indexed = <({int index, _CartSuggestion product})>[];
+    final indexed = <({bool orderable, int index, _CartSuggestion product})>[];
     final seen = <String>{};
     final products = payload['products'] as List? ?? const [];
     for (var index = 0; index < products.length; index++) {
@@ -143,13 +143,14 @@ extension _OrdersCartEmptyView on _OrdersScreenState {
           name.isEmpty ||
           price <= 0 ||
           !seen.add(id) ||
-          raw['onlineOrderable'] == false ||
-          raw['catalogAvailable'] == false ||
-          raw['inStopList'] == true ||
-          (availableCount != null && availableCount <= 0)) {
+          raw['catalogAvailable'] == false) {
         continue;
       }
       indexed.add((
+        orderable:
+            raw['onlineOrderable'] != false &&
+            raw['inStopList'] != true &&
+            (availableCount == null || availableCount > 0),
         index: index,
         product: _CartSuggestion(
           id: id,
@@ -167,7 +168,11 @@ extension _OrdersCartEmptyView on _OrdersScreenState {
       }
       return a.index.compareTo(b.index);
     });
-    return indexed.take(3).map((entry) => entry.product).toList();
+    final orderable = indexed.where((entry) => entry.orderable).toList();
+    return (orderable.isNotEmpty ? orderable : indexed)
+        .take(3)
+        .map((entry) => entry.product)
+        .toList();
   }
 
   void _openCatalog() {

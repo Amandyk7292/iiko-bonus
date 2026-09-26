@@ -5,11 +5,16 @@ export interface PendingBonus {
   reason: string;
   branchScope: string;
 }
-const key = (username: string, customerId: string) =>
-  `bulka:pending-bonus:${encodeURIComponent(username)}:${customerId}`;
+type AdjustmentTarget = 'bonus' | 'account';
+const key = (username: string, customerId: string, target: AdjustmentTarget) =>
+  `bulka:pending-${target}:${encodeURIComponent(username)}:${customerId}`;
 
-export function loadPendingBonus(username: string, customerId: string): PendingBonus | null {
-  const raw = localStorage.getItem(key(username, customerId));
+export function loadPendingBonus(
+  username: string,
+  customerId: string,
+  target: AdjustmentTarget = 'bonus',
+): PendingBonus | null {
+  const raw = localStorage.getItem(key(username, customerId, target));
   if (!raw) return null;
   const pending = JSON.parse(raw) as PendingBonus;
   if (
@@ -27,9 +32,17 @@ export function loadPendingBonus(username: string, customerId: string): PendingB
   }
   return pending;
 }
-export function savePendingBonus(username: string, pending: PendingBonus) {
-  localStorage.setItem(key(username, pending.customerId), JSON.stringify(pending));
+export function savePendingBonus(
+  username: string,
+  pending: PendingBonus,
+  target: AdjustmentTarget = 'bonus',
+) {
+  localStorage.setItem(key(username, pending.customerId, target), JSON.stringify(pending));
 }
-export function clearPendingBonus(username: string, customerId: string) {
-  localStorage.removeItem(key(username, customerId));
+export function clearPendingBonus(
+  username: string,
+  customerId: string,
+  target: AdjustmentTarget = 'bonus',
+) {
+  localStorage.removeItem(key(username, customerId, target));
 }

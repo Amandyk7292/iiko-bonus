@@ -133,7 +133,10 @@ abstract final class PendingForteOperationStore {
           ? await api.checkFortePaymentStatus(pending.operationId)
           : await api.checkForteCheckoutStatus(checkoutId);
     } catch (error) {
-      if (error is ApiException && error.statusCode == 404 && pending == null) {
+      if (error is ApiException &&
+          error.statusCode == 404 &&
+          error.code == 'PAYMENT_CHECKOUT_NOT_FOUND' &&
+          pending == null) {
         await clear(api, expectedCheckoutId: checkoutId);
         return null;
       }

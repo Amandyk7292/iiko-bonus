@@ -24,6 +24,7 @@ const timeSchema = z
   .trim()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const forteOperationParamsSchema = z.object({ operationId: z.string().trim().uuid() }).strict();
+const forteCheckoutParamsSchema = z.object({ checkoutId: z.string().trim().uuid() }).strict();
 const fortePaymentMethodParamsSchema = z.object({ methodId: z.string().trim().uuid() }).strict();
 const forteCardSetupBodySchema = z
   .object({ language: z.enum(['ru', 'kk', 'en']).optional().default('ru') })
@@ -81,6 +82,8 @@ const checkoutQuoteBodySchema = z
 const checkoutPaymentBodySchema = checkoutQuoteBodySchema
   .extend({
     checkoutId: z.string().trim().uuid(),
+    paymentMethod: z.enum(['forte_card', 'personal_account']).optional().default('forte_card'),
+    expectedTotal: z.number().finite().nonnegative().max(100000000).optional(),
     savedPaymentMethodId: nullableText(200),
     deliveryQuoteToken: nullableText(2048),
     expectedBonusSpent: z.number().int().min(0).max(100000000).optional(),
@@ -113,6 +116,25 @@ const favoriteMutationBodySchema = z
 const reorderBodySchema = z
   .object({
     branchId: uuidSchema.optional(),
+  })
+  .strict();
+const savedVariantParamsSchema = z.object({ id: uuidSchema }).strict();
+const savedVariantListQuerySchema = z.object({ productId: resourceIdSchema.optional() }).strict();
+const savedVariantBodySchema = z
+  .object({
+    productId: resourceIdSchema,
+    name: z.string().trim().min(1).max(100),
+    branchId: uuidSchema,
+    orderType: z.enum(['pickup', 'delivery', 'preorder']),
+    configuration: cartConfigurationSchema.nullish(),
+    modifiers: z.array(cartModifierSchema).max(20).optional().default([]),
+  })
+  .strict();
+const savedVariantQuoteBodySchema = z
+  .object({
+    branchId: uuidSchema,
+    orderType: z.enum(['pickup', 'delivery', 'preorder']),
+    quantity: z.number().min(0.001).max(99).multipleOf(0.001).optional().default(1),
   })
   .strict();
 const cartSnapshotBodySchema = z
@@ -486,12 +508,13 @@ const forteTransactionSchema = z
     uid: forteProviderIdSchema.optional(),
     id: forteProviderIdSchema.optional(),
     status: z.string().trim().min(1).max(60),
-    amount: z.number().int().positive(),
+    amount: z.number().int().nonnegative(),
     currency: z.literal('KZT'),
     description: z.string().max(1_000).nullable().optional(),
     type: z.string().max(60).nullable().optional(),
     payment_method_type: z.string().max(60).nullable().optional(),
-    tracking_id: uuidSchema,
+    tracking_id: uuidSchema.optional(),
+    parent_uid: forteProviderIdSchema.nullable().optional(),
     message: z.string().max(1_000).nullable().optional(),
     test: z.boolean(),
     created_at: forteTimestampSchema,
@@ -536,7 +559,7 @@ const forteTransactionSchema = z
 const forteCheckoutOrderSchema = z
   .object({
     currency: z.literal('KZT'),
-    amount: z.number().int().positive(),
+    amount: z.number().int().nonnegative(),
     description: z.string().max(1_000).nullable().optional(),
     tracking_id: uuidSchema,
     additional_data: forteExtensionSchema.optional(),
@@ -663,7 +686,8 @@ const forteWebhookTransactionSchema = z
   .object({
     uid: forteProviderIdSchema.optional(),
     id: forteProviderIdSchema.optional(),
-    tracking_id: uuidSchema,
+    tracking_id: uuidSchema.optional(),
+    parent_uid: forteProviderIdSchema.nullable().optional(),
     status: z.string().trim().min(1).max(60).optional(),
   })
   .passthrough()
@@ -702,6 +726,7 @@ module.exports = {
   courierOrderStatusBodySchema,
   forteCardSetupBodySchema,
   forteOperationParamsSchema,
+  forteCheckoutParamsSchema,
   fortePaymentMethodParamsSchema,
   customerAddressBodySchema,
   customerAddressParamsSchema,
@@ -719,6 +744,10 @@ module.exports = {
   referralRedeemBodySchema,
   registrationBodySchema,
   reorderBodySchema,
+  savedVariantBodySchema,
+  savedVariantListQuerySchema,
+  savedVariantParamsSchema,
+  savedVariantQuoteBodySchema,
   supportCreateBodySchema,
   supportMessageBodySchema,
   supportRequestParamsSchema,

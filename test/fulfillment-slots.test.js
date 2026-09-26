@@ -128,6 +128,51 @@ test('saved closing-hour changes affect the very next slot request', async () =>
     assert.equal((await list()).slots[0].endsAt, '2026-09-10T19:00:00.000Z');
   }));
 
+test('overnight hours expose midnight slots and checkout accepts them', async () =>
+  fixture(async ({ list, location, now, reservations }) => {
+    location.hours.daily.close = '02:00';
+    const { slots } = await list();
+    assert.equal(slots.length, 3);
+    assert.equal(slots[2].startsAt, '2026-09-10T20:00:00.000Z');
+    for (const slot of slots)
+      assert.equal(
+        normalizeSchedule(slot.startsAt, 'pickup', now, process.env, location.hours, 60),
+        slot.startsAt,
+      );
+    assert.throws(() =>
+      normalizeSchedule(
+        '2026-09-11T02:00:00+05:00',
+        'pickup',
+        now,
+        process.env,
+        location.hours,
+        60,
+      ),
+    );
+    reservations.push(
+      { scheduled_at: slots[2].startsAt, status: 'committed' },
+      { scheduled_at: slots[2].startsAt, status: 'committed' },
+    );
+    assert.equal((await list()).slots.length, 2);
+    location.hours = { thu: { open: '08:00', close: '02:00' }, fri: { closed: true } };
+    const afterMidnight = new Date('2026-09-10T19:10:00Z');
+    assert.equal((await list({ now: afterMidnight })).slots.length, 0); // 01:00 is full.
+    reservations.length = 0;
+    const continuation = (await list({ now: afterMidnight })).slots;
+    assert.equal(continuation.length, 1);
+    assert.equal(
+      normalizeSchedule(
+        continuation[0].startsAt,
+        'delivery',
+        afterMidnight,
+        process.env,
+        location.hours,
+        60,
+      ),
+      continuation[0].startsAt,
+    );
+  }));
+
 test('partial intervals retain capacity limits and ignore expired holds', async () =>
   fixture(async ({ list, reservations }) => {
     const scheduled_at = '2026-09-10T18:00:00Z';

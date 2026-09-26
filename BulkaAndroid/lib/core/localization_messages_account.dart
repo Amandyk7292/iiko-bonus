@@ -329,6 +329,48 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'kk': 'Картаны байланыстыру',
     'en': 'Link card',
   },
+  'card_setup_resume': {
+    'ru': 'Продолжить добавление карты',
+    'kk': 'Карта қосуды жалғастыру',
+    'en': 'Continue linking card',
+  },
+  'card_setup_pending_hint': {
+    'ru':
+        'Привязка карты ещё не завершена. Продолжите её или проверьте результат. Повторная привязка пока не нужна.',
+    'kk':
+        'Картаны байланыстыру әлі аяқталған жоқ. Жалғастырыңыз немесе нәтижені тексеріңіз. Қайта байланыстырудың қажеті жоқ.',
+    'en':
+        'Card linking is not complete yet. Continue or check the result. You do not need to start again.',
+  },
+  'card_setup_check_unavailable': {
+    'ru':
+        'Пока не удалось проверить результат. Операция сохранена — проверьте её после восстановления связи.',
+    'kk':
+        'Нәтижені тексеру әзірге мүмкін болмады. Операция сақталды — байланыс қалпына келгенде тексеріңіз.',
+    'en':
+        'The result could not be verified yet. Your operation is saved; check it when the connection returns.',
+  },
+  'payment_methods_verification_hint': {
+    'ru':
+        'Для проверки карты банк временно спишет 30 ₸ и автоматически вернёт их. Реквизиты вводятся на защищённой странице ForteBank.',
+    'kk':
+        'Картаны тексеру үшін банк уақытша 30 ₸ алып, автоматты түрде қайтарады. Деректер ForteBank-тің қорғалған бетінде енгізіледі.',
+    'en':
+        'The bank will temporarily charge 30 ₸ to verify your card and refund it automatically. Enter card details on the secure ForteBank page.',
+  },
+  'payment_methods_add_unavailable': {
+    'ru':
+        'Добавление карт временно недоступно. Заказ можно оплатить на странице банка без сохранения карты.',
+    'kk':
+        'Карта қосу уақытша қолжетімсіз. Тапсырысты картаны сақтамай банк бетінде төлеуге болады.',
+    'en':
+        'Card linking is temporarily unavailable. You can pay on the bank page without saving a card.',
+  },
+  'checkout_hosted_payment_hint': {
+    'ru': 'Оплата на защищённой странице банка. Сохранять карту не требуется.',
+    'kk': 'Банктің қорғалған бетінде төлеу. Картаны сақтау қажет емес.',
+    'en': 'Pay on the secure bank page. Saving a card is not required.',
+  },
   'card_setup_verifying': {
     'ru': 'Проверяем карту',
     'kk': 'Картаны тексеріп жатырмыз',

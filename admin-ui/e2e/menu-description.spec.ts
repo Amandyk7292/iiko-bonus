@@ -29,6 +29,7 @@ test('requires Russian and Kazakh only and copies source text without overwritin
     else if (path.endsWith('/scope'))
       data = { success: true, locations: [branch], selectedBranchId: branch.id };
     else if (path.endsWith('/translate')) translationRequests++;
+    else if (path.endsWith('/menu/badges')) data = { badges: [], selected: [] };
     else if (path.endsWith('/menu'))
       data = {
         success: true,

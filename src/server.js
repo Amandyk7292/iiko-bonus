@@ -127,12 +127,20 @@ if (!process.env.VERCEL) {
 
     const reconcileForteOrders = () =>
       runMonitoredWorker('forte-reconciliation', async () => {
-        const [legacy, widget, fullRefunds] = await Promise.all([
+        const [legacy, widget, fullRefunds, accountTopups, accountOrders] = await Promise.all([
           forteService.reconcileOrders(),
           forteWidgetService.reconcileOrders(),
           reconcileUnknownFullRefunds(),
+          require('./services/personal-account-topup.service').reconcile(),
+          require('./services/personal-account.service').reconcileOrders(),
         ]);
-        return Number(legacy || 0) + Number(widget || 0) + Number(fullRefunds || 0);
+        return (
+          Number(legacy || 0) +
+          Number(widget || 0) +
+          Number(fullRefunds || 0) +
+          Number(accountTopups || 0) +
+          Number(accountOrders || 0)
+        );
       });
     setTimeout(reconcileForteOrders, 20 * 1000);
     setInterval(reconcileForteOrders, 60 * 1000);

@@ -966,6 +966,7 @@ test('zero-value card setup saves the token without issuing a merchant refund', 
   let cardSaved = false;
   service.savePaymentMethod = async () => {
     cardSaved = true;
+    return { id: 'saved-card' };
   };
   service.refundCardSetupPayment = async () => {
     assert.fail('zero-value card setup must not issue a merchant refund');
@@ -1041,6 +1042,7 @@ test('card token is retained while an uncertain verification refund reconciles',
   let saved = false;
   service.savePaymentMethod = async () => {
     saved = true;
+    return { id: 'saved-card' };
   };
   service.refundCardSetupPayment = async () => {
     throw Object.assign(new Error('Refund is still processing'), {
@@ -1130,6 +1132,7 @@ test('successful card binding is finalized only after its refund succeeds', asyn
     assert.equal(customerId, setup.customer_id);
     assert.equal(card.lastFour, '1234');
     saved = true;
+    return { id: 'saved-card' };
   };
   const normalized = normalizeWidgetCheckout({
     transaction: {

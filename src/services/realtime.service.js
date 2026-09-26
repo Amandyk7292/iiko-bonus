@@ -16,6 +16,7 @@ const writeEvent = (response, event) => {
       data: event.data,
     })}\n\n`,
   );
+  response.flush?.();
 };
 
 const eventArea = (type) => {
@@ -158,7 +159,7 @@ function openStream(req, res, identity = {}) {
   res.status(200);
   res.set({
     'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Cache-Control': 'no-cache, no-store, must-revalidate, no-transform',
     Connection: 'keep-alive',
     'Content-Encoding': 'identity',
     'X-Accel-Buffering': 'no',
@@ -210,6 +211,7 @@ function openStream(req, res, identity = {}) {
     if (res.writableEnded || res.destroyed) return close();
     try {
       res.write(`: heartbeat ${Date.now()}\n\n`);
+      res.flush?.();
     } catch {
       close();
     }

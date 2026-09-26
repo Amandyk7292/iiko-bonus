@@ -1,7 +1,16 @@
 import { CheckCircle2 } from 'lucide-react';
 import SelectControl from '../../components/SelectControl';
 
+export type ProductBadge = {
+  id: string;
+  label: string;
+  labelKk?: string;
+  background: string;
+  foreground: string;
+};
+
 export interface IikoProduct {
+  badges?: ProductBadge[];
   id: string;
   name: string;
   description?: string;
@@ -82,6 +91,7 @@ export const indexCategoryOverrides = (
   Object.fromEntries(overrides.map((override) => [override.iiko_category_id, override]));
 
 export interface CustomProduct {
+  badges?: ProductBadge[];
   name_translations?: Record<string, string>;
   description_translations?: Record<string, string>;
   id?: string;

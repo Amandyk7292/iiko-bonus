@@ -12,6 +12,7 @@ const {
 const { validateRequest } = require('../middlewares/validation.middleware');
 const {
   loyaltyApplyBodySchema,
+  loyaltyOfflineEarnBodySchema,
   loyaltyCalculateBodySchema,
   loyaltyCancelBodySchema,
   loyaltyCommitBodySchema,
@@ -56,6 +57,12 @@ router.post(
   '/api/loyalty/apply',
   validateRequest({ body: loyaltyApplyBodySchema }),
   loyaltyController.applyBonus,
+);
+router.post(
+  '/api/loyalty/offline-earn',
+  validateRequest({ body: loyaltyOfflineEarnBodySchema }),
+  branchPosAuthMiddleware,
+  loyaltyController.earnOfflineBonus,
 );
 router.post(
   '/api/loyalty/reserve',

@@ -43,6 +43,24 @@ const adminCustomerParamsSchema = z
   })
   .strict();
 
+const adminPersonalAccountAdjustmentSchema = z
+  .object({
+    amount: z.coerce
+      .number()
+      .finite()
+      .min(-1_000_000)
+      .max(1_000_000)
+      .refine(
+        (value) => value !== 0 && Math.abs(value * 100 - Math.round(value * 100)) < 0.000001,
+        {
+          message: 'Укажите ненулевую сумму с точностью до тиына',
+        },
+      ),
+    requestId: z.string().uuid(),
+    reason: z.string().trim().min(5).max(240),
+  })
+  .strict();
+
 const adminCustomerBulkBodySchema = z
   .object({
     days: z.coerce.number().int().min(1).max(365).optional(),
@@ -56,4 +74,5 @@ module.exports = {
   adminCustomerListQuerySchema,
   adminCustomerParamsSchema,
   adminCustomerUpdateBodySchema,
+  adminPersonalAccountAdjustmentSchema,
 };

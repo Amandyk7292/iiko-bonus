@@ -8,9 +8,11 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { motionDurations, useReducedMotion } from '../lib/motion';
+import { isTopmostModal, lockModalScroll } from '../lib/modal-scroll-lock';
 
 type ToastTone = 'success' | 'error' | 'info';
 interface ToastItem {
@@ -202,9 +204,12 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     const focusableSelector =
       'a[href], button:not(:disabled), textarea:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])';
     const timer = window.setTimeout(() => {
-      (dialog.destructive ? cancelButtonRef.current : confirmButtonRef.current)?.focus();
+      (dialog.destructive ? cancelButtonRef.current : confirmButtonRef.current)?.focus({
+        preventScroll: true,
+      });
     }, 0);
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !isTopmostModal(panelRef.current)) return;
       if (event.key === 'Escape') {
         settle(false);
         return;
@@ -225,12 +230,12 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       }
     };
     document.addEventListener('keydown', onKeyDown);
-    document.body.classList.add('modal-open');
+    const unlockScroll = lockModalScroll();
     return () => {
       window.clearTimeout(timer);
       document.removeEventListener('keydown', onKeyDown);
-      document.body.classList.remove('modal-open');
-      previous?.focus();
+      unlockScroll();
+      previous?.focus({ preventScroll: true });
     };
   }, [dialog, settle]);
 
@@ -269,66 +274,68 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         })}
       </div>
 
-      {dialog && (
-        <div
-          className={`modal-backdrop ${dialogClosing ? 'is-exiting' : ''}`}
-          role="presentation"
-          onMouseDown={(event) =>
-            !dialogClosing && event.target === event.currentTarget && settle(false)
-          }
-        >
-          <section
-            ref={panelRef}
-            className="modal-panel modal-panel-sm"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby={confirmTitleId}
-            aria-describedby={confirmBodyId}
+      {dialog &&
+        createPortal(
+          <div
+            className={`modal-backdrop ${dialogClosing ? 'is-exiting' : ''}`}
+            role="presentation"
+            onMouseDown={(event) =>
+              !dialogClosing && event.target === event.currentTarget && settle(false)
+            }
           >
-            <div className="modal-header">
-              <div>
-                <h2 id={confirmTitleId} className="modal-title">
-                  {dialog.title}
-                </h2>
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => settle(false)}
-                aria-label={t('common.close')}
-                title={t('common.close')}
-              >
-                <X aria-hidden="true" size={20} />
-              </button>
-            </div>
-            <div className="modal-scroll-region">
-              <p id={confirmBodyId} className="modal-body confirm-description">
-                {dialog.body}
-              </p>
-            </div>
-            <div className="modal-footer">
-              <div className="modal-actions">
+            <section
+              ref={panelRef}
+              className="modal-panel modal-panel-sm"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby={confirmTitleId}
+              aria-describedby={confirmBodyId}
+            >
+              <div className="modal-header">
+                <div>
+                  <h2 id={confirmTitleId} className="modal-title">
+                    {dialog.title}
+                  </h2>
+                </div>
                 <button
-                  ref={cancelButtonRef}
                   type="button"
-                  className="btn-outline px-5"
+                  className="icon-button"
                   onClick={() => settle(false)}
+                  aria-label={t('common.close')}
+                  title={t('common.close')}
                 >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  ref={confirmButtonRef}
-                  type="button"
-                  className={dialog.destructive ? 'btn-danger px-5' : 'btn-classic px-5'}
-                  onClick={() => settle(true)}
-                >
-                  {dialog.confirmLabel ?? t('common.confirm')}
+                  <X aria-hidden="true" size={20} />
                 </button>
               </div>
-            </div>
-          </section>
-        </div>
-      )}
+              <div className="modal-scroll-region">
+                <p id={confirmBodyId} className="modal-body confirm-description">
+                  {dialog.body}
+                </p>
+              </div>
+              <div className="modal-footer">
+                <div className="modal-actions">
+                  <button
+                    ref={cancelButtonRef}
+                    type="button"
+                    className="btn-outline px-5"
+                    onClick={() => settle(false)}
+                  >
+                    {t('common.cancel')}
+                  </button>
+                  <button
+                    ref={confirmButtonRef}
+                    type="button"
+                    className={dialog.destructive ? 'btn-danger px-5' : 'btn-classic px-5'}
+                    onClick={() => settle(true)}
+                  >
+                    {dialog.confirmLabel ?? t('common.confirm')}
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>,
+          document.body,
+        )}
     </FeedbackContext.Provider>
   );
 }

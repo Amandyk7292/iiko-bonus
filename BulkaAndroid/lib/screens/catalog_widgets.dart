@@ -1,119 +1,5 @@
 part of '../main.dart';
 
-extension _CatalogStockSubscriptionController on _CatalogScreenState {
-  String _stockSubscriptionKey(String productId, String branchId) =>
-      '$productId::$branchId';
-
-  Future<void> _loadStockSubscriptions() async {
-    if (!_api.isAuthenticated) {
-      if (mounted) _updateCatalogState(() => _stockSubscriptions = const {});
-      return;
-    }
-    try {
-      final subscriptions = await _api.getStockSubscriptions();
-      if (!mounted) return;
-      _updateCatalogState(() {
-        _stockSubscriptions = {
-          for (final subscription in subscriptions)
-            if (subscription.status != 'cancelled')
-              _stockSubscriptionKey(
-                subscription.productId,
-                subscription.branchId,
-              ): subscription,
-        };
-      });
-    } catch (_) {
-      // The catalog remains usable if notification state cannot be loaded.
-    }
-  }
-
-  Future<void> _toggleStockSubscription(CatalogProduct product) async {
-    if (!_api.isAuthenticated) {
-      final authenticated = await widget.onRequireAuth?.call() ?? false;
-      if (!authenticated || !_api.isAuthenticated || !mounted) return;
-      await _loadStockSubscriptions();
-    }
-    if (_selectedBakeryId.isEmpty) {
-      await _selectFulfillmentSource();
-      if (!mounted || _selectedBakeryId.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            bulkaSnackBar(content: Text('stock_notify_select_branch'.tr)),
-          );
-        }
-        return;
-      }
-    }
-    final key = _stockSubscriptionKey(product.id, _selectedBakeryId);
-    if (_stockSubscriptionBusy.contains(key)) return;
-    final existing = _stockSubscriptions[key];
-    _updateCatalogState(() {
-      _stockSubscriptionBusy = {..._stockSubscriptionBusy, key};
-      if (existing == null) {
-        _stockSubscriptions = {
-          ..._stockSubscriptions,
-          key: StockSubscription(
-            id: 'pending:$key',
-            productId: product.id,
-            branchId: _selectedBakeryId,
-            status: 'active',
-            createdAt: DateTime.now(),
-          ),
-        };
-      } else {
-        _stockSubscriptions = {..._stockSubscriptions}..remove(key);
-      }
-    });
-    try {
-      if (existing == null) {
-        final created = await _api.createStockSubscription(
-          productId: product.id,
-          branchId: _selectedBakeryId,
-        );
-        if (!mounted) return;
-        _updateCatalogState(() {
-          _stockSubscriptions = {..._stockSubscriptions, key: created};
-        });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(bulkaSnackBar(content: Text('stock_notify_enabled'.tr)));
-      } else {
-        await _api.deleteStockSubscription(existing.id);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          bulkaSnackBar(content: Text('stock_notify_disabled'.tr)),
-        );
-      }
-    } catch (error) {
-      if (!mounted) return;
-      _updateCatalogState(() {
-        if (existing == null) {
-          _stockSubscriptions = {..._stockSubscriptions}..remove(key);
-        } else {
-          _stockSubscriptions = {..._stockSubscriptions, key: existing};
-        }
-      });
-      if (error is ApiException && error.code == 'PRODUCT_ALREADY_AVAILABLE') {
-        unawaited(_silentRefresh());
-        ScaffoldMessenger.of(context).showSnackBar(
-          bulkaSnackBar(content: Text('stock_notify_already_available'.tr)),
-        );
-        return;
-      }
-      showApiErrorSnackBar(
-        context,
-        error,
-        fallbackKey: 'stock_notify_save_error',
-      );
-    } finally {
-      if (mounted) {
-        final next = {..._stockSubscriptionBusy}..remove(key);
-        _updateCatalogState(() => _stockSubscriptionBusy = next);
-      }
-    }
-  }
-}
-
 num _catalogProductQuantityLimit(CatalogProduct product) => min(
   product.inStockCount ?? CartProvider.maxItemQuantity,
   CartProvider.maxItemQuantity,
@@ -166,21 +52,24 @@ class _CatalogProductImage extends StatelessWidget {
         child: Center(
           child: Padding(
             padding: url.trim().isEmpty ? EdgeInsets.zero : safePadding,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(BulkaRadii.control),
-              child: _NetworkImage(
-                url: url,
-                fit: BoxFit.cover,
-                semanticLabel: semanticLabel,
-                errorPlaceholder: placeholder,
-              ),
+            child: _NetworkImage(
+              url: url,
+              fit: BoxFit.cover,
+              animate: false,
+              semanticLabel: semanticLabel,
+              loadingPlaceholder: placeholder,
+              errorPlaceholder: placeholder,
             ),
           ),
         ),
       ),
     );
     if (heroTag != null) {
-      image = BulkaHero(tag: heroTag!, child: image);
+      image = BulkaHero(
+        tag: heroTag!,
+        freezeImageDuringFlight: true,
+        child: image,
+      );
     }
     return AspectRatio(aspectRatio: 1, child: image);
   }
@@ -483,15 +372,18 @@ class _CatalogImageQuantityControl extends StatelessWidget {
             ),
             SizedBox(
               width: unit.isEmpty ? 28 : 66,
-              child: Text(
-                '${productQuantityText(quantity)}${unit.isEmpty ? '' : ' $unit'}',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: _headingFont,
-                  color: colors.brandBrown,
-                  fontSize: BulkaTypeScale.body,
-                  fontWeight: FontWeight.w700,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+              child: BulkaValueTransition(
+                value: quantity,
+                child: Text(
+                  '${productQuantityText(quantity)}${unit.isEmpty ? '' : ' $unit'}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: _headingFont,
+                    color: colors.brandBrown,
+                    fontSize: BulkaTypeScale.body,
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
             ),

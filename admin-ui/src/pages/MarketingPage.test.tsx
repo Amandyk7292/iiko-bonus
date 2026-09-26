@@ -11,6 +11,7 @@ const api = vi.hoisted(() => ({
   getAutomations: vi.fn(),
   createPromotion: vi.fn(),
   updatePromotion: vi.fn(),
+  updateAutomation: vi.fn(),
 }));
 vi.mock('../lib/api', () => ({ api }));
 vi.mock('../components/Feedback', () => ({ useFeedback: () => ({ toast: vi.fn() }) }));
@@ -56,6 +57,53 @@ it('creates a free delivery promotion without a fake goods discount or extra req
         perCustomerLimit: 1,
         customerIds: [],
         customerTags: [],
+      }),
+    ),
+  );
+});
+
+it('keeps three birthday translations and gift amount when switching editor languages', async () => {
+  const user = userEvent.setup();
+  api.getAutomations.mockResolvedValue({
+    automations: [
+      {
+        id: 'birthday',
+        trigger_type: 'birthday',
+        active: true,
+        config: { maximumPerYear: 1 },
+        title_translations: { ru: 'Поздравляем', kk: 'Құттықтаймыз', en: 'Happy birthday' },
+        body_translations: {
+          ru: 'С днём рождения',
+          kk: 'Туған күніңізбен',
+          en: 'Have a great day',
+        },
+      },
+    ],
+  });
+  api.updateAutomation.mockResolvedValue({ success: true });
+  render(
+    <BrowserRouter basename="/admin">
+      <I18nProvider>
+        <MarketingPage />
+      </I18nProvider>
+    </BrowserRouter>,
+  );
+  await user.click(await screen.findByRole('tab', { name: 'Автоматические рассылки' }));
+  await user.click(await screen.findByRole('button', { name: 'Текст' }));
+  const gift = screen.getByRole('spinbutton', { name: 'Подарок в бонусах' });
+  await user.clear(gift);
+  await user.type(gift, '1000');
+  await user.click(screen.getByRole('button', { name: 'Қазақша' }));
+  expect(screen.getByDisplayValue('Құттықтаймыз')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'English' }));
+  expect(screen.getByDisplayValue('Happy birthday')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+  await waitFor(() =>
+    expect(api.updateAutomation).toHaveBeenCalledWith(
+      'birthday',
+      expect.objectContaining({
+        config: { maximumPerYear: 1, birthdayBonusAmount: 1000 },
+        titleTranslations: { ru: 'Поздравляем', kk: 'Құттықтаймыз', en: 'Happy birthday' },
       }),
     ),
   );

@@ -1,5 +1,10 @@
 part of '../main.dart';
 
+Object? _parseApiJsonBytes(List<int> bytes) {
+  final text = utf8.decode(bytes);
+  return text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
+}
+
 String get _apiBaseUrl => bulkaApiBaseUrl;
 
 @visibleForTesting
@@ -452,15 +457,6 @@ class BulkaApiClient {
     return const [];
   }
 
-  Future<List<NewsItem>> getNews() async {
-    final json = await _get('/api/guest/news');
-    final news = json['news'];
-    if (json['success'] == true && news is List) {
-      return news.map((item) => NewsItem.fromJson(_asMap(item))).toList();
-    }
-    return const [];
-  }
-
   Future<List<AppContactCard>> getContactCards() async {
     final json = await _get('/api/public/contact-center');
     final cards = json['cards'];
@@ -633,11 +629,15 @@ class BulkaApiClient {
       _get('/api/customer/personal-account/topups/${Uri.encodeComponent(id)}');
   String? get forteSavedCardLabel => _forteSavedCardLabel;
   bool _onlineOrderingDisabled = false;
+  bool _forteCardSetupAvailable = true;
+  bool get forteCardSetupAvailable => _forteCardSetupAvailable;
   bool get onlineOrderingDisabled => _onlineOrderingDisabled;
 
   Future<bool> isFortePaymentAvailable() async {
     final json = await _get('/api/customer/forte-pay/availability');
     _onlineOrderingDisabled = json['onlineOrderingDisabled'] == true;
+    _forteCardSetupAvailable =
+        json['cardSetup'] != false && json['integration'] != 'hosted_page';
     final savedCard = json['savedCard'];
     if (savedCard is Map) {
       final brand = (savedCard['brand'] ?? 'card').toString().trim();
@@ -666,7 +666,10 @@ class BulkaApiClient {
       'language': AppLang.current,
     });
     if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'payment_methods_add_error'.tr));
+      throw ApiException(
+        _messageFrom(json, 'payment_methods_add_error'.tr),
+        code: _nullableString(json['code']),
+      );
     }
     return json;
   }
@@ -686,6 +689,11 @@ class BulkaApiClient {
     }
     return json;
   }
+
+  Future<Map<String, dynamic>> resumeForteCardSetup(String operationId) => _get(
+    '/api/customer/forte-pay/card-setup/${Uri.encodeComponent(operationId)}'
+    '?resume=1&language=${Uri.encodeComponent(AppLang.current)}',
+  );
 
   Future<void> removeFortePaymentMethod(String methodId) async {
     final json = await _delete(
@@ -1094,6 +1102,66 @@ class BulkaApiClient {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getSavedVariants(String productId) async {
+    if (!isAuthenticated) return const [];
+    final json = await _get(
+      '/api/customer/saved-variants?productId=${Uri.encodeQueryComponent(productId)}',
+    );
+    if (json['success'] != true || json['variants'] is! List) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
+    return (json['variants'] as List).map((value) => _asMap(value)).toList();
+  }
+
+  Future<Map<String, dynamic>> saveVariant({
+    required String productId,
+    required String name,
+    required String branchId,
+    required String orderType,
+    required Map<String, dynamic> configuration,
+    required List<Map<String, dynamic>> modifiers,
+  }) async {
+    final json = await _post('/api/customer/saved-variants', {
+      'productId': productId,
+      'name': name,
+      'branchId': branchId,
+      'orderType': orderType,
+      'configuration': configuration,
+      'modifiers': modifiers,
+    });
+    if (json['success'] != true || json['variant'] is! Map) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+    return _asMap(json['variant']);
+  }
+
+  Future<Map<String, dynamic>> quoteSavedVariant({
+    required String id,
+    required String branchId,
+    required String orderType,
+    required num quantity,
+  }) async {
+    final json = await _post(
+      '/api/customer/saved-variants/${Uri.encodeComponent(id)}/quote',
+      {'branchId': branchId, 'orderType': orderType, 'quantity': quantity},
+    );
+    if (json['success'] != true || json['item'] is! Map) {
+      throw ApiException(
+        _messageFrom(json, 'catalog_selected_product_unavailable'.tr),
+      );
+    }
+    return _asMap(json['item']);
+  }
+
+  Future<void> deleteSavedVariant(String id) async {
+    final json = await _delete(
+      '/api/customer/saved-variants/${Uri.encodeComponent(id)}',
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+  }
+
   Future<List<StockSubscription>> getStockSubscriptions() async {
     final json = await _get('/api/customer/stock-subscriptions');
     final values = json['subscriptions'];
@@ -1437,12 +1505,14 @@ class BulkaApiClient {
     required String branchId,
     required String orderType,
     int days = 7,
+    List<String> productIds = const [],
   }) async {
     final query = Uri(
       queryParameters: {
         'branchId': branchId,
         'orderType': orderType,
         'days': '$days',
+        if (productIds.isNotEmpty) 'productIds': productIds.toSet().join(','),
       },
     ).query;
     final json = await _get('/api/public/fulfillment-slots?$query');
@@ -1820,7 +1890,18 @@ class BulkaApiClient {
         code: 'SESSION_IDENTITY_CHANGED',
       );
     }
-    return _decode(response);
+    final decoded = await _decodeResponse(response);
+    // Parsing a large response yields to another isolate. Do not expose its
+    // result if the customer changes while that work is in flight.
+    if (allowRefresh &&
+        bearerToken == null &&
+        requestRevision != _sessionRevision) {
+      throw ApiException(
+        'error_session_changed'.tr,
+        code: 'SESSION_IDENTITY_CHANGED',
+      );
+    }
+    return decoded;
   }
 
   Future<bool> restoreSession({bool force = false}) async {
@@ -1950,9 +2031,45 @@ class BulkaApiClient {
     _client.close();
   }
 
+  Future<Map<String, dynamic>> _decodeResponse(http.Response response) async {
+    if (kIsWeb || response.bodyBytes.length < 64 * 1024) {
+      return _decode(response);
+    }
+    Object? decoded;
+    try {
+      decoded = await compute(
+        _parseApiJsonBytes,
+        response.bodyBytes,
+        debugLabel: 'bulka-api-json',
+      );
+    } on FormatException {
+      throw ApiException(
+        'error_network'.tr,
+        statusCode: response.statusCode,
+        code: 'INVALID_API_RESPONSE',
+      );
+    }
+    return _validateDecodedResponse(response, decoded);
+  }
+
   Map<String, dynamic> _decode(http.Response response) {
-    final text = utf8.decode(response.bodyBytes);
-    final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
+    Object? decoded;
+    try {
+      decoded = _parseApiJsonBytes(response.bodyBytes);
+    } on FormatException {
+      throw ApiException(
+        'error_network'.tr,
+        statusCode: response.statusCode,
+        code: 'INVALID_API_RESPONSE',
+      );
+    }
+    return _validateDecodedResponse(response, decoded);
+  }
+
+  Map<String, dynamic> _validateDecodedResponse(
+    http.Response response,
+    Object? decoded,
+  ) {
     final json = _asMap(decoded);
     final responseRequestId =
         _requestIdFrom(json) ??

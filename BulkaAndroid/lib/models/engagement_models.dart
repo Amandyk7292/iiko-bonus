@@ -395,63 +395,6 @@ class PromoStory {
   };
 }
 
-class NewsItem {
-  const NewsItem({
-    required this.id,
-    required this.title,
-    required this.imageUrl,
-    this.createdAt,
-    this.description,
-    this.localizedTitles = const {},
-    this.localizedDescriptions = const {},
-    this.localizedImageUrls = const {},
-  });
-
-  final int id;
-  final String title;
-  final String imageUrl;
-  final String? createdAt;
-  final String? description;
-  final Map<String, String> localizedTitles;
-  final Map<String, String> localizedDescriptions;
-  final Map<String, String> localizedImageUrls;
-
-  String get localizedTitle => _localizedValue(title, localizedTitles);
-  String get localizedImageUrl => _localizedValue(imageUrl, localizedImageUrls);
-  String? get localizedDescription {
-    final value = _localizedValue(description ?? '', localizedDescriptions);
-    return value.isEmpty ? null : value;
-  }
-
-  factory NewsItem.fromJson(Map<String, dynamic> json) {
-    return NewsItem(
-      id: _asInt(json['id']),
-      title: _asString(json['title']),
-      imageUrl: _asString(
-        json['imageUrl'] ?? json['imageurl'] ?? json['image_url'],
-      ),
-      createdAt: _nullableString(json['created_at'] ?? json['createdAt']),
-      description: _nullableString(json['description']),
-      localizedTitles: _nestedLocalizedValues(json, 'title'),
-      localizedDescriptions: _nestedLocalizedValues(json, 'description'),
-      localizedImageUrls: _nestedLocalizedValues(json, 'imageUrl'),
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'title': title,
-    'imageUrl': imageUrl,
-    'createdAt': createdAt,
-    'description': description,
-    'i18n': _localizedContentJson(
-      titles: localizedTitles,
-      descriptions: localizedDescriptions,
-      imageUrls: localizedImageUrls,
-    ),
-  };
-}
-
 class AppContactAction {
   const AppContactAction({
     required this.id,

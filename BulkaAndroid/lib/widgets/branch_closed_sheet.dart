@@ -7,9 +7,7 @@ Future<void> showBranchClosedSheet(
 }) {
   return showModalBottomSheet<void>(
     context: context,
-    sheetAnimationStyle: BulkaMotion.reduced(context)
-        ? AnimationStyle.noAnimation
-        : null,
+    sheetAnimationStyle: BulkaMotion.sheetStyle(context),
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Colors.transparent,

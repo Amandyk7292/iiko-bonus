@@ -132,6 +132,9 @@ import type {
   BranchPosCredentialSecret,
   OperationsSummary,
   IntegrationHealthService,
+  PosHealthResponse,
+  PosPluginPolicy,
+  PosReconciliationCase,
   SupportRequest,
   SupportMessage,
   AdminGlobalEntityType,
@@ -158,6 +161,10 @@ import type {
   TaplinkAdminResponse,
   TaplinkDocument,
   AuditLog,
+  CustomerBonusEntry,
+  CustomerPersonalAccountEntry,
+  CustomerFinancialDetailsResponse,
+  PersonalAccountAdjustmentResponse,
 } from './api-types';
 export type {
   LocalizedText,
@@ -190,6 +197,9 @@ export type {
   BranchPosCredentialSecret,
   OperationsSummary,
   IntegrationHealthService,
+  PosHealthResponse,
+  PosPluginPolicy,
+  PosReconciliationCase,
   SupportRequest,
   SupportMessage,
   AdminGlobalEntityType,
@@ -216,6 +226,10 @@ export type {
   TaplinkAdminResponse,
   TaplinkDocument,
   AuditLog,
+  CustomerBonusEntry,
+  CustomerPersonalAccountEntry,
+  CustomerFinancialDetailsResponse,
+  PersonalAccountAdjustmentResponse,
 } from './api-types';
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -412,6 +426,17 @@ export const api = {
       services: IntegrationHealthService[];
       payments: PaymentDiagnostics;
     }>('/integrations/status'),
+  getPosHealth: () => request<PosHealthResponse>('/integrations/pos'),
+  savePosPluginPolicy: (policy: PosPluginPolicy) =>
+    request<{ success: boolean; policy: PosPluginPolicy }>(
+      '/integrations/pos/policy',
+      json('PUT', policy),
+    ),
+  actOnPosReconciliation: (id: string, action: 'retry' | 'check' | 'close', reason?: string) =>
+    request<{ success: boolean }>(
+      `/integrations/pos/reconciliation/${encodeURIComponent(id)}/action`,
+      json('POST', { action, ...(reason ? { reason } : {}) }),
+    ),
   setForteWidgetEnabled: (enabled: boolean) =>
     request<{ success: boolean; payments: PaymentDiagnostics }>(
       '/integrations/payments/widget',
@@ -428,6 +453,31 @@ export const api = {
     return request<{ customers: any[]; total: number; page: number; pageSize: number }>(
       `/customers?${params}`,
     );
+  },
+  getCustomerFinancialDetails: (id: string) =>
+    request<CustomerFinancialDetailsResponse>(
+      `/customers/${encodeURIComponent(id)}/financial-details`,
+    ),
+  adjustCustomerPersonalAccount: async (
+    id: string,
+    amount: number,
+    reason: string,
+    requestId: string,
+    branchScope = getAdminBranchScope(),
+  ) => {
+    const result = await request<PersonalAccountAdjustmentResponse>(
+      `/customers/${encodeURIComponent(id)}/personal-account-adjustment`,
+      json('POST', { amount, reason, requestId }),
+      { branchScope },
+    );
+    if (result?.success !== true) {
+      throw new ApiError(
+        'Сервер не подтвердил корректировку. Повторите сохранение.',
+        0,
+        'INVALID_API_RESPONSE',
+      );
+    }
+    return result;
   },
   getOrders: ({
     page = 1,
@@ -715,12 +765,6 @@ export const api = {
   updateStory: (data: Record<string, any>) =>
     request(`/stories/${encodeURIComponent(data.id)}`, json('PUT', data)),
   deleteStory: (id: string) => request(`/stories/${encodeURIComponent(id)}`, json('DELETE')),
-
-  getNews: () => request<{ success: boolean; news: any[] }>('/news'),
-  addNews: (data: Record<string, unknown>) => request('/news', json('POST', data)),
-  updateNews: (data: Record<string, any>) =>
-    request(`/news/${encodeURIComponent(data.id)}`, json('PUT', data)),
-  deleteNews: (id: string) => request(`/news/${encodeURIComponent(id)}`, json('DELETE')),
 
   getCities: () => request<{ success: boolean; cities: any[] }>('/cities'),
   addCity: (data: Record<string, unknown>) => request('/cities', json('POST', data)),

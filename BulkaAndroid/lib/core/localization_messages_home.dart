@@ -1,6 +1,16 @@
 part of '../main.dart';
 
 const Map<String, Map<String, String>> _homeAndLoyaltyTranslations = {
+  'home_active_order': {
+    'ru': 'Заказ №{number}',
+    'kk': '№{number} тапсырыс',
+    'en': 'Order #{number}',
+  },
+  'home_active_order_semantics': {
+    'ru': 'Открыть заказ №{number}. Статус: {status}',
+    'kk': '№{number} тапсырысты ашу. Күйі: {status}',
+    'en': 'Open order #{number}. Status: {status}',
+  },
   'home_good_morning': {
     'ru': 'Доброе утро',
     'kk': 'Қайырлы таң',
@@ -31,11 +41,6 @@ const Map<String, Map<String, String>> _homeAndLoyaltyTranslations = {
     'ru': 'Не удалось загрузить акции.',
     'kk': 'Акцияларды жүктеу мүмкін болмады.',
     'en': 'Promotions could not be loaded.',
-  },
-  'home_news_load_error': {
-    'ru': 'Не удалось загрузить новости.',
-    'kk': 'Жаңалықтарды жүктеу мүмкін болмады.',
-    'en': 'News could not be loaded.',
   },
   // Loyalty panel & QR
   'show_qr_cashier': {

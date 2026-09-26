@@ -1,7 +1,8 @@
 part of '../main.dart';
 
+const _storyPreviewWidth = 104.0;
+const _storyPreviewHeight = 116.0;
 const _promoCoverAspectRatio = 1080 / 480;
-const _promoMobileMaxWidth = 520.0;
 
 class StoryGroup {
   const StoryGroup({
@@ -10,6 +11,7 @@ class StoryGroup {
     required this.coverUrl,
     required this.stories,
     this.subtitle,
+    this.viewed = false,
   });
 
   final String id;
@@ -17,6 +19,7 @@ class StoryGroup {
   final String coverUrl;
   final List<PromoStory> stories;
   final String? subtitle;
+  final bool viewed;
 }
 
 class PromoBannerShimmer extends StatefulWidget {
@@ -63,25 +66,16 @@ class _PromoBannerShimmerState extends State<PromoBannerShimmer>
   @override
   Widget build(BuildContext context) {
     final shimmer = _reduceMotion ? null : _controller;
-    return LayoutBuilder(
-      builder: (context, constraints) => Padding(
+    return SizedBox(
+      height: _storyPreviewHeight,
+      child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: constraints.maxWidth >= 720
-            ? Row(
-                children: [
-                  Expanded(child: _buildCard(shimmer)),
-                  const SizedBox(width: 18),
-                  Expanded(child: _buildCard(shimmer)),
-                ],
-              )
-            : Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: _promoMobileMaxWidth,
-                  ),
-                  child: _buildCard(shimmer),
-                ),
-              ),
+        scrollDirection: Axis.horizontal,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 3,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (_, _) =>
+            SizedBox(width: _storyPreviewWidth, child: _buildCard(shimmer)),
       ),
     );
   }
@@ -132,8 +126,7 @@ class _PromoBannerShimmerState extends State<PromoBannerShimmer>
       child: child,
     );
 
-    return AspectRatio(
-      aspectRatio: _promoCoverAspectRatio,
+    return SizedBox.expand(
       child: ClipRRect(
         borderRadius: BorderRadius.circular(BulkaRadii.card),
         clipBehavior: Clip.antiAlias,
@@ -180,172 +173,27 @@ class PromoBannerSlider extends StatefulWidget {
 }
 
 class _PromoBannerSliderState extends State<PromoBannerSlider> {
-  late final PageController _pageController;
-  int _currentIndex = 0;
-  Timer? _timer;
-  bool _reduceMotion = false;
-  bool _tickerEnabled = true;
-  bool _dependenciesReady = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _pageController = PageController();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final reduceMotion = BulkaMotion.reduced(context);
-    final tickerEnabled = TickerMode.of(context);
-    if (!_dependenciesReady ||
-        reduceMotion != _reduceMotion ||
-        tickerEnabled != _tickerEnabled) {
-      _dependenciesReady = true;
-      _reduceMotion = reduceMotion;
-      _tickerEnabled = tickerEnabled;
-      _startTimer();
-    }
-  }
-
-  void _startTimer() {
-    _timer?.cancel();
-    if (!_reduceMotion && _tickerEnabled && widget.groups.length > 1) {
-      _timer = Timer(const Duration(seconds: 5), () {
-        if (!mounted || !_pageController.hasClients) return;
-        final next = (_currentIndex + 1) % widget.groups.length;
-        unawaited(
-          _pageController.animateToPage(
-            next,
-            // A balanced ease-in/ease-out avoids the abrupt first frames of
-            // the standard entrance curve and keeps the banner readable
-            // while it glides to the next promotion.
-            duration: const Duration(milliseconds: 720),
-            curve: Curves.easeInOutCubic,
-          ),
-        );
-      });
-    }
-  }
-
-  void _handlePageChanged(int index) {
-    if (!mounted) return;
-    setState(() => _currentIndex = index);
-    _startTimer();
-  }
-
-  @override
-  void didUpdateWidget(covariant PromoBannerSlider oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.groups.length != widget.groups.length) {
-      _startTimer();
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _pageController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     if (widget.groups.isEmpty) return const SizedBox.shrink();
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final fallbackHeight =
-            widget.groups.any((group) => !group.coverUrl.startsWith('http'))
-            ? 44 +
-                  MediaQuery.textScalerOf(
-                    context,
-                  ).scale(BulkaTypeScale.title + BulkaTypeScale.bodySmall * 2.5)
-            : 0.0;
-        if (constraints.maxWidth >= 720) {
-          final gridWidth = constraints.maxWidth - 48;
-          final cardWidth = (gridWidth - 18) / 2;
-          return GridView.builder(
-            clipBehavior: Clip.none,
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 18,
-              mainAxisSpacing: 18,
-              mainAxisExtent: max(
-                cardWidth / _promoCoverAspectRatio,
-                fallbackHeight,
-              ),
-            ),
-            itemCount: widget.groups.length,
-            itemBuilder: (context, index) => _PromoBannerCard(
-              group: widget.groups[index],
-              onTap: () => widget.onGroupTap(widget.groups[index]),
-            ),
-          );
-        }
-
-        return Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: _promoMobileMaxWidth + 16,
-                  ),
-                  child: SizedBox(
-                    height: max(
-                      min(constraints.maxWidth - 32, _promoMobileMaxWidth) /
-                          _promoCoverAspectRatio,
-                      fallbackHeight,
-                    ),
-                    child: PageView.builder(
-                      clipBehavior: Clip.none,
-                      controller: _pageController,
-                      itemCount: widget.groups.length,
-                      onPageChanged: _handlePageChanged,
-                      itemBuilder: (context, idx) => Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: _PromoBannerCard(
-                          group: widget.groups[idx],
-                          onTap: () => widget.onGroupTap(widget.groups[idx]),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            if (widget.groups.length > 1) ...[
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(widget.groups.length, (idx) {
-                  final active = idx == _currentIndex;
-                  return AnimatedContainer(
-                    duration: BulkaMotion.duration(
-                      context,
-                      BulkaMotion.standard,
-                    ),
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
-                    width: active ? 20 : 6,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: active
-                          ? const Color(0xFFFFB300)
-                          : const Color(0xFFE4D3BA),
-                      borderRadius: BorderRadius.circular(BulkaRadii.small),
-                    ),
-                  );
-                }),
-              ),
-            ],
-          ],
-        );
-      },
+    return SizedBox(
+      height: _storyPreviewHeight,
+      child: ListView.separated(
+        key: const ValueKey('home-stories-list'),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: widget.groups.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (context, index) => SizedBox(
+          width: _storyPreviewWidth,
+          child: _PromoBannerCard(
+            group: widget.groups[index],
+            onTap: () => widget.onGroupTap(widget.groups[index]),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -382,8 +230,10 @@ class _PromoBannerCard extends StatelessWidget {
                 foregroundDecoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(BulkaRadii.control),
                   border: Border.all(
-                    color: const Color(0xFFE0B858),
-                    width: 1.8,
+                    color: group.viewed
+                        ? const Color(0xFFB8B8B8)
+                        : const Color(0xFF782B0E),
+                    width: 2,
                   ),
                 ),
                 child: ClipRRect(
@@ -406,10 +256,13 @@ class _BannerFullCoverWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (group.coverUrl.startsWith('http')) {
+    final storyUrl = group.stories.isEmpty
+        ? group.coverUrl
+        : _storyImageUrl(group.stories.first);
+    if (storyUrl.startsWith('http')) {
       return _NetworkImage(
         key: ValueKey('promo-image-${group.id}'),
-        url: group.coverUrl,
+        url: storyUrl,
         fit: BoxFit.cover,
       );
     }
@@ -421,7 +274,7 @@ class _BannerFullCoverWidget extends StatelessWidget {
           colors: [Color(0xFF4A2210), Color(0xFF231007)],
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       child: Row(
         children: [
           Expanded(
@@ -435,7 +288,7 @@ class _BannerFullCoverWidget extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontFamily: _headingFont,
-                    fontSize: BulkaTypeScale.title,
+                    fontSize: 16,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFFEADBBE),
                   ),

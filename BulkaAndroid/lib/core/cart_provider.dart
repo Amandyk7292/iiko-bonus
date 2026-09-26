@@ -297,7 +297,7 @@ class CartProvider extends ChangeNotifier {
     await _save();
   }
 
-  void replaceWithItems(Iterable<CartItem> items) {
+  void replaceWithItems(Iterable<CartItem> items, {bool reconcileMenu = true}) {
     final next = <String, CartItem>{};
     for (final item in items) {
       if (item.id.trim().isEmpty || item.quantity <= 0) continue;
@@ -310,11 +310,11 @@ class CartProvider extends ChangeNotifier {
     _items
       ..clear()
       ..addAll(next);
-    _applyLatestMenu();
+    if (reconcileMenu) _applyLatestMenu();
     _changedByCustomer();
   }
 
-  void mergeItems(Iterable<CartItem> items) {
+  void mergeItems(Iterable<CartItem> items, {bool reconcileMenu = true}) {
     final next = {
       for (final entry in _items.entries) entry.key: copyItem(entry.value),
     };
@@ -327,10 +327,13 @@ class CartProvider extends ChangeNotifier {
           quantity: item.quantity.clamp(item.quantityStep, maxItemQuantity),
         );
       } else {
-        current.quantity = normalizedProductQuantity(
-          (current.quantity + item.quantity).clamp(
-            item.quantityStep,
-            maxItemQuantity,
+        next[item.cartKey] = copyItem(
+          item,
+          quantity: normalizedProductQuantity(
+            (current.quantity + item.quantity).clamp(
+              item.quantityStep,
+              maxItemQuantity,
+            ),
           ),
         );
       }
@@ -338,7 +341,7 @@ class CartProvider extends ChangeNotifier {
     _items
       ..clear()
       ..addAll(next);
-    _applyLatestMenu();
+    if (reconcileMenu) _applyLatestMenu();
     _changedByCustomer();
   }
 

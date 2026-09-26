@@ -11,6 +11,7 @@ class HomeScreen extends StatefulWidget {
     required this.onOpenCatalog,
     this.onOpenNotificationTab,
     this.onOpenOrders,
+    this.activeOrder,
     super.key,
   });
 
@@ -23,6 +24,7 @@ class HomeScreen extends StatefulWidget {
   final Future<void> Function(String orderType) onOpenCatalog;
   final ValueChanged<int>? onOpenNotificationTab;
   final Future<void> Function(String? orderId)? onOpenOrders;
+  final CustomerOrder? activeOrder;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -69,28 +71,53 @@ class _HomeScreenState extends State<HomeScreen> {
   void _updateHomeState(VoidCallback update) => setState(update);
 
   Future<void> _openBakeryLocations(String orderType) async {
+    final pageContext = context;
     await _navigationGate.run(() async {
+      final prefs = await SharedPreferences.getInstance();
+      if (!pageContext.mounted) return;
+      final currentType = prefs.getString('selected_order_type')?.trim() ?? '';
+      final cart = pageContext.read<CartProvider>();
+      if (currentType.isNotEmpty &&
+          currentType != orderType &&
+          cart.items.isNotEmpty) {
+        final proceed = await showDialog<bool>(
+          context: pageContext,
+          builder: (dialogContext) => BulkaActionDialog(
+            title: Text('cart_change_mode_title'.tr),
+            content: Text('cart_change_mode_body'.tr),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text('cancel_btn'.tr),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text('cart_change_mode_action'.tr),
+              ),
+            ],
+          ),
+        );
+        if (!pageContext.mounted || proceed != true) return;
+      }
       if (orderType == 'delivery') {
-        final address = await Navigator.of(context).push<DeliveryAddress>(
+        final address = await Navigator.of(pageContext).push<DeliveryAddress>(
           MaterialPageRoute(
             builder: (_) => AddressSelectionScreen(api: widget.api),
           ),
         );
         if (!mounted || address == null) return;
-        final prefs = await SharedPreferences.getInstance();
         await prefs.setString('selected_order_type', orderType);
         if (!mounted) return;
         await widget.onOpenCatalog(orderType);
         return;
       }
-      final location = await Navigator.of(context).push<String>(
+      final location = await Navigator.of(pageContext).push<String>(
         MaterialPageRoute(
           builder: (_) =>
               LocationsScreen(orderType: orderType, api: widget.api),
         ),
       );
       if (!mounted || location == null || location.trim().isEmpty) return;
-      final prefs = await SharedPreferences.getInstance();
       await prefs.setString('selected_bakery_location', location);
       await prefs.setString('selected_order_type', orderType);
       if (!mounted) return;
@@ -213,6 +240,16 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       ),
+                      if (widget.activeOrder != null)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          child: _HomeActiveOrderCard(
+                            order: widget.activeOrder!,
+                            onTap: () => widget.onOpenOrders?.call(
+                              widget.activeOrder!.id,
+                            ),
+                          ),
+                        ),
                       if (_initialLoading ||
                           storyGroups.isNotEmpty ||
                           (_storiesLoadFailed && _stories.isEmpty)) ...[
@@ -305,6 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ? first.localizedGroupCoverUrl
                   : first.localizedImageUrl,
               stories: items,
+              viewed: _viewedStoryGroups.contains(entry.key),
             );
           }).toList()
           ..sort((a, b) => a.stories.first.id.compareTo(b.stories.first.id));
@@ -340,6 +378,85 @@ class _HomeScreenState extends State<HomeScreen> {
     await prefs.setStringList('viewed_story_groups', next.toList());
     if (!mounted) return;
     setState(() => _viewedStoryGroups = next);
+  }
+}
+
+class _HomeActiveOrderCard extends StatelessWidget {
+  const _HomeActiveOrderCard({required this.order, required this.onTap});
+  final CustomerOrder order;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    final eta = order.etaMinAt != null && order.etaMaxAt != null
+        ? '${formatUiTime(context, order.etaMinAt!.toLocal())}–${formatUiTime(context, order.etaMaxAt!.toLocal())}'
+        : order.promisedReadyAt != null
+        ? formatUiTime(context, order.promisedReadyAt!.toLocal())
+        : '';
+    final status = 'order_status_${order.orderStatus}'.tr;
+    return Semantics(
+      button: true,
+      label: 'home_active_order_semantics'.trArgs({
+        'number': order.number,
+        'status': status,
+      }),
+      child: Material(
+        color: colors.brandBrown,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          key: const ValueKey('home-active-order'),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(22),
+          child: Padding(
+            padding: const EdgeInsets.all(17),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: colors.brandGold,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.receipt_long_rounded,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'home_active_order'.trArgs({'number': order.number}),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 17,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        eta.isEmpty ? status : '$status · $eta',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFFFFE7B2),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: Colors.white),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

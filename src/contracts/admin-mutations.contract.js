@@ -494,6 +494,9 @@ const inventoryBodySchema = z
 const cashierInventoryBodySchema = z
   .object({
     expectedRevision: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    stockReason: z.enum(['receipt', 'correction']).optional(),
+    unit: z.enum(['шт', 'кг']).optional(),
+    operationId: z.string().uuid().optional(),
     preorderStop: z.boolean().optional(),
     sourceQuantity: z.number().min(0).max(100000).multipleOf(0.001).optional(),
     manualStop: z.boolean().optional(),
@@ -568,12 +571,12 @@ const clockSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 const dayHoursSchema = z
   .object({
     open: clockSchema,
-    close: clockSchema,
+    close: z.union([clockSchema, z.literal('24:00')]),
     closed: z.boolean().optional(),
   })
   .strict()
-  .refine((value) => value.closed === true || value.open < value.close, {
-    message: 'Время закрытия должно быть позже времени открытия',
+  .refine((value) => value.closed === true || value.open !== value.close, {
+    message: 'Время открытия и закрытия не должно совпадать',
   });
 const hoursSchema = z
   .object({
@@ -680,22 +683,6 @@ const uploadBodySchema = z
   })
   .strict();
 
-const contentLocaleSchema = z
-  .object({
-    title: shortText(255),
-    description: shortText(5_000),
-    coverUrl: nullableHttpsUrl.optional(),
-    contentUrl: nullableHttpsUrl.optional(),
-    imageUrl: nullableHttpsUrl.optional(),
-  })
-  .strict();
-const contentI18nSchema = z
-  .object({
-    ru: contentLocaleSchema,
-    kk: contentLocaleSchema,
-    en: contentLocaleSchema.optional(),
-  })
-  .strict();
 const storyLocaleSchema = z
   .object({
     title: shortText(255),
@@ -749,15 +736,6 @@ const storyBodySchema = z
       message: 'Дата окончания не может быть раньше даты начала',
     },
   );
-const newsBodySchema = z
-  .object({
-    id: z.union([numericIdSchema, z.coerce.number().int().positive()]).optional(),
-    title: shortText(255, 1),
-    imageUrl: httpsUrl,
-    description: shortText(5_000).optional(),
-    i18n: contentI18nSchema,
-  })
-  .strict();
 const numericParamsSchema = routeParams({ id: numericIdSchema });
 const legacyI18nSchema = z
   .object({
@@ -998,6 +976,8 @@ const giftCardBodySchema = z
   .strict();
 const automationConfigSchema = z
   .object({
+    birthdayBonusAmount: z.coerce.number().int().min(0).max(100000).optional(),
+    maximumPerYear: z.literal(1).optional(),
     delayMinutes: z.coerce.number().int().min(1).max(525_600).optional(),
     cooldownHours: z.coerce.number().int().min(1).max(8_760).optional(),
     daysBefore: z.coerce.number().int().min(0).max(365).optional(),
@@ -1239,8 +1219,6 @@ const adminMutationSchemas = {
   storyCreate: withBody(storyBodySchema),
   storyUpdate: { params: numericParamsSchema, body: storyBodySchema },
   numericDelete: withParams(numericParamsSchema),
-  newsCreate: withBody(newsBodySchema),
-  newsUpdate: { params: numericParamsSchema, body: newsBodySchema },
   legacyCityCreate: withBody(legacyCityBodySchema),
   legacyCityUpdate: { params: numericParamsSchema, body: legacyCityBodySchema },
   legacyPointCreate: withBody(legacyPointBodySchema),

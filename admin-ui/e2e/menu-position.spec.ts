@@ -16,6 +16,7 @@ test('saving a product keeps expanded list and position, including a reload', as
       data = { user: { username: 'owner', role: 'owner', branchIds: [] } };
     else if (path.endsWith('/scope'))
       data = { success: true, locations: [branch], selectedBranchId: branch.id };
+    else if (path.endsWith('/menu/badges')) data = { badges: [], selected: [] };
     else if (path.endsWith('/menu/product/override')) {
       const patch = route.request().postDataJSON();
       overrides[patch.iikoProductId] = {

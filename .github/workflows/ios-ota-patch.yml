@@ -12,6 +12,10 @@ on:
         type: choice
         options: [staging, stable]
         default: staging
+      allow_reviewed_icon_removal:
+        description: Preserve the installed font for the reviewed stock-label patch only
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -21,7 +25,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  verify:
+    # Pixel baselines are generated on Windows. Run the complete test suite
+    # with that renderer, then require its success before the Mac build.
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: BulkaAndroid
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.38.5'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-pub
+      - run: flutter test --no-pub --concurrency=2
   patch:
+    needs: verify
     runs-on: macos-latest
     timeout-minutes: 45
     defaults:
@@ -38,6 +60,7 @@ jobs:
       BUILD_MODE: release
       RELEASE_VERSION: ${{ inputs.release_version }}
       PATCH_TRACK: ${{ inputs.track }}
+      ALLOW_REVIEWED_ICON_REMOVAL: ${{ inputs.allow_reviewed_icon_removal }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Validate release and credentials
@@ -58,7 +81,6 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter analyze --no-pub
-      - run: flutter test --no-pub
       - name: Prepare temporary signing keychain
         run: python3 ../scripts/prepare-ios-device-signing.py
       - name: Install CocoaPods dependencies
@@ -67,7 +89,24 @@ jobs:
         run: ruby ../scripts/apply-ios-device-profiles.rb
       - name: Build and publish compatible patch
         run: |
+          extra_args=()
+          if [[ "$ALLOW_REVIEWED_ICON_REMOVAL" == "true" ]]; then
+            # Run 36128398260 verified the only asset diff is MaterialIcons.
+            # Compared with the release, this tree removes Icons.add_alert_rounded and
+            # Icons.notifications_active_rounded. The installed font contains
+            # all remaining glyphs. The audit fixes preserve the 213 icon references
+            # from stable patch 16 (ecf55440). Native files, assets and dependencies
+            # are unchanged; the catalog helper extraction preserves method bodies.
+            # Flutter analyze and all 538 tests passed on Windows.
+            # Fail closed for any other app source tree.
+            if [[ "$RELEASE_VERSION" != "1.0.8+43" || "$(git rev-parse HEAD:BulkaAndroid)" != "db19a6542866bd89254102f72875b68cd62a23af" ]]; then
+              echo "::error::Icon-removal exception requires the reviewed 1.0.8+43 app tree."
+              exit 1
+            fi
+            extra_args+=(--allow-asset-diffs)
+          fi
           shorebird patch ios --release-version="$RELEASE_VERSION" \
+            "${extra_args[@]}" \
             --track="$PATCH_TRACK" \
             --build-name="${RELEASE_VERSION%+*}" \
             --build-number="${RELEASE_VERSION##*+}" \

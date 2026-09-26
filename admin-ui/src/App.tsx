@@ -32,7 +32,6 @@ const IikoPage = lazy(() => import('./pages/IikoPage'));
 const IikoDashboardPage = lazy(() => import('./pages/IikoDashboardPage'));
 const BroadcastPage = lazy(() => import('./pages/BroadcastPage'));
 const StoriesPage = lazy(() => import('./pages/StoriesPage'));
-const NewsPage = lazy(() => import('./pages/NewsPage'));
 const TaplinkPage = lazy(() => import('./pages/TaplinkPage'));
 const LocationsPage = lazy(() => import('./pages/LocationsPage'));
 const BonusPage = lazy(() => import('./pages/BonusPage'));
@@ -616,7 +615,6 @@ export default function App() {
                   />
                   <Route path="/settings" element={guard('/settings', <SettingsPage />)} />
                   <Route path="/stories" element={guard('/stories', <StoriesPage />)} />
-                  <Route path="/news" element={guard('/news', <NewsPage />)} />
                   <Route
                     path="/taplink"
                     element={guard(

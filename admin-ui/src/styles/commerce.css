@@ -139,7 +139,7 @@
 }
 .kitchen-board {
   display: grid;
-  grid-template-columns: repeat(3, minmax(260px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   align-items: start;
   overflow-x: auto;
@@ -322,6 +322,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
   gap: 16px;
+  align-items: start;
 }
 .automation-card {
   display: grid;
@@ -423,9 +424,10 @@
   max-width: 230px;
 }
 .access-card {
-  padding: 18px;
+  padding: 16px;
   display: grid;
-  gap: 16px;
+  gap: 0;
+  align-self: start;
 }
 .site-access-card {
   display: grid;
@@ -639,9 +641,78 @@
 }
 .access-card > header {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
+}
+.access-card-summary {
+  min-width: 0;
+  min-height: 56px;
+  padding: 4px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 24px;
+  gap: 12px;
+  align-items: center;
+  border: 0;
+  border-radius: var(--radius-medium);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.access-card-summary:hover {
+  background: var(--sagi-cream);
+}
+.access-card-summary:focus-visible {
+  outline: 3px solid rgb(255 179 0 / 35%);
+  outline-offset: 2px;
+}
+.access-card-identity {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.access-card-identity > strong,
+.access-card-identity > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.access-card-chevron {
+  color: var(--sagi-muted);
+  transition: transform 180ms ease;
+}
+.access-card.is-expanded .access-card-chevron {
+  transform: rotate(180deg);
+}
+.access-card-details {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--sagi-border);
+}
+.access-account-search {
+  width: min(100%, 520px);
+  display: grid;
+  gap: 7px;
+}
+.access-account-search-control {
+  position: relative;
+  display: block;
+}
+.access-account-search-control > svg {
+  position: absolute;
+  z-index: 1;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--sagi-muted);
+  pointer-events: none;
+}
+.access-account-search-control > input {
+  width: 100%;
+  padding-left: 44px;
 }
 .access-card h3,
 .access-card p {
@@ -1506,10 +1577,10 @@
     flex: 1;
   }
   .access-card > header {
-    grid-template-columns: 48px 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .access-card > header .switch-row {
-    grid-column: 1 / -1;
+    margin-left: 64px;
   }
   .site-access-header,
   .site-access-footer,

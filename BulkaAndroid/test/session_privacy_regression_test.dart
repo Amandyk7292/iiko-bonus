@@ -481,6 +481,128 @@ void main() {
     );
   });
 
+  test(
+    'guest addresses stay in memory and do not call account endpoints',
+    () async {
+      var requests = 0;
+      final client = MockClient((request) async {
+        requests++;
+        return http.Response('{"message":"Unauthorized"}', 401);
+      });
+      addTearDown(client.close);
+      final api = BulkaApiClient(client: client);
+      addTearDown(api.dispose);
+      final repository = AddressRepository(api: api);
+      const address = DeliveryAddress(
+        id: 'guest-address',
+        title: 'Дом',
+        location: DeliveryLocation(
+          city: 'Актау',
+          address: '19А микрорайон, 11 дом',
+          latitude: 43.64,
+          longitude: 51.17,
+        ),
+        house: '11',
+      );
+
+      expect(await repository.loadAddresses(), isEmpty);
+      await repository.saveAddress(address);
+      expect((await repository.loadSelectedAddress())?.id, address.id);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getStringList('delivery_addresses_guest'), isNull);
+      expect(prefs.getString('selected_delivery_address_id_guest'), isNull);
+      await repository.updateAddress(address);
+      await repository.selectAddress(address.id);
+      await repository.deleteAddress(address.id);
+
+      expect(await repository.loadAddresses(), isEmpty);
+      expect(requests, 0);
+    },
+  );
+
+  test('temporary guest address is adopted once after sign-in', () async {
+    SharedPreferences.setMockInitialValues({});
+    var creates = 0;
+    var saved = false;
+    final api = BulkaApiClient(
+      client: MockClient((request) async {
+        if (request.url.path == '/api/customer/addresses' &&
+            request.method == 'GET') {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'addresses': [
+                if (saved)
+                  {
+                    'id': 'server-address',
+                    'label': 'Дом',
+                    'city': 'Актау',
+                    'address': '19А микрорайон',
+                    'latitude': 43.64,
+                    'longitude': 51.17,
+                    'house': '11',
+                  },
+              ],
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        if (request.url.path == '/api/customer/addresses' &&
+            request.method == 'POST') {
+          creates++;
+          saved = true;
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'address': {
+                'id': 'server-address',
+                'label': 'Дом',
+                'city': 'Актау',
+                'address': '19А микрорайон',
+                'latitude': 43.64,
+                'longitude': 51.17,
+                'house': '11',
+              },
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        if (request.url.path ==
+            '/api/customer/addresses/server-address/default') {
+          return http.Response('{"success":true}', 200);
+        }
+        return http.Response('{"success":false}', 404);
+      }),
+    );
+    addTearDown(api.dispose);
+    const draft = DeliveryAddress(
+      id: 'temporary-address',
+      title: 'Дом',
+      location: DeliveryLocation(
+        city: 'Актау',
+        address: '19А микрорайон',
+        latitude: 43.64,
+        longitude: 51.17,
+      ),
+      house: '11',
+    );
+    await AddressRepository(api: api).saveAddress(draft);
+    expect(AddressRepository.hasGuestDrafts(api), isTrue);
+    api.setSession(accessToken: 'account-token', cacheScope: 'account-a');
+
+    await AddressRepository.adoptGuestDrafts(api);
+    expect(creates, 1);
+    expect(AddressRepository.hasGuestDrafts(api), isFalse);
+    expect(
+      (await AddressRepository(api: api).loadSelectedAddress())?.id,
+      'server-address',
+    );
+    await AddressRepository.adoptGuestDrafts(api);
+    expect(creates, 1);
+  });
+
   test('logout cleanup removes scoped customer data only', () async {
     SharedPreferences.setMockInitialValues({
       'phone': '+77001234567',
@@ -522,7 +644,7 @@ void main() {
     expect(cleared.refreshToken, isNull);
   });
 
-  test('Stories and News map backend kz content to app kk', () {
+  test('Stories map backend kz content to app kk', () {
     final story = PromoStory.fromJson({
       'id': 1,
       'title': 'Русский заголовок',
@@ -537,28 +659,11 @@ void main() {
         },
       },
     });
-    final news = NewsItem.fromJson({
-      'id': 2,
-      'title': 'Русская новость',
-      'imageUrl': 'ru-news.webp',
-      'description': 'Русское описание',
-      'i18n': {
-        'kz': {
-          'title': 'Қазақша жаңалық',
-          'description': 'Қазақша мәтін',
-          'imageUrl': 'kk-news.webp',
-        },
-      },
-    });
-
     appLanguageNotifier.value = 'kk';
     expect(story.localizedTitle, 'Қазақша тақырып');
     expect(story.localizedDescription, 'Қазақша сипаттама');
     expect(story.localizedImageUrl, 'kk-cover.webp');
     expect(story.localizedContentUrl, 'kk-content.webp');
-    expect(news.localizedTitle, 'Қазақша жаңалық');
-    expect(news.localizedDescription, 'Қазақша мәтін');
-    expect(news.localizedImageUrl, 'kk-news.webp');
   });
 
   test('iOS privacy manifest declares linked customer data', () {

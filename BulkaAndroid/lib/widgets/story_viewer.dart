@@ -628,52 +628,60 @@ class _StoryFullImage extends StatelessWidget {
             ),
           ),
           alignment: Alignment.center,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                isHappy ? '2 + 1' : 'story_gift'.tr,
-                style: TextStyle(
-                  fontFamily: _headingFont,
-                  fontSize: compact ? 42 : (isHappy ? 80 : 86),
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFFDCAE68),
-                ),
-              ),
-              SizedBox(height: compact ? 6 : 16),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: compact ? 18 : 28),
-                child: Text(
-                  story.localizedTitle.toUpperCase(),
-                  maxLines: compact ? 1 : 3,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: _headingFont,
-                    fontSize: compact ? 18 : 24,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-              if (!compact &&
-                  (story.localizedDescription ?? '').isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 36),
-                  child: Text(
-                    story.localizedDescription!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: BulkaTypeScale.body,
-                      color: Color(0xFFEADBBE),
-                      height: 1.4,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: SizedBox(
+              width: constraints.maxWidth,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    isHappy ? '2 + 1' : 'story_gift'.tr,
+                    style: TextStyle(
+                      fontFamily: _headingFont,
+                      fontSize: compact ? 42 : (isHappy ? 80 : 86),
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFFDCAE68),
                     ),
                   ),
-                ),
-              ],
-            ],
+                  SizedBox(height: compact ? 6 : 16),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 18 : 28,
+                    ),
+                    child: Text(
+                      story.localizedTitle.toUpperCase(),
+                      maxLines: compact ? 1 : 3,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: _headingFont,
+                        fontSize: compact ? 18 : 24,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  if (!compact &&
+                      (story.localizedDescription ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 36),
+                      child: Text(
+                        story.localizedDescription!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: BulkaTypeScale.body,
+                          color: Color(0xFFEADBBE),
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         );
       },

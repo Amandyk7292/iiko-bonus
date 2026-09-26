@@ -13,6 +13,7 @@ class MainShell extends StatefulWidget {
     this.onTabChanged,
     this.onOpenOrders,
     this.onOpenOrder,
+    this.activeOrder,
     this.staff,
     this.onOpenStaffPortal,
     this.onStaffLogout,
@@ -30,6 +31,7 @@ class MainShell extends StatefulWidget {
   final ValueChanged<int>? onTabChanged;
   final Future<void> Function()? onOpenOrders;
   final Future<void> Function(String? orderId)? onOpenOrder;
+  final CustomerOrder? activeOrder;
   final StaffAccountSession? staff;
   final Future<void> Function()? onOpenStaffPortal, onStaffLogout;
 
@@ -42,7 +44,9 @@ class _MainShellState extends State<MainShell> {
     debugLabel: 'catalog-tab',
   );
   late int _tab;
+  Uri? _pendingCatalogProduct;
   String _catalogOrderType = 'pickup';
+  String? _lastOrderableCartType;
   int _catalogSelectionRevision = 0;
   bool _hasCatalogOrderType = false;
   bool _authFlowInProgress = false;
@@ -83,6 +87,7 @@ class _MainShellState extends State<MainShell> {
     _tab = _tab.clamp(0, 4).toInt();
     clientRouteNotifier.addListener(_onClientRouteChanged);
     unawaited(_restoreCatalogOrderType());
+    unawaited(_restoreCartReturnMode());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _catalogKey.currentState?.applyClientUri(clientRouteNotifier.value);
       if (mounted) {
@@ -114,6 +119,10 @@ class _MainShellState extends State<MainShell> {
   void _onClientRouteChanged() {
     if (!mounted) return;
     final uri = clientRouteNotifier.value;
+    if (_pendingCatalogProduct != null && uri != _pendingCatalogProduct) {
+      _pendingCatalogProduct = null;
+      _catalogKey.currentState?.cancelPendingProductNavigation();
+    }
     if (uri.path == '/promos') {
       Navigator.of(context).push<void>(
         MaterialPageRoute(builder: (_) => PromosScreen(api: widget.api)),
@@ -169,11 +178,43 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
+  Future<void> _restoreCartReturnMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final cart = context.read<CartProvider>();
+    await cart.restored;
+    if (!mounted) return;
+    final savedType = prefs.getString('last_orderable_cart_type');
+    final savedRevision = prefs.getString('last_orderable_cart_revision');
+    if (cart.items.isNotEmpty &&
+        savedType != null &&
+        savedRevision == cart.checkoutRevision) {
+      setState(() => _lastOrderableCartType = savedType);
+    }
+  }
+
   Future<void> _openCatalogFor(String orderType) async {
     final normalized = _orderTypeFromWire(orderType).wireValue;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('selected_order_type', normalized);
     if (!mounted) return;
+    final cart = context.read<CartProvider>();
+    final cartItems = cart.items.values;
+    if (_hasCatalogOrderType &&
+        normalized != _catalogOrderType &&
+        cartItems.isNotEmpty &&
+        cartItems.every((item) => !item.isStopListed)) {
+      _lastOrderableCartType = _catalogOrderType;
+      await prefs.setString('last_orderable_cart_type', _catalogOrderType);
+      await prefs.setString(
+        'last_orderable_cart_revision',
+        cart.checkoutRevision,
+      );
+    } else if (cartItems.isEmpty) {
+      _lastOrderableCartType = null;
+      await prefs.remove('last_orderable_cart_type');
+      await prefs.remove('last_orderable_cart_revision');
+    }
     setState(() {
       _catalogOrderType = normalized;
       _hasCatalogOrderType = true;
@@ -184,17 +225,24 @@ class _MainShellState extends State<MainShell> {
 
   void _openCatalogProduct(String id) {
     final uri = productClientUri(id);
+    _pendingCatalogProduct = uri;
     setState(() => _tab = 1);
     widget.onTabChanged?.call(1);
     publishClientRoute(uri);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && clientRouteNotifier.value == uri) {
+      if (mounted &&
+          _tab == 1 &&
+          _pendingCatalogProduct == uri &&
+          (!kIsWeb || clientRouteNotifier.value == uri)) {
+        _pendingCatalogProduct = null;
         _catalogKey.currentState?.applyClientUri(uri);
       }
     });
   }
 
   void _changeTab(int index) {
+    _pendingCatalogProduct = null;
+    _catalogKey.currentState?.cancelPendingProductNavigation();
     if (index == _tab) {
       if (index == 1) {
         _catalogKey.currentState?.closeCategoryPage();
@@ -230,6 +278,7 @@ class _MainShellState extends State<MainShell> {
         onOpenCatalog: _openCatalogFor,
         onOpenNotificationTab: _changeTab,
         onOpenOrders: widget.onOpenOrder,
+        activeOrder: widget.activeOrder,
       ),
       CatalogScreen(
         key: _catalogKey,
@@ -239,13 +288,18 @@ class _MainShellState extends State<MainShell> {
         selectionRevision: _catalogSelectionRevision,
         onRequestOrderType: () => _changeTab(0),
         onRequireAuth: _requireAuth,
-        initialClientUri: clientRouteNotifier.value,
+        initialClientUri: _pendingCatalogProduct ?? clientRouteNotifier.value,
       ),
       OrdersScreen(
         key: const PageStorageKey('orders-tab'),
         api: widget.api,
         customer: customer,
         transactions: widget.transactions,
+        orderType: _catalogOrderType,
+        selectionRevision: _catalogSelectionRevision,
+        returnOrderType: _lastOrderableCartType,
+        onReturnToOrderType: _openCatalogFor,
+        onChooseOrderType: () => _changeTab(0),
         onExplore: () => _changeTab(1),
         onOpenProduct: _openCatalogProduct,
         onRequireAuth: _requireAuth,
@@ -336,43 +390,115 @@ class _PersistentTabSwitcher extends StatefulWidget {
   State<_PersistentTabSwitcher> createState() => _PersistentTabSwitcherState();
 }
 
-class _PersistentTabSwitcherState extends State<_PersistentTabSwitcher> {
+class _PersistentTabSwitcherState extends State<_PersistentTabSwitcher>
+    with SingleTickerProviderStateMixin {
   late final Set<int> _visited = {widget.index};
+  late final AnimationController _transition;
+
+  @override
+  void initState() {
+    super.initState();
+    _transition = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+      value: 1,
+    )..addStatusListener(_finishTransition);
+  }
+
+  int? _outgoingIndex;
+  Animation<Offset> _incoming = const AlwaysStoppedAnimation(Offset.zero);
+  Animation<Offset> _outgoing = const AlwaysStoppedAnimation(Offset.zero);
+
+  void _finishTransition(AnimationStatus status) {
+    if (status == AnimationStatus.completed &&
+        _outgoingIndex != null &&
+        mounted) {
+      setState(() => _outgoingIndex = null);
+    }
+  }
 
   @override
   void didUpdateWidget(covariant _PersistentTabSwitcher oldWidget) {
     super.didUpdateWidget(oldWidget);
     _visited.add(widget.index);
+    if (oldWidget.index == widget.index) return;
+    if (BulkaMotion.reduced(context)) {
+      _outgoingIndex = null;
+      _transition.value = 1;
+      _incoming = const AlwaysStoppedAnimation(Offset.zero);
+      return;
+    }
+    final direction = widget.index > oldWidget.index ? 1.0 : -1.0;
+    final outgoingStart = _incoming.value;
+    final incomingStart = widget.index == _outgoingIndex
+        ? _outgoing.value
+        : Offset(direction, 0);
+    _outgoingIndex = oldWidget.index;
+    final curve = _transition.drive(CurveTween(curve: Curves.easeInOutCubic));
+    _incoming = Tween<Offset>(
+      begin: incomingStart,
+      end: Offset.zero,
+    ).animate(curve);
+    _outgoing = Tween<Offset>(
+      begin: outgoingStart,
+      end: Offset(-direction, 0),
+    ).animate(curve);
+    _transition.forward(from: 0);
   }
 
   @override
-  Widget build(BuildContext context) {
-    // iOS tabs switch immediately. Keeping the transition on the small nav
-    // controls avoids compositing two full-screen CanvasKit/SkWasm surfaces on
-    // every frame, which is a common source of scroll and tap jank on Safari.
-    return Stack(
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (BulkaMotion.reduced(context)) {
+      _outgoingIndex = null;
+      _transition.value = 1;
+      _incoming = const AlwaysStoppedAnimation(Offset.zero);
+    }
+  }
+
+  @override
+  void dispose() {
+    _transition.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ClipRect(
+    child: Stack(
       fit: StackFit.expand,
       children: [
         for (var i = 0; i < widget.children.length; i++)
           if (_visited.contains(i)) _buildTabSlot(i),
       ],
-    );
-  }
+    ),
+  );
 
   Widget _buildTabSlot(int slotIndex) {
-    final visible = slotIndex == widget.index;
+    final active = slotIndex == widget.index;
+    final outgoing = slotIndex == _outgoingIndex;
     return Offstage(
       key: ValueKey('tab-slot-$slotIndex'),
-      offstage: !visible,
-      child: TickerMode(
-        enabled: visible,
-        child: ExcludeSemantics(
-          excluding: !visible,
-          child: ExcludeFocus(
-            excluding: !visible,
-            child: IgnorePointer(
-              ignoring: !visible,
-              child: RepaintBoundary(child: widget.children[slotIndex]),
+      offstage: !active && !outgoing,
+      child: SlideTransition(
+        key: ValueKey('tab-slide-$slotIndex'),
+        position: active
+            ? _incoming
+            : outgoing
+            ? _outgoing
+            : const AlwaysStoppedAnimation(Offset.zero),
+        child: TickerMode(
+          enabled: active,
+          child: ExcludeSemantics(
+            excluding: !active,
+            child: ExcludeFocus(
+              excluding: !active,
+              child: IgnorePointer(
+                ignoring: !active,
+                child: HeroMode(
+                  enabled: active,
+                  child: RepaintBoundary(child: widget.children[slotIndex]),
+                ),
+              ),
             ),
           ),
         ),
@@ -409,12 +535,11 @@ class FloatingNavBar extends StatelessWidget {
     final compact = BulkaLayout.compactNavigation(context);
     final narrow = MediaQuery.sizeOf(context).width < 360;
     final highContrast = MediaQuery.highContrastOf(context);
-    final useBlur = !kIsWeb && !highContrast && !BulkaMotion.reduced(context);
     final bar = Container(
       height: BulkaLayout.navigationBarHeight(context) + safeBottom,
       padding: EdgeInsets.only(bottom: safeBottom),
       decoration: BoxDecoration(
-        color: scheme.surface.withValues(alpha: useBlur ? 0.84 : 1),
+        color: scheme.surface,
         border: Border(
           top: BorderSide(
             color: highContrast
@@ -441,34 +566,85 @@ class FloatingNavBar extends StatelessWidget {
               BulkaLayout.floatingNavBarHorizontalPadding,
               compact ? 3 : BulkaLayout.floatingNavBarBottomPadding,
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var i = 0; i < items.length; i++)
-                  Expanded(
-                    child: _NavButton(
-                      key: ValueKey('nav-$i'),
-                      item: items[i],
-                      selected: i == selectedIndex,
-                      badgeCount: i == 2 ? cartCount : 0,
-                      compact: compact,
-                      narrow: narrow,
-                      onTap: () => onChanged(i),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final center = selectedIndex == 2;
+                final diameter =
+                    (center
+                        ? (compact || narrow
+                              ? 40.0
+                              : BulkaLayout.centerNavIconSize)
+                        : (compact || narrow ? 38.0 : 44.0)) *
+                    1.02;
+                final slot = Directionality.of(context) == TextDirection.rtl
+                    ? items.length - 1 - selectedIndex
+                    : selectedIndex;
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    AnimatedPositioned(
+                      key: const ValueKey('nav-selection-indicator'),
+                      duration: BulkaMotion.duration(
+                        context,
+                        const Duration(milliseconds: 420),
+                      ),
+                      curve: Curves.easeInOutCubic,
+                      left:
+                          constraints.maxWidth / items.length * (slot + 0.5) -
+                          diameter / 2,
+                      top: center ? 0 : (compact ? 3 : 4),
+                      width: diameter,
+                      height: diameter,
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: _bulkaGlassGradient,
+                            border: Border.all(
+                              color: context.bulkaColors.brandBrown.withValues(
+                                alpha: 0.72,
+                              ),
+                              width: BulkaStrokes.hairline,
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x2BFFB300),
+                                blurRadius: 7,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-              ],
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (var i = 0; i < items.length; i++)
+                          Expanded(
+                            child: _NavButton(
+                              key: ValueKey('nav-$i'),
+                              item: items[i],
+                              selected: i == selectedIndex,
+                              badgeCount: i == 2 ? cartCount : 0,
+                              compact: compact,
+                              narrow: narrow,
+                              onTap: () => onChanged(i),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
       ),
     );
-    if (!useBlur) return bar;
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: bar,
-      ),
-    );
+    // A live backdrop samples scrolling content on every raster frame.
+    // Keep navigation independently paintable across all customer tabs.
+    return RepaintBoundary(child: bar);
   }
 }
 
@@ -546,30 +722,7 @@ class _NavButton extends StatelessWidget {
                                 : narrow
                                 ? 38
                                 : 44),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: selected ? _bulkaGlassGradient : null,
-                        color: selected
-                            ? _bulkaYellow
-                            : Colors.transparent,
-                        border: selected
-                            ? Border.all(
-                                color: colors.brandBrown.withValues(
-                                  alpha: 0.72,
-                                ),
-                                width: BulkaStrokes.hairline,
-                              )
-                            : null,
-                        boxShadow: selected
-                            ? const [
-                                BoxShadow(
-                                  color: Color(0x2BFFB300),
-                                  blurRadius: 7,
-                                  offset: Offset(0, 2),
-                                ),
-                              ]
-                            : null,
-                      ),
+                      decoration: const BoxDecoration(shape: BoxShape.circle),
                       child: Stack(
                         clipBehavior: Clip.none,
                         alignment: Alignment.center,

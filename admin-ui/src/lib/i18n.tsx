@@ -1,18 +1,19 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 export type Locale = 'ru' | 'kk' | 'en';
+type InterfaceLocale = Exclude<Locale, 'en'>;
 
-const localeTags: Record<Locale, string> = {
+const localeTags: Record<InterfaceLocale, string> = {
   ru: 'ru-KZ',
   kk: 'kk-KZ',
-  en: 'en-KZ',
 };
 
 import ru from './i18n/messages/ru';
 import kk from './i18n/messages/kk';
-import en from './i18n/messages/en';
 
-const messages: Record<Locale, Record<string, string>> = { ru, kk, en };
+// Obsolete English preferences already fall back to Russian; keep that unused
+// dictionary out of the interface bundle while retaining content locale types.
+const messages: Record<InterfaceLocale, Record<string, string>> = { ru, kk };
 
 type TranslationVars = Record<string, string | number>;
 
@@ -31,14 +32,14 @@ interface I18nValue {
 
 const I18nContext = createContext<I18nValue | null>(null);
 
-function initialLocale(): Locale {
+function initialLocale(): InterfaceLocale {
   const stored = localStorage.getItem('adminLocale');
   if (stored === 'ru' || stored === 'kk') return stored;
   return 'ru';
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocale] = useState<Locale>(initialLocale);
+  const [locale, setLocale] = useState<InterfaceLocale>(initialLocale);
 
   useEffect(() => {
     localStorage.setItem('adminLocale', locale);

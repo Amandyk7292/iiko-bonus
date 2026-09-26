@@ -148,9 +148,18 @@ extension _CatalogInteractionController on _CatalogScreenState {
 
   Future<void> _openFilterModal() async {
     await _navigationGate.run(() async {
-      final result = await Navigator.of(context).push<_CatalogFilterResult>(
-        MaterialPageRoute(
-          builder: (_) => _CatalogFilterScreen(
+      final result = await showModalBottomSheet<_CatalogFilterResult>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        clipBehavior: Clip.antiAlias,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        sheetAnimationStyle: BulkaMotion.sheetStyle(context),
+        builder: (sheetContext) => FractionallySizedBox(
+          heightFactor: 0.9,
+          child: _CatalogFilterScreen(
             initialSort: _sort,
             dietaryTags: _availableDietaryTags,
             allergens: _availableAllergens,
@@ -169,11 +178,13 @@ extension _CatalogInteractionController on _CatalogScreenState {
   }
 
   void _clearSearch() {
+    _searchDebounce?.cancel();
     _searchController.clear();
     _updateCatalogState(() => _searchQuery = '');
   }
 
   void _resetCatalogFilters() {
+    _searchDebounce?.cancel();
     _searchController.clear();
     _updateCatalogState(() {
       _searchQuery = '';
@@ -203,6 +214,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
     });
     _pendingClientUri = _CatalogScreenState._categoryClientUri(category);
     publishClientRoute(_pendingClientUri!);
+    unawaited(_warmProductImages(_allProducts));
   }
 
   List<MapEntry<String, List<CatalogProduct>>> get _categoryGroups {
@@ -370,65 +382,4 @@ extension _CatalogInteractionController on _CatalogScreenState {
 
   double _catalogContentBottomInset(BuildContext context) =>
       BulkaLayout.bottomNavContentInset(context);
-
-  Future<void> _openProductDetails(
-    CatalogProduct product, {
-    bool updateClientRoute = true,
-  }) async {
-    CatalogProduct? nextProduct;
-    await _navigationGate.run(() async {
-      _api.trackEvent(
-        'product_view',
-        productId: product.id,
-        branchId: _selectedBakeryId,
-        properties: {'category': product.category},
-      );
-      _productRouteOpen = true;
-      // Keep background menu refreshes on the route the user just opened.
-      _pendingClientUri = _routeProductUri(product);
-      publishClientRoute(
-        _routeProductUri(product),
-        replace: !updateClientRoute,
-      );
-      try {
-        final route = BulkaPageRoute<CatalogProduct>(
-          reduceMotion: BulkaMotion.reduced(context),
-          builder: (_) => ProductDetailsScreen(
-            api: _api,
-            branchId: _selectedBakeryId,
-            product: product,
-            liveProducts: _liveProducts,
-            initialQuantity: context.read<CartProvider>().getQuantity(
-              product.id,
-            ),
-            onQuantityChanged: _setProductQuantity,
-            onOpenRelatedProduct: (related) =>
-                Navigator.of(context).pop(related),
-            initialFavorite: _favoriteProductIds.contains(product.id),
-            onToggleFavorite: () => _toggleFavorite(product),
-            hasSelectedOrderType: widget.hasSelectedOrderType,
-            onEnsureOrderTypeSelected: () => _ensureOrderTypeSelected(product),
-          ),
-        );
-        nextProduct = await Navigator.of(context).push<CatalogProduct>(route);
-        // Retire the product intent as soon as pop starts. Browser history is
-        // not updated on native platforms and must not be our source of truth.
-        if (_productPendingFulfillment == null &&
-            nextProduct == null &&
-            _pendingClientUri != null &&
-            productIdFromClientUri(_pendingClientUri!) == product.id) {
-          _pendingClientUri = _CatalogScreenState._categoryClientUri(
-            product.category,
-          );
-          publishClientRoute(_pendingClientUri!, replace: true);
-        }
-        await route.completed;
-      } finally {
-        _productRouteOpen = false;
-      }
-    });
-    if (mounted && nextProduct != null) {
-      await _openProductDetails(nextProduct!);
-    }
-  }
 }

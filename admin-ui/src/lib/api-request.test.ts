@@ -352,15 +352,20 @@ describe('admin API request abort composition', () => {
     async (status) => {
       vi.stubGlobal(
         'fetch',
-        vi.fn().mockResolvedValue(
-          new Response(status === 204 ? null : '{}', {
-            status,
-            headers: { 'Content-Type': 'application/json' },
-          }),
+        vi.fn().mockImplementation(() =>
+          Promise.resolve(
+            new Response(status === 204 ? null : '{}', {
+              status,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+          ),
         ),
       );
       await expect(
         api.addCustomerBonus('customer', 25, 'Valid reason', crypto.randomUUID()),
+      ).rejects.toMatchObject({ code: 'INVALID_API_RESPONSE' });
+      await expect(
+        api.adjustCustomerPersonalAccount('customer', 25, 'Valid reason', crypto.randomUUID()),
       ).rejects.toMatchObject({ code: 'INVALID_API_RESPONSE' });
     },
   );

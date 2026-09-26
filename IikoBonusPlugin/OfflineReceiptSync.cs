@@ -31,6 +31,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private bool storageHealthy;
         private DateTime lastScan=DateTime.MinValue;
         internal string StatusText {get;private set;}="Продажи кассы: ожидание закрытых чеков";
+        internal int PendingCount {get {lock(gate) return pending.Count;}}
         internal OfflineReceiptSync()
         {
             TryLoad();
@@ -148,6 +149,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
             finally {Interlocked.Exchange(ref busy,0);}
         }
+        internal void RequestRetry() {ThreadPool.QueueUserWorkItem(Tick);}
         public void Dispose() {lock(gate) disposed=true;timer.Dispose();}
     }
 }

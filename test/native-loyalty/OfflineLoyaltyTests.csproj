@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework><OutputType>Exe</OutputType>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../IikoBonusPlugin/IikoBonusPlugin.csproj" />
+    <Reference Include="System.Runtime.Serialization" />
+  </ItemGroup>
+</Project>

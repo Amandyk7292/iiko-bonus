@@ -306,6 +306,29 @@ const taplinkStaticHeaders = (res) => {
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
 };
 
+const pluginDownloadHeaders = (res, filePath) => {
+  res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  if (/\.zip$/i.test(filePath)) res.setHeader('Content-Disposition', 'attachment');
+};
+
+app.use(
+  '/downloads',
+  express.static(path.join(process.cwd(), 'public', 'downloads'), {
+    index: false,
+    dotfiles: 'deny',
+    setHeaders: pluginDownloadHeaders,
+  }),
+);
+app.use(
+  '/docs',
+  express.static(path.join(process.cwd(), 'public', 'docs'), {
+    index: false,
+    dotfiles: 'deny',
+    setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache, must-revalidate'),
+  }),
+);
+
 // API routes must be registered before the SPA fallbacks below. Otherwise
 // GET /admin/api/* is swallowed by /admin/* and returns index.html with 200.
 app.use(require('./middlewares/client-data-events.middleware').clientDataEvents);
@@ -315,6 +338,8 @@ app.use(adminRoutes);
 app.use(require('./routes/pos-pairing.routes'));
 app.use(require('./routes/front-inventory.routes'));
 app.use(require('./routes/front-auto-receipt.routes'));
+app.use(require('./routes/personal-account-pos.routes'));
+app.use(require('./routes/pos-health.routes'));
 app.use(require('./routes/front-order-board.routes'));
 app.use(loyaltyRoutes);
 app.use(walletRoutes);
@@ -490,6 +515,14 @@ app.use(
 );
 
 // Serve the Flutter build at the domain root as the canonical web app.
+app.use(
+  '/assets/launch',
+  express.static(path.join(process.cwd(), 'public/assets/launch'), {
+    maxAge: '1y',
+    immutable: true,
+    index: false,
+  }),
+);
 app.use(
   '/assets/loyalty',
   express.static(path.join(process.cwd(), 'public/assets/loyalty'), {

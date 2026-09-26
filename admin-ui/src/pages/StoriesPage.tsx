@@ -37,7 +37,6 @@ interface StoryForm {
 const languages: ContentLanguage[] = ['ru', 'kz'];
 const promoTypes: PromoType[] = ['discount', 'promotion', 'subscription'];
 const storyImageDimensions = {
-  coverUrl: { width: 1080, height: 480 },
   contentUrl: { width: 1080, height: 1920 },
 } as const;
 const localeKey = (language: ContentLanguage) => (language === 'kz' ? 'kk' : language);
@@ -197,7 +196,7 @@ export default function StoriesPage() {
 
   const uploadFile = async (
     event: ChangeEvent<HTMLInputElement>,
-    field: 'coverUrl' | 'contentUrl',
+    field: 'contentUrl',
   ) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -211,7 +210,7 @@ export default function StoriesPage() {
       const required = storyImageDimensions[field];
       if (actual.width !== required.width || actual.height !== required.height) {
         setFormError(
-          t(field === 'coverUrl' ? 'stories.coverDimensions' : 'stories.contentDimensions'),
+          t('stories.contentDimensions'),
         );
         return;
       }
@@ -249,11 +248,6 @@ export default function StoriesPage() {
         focusId: 'story-title-ru',
       },
       {
-        missing: !i18n.ru.coverUrl,
-        message: t('stories.validationCover'),
-        focusId: 'story-cover-ru',
-      },
-      {
         missing: !i18n.ru.contentUrl,
         message: t('stories.validationContent'),
         focusId: 'story-content-ru',
@@ -287,7 +281,7 @@ export default function StoriesPage() {
       groupTitle: i18n.ru.title.trim(),
       description: i18n.ru.description.trim(),
       details: i18n.ru.details.trim(),
-      coverUrl: i18n.ru.coverUrl,
+      coverUrl: i18n.ru.contentUrl,
       contentUrl: i18n.ru.contentUrl,
       groupId: form.groupId.trim() || i18n.ru.title.trim().toLocaleLowerCase().replace(/\s+/g, '-'),
       duration: Math.min(120, Math.max(3, Number(form.duration) || 15)),
@@ -337,9 +331,8 @@ export default function StoriesPage() {
 
   const displayLanguage = contentLanguage(locale);
   const current = i18n[activeLanguage];
-  const effectiveCover = current.coverUrl || (activeLanguage !== 'ru' ? i18n.ru.coverUrl : '');
   const effectiveContent =
-    current.contentUrl || (activeLanguage !== 'ru' ? i18n.ru.contentUrl || i18n.ru.coverUrl : '');
+    current.contentUrl || (activeLanguage !== 'ru' ? i18n.ru.contentUrl : '');
 
   if (loading && stories.length === 0) return <PageState type="loading" />;
   if (error && stories.length === 0)
@@ -398,8 +391,9 @@ export default function StoriesPage() {
                   const data = story.i18n ?? {};
                   const localized = data[displayLanguage] ?? data.ru ?? {};
                   const image =
-                    localized.coverUrl ||
-                    data.ru?.coverUrl ||
+                    localized.contentUrl ||
+                    data.ru?.contentUrl ||
+                    story.contentUrl ||
                     story.groupCoverUrl ||
                     story.coverUrl;
                   return (
@@ -565,20 +559,6 @@ export default function StoriesPage() {
           </div>
           {activeLanguage !== 'ru' && <p className="field-hint">{t('stories.fallbackText')}</p>}
           <div className="story-upload-grid">
-            <ImageUpload
-              inputId={`story-cover-${activeLanguage}`}
-              title={t('stories.horizontal')}
-              required={activeLanguage === 'ru'}
-              image={effectiveCover}
-              fallback={activeLanguage !== 'ru' && !current.coverUrl}
-              loading={uploadingField === `${activeLanguage}-coverUrl`}
-              onFile={(event) => uploadFile(event, 'coverUrl')}
-              onReset={
-                current.coverUrl && activeLanguage !== 'ru'
-                  ? () => updateField(activeLanguage, 'coverUrl', '')
-                  : undefined
-              }
-            />
             <ImageUpload
               inputId={`story-content-${activeLanguage}`}
               title={t('stories.vertical')}

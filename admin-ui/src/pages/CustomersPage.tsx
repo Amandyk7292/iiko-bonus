@@ -4,7 +4,7 @@ import { useSearchParams } from '../lib/router';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import { useFeedback } from '../components/Feedback';
-import { api, ApiError, type AdminUser } from '../lib/api';
+import { api, ApiError, type AdminUser, type CustomerFinancialDetailsResponse } from '../lib/api';
 import {
   clearPendingBonus,
   loadPendingBonus,
@@ -14,6 +14,7 @@ import {
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 import { csvCell } from '../lib/csv';
+import CustomerFinancialDetails from './customers/CustomerFinancialDetails';
 
 interface Customer {
   id: string;
@@ -48,6 +49,14 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   const [bonusMode, setBonusMode] = useState<'add' | 'subtract'>('add');
   const [bonusReason, setBonusReason] = useState('');
   const [pendingBonus, setPendingBonus] = useState<PendingBonus | null>(null);
+  const [adjustmentTarget, setAdjustmentTarget] = useState<'bonus' | 'account'>('bonus');
+  const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
+  const [customerDetails, setCustomerDetails] = useState<CustomerFinancialDetailsResponse | null>(
+    null,
+  );
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
+  const detailGeneration = useRef(0);
   const [submitting, setSubmitting] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [formError, setFormError] = useState('');
@@ -59,6 +68,44 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   const canBulkNotify = can('customers:bulk-notify');
   const canBulkExpire = can('customers:bulk-expire');
   const canManageCustomer = canAdjustBonus || canUpdateCustomer || canDeleteCustomer;
+  const canViewDetails = can('customers:read') || canAdjustBonus;
+  const showCustomerActions = canViewDetails || canManageCustomer;
+  const canAdjustPersonalAccount = can('payments:manage');
+
+  const loadCustomerDetails = async (customer: Customer) => {
+    const generation = ++detailGeneration.current;
+    setDetailLoading(true);
+    setDetailError('');
+    try {
+      const details = await api.getCustomerFinancialDetails(customer.id);
+      if (generation === detailGeneration.current) setCustomerDetails(details);
+    } catch (caught) {
+      if (generation === detailGeneration.current) {
+        setDetailError(caught instanceof Error ? caught.message : t('common.loadError'));
+      }
+    } finally {
+      if (generation === detailGeneration.current) setDetailLoading(false);
+    }
+  };
+
+  const openCustomerDetails = (customer: Customer) => {
+    setDetailCustomer(customer);
+    setCustomerDetails(null);
+    void loadCustomerDetails(customer);
+  };
+
+  const closeCustomerDetails = () => {
+    detailGeneration.current += 1;
+    setDetailCustomer(null);
+    setCustomerDetails(null);
+    setDetailError('');
+    setDetailLoading(false);
+    if (adjustmentTarget === 'account') setBonusCustomer(null);
+  };
+
+  const openAccountAdjustment = () => {
+    if (detailCustomer) openAdjustment(detailCustomer, 'account');
+  };
 
   const fetchCustomers = useCallback(async () => {
     const generation = ++loadGeneration.current;
@@ -198,14 +245,15 @@ export default function CustomersPage({ user }: CustomersPageProps) {
     }
   };
 
-  const openBonus = (customer: Customer) => {
+  const openAdjustment = (customer: Customer, target: 'bonus' | 'account') => {
     let pending: PendingBonus | null;
     try {
-      pending = loadPendingBonus(user?.username || '', customer.id);
+      pending = loadPendingBonus(user?.username || '', customer.id, target);
     } catch (error) {
       toast(error instanceof Error ? error.message : t('common.error'), 'error');
       return;
     }
+    setAdjustmentTarget(target);
     setBonusCustomer(customer);
     setPendingBonus(pending);
     setBonusAmount(pending ? String(Math.abs(pending.amount)) : '');
@@ -213,6 +261,8 @@ export default function CustomersPage({ user }: CustomersPageProps) {
     setBonusReason(pending?.reason || '');
     setFormError('');
   };
+
+  const openBonus = (customer: Customer) => openAdjustment(customer, 'bonus');
 
   const saveBonus = async (event: FormEvent) => {
     event.preventDefault();
@@ -224,7 +274,11 @@ export default function CustomersPage({ user }: CustomersPageProps) {
       setFormError(t('customers.bonusAmountHint'));
       return;
     }
-    if (!pendingBonus && Number(bonusCustomer.balance || 0) + amount < 0) {
+    if (
+      adjustmentTarget === 'bonus' &&
+      !pendingBonus &&
+      Number(bonusCustomer.balance || 0) + amount < 0
+    ) {
       setFormError(t('customers.insufficientBonus'));
       return;
     }
@@ -249,20 +303,27 @@ export default function CustomersPage({ user }: CustomersPageProps) {
         reason,
         branchScope: localStorage.getItem('adminSelectedBranchId') || '',
       };
-      savePendingBonus(user?.username || '', operation);
+      savePendingBonus(user?.username || '', operation, adjustmentTarget);
       setPendingBonus(operation);
-      await api.addCustomerBonus(
+      const adjust =
+        adjustmentTarget === 'account' ? api.adjustCustomerPersonalAccount : api.addCustomerBonus;
+      await adjust(
         operation.customerId,
         operation.amount,
         operation.reason,
         operation.operationId,
         operation.branchScope,
       );
-      clearPendingBonus(user?.username || '', operation.customerId);
+      clearPendingBonus(user?.username || '', operation.customerId, adjustmentTarget);
       setPendingBonus(null);
       setBonusCustomer(null);
-      toast(t('customers.bonusSaved'));
-      await fetchCustomers();
+      toast(t(adjustmentTarget === 'account' ? 'common.saved' : 'customers.bonusSaved'));
+      await Promise.all([
+        fetchCustomers(),
+        ...(adjustmentTarget === 'account' && detailCustomer
+          ? [loadCustomerDetails(detailCustomer)]
+          : []),
+      ]);
     } catch (caught) {
       // A later denial cannot prove that an earlier ambiguous request did not commit.
       const rejectedBeforeApply =
@@ -271,9 +332,12 @@ export default function CustomersPage({ user }: CustomersPageProps) {
           caught.status === 403 ||
           (caught.status === 400 &&
             ['VALIDATION_ERROR', 'MANUAL_BONUS_ZERO_AMOUNT'].includes(caught.code || '')) ||
-          (caught.status === 409 && caught.code === 'MANUAL_BONUS_BALANCE_RESERVED'));
+          (caught.status === 409 &&
+            ['MANUAL_BONUS_BALANCE_RESERVED', 'PERSONAL_ACCOUNT_INSUFFICIENT'].includes(
+              caught.code || '',
+            )));
       if (!pendingBonus && rejectedBeforeApply) {
-        clearPendingBonus(user?.username || '', bonusCustomer.id);
+        clearPendingBonus(user?.username || '', bonusCustomer.id, adjustmentTarget);
         setPendingBonus(null);
       }
       setFormError(caught instanceof Error ? caught.message : t('common.error'));
@@ -403,7 +467,7 @@ export default function CustomersPage({ user }: CustomersPageProps) {
                   <th scope="col" className="text-right">
                     {t('customers.purchases')}
                   </th>
-                  {canManageCustomer && (
+                  {showCustomerActions && (
                     <th scope="col" className="text-right">
                       {t('customers.manage')}
                     </th>
@@ -440,9 +504,20 @@ export default function CustomersPage({ user }: CustomersPageProps) {
                     <td data-label={t('customers.purchases')} className="text-right tabular">
                       {formatNumber(customer.total_spent ?? 0)}
                     </td>
-                    {canManageCustomer && (
+                    {showCustomerActions && (
                       <td data-label={t('customers.manage')}>
                         <div className="row-actions justify-end">
+                          {canViewDetails && (
+                            <button
+                              type="button"
+                              className="btn-outline px-3 inline-flex items-center gap-2"
+                              onClick={() => openCustomerDetails(customer)}
+                              aria-label={t('customers.details')}
+                              title={t('customers.details')}
+                            >
+                              {t('customers.details')}
+                            </button>
+                          )}
                           {canAdjustBonus && (
                             <button
                               type="button"
@@ -520,6 +595,28 @@ export default function CustomersPage({ user }: CustomersPageProps) {
       )}
 
       <Modal
+        open={Boolean(detailCustomer)}
+        onClose={closeCustomerDetails}
+        title={t('customers.detailsTitle')}
+        description={
+          detailCustomer
+            ? `${detailCustomer.name || t('customers.noName')} · ${detailCustomer.phone || '—'}`
+            : undefined
+        }
+        size="lg"
+      >
+        <CustomerFinancialDetails
+          key={detailCustomer?.id || 'customer-details'}
+          details={customerDetails}
+          loading={detailLoading}
+          error={detailError}
+          onRetry={() => detailCustomer && void loadCustomerDetails(detailCustomer)}
+          canAdjustAccount={canAdjustPersonalAccount}
+          onAdjustAccount={openAccountAdjustment}
+        />
+      </Modal>
+
+      <Modal
         open={Boolean(editingCustomer)}
         onClose={() => !submitting && setEditingCustomer(null)}
         title={t('customers.editTitle')}
@@ -590,7 +687,9 @@ export default function CustomersPage({ user }: CustomersPageProps) {
       <Modal
         open={Boolean(bonusCustomer)}
         onClose={() => !submitting && setBonusCustomer(null)}
-        title={t('customers.bonusTitle')}
+        title={t(
+          adjustmentTarget === 'account' ? 'customers.personalAccount' : 'customers.bonusTitle',
+        )}
         size="sm"
       >
         <form className="modal-body form-stack" onSubmit={saveBonus}>
@@ -619,16 +718,30 @@ export default function CustomersPage({ user }: CustomersPageProps) {
               value={bonusMode}
               onChange={(event) => setBonusMode(event.target.value as 'add' | 'subtract')}
             >
-              <option value="add">{t('customers.bonusAdd')}</option>
-              <option value="subtract">{t('customers.bonusSubtract')}</option>
+              <option value="add">
+                {t(
+                  adjustmentTarget === 'account'
+                    ? 'customers.accountType.topup'
+                    : 'customers.bonusAdd',
+                )}
+              </option>
+              <option value="subtract">
+                {t(adjustmentTarget === 'account' ? 'iiko.writeoff' : 'customers.bonusSubtract')}
+              </option>
             </select>
             <p className="field-hint">
-              {t('customers.currentBalance', { amount: formatNumber(bonusCustomer?.balance || 0) })}
+              {t('customers.currentBalance', {
+                amount:
+                  adjustmentTarget === 'account'
+                    ? `${formatNumber(customerDetails?.personalAccount.balance || 0)} ₸`
+                    : formatNumber(bonusCustomer?.balance || 0),
+              })}
             </p>
           </div>
           <div className="field-group">
             <label className="field-label" htmlFor="bonus-amount">
-              {t('customers.bonusAmount')} *
+              {t(adjustmentTarget === 'account' ? 'transactions.amount' : 'customers.bonusAmount')}{' '}
+              *
             </label>
             <input
               id="bonus-amount"
@@ -636,6 +749,7 @@ export default function CustomersPage({ user }: CustomersPageProps) {
               type="number"
               step="0.01"
               min="0.01"
+              max="1000000"
               className="input-classic"
               value={bonusAmount}
               onChange={(event) => setBonusAmount(event.target.value)}
@@ -645,10 +759,15 @@ export default function CustomersPage({ user }: CustomersPageProps) {
               <p className="field-hint">
                 {t('customers.balanceAfter', {
                   amount: formatNumber(
-                    Number(bonusCustomer?.balance || 0) +
+                    Number(
+                      adjustmentTarget === 'account'
+                        ? customerDetails?.personalAccount.balance || 0
+                        : bonusCustomer?.balance || 0,
+                    ) +
                       (bonusMode === 'subtract' ? -1 : 1) * Number(bonusAmount || 0),
                   ),
                 })}
+                {adjustmentTarget === 'account' ? ' ₸' : ''}
               </p>
             )}
           </div>

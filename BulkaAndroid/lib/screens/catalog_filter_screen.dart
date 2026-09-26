@@ -239,9 +239,23 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                                 excludeSemantics: true,
                                 child: InkWell(
                                   onTap: () => _toggleFilter(option),
-                                  child: Padding(
+                                  child: AnimatedContainer(
+                                    duration: BulkaMotion.duration(
+                                      context,
+                                      const Duration(milliseconds: 180),
+                                    ),
+                                    curve: Curves.easeOutCubic,
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? colors.brandGold.withValues(
+                                              alpha: 0.12,
+                                            )
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                     padding: const EdgeInsets.symmetric(
                                       vertical: 12,
+                                      horizontal: 8,
                                     ),
                                     child: Row(
                                       children: [

@@ -606,6 +606,72 @@ export interface IntegrationHealthService {
   updatedAt: string | null;
 }
 
+export interface PosPluginPolicy {
+  latestVersion: string;
+  minimumVersion: string;
+  enforceMinimum: boolean;
+  downloadUrl: string;
+  guideUrl: string;
+  updatedAt?: string | null;
+}
+
+export interface PosHealthDevice {
+  id: string;
+  branchId: string;
+  branch?: { id: string; name: string; city: string; address: string } | null;
+  name: string;
+  role: 'register' | 'bakery';
+  active: boolean;
+  online: boolean;
+  health: 'healthy' | 'attention' | 'error' | 'offline' | 'unknown';
+  pluginVersion?: string | null;
+  apiVersion?: string | null;
+  outdated: boolean;
+  incompatible: boolean;
+  connectedToMain?: boolean | null;
+  printerStatus: 'unknown' | 'ready' | 'missing' | 'error';
+  queues: Record<string, number>;
+  statuses: Record<string, string>;
+  lastError?: string | null;
+  pairedAt: string;
+  lastSeenAt?: string | null;
+}
+
+export interface PosReconciliationCase {
+  id: string;
+  source_key: string;
+  branch_id: string;
+  terminal_id?: string | null;
+  kind: string;
+  severity: 'info' | 'warning' | 'critical';
+  status: 'open' | 'retrying' | 'resolved' | 'manual_closed';
+  title: string;
+  details: string;
+  payload: Record<string, unknown>;
+  attempts: number;
+  last_checked_at?: string | null;
+  last_seen_at: string;
+  resolution_note?: string | null;
+  resolved_at?: string | null;
+  updated_at: string;
+}
+
+export interface PosHealthResponse {
+  success: boolean;
+  canManage: boolean;
+  checkedAt: string;
+  policy: PosPluginPolicy;
+  summary: {
+    total: number;
+    online: number;
+    attention: number;
+    outdated: number;
+    openCases: number;
+  };
+  devices: PosHealthDevice[];
+  cases: PosReconciliationCase[];
+}
+
 export interface SupportRequest {
   id: string;
   orderId: string | null;
@@ -878,4 +944,66 @@ export interface AuditLog {
   ip?: string | null;
   user_agent?: string | null;
   created_at: string;
+}
+
+export interface CustomerFinancialBranch {
+  id: string;
+  name: string;
+  city?: string | null;
+}
+
+export interface CustomerBonusEntry {
+  id: string;
+  type: string;
+  amount: number;
+  description: string;
+  orderId?: string | null;
+  branchId?: string | null;
+  timestamp: string;
+  expiresAt?: string | null;
+  expiredAt?: string | null;
+  orderNumber?: number | null;
+  branch?: CustomerFinancialBranch | null;
+}
+
+export interface CustomerPersonalAccountEntry {
+  id: string;
+  amount: number;
+  kind: 'topup' | 'payment' | 'refund' | 'reversal' | string;
+  sourceKey: string;
+  description?: string;
+  createdAt: string;
+  orderNumber?: number | null;
+  branch?: CustomerFinancialBranch | null;
+  topupStatus?: string | null;
+}
+
+export interface PersonalAccountAdjustmentResponse {
+  success: boolean;
+  adjustment: {
+    entryId?: string | null;
+    balance: number;
+    duplicate: boolean;
+  };
+}
+
+export interface CustomerFinancialDetailsResponse {
+  success: boolean;
+  customer: {
+    id: string;
+    name?: string | null;
+    phone?: string | null;
+    balance?: number | null;
+    total_spent?: number | null;
+  };
+  bonus: {
+    balance: number;
+    entries: CustomerBonusEntry[];
+  };
+  personalAccount: {
+    balance: number;
+    blocked: boolean;
+    updatedAt?: string | null;
+    entries: CustomerPersonalAccountEntry[];
+  };
 }

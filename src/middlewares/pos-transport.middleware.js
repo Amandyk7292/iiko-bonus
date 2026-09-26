@@ -2,6 +2,7 @@ const { supabase } = require('../config/supabase');
 const { safeEqual } = require('../services/auth.service');
 const { posDeviceTokenHash } = require('../services/pos-pairing.service');
 const { webhookMiddleware } = require('./webhook.middleware');
+const { compareVersions } = require('../services/pos-health.service');
 
 // Only POS routes accept device credentials. They cannot authenticate webhooks,
 // staff sessions or any other register / branch.
@@ -19,7 +20,7 @@ async function posTransportMiddleware(req, res, next) {
   try {
     const { data, error } = await supabase
       .from('pos_devices')
-      .select('terminal_id,branch_id,token_hash,terminal_group_id')
+      .select('terminal_id,branch_id,token_hash,terminal_group_id,plugin_version')
       .eq('token_hash', posDeviceTokenHash(token))
       .eq('active', true)
       .maybeSingle();
@@ -36,6 +37,31 @@ async function posTransportMiddleware(req, res, next) {
       String(req.body.terminalGroupId).toLowerCase() !== data.terminal_group_id
     )
       return reject();
+    const reportedVersion = String(req.headers?.['x-bulka-plugin-version'] || '').trim();
+    if (reportedVersion && reportedVersion !== data.plugin_version) {
+      await supabase
+        .from('pos_devices')
+        .update({ plugin_version: reportedVersion })
+        .eq('terminal_id', data.terminal_id);
+      data.plugin_version = reportedVersion;
+    }
+    if (!String(req.path || '').includes('/pos/health/heartbeat')) {
+      const { data: policy, error: policyError } = await supabase
+        .from('pos_plugin_policy')
+        .select('minimum_version,enforce_minimum,download_url')
+        .eq('singleton', true)
+        .maybeSingle();
+      if (policyError) throw policyError;
+      const versionOrder = compareVersions(reportedVersion, policy?.minimum_version);
+      if (policy?.enforce_minimum === true && (versionOrder === null || versionOrder < 0)) {
+        return res.status(426).json({
+          success: false,
+          code: 'POS_PLUGIN_UPDATE_REQUIRED',
+          error: `Обновите плагин Bulka до версии ${policy.minimum_version} или новее.`,
+          downloadUrl: policy.download_url,
+        });
+      }
+    }
     req.pairedPos = data;
     return next();
   } catch (error) {

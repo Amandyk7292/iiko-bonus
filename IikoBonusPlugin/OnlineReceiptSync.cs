@@ -22,7 +22,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private readonly Timer timer;
         private int busy;
         private volatile bool disposed;
+        private volatile int pendingCount;
         internal string StatusText {get;private set;}="Онлайн-чеки: ожидание привязки кассы";
+        internal int PendingCount => pendingCount;
         internal OnlineReceiptSync(SharedStockGuard guard)
         {
             importer=guard;
@@ -108,8 +110,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
             {
                 if(!storageHealthy && !TryLoad()) return;
                 var os=PluginContext.Operations;
-                var jobs=Request<AutomaticReceiptJobs>("poll",new InboxPoll {TerminalId=os.GetHostTerminal().Id.ToString()});
+                var jobs=Request<AutomaticReceiptJobs>("poll",new AutomaticReceiptPoll {TerminalId=os.GetHostTerminal().Id.ToString()});
                 if(jobs?.Jobs==null) throw new InvalidOperationException("Не читается очередь онлайн-чеков");
+                pendingCount=jobs.Jobs.Count;
                 foreach(var job in jobs.Jobs)
                 {
                     if(disposed) break;
@@ -125,9 +128,31 @@ namespace Resto.Front.Api.IikoBonusPlugin
             catch(Exception error) {StatusText="Онлайн-чеки: "+error.Message;}
             finally {Interlocked.Exchange(ref busy,0);}
         }
+        internal void RequestRetry() {ThreadPool.QueueUserWorkItem(Tick);}
+        internal string CheckAndRecover()
+        {
+            if(disposed || Interlocked.CompareExchange(ref busy,1,0)!=0)
+                return "Очередь уже обрабатывается. Повторите проверку после завершения текущей операции.";
+            try {
+                if(PosPairing.Current==null) return "Сначала привяжите кассу.";
+                var os=PluginContext.Operations;
+                var jobs=Request<AutomaticReceiptJobs>("poll",new AutomaticReceiptPoll {TerminalId=os.GetHostTerminal().Id.ToString()});
+                if(jobs?.Jobs==null) throw new InvalidOperationException("Нет ответа об очереди чеков.");
+                if(jobs.Jobs.Count==0) return "Сервер не сообщает незавершённых заданий для этой кассы.";
+                var result=new List<string>();
+                foreach(var job in jobs.Jobs) {
+                    try { Process(job,os); result.Add("№"+job.Number+": обработан текущий доступный этап"); }
+                    catch(Exception error) {
+                        result.Add("№"+job.Number+": "+error.Message);
+                        try {Action(os,"problem",job.OrderId,error:error.Message.Substring(0,Math.Min(400,error.Message.Length)));} catch {}
+                    }
+                }
+                return string.Join("\n\n",result);
+            } finally {Interlocked.Exchange(ref busy,0);}
+        }
         private void Process(AutomaticReceiptJob job,IOperationService os)
         {
-            var paymentType=FindPaymentType(os); // Validate configuration before claiming work.
+            var paymentType=job.FiscalDue ? FindPaymentType(os) : null;
             var terminal=os.GetHostTerminal();
             if(os.GetHostTerminalsGroup().MainTerminal?.Id!=terminal.Id && !os.IsConnectedToMainTerminal())
                 throw new InvalidOperationException("Нет связи с главной кассой. Чек сохранён в очереди.");
@@ -138,7 +163,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             if(claim.ReceiptId!=null) saved.ReceiptId=claim.ReceiptId;
             IOrder order=null;
             if(Guid.TryParse(saved.ReceiptId,out var receiptId)) order=os.TryGetOrderById(receiptId);
-            else order=os.GetOrders(true,false).SingleOrDefault(o=>
+            if(order==null) order=os.GetOrders(true,false).SingleOrDefault(o=>
                 (o.ExternalNumber==Prefix+job.OrderId || o.ExternalNumber=="Bulka №"+job.Number) && OrderId(o)==job.OrderId);
             if(order==null)
             {
@@ -149,18 +174,53 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 if(table==null) throw new InvalidOperationException("На кассе не настроен зал со столом для онлайн-чеков.");
                 var edit=os.CreateEditSession();
                 var stub=edit.CreateOrder(new[]{table},true,false,null);
+                edit.AddOrderGuest("Bulka",stub);
                 edit.ChangeOrderExternalNumber("Bulka №"+job.Number,stub);
                 edit.AddOrderExternalData(OrderDataKey,new ExternalDataItem(job.OrderId,false),stub);
                 var credentials=os.GetDefaultCredentials();
                 saved.CreationStarted=true;
                 DurableJsonFile.Write(path,ledger); // Written before an uncertain create response.
-                order=os.SubmitChanges(edit,credentials).Get(stub);
+                try { order=os.SubmitChanges(edit,credentials).Get(stub); }
+                catch(Resto.Front.Api.Exceptions.ConstraintViolationException) {
+                    // Validation rejected the edit session; no order was committed.
+                    saved.CreationStarted=false;
+                    DurableJsonFile.Write(path,ledger);
+                    throw;
+                }
+                catch(Resto.Front.Api.Exceptions.CannotCreateEntityException) {
+                    // iiko rejected CreateOrder itself. A later poll may retry;
+                    // transport/unknown failures still retain CreationStarted.
+                    saved.CreationStarted=false;
+                    DurableJsonFile.Write(path,ledger);
+                    throw new InvalidOperationException("iikoFront отказал в создании заказа. Проверьте связь с главной кассой; повтор будет выполнен автоматически.");
+                }
+                catch(Exception error) {
+                    PluginContext.Log.Error("Bulka receipt creation failed for " + job.Number + ": " + error);
+                    throw;
+                }
             }
             saved.ReceiptId=order.Id.ToString();
             DurableJsonFile.Write(path,ledger);
             Action(os,"bind",job.OrderId,order);
             if(order.Status==OrderStatus.Deleted) throw new InvalidOperationException("Связанный чек удалён. Нужна сверка.");
             if(order.Status==OrderStatus.Closed) {Action(os,"complete",job.OrderId,order);return;}
+            if(job.AssemblyStatus!="printed")
+            {
+                if(saved.AssemblyPrinted) Action(os,"assembly-complete",job.OrderId,order);
+                else
+                {
+                    var printer=AssemblyTicket.Printer(os,order);
+                    var printClaim=Action(os,"assembly-claim",job.OrderId,order);
+                    if(printClaim.Status=="print")
+                    {
+                        AssemblyTicket.Print(os,printer,order,job.Number);
+                        saved.AssemblyPrinted=true;
+                        DurableJsonFile.Write(path,ledger);
+                        Action(os,"assembly-complete",job.OrderId,order);
+                    }
+                }
+            }
+            if(!job.FiscalDue) return;
             order=importer.ImportReceipt(order,job.Number,os,false);
             if(Action(os,"verify",job.OrderId,order).Status!="verified") throw new InvalidOperationException("Оплата Bulka не подтверждена");
             if(order.Payments.Count==0)

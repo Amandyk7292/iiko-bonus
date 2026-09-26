@@ -205,6 +205,20 @@ async function resolveAcceptanceAudit(admin, branchId, now) {
 }
 
 async function listKitchenOrders({ branchId = null, branchIds = [], includeClosed = false } = {}) {
+  if (includeClosed) {
+    const active = await listKitchenOrders({ branchId, branchIds });
+    let history = supabase
+      .from('kaspi_orders')
+      .select(KITCHEN_ORDER_FIELDS)
+      .eq('status', 'paid')
+      .eq('kitchen_status', 'handed_over')
+      .order('created_at', { ascending: false });
+    if (branchId) history = history.eq('branch_id', branchId);
+    else if (branchIds.length) history = history.in('branch_id', branchIds);
+    const { data, error } = await history.limit(100);
+    if (error) throw error;
+    return [...active, ...(data || []).map(normalize)];
+  }
   let query = supabase
     .from('kaspi_orders')
     .select(KITCHEN_ORDER_FIELDS)

@@ -64,6 +64,10 @@ const staticDocumentPolicies = new Map([
   ['/pricegenerator/', staticDocumentPolicy('public/pricegenerator/index.html')],
   ['/applink', staticDocumentPolicy('public/applink/index.html')],
   ['/applink/', staticDocumentPolicy('public/applink/index.html')],
+  [
+    '/docs/iiko-plugin-installation.html',
+    staticDocumentPolicy('public/docs/iiko-plugin-installation.html'),
+  ],
   ['/account-deletion', staticDocumentPolicy('public/legal/account-deletion.html')],
 ]);
 const priceGeneratorPolicy = {

@@ -26,24 +26,27 @@ import { useI18n } from '../lib/i18n';
 const columns = [
   {
     status: 'queued',
-    titleKey: 'kitchen.columnQueued',
     icon: Clock3,
     actionKey: 'kitchen.actionStart',
     next: 'preparing',
   },
   {
     status: 'preparing',
-    titleKey: 'kitchen.columnPreparing',
     icon: ChefHat,
     actionKey: 'kitchen.actionReady',
     next: 'ready',
   },
   {
     status: 'ready',
-    titleKey: 'kitchen.columnReady',
     icon: CheckCircle2,
     actionKey: 'kitchen.actionHandoff',
     next: 'handed_over',
+  },
+  {
+    status: 'handed_over',
+    icon: PackageCheck,
+    actionKey: 'orders.status.completed',
+    next: '',
   },
 ];
 
@@ -122,10 +125,10 @@ export default function KitchenPage() {
   const columnTitle = (status: string) => {
     const labels =
       locale === 'kk'
-        ? ['Жаңа', 'Қабылданған', 'Дайын']
+        ? ['Жаңа', 'Қабылданған', 'Дайын', 'Берілді']
         : locale === 'en'
-          ? ['New', 'Accepted', 'Ready']
-          : ['Новые', 'Принятые', 'Готовые'];
+          ? ['New', 'Accepted', 'Ready', 'Handed over']
+          : ['Новые', 'Принятые', 'Готовые', 'Выданы'];
     return labels[columns.findIndex((column) => column.status === status)];
   };
   const elapsedLabel = (value?: string | null) => {
@@ -180,7 +183,7 @@ export default function KitchenPage() {
       const barrier = loadBarrierRef.current;
       if (!silent) setLoading(true);
       try {
-        const nextOrders = (await api.getKitchenOrders()).orders ?? [];
+        const nextOrders = (await api.getKitchenOrders('', true)).orders ?? [];
         if (barrier !== loadBarrierRef.current || requestId <= appliedLoadRequestRef.current) {
           return null;
         }
@@ -323,6 +326,8 @@ export default function KitchenPage() {
           ),
         );
       }
+      if (next === 'handed_over')
+        setOrders((current) => [...current.filter((item) => item.id !== order.id), result.order]);
       return true;
     } catch (caught) {
       if (waitsForServerAcceptance) {
@@ -386,7 +391,7 @@ export default function KitchenPage() {
     (order) =>
       order.promisedReadyAt &&
       new Date(order.promisedReadyAt) < new Date() &&
-      order.kitchenStatus !== 'ready',
+      ['queued', 'preparing'].includes(order.kitchenStatus),
   ).length;
   if (loading && !orders.length) return <PageState type="loading" />;
   if (error && !orders.length)
@@ -538,7 +543,7 @@ export default function KitchenPage() {
                     const late = Boolean(
                       order.promisedReadyAt &&
                       new Date(order.promisedReadyAt) < new Date() &&
-                      order.kitchenStatus !== 'ready',
+                      ['queued', 'preparing'].includes(order.kitchenStatus),
                     );
                     const delivery = order.fulfillmentType === 'delivery';
                     const dispatchStatus = dispatchStatusKey(order.courierDispatchStatus);
@@ -745,19 +750,21 @@ export default function KitchenPage() {
                             t('kitchen.noPromisedTime')
                           )}
                         </div>
-                        <button
-                          className="btn-classic w-full min-h-12 gap-2 text-base"
-                          type="button"
-                          disabled={isSaving(order.id)}
-                          onClick={() => update(order, column.next)}
-                        >
-                          {isSaving(order.id) ? (
-                            <LoaderCircle aria-hidden="true" className="spin" size={17} />
-                          ) : (
-                            <PackageCheck aria-hidden="true" size={17} />
-                          )}
-                          {actionLabel}
-                        </button>
+                        {column.next && (
+                          <button
+                            className="btn-classic w-full min-h-12 gap-2 text-base"
+                            type="button"
+                            disabled={isSaving(order.id)}
+                            onClick={() => update(order, column.next)}
+                          >
+                            {isSaving(order.id) ? (
+                              <LoaderCircle aria-hidden="true" className="spin" size={17} />
+                            ) : (
+                              <PackageCheck aria-hidden="true" size={17} />
+                            )}
+                            {actionLabel}
+                          </button>
+                        )}
                       </article>
                     );
                   })

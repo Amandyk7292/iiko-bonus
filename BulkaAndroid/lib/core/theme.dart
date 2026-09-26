@@ -515,8 +515,8 @@ ThemeData buildBulkaTheme() {
         TargetPlatform.fuchsia: FadeForwardsPageTransitionsBuilder(),
         // Preserve the native, interruptible swipe-back gesture on Apple
         // platforms instead of forcing an Android-like transition everywhere.
-        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-        TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.iOS: BulkaCupertinoPageTransitionsBuilder(),
+        TargetPlatform.macOS: BulkaCupertinoPageTransitionsBuilder(),
         TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
         TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
       },
@@ -558,17 +558,11 @@ ThemeData buildBulkaTheme() {
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(BulkaRadii.control),
-        borderSide: const BorderSide(
-          color: _errorRed,
-          width: BulkaStrokes.hairline,
-        ),
+        borderSide: const BorderSide(color: _errorRed, width: 2),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(BulkaRadii.control),
-        borderSide: const BorderSide(
-          color: _errorRed,
-          width: BulkaStrokes.hairline,
-        ),
+        borderSide: const BorderSide(color: _errorRed, width: 2),
       ),
     ),
     bottomSheetTheme: const BottomSheetThemeData(

@@ -1,12 +1,23 @@
 const { z } = require('../middlewares/validation.middleware');
 const { iikoGuidSchema } = require('./iiko-guid.schema');
 const { frontStockSaleSchema } = require('./front-stock-guard.contract');
-const frontAutoReceiptPollSchema = z.object({ terminalId: iikoGuidSchema }).strict();
+const frontAutoReceiptPollSchema = z
+  .object({ terminalId: iikoGuidSchema, assemblyVersion: z.literal(1).optional() })
+  .strict();
 const frontAutoReceiptActionSchema = z
   .object({
     terminalId: iikoGuidSchema,
     orderId: z.string().uuid(),
-    action: z.enum(['claim', 'bind', 'verify', 'complete', 'return', 'problem']),
+    action: z.enum([
+      'claim',
+      'bind',
+      'verify',
+      'complete',
+      'return',
+      'problem',
+      'assembly-claim',
+      'assembly-complete',
+    ]),
     receiptId: iikoGuidSchema.nullable().optional(),
     items: frontStockSaleSchema.shape.items.optional(),
     total: frontStockSaleSchema.shape.total.optional(),

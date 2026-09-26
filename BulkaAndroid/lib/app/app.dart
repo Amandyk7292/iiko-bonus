@@ -352,6 +352,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('app_theme_mode');
     await SessionStore.clearLegacyCustomerData(prefs);
+    await AddressRepository.removePersistedGuestAddresses(prefs);
     var phone = prefs.getString('phone');
     SessionTokens tokens;
     try {
@@ -709,7 +710,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       final activeOrder = orders
           .where((order) => order.paymentStatus == 'paid' && !order.isClosed)
           .firstOrNull;
-      _widgetOrder = activeOrder;
+      if (mounted) {
+        setState(() => _widgetOrder = activeOrder);
+      } else {
+        _widgetOrder = activeOrder;
+      }
       await HomeWidgetSync.update(
         customer: _customer ?? customer,
         activeOrder: activeOrder,
@@ -1163,7 +1168,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         _savedPhone != null &&
         _customer != null &&
         _api.isAuthenticated) {
-      return true;
+      return _adoptGuestDeliveryAddresses();
     }
     if (_loginRouteOpen) return false;
     final navigator = _navigatorKey.currentState;
@@ -1246,6 +1251,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
           _savedPhone != null &&
           _customer != null &&
           _api.isAuthenticated;
+      if (succeeded && !await _adoptGuestDeliveryAddresses()) return false;
       if (succeeded && _pendingPushTarget != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) unawaited(_openPendingPushTarget());
@@ -1254,6 +1260,46 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       return succeeded;
     } finally {
       _loginRouteOpen = false;
+    }
+  }
+
+  Future<bool> _adoptGuestDeliveryAddresses() async {
+    final count = AddressRepository.guestDraftCount(_api);
+    if (count == 0) return true;
+    final context = _navigatorKey.currentContext;
+    if (context == null) return false;
+    final save = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => BulkaActionDialog(
+        title: Text('guest_address_save_title'.tr),
+        content: Text('guest_address_save_body'.tr),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('guest_address_discard'.tr),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text('guest_address_save_action'.tr),
+          ),
+        ],
+      ),
+    );
+    if (save != true) {
+      AddressRepository.discardGuestDrafts(_api);
+      return true;
+    }
+    try {
+      await AddressRepository.adoptGuestDrafts(_api);
+      return true;
+    } catch (error) {
+      if (mounted && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          bulkaSnackBar(content: Text(localizeErrorMessage(error))),
+        );
+      }
+      return false;
     }
   }
 
@@ -1435,6 +1481,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     _refreshTimer?.cancel();
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     await SessionStore.clearCustomerData(prefs);
+    AddressRepository.discardGuestDrafts(_api);
     await Future.wait([
       prefs.remove('lastAppScreen'),
       prefs.remove('lastMainTab'),
@@ -1527,6 +1574,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       onTabChanged: (tab) => unawaited(_saveMainTab(tab)),
       onOpenOrders: _openCustomerOrders,
       onOpenOrder: (orderId) => _openCustomerOrders(initialOrderId: orderId),
+      activeOrder: _widgetOrder,
     );
   }
 }

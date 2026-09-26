@@ -95,6 +95,7 @@ test('deployment and rollback are exclusive, transactional and use one artifact 
     'harden-vps-ssh.sh',
     'install-database-backup-timer.sh',
     'install-pm2-logrotate.sh',
+    'list-iiko-outgoing-bindings.js',
     'prepare-cloudflare-origin.sh',
     'prepare-pg-connection.js',
     'probe-iiko-city-profile.js',

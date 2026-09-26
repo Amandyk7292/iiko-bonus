@@ -4,6 +4,8 @@ const {
   analyticsQuery,
   schemaQuery,
   departmentsQuery,
+  productSearchQuery,
+  productSalesQuery,
   balancesQuery,
   balancesExportQuery,
   revisionQuery,
@@ -28,6 +30,7 @@ function registerIikoDashboardRoutes(router, reporting = service) {
   const invoiceJobs = new ReportJobs();
   const revisionJobs = new ReportJobs();
   const cashReportJobs = new ReportJobs();
+  const productSalesJobs = new ReportJobs();
   const ownerOnly = (req, res, next) => {
     if (!['owner', 'admin'].includes(req.admin?.role))
       return res.status(403).json({ code: 'FORBIDDEN', error: 'Недостаточно прав' });
@@ -173,6 +176,45 @@ function registerIikoDashboardRoutes(router, reporting = service) {
     ownerOnly,
     validateRequest({ body: analyticsQuery }),
     handle((req) => reporting.analytics(req.body)),
+  );
+  router.get(
+    '/admin/api/iiko-dashboard/product-sales/products',
+    ownerOnly,
+    validateRequest({ query: productSearchQuery }),
+    handle((req) => reporting.searchProducts(req.query)),
+  );
+  router.post(
+    '/admin/api/iiko-dashboard/product-sales',
+    ownerOnly,
+    validateRequest({ body: productSalesQuery }),
+    handle((req) =>
+      productSalesJobs.read(JSON.stringify(req.body), () => reporting.productSales(req.body)),
+    ),
+  );
+  router.post(
+    '/admin/api/iiko-dashboard/product-sales/export',
+    ownerOnly,
+    validateRequest({ body: productSalesQuery }),
+    async (req, res) => {
+      try {
+        const result = await productSalesJobs.result(JSON.stringify(req.body), () =>
+          reporting.productSales(req.body),
+        );
+        res.set(
+          'Content-Disposition',
+          `attachment; filename="iiko-product-sales-${req.body.from}-${req.body.to}.xlsx"`,
+        );
+        res
+          .type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+          .send(
+            reportWorkbook(
+              require('../../services/iiko-dashboard-product-sales').exportProductSales(result),
+            ),
+          );
+      } catch (error) {
+        res.status(error.statusCode || 502).json({ code: error.code || 'IIKO_REPORT_FAILED' });
+      }
+    },
   );
   router.post(
     '/admin/api/iiko-dashboard/analytics/export',

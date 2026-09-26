@@ -78,6 +78,9 @@ extension _CheckoutScheduleState on _CheckoutScreenState {
         branchId: location.id,
         orderType: type.wireValue,
         days: type == _OrderType.preorder ? 3 : 1,
+        productIds: widget.cartItems
+            .map((item) => _asString(item['id']))
+            .toList(),
       );
     } catch (error) {
       if (mounted && revision == _scheduleRevision) {

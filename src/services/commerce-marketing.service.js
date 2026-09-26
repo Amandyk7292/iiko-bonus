@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { supabase } = require('../config/supabase');
 const { sendPushToCustomer } = require('./push.service');
+const { pushOutboxDedupeKey } = require('./push-outbox.service');
 const { queueCustomerLoyaltySync } = require('./loyalty-sync.service');
 const { decryptSecret, encryptSecret } = require('../utils/secret-envelope.util');
 
@@ -10,6 +11,52 @@ const commerceError = (message, statusCode = 400) =>
 const MAX_PROMOTION_AMOUNT = 10000000;
 const MAX_PROMOTION_AUDIENCE = 500;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const normalizeMarketingLanguage = (value) =>
+  ['kk', 'kz'].includes(String(value || '').toLowerCase())
+    ? 'kk'
+    : String(value || '').toLowerCase() === 'en'
+      ? 'en'
+      : 'ru';
+
+function renderAutomationCopy(automation = {}, payload = {}, requestedLanguage = 'ru') {
+  const language = normalizeMarketingLanguage(requestedLanguage);
+  const productNames = payload.productNames || {};
+  const variables = {
+    productName:
+      productNames[language] ||
+      productNames.ru ||
+      payload.productName ||
+      (language === 'kk' ? 'өнім' : language === 'en' ? 'item' : 'товар'),
+    quantity: Number(payload.quantity || 1),
+    inactiveHours: Number(payload.inactiveHours || 0),
+    bonusAmount: Number(payload.bonusAmount || 0),
+  };
+  const render = (value) =>
+    String(value || '').replace(
+      /\{\{(productName|quantity|inactiveHours|bonusAmount)\}\}/g,
+      (_, key) => String(variables[key]),
+    );
+  const baseBody =
+    automation.body_translations?.[language] || automation.body_translations?.ru || '';
+  const giftSuffix =
+    automation.trigger_type === 'birthday' &&
+    variables.bonusAmount > 0 &&
+    !baseBody.includes('{{bonusAmount}}')
+      ? language === 'kk'
+        ? ` Сыйлыққа ${variables.bonusAmount} бонус есептелді!`
+        : language === 'en'
+          ? ` Your gift of ${variables.bonusAmount} bonuses has been credited!`
+          : ` Вам начислено ${variables.bonusAmount} подарочных бонусов!`
+      : '';
+  return {
+    language,
+    title: render(
+      automation.title_translations?.[language] || automation.title_translations?.ru || 'Bulka',
+    ),
+    body: render(baseBody) + giftSuffix,
+  };
+}
 
 const normalizeCode = (value) =>
   String(value || '')
@@ -475,14 +522,19 @@ async function savePromotion(payload = {}, id = null) {
 
 async function enqueueAutomatedMessages() {
   const now = new Date();
+  // Claim birthdays before inactivity reminders so the latter respect the
+  // existing daily marketing cap. PostgreSQL keeps the annual claim atomic.
+  const { data: birthdayCount, error: birthdayError } = await supabase.rpc(
+    'enqueue_birthday_greetings',
+  );
+  if (birthdayError) throw birthdayError;
   const { data: automations, error } = await supabase
     .from('marketing_automations')
     .select('*')
     .eq('active', true);
   if (error) throw error;
-  let enqueued = 0;
+  let enqueued = Number(birthdayCount || 0);
   let customerCache = null;
-  let orderCache = null;
   let transactionCache = null;
 
   const customers = async () => {
@@ -495,19 +547,6 @@ async function enqueueAutomatedMessages() {
     if (customerError) throw customerError;
     customerCache = data || [];
     return customerCache;
-  };
-  const recentOrders = async () => {
-    if (orderCache) return orderCache;
-    const { data, error: orderError } = await supabase
-      .from('kaspi_orders')
-      .select('customer_id,created_at')
-      .in('status', ['paid', 'refunded'])
-      .not('customer_id', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(10000);
-    if (orderError) throw orderError;
-    orderCache = data || [];
-    return orderCache;
   };
   const recentTransactions = async () => {
     if (transactionCache) return transactionCache;
@@ -553,13 +592,6 @@ async function enqueueAutomatedMessages() {
         .filter((part) => part.type !== 'literal')
         .map((part) => [part.type, part.value]),
     );
-  const birthdayParts = (value) => {
-    const text = String(value || '');
-    const iso = text.match(/^\d{4}-(\d{2})-(\d{2})/);
-    if (iso) return { month: iso[1], day: iso[2] };
-    const local = text.match(/^(\d{2})\.(\d{2})\.\d{4}/);
-    return local ? { month: local[2], day: local[1] } : null;
-  };
   for (const automation of automations || []) {
     if (automation.trigger_type === 'abandoned_cart') {
       const delayMinutes = Number(automation.config?.delayMinutes || 60);
@@ -583,35 +615,22 @@ async function enqueueAutomatedMessages() {
       continue;
     }
 
-    if (automation.trigger_type === 'birthday') {
-      const daysBefore = Math.max(0, Math.min(30, Number(automation.config?.daysBefore || 0)));
-      const target = new Date(now.getTime() + daysBefore * 86400000);
-      const targetParts = localParts(target);
-      for (const customer of await customers()) {
-        const birth = birthdayParts(customer.birth_date);
-        if (birth?.month === targetParts.month && birth?.day === targetParts.day) {
-          await enqueue(automation, customer.id, `birthday:${targetParts.year}`, { daysBefore });
-        }
-      }
-      continue;
-    }
+    if (automation.trigger_type === 'birthday') continue;
 
     if (automation.trigger_type === 'inactive') {
-      const inactiveDays = Math.max(1, Number(automation.config?.inactiveDays || 45));
-      const cooldownDays = Math.max(1, Number(automation.config?.cooldownDays || 30));
-      const cutoff = now.getTime() - inactiveDays * 86400000;
-      const latest = new Map();
-      for (const order of await recentOrders()) {
-        if (!latest.has(String(order.customer_id)))
-          latest.set(String(order.customer_id), order.created_at);
-      }
-      const cooldownBucket = Math.floor(now.getTime() / (cooldownDays * 86400000));
-      for (const customer of await customers()) {
-        const activity = latest.get(String(customer.id)) || customer.created_at;
-        if (activity && new Date(activity).getTime() <= cutoff) {
-          await enqueue(automation, customer.id, `inactive:${cooldownBucket}`, { inactiveDays });
-        }
-      }
+      const inactiveHours = Math.max(
+        1,
+        Math.min(8760, Number(automation.config?.inactiveHours || 48)),
+      );
+      const { data: inserted, error: inactiveError } = await supabase.rpc(
+        'enqueue_inactive_order_reminders',
+        {
+          p_automation_id: automation.id,
+          p_inactive_hours: inactiveHours,
+        },
+      );
+      if (inactiveError) throw inactiveError;
+      enqueued += Number(inserted || 0);
       continue;
     }
 
@@ -646,8 +665,11 @@ async function enqueueAutomatedMessages() {
   return enqueued;
 }
 
-async function deliverAutomatedMessages(limit = 100) {
-  const { data: deliveries, error } = await supabase
+async function deliverAutomatedMessages(
+  limit = 100,
+  { db = supabase, sendPush = sendPushToCustomer } = {},
+) {
+  const { data: deliveries, error } = await db
     .from('marketing_deliveries')
     .select('*,marketing_automations(*)')
     .eq('status', 'pending')
@@ -658,58 +680,88 @@ async function deliverAutomatedMessages(limit = 100) {
   let sent = 0;
   for (const delivery of deliveries || []) {
     try {
-      const { data: customer } = await supabase
+      const { data: customer, error: customerError } = await db
         .from('customers')
         .select('fcm_token,preferred_language,deleted_at')
         .eq('id', delivery.customer_id)
         .maybeSingle();
-      if (!customer || customer.deleted_at) {
-        await supabase
-          .from('marketing_deliveries')
-          .update({ status: 'skipped' })
-          .eq('id', delivery.id);
+      if (customerError) {
+        // No provider call has happened, so retrying this delivery is safe.
+        throw Object.assign(new Error('Customer lookup temporarily unavailable'), {
+          code: 'MARKETING_CUSTOMER_UNAVAILABLE',
+          retryable: true,
+        });
+      }
+      const automation = delivery.marketing_automations || {};
+      if (!customer || customer.deleted_at || automation.active === false) {
+        await db.from('marketing_deliveries').update({ status: 'skipped' }).eq('id', delivery.id);
         continue;
       }
-      const language = customer.preferred_language || 'ru';
-      const automation = delivery.marketing_automations || {};
-      const title =
-        automation.title_translations?.[language] || automation.title_translations?.ru || 'Bulka';
-      const body =
-        automation.body_translations?.[language] || automation.body_translations?.ru || '';
-      const pushResult = await sendPushToCustomer(
+      const { title, body, language } = renderAutomationCopy(
+        automation,
+        delivery.payload || {},
+        customer.preferred_language,
+      );
+      const pushResult = await sendPush(
         delivery.customer_id,
         title,
         body,
         {
-          type: automation.trigger_type,
+          type: `marketing_${automation.trigger_type}`,
+          language,
+          deepLink: '/app/',
+          ...(automation.trigger_type === 'birthday'
+            ? {
+                pushDedupeKey: pushOutboxDedupeKey(
+                  'birthday',
+                  delivery.customer_id,
+                  delivery.deduplication_key,
+                ),
+              }
+            : {}),
         },
         customer.fcm_token,
       );
-      if (pushResult.attempted === 0) {
-        await supabase
+      if (pushResult.attempted === 0 && !pushResult.queued) {
+        await db
           .from('marketing_deliveries')
-          .update({ status: 'skipped', error: 'У клиента нет активных push-токенов' })
+          .update({
+            status: 'skipped',
+            error:
+              pushResult.skipped === 'preferences'
+                ? 'Рассылка отключена клиентом'
+                : 'У клиента нет активных push-токенов',
+          })
           .eq('id', delivery.id);
         continue;
       }
       if (pushResult.delivered === 0 && !pushResult.queued) {
         throw new Error('FCM отклонил все push-токены клиента');
       }
-      await supabase
+      await db
         .from('marketing_deliveries')
         .update({ status: 'sent', sent_at: new Date().toISOString(), error: null })
         .eq('id', delivery.id);
       if (automation.trigger_type === 'abandoned_cart') {
-        await supabase
+        await db
           .from('customer_cart_snapshots')
           .update({ abandoned_notified_at: new Date().toISOString() })
           .eq('customer_id', delivery.customer_id);
       }
       sent += 1;
     } catch (deliveryError) {
-      await supabase
+      const retry =
+        deliveryError.retryable === true ||
+        ['PUSH_PREFERENCES_UNAVAILABLE', 'PUSH_QUIET_HOURS'].includes(deliveryError.code);
+      await db
         .from('marketing_deliveries')
-        .update({ status: 'failed', error: String(deliveryError.message).slice(0, 1000) })
+        .update({
+          status: retry ? 'pending' : 'failed',
+          ...(retry
+            ? { scheduled_at: deliveryError.retryAt || new Date(Date.now() + 600000).toISOString() }
+            : {}),
+          error: String(deliveryError.message).slice(0, 1000),
+        })
         .eq('id', delivery.id);
     }
   }
@@ -724,6 +776,7 @@ module.exports = {
   listGiftCards,
   listPromotions,
   matchesPromotionAudience,
+  renderAutomationCopy,
   qualifyReferralForOrder,
   consumePromotionReservation,
   releasePromotionReservation,

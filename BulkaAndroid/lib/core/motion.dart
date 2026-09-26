@@ -2,6 +2,11 @@ part of '../main.dart';
 
 abstract final class BulkaMotion {
   // Material 3 motion tokens keep every interaction on the same rhythm.
+  static const navigation = Duration(milliseconds: 420);
+  static AnimationStyle sheetStyle(BuildContext context) => reduced(context)
+      ? AnimationStyle.noAnimation
+      : const AnimationStyle(duration: navigation, reverseDuration: navigation);
+
   static const press = Durations.short2;
   static const fast = Durations.short3;
   static const standard = Durations.medium1;
@@ -24,19 +29,60 @@ abstract final class BulkaMotion {
 
   static Future<void> lightImpact() => HapticFeedback.lightImpact();
 
+  static DateTime? _lastErrorFeedback;
+  static Future<void> error() async {
+    final now = DateTime.now();
+    if (_lastErrorFeedback != null &&
+        now.difference(_lastErrorFeedback!) <
+            const Duration(milliseconds: 400)) {
+      return;
+    }
+    _lastErrorFeedback = now;
+    await HapticFeedback.lightImpact();
+  }
+
   static Future<void> confirm() => HapticFeedback.mediumImpact();
 }
 
 class BulkaHero extends StatelessWidget {
-  const BulkaHero({required this.tag, required this.child, super.key});
+  const BulkaHero({
+    required this.tag,
+    required this.child,
+    this.freezeImageDuringFlight = false,
+    super.key,
+  });
 
   final Object tag;
+  final bool freezeImageDuringFlight;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     if (BulkaMotion.reduced(context)) return child;
-    return Hero(tag: tag, transitionOnUserGestures: true, child: child);
+    return Hero(
+      tag: tag,
+      transitionOnUserGestures: true,
+      createRectTween: freezeImageDuringFlight
+          ? (begin, end) => RectTween(begin: begin, end: end)
+          : null,
+      flightShuttleBuilder: freezeImageDuringFlight
+          ? (flightContext, animation, direction, fromContext, toContext) {
+              final source = fromContext.widget as Hero;
+              final render = fromContext.findRenderObject();
+              final size = render is RenderBox && render.hasSize
+                  ? render.size
+                  : const Size(200, 200);
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(BulkaRadii.card),
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox.fromSize(size: size, child: source.child),
+                ),
+              );
+            }
+          : null,
+      child: child,
+    );
   }
 }
 
@@ -168,7 +214,7 @@ class BulkaPressScale extends StatefulWidget {
     required this.child,
     this.enabled = true,
     this.pressedScale = 0.985,
-    this.pressedOpacity = 0.96,
+    this.pressedOpacity = 1,
     super.key,
   });
 
@@ -200,6 +246,7 @@ class _BulkaPressScaleState extends State<BulkaPressScale>
   late final AnimationController _scaleController =
       AnimationController.unbounded(vsync: this, value: 1);
   bool _pressed = false;
+  Offset? _pointerOrigin;
 
   void _setPressed(bool value) {
     if (!widget.enabled || _pressed == value) return;
@@ -223,11 +270,17 @@ class _BulkaPressScaleState extends State<BulkaPressScale>
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
+    if (!_pressed) return;
+    final origin = _pointerOrigin;
+    if (origin != null && (event.position - origin).distance > 18) {
+      _setPressed(false);
+      return;
+    }
     final renderObject = context.findRenderObject();
-    if (renderObject is! RenderBox) return;
-    _setPressed(
-      (Offset.zero & renderObject.size).contains(event.localPosition),
-    );
+    if (renderObject is RenderBox &&
+        !(Offset.zero & renderObject.size).contains(event.localPosition)) {
+      _setPressed(false);
+    }
   }
 
   @override
@@ -258,7 +311,10 @@ class _BulkaPressScaleState extends State<BulkaPressScale>
   Widget build(BuildContext context) {
     return Listener(
       behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => _setPressed(true),
+      onPointerDown: (event) {
+        _pointerOrigin = event.position;
+        _setPressed(true);
+      },
       onPointerMove: _handlePointerMove,
       onPointerUp: (_) => _setPressed(false),
       onPointerCancel: (_) => _setPressed(false),
@@ -275,7 +331,9 @@ class _BulkaPressScaleState extends State<BulkaPressScale>
           return Transform.scale(
             scale: scale,
             transformHitTests: false,
-            child: Opacity(opacity: opacity, child: child),
+            child: widget.pressedOpacity == 1
+                ? child
+                : Opacity(opacity: opacity, child: child),
           );
         },
       ),
@@ -312,4 +370,130 @@ class BulkaPageRoute<T> extends MaterialPageRoute<T> {
       child,
     );
   }
+}
+
+/// Keep the native interactive iOS back gesture, with equal open/close timing.
+class BulkaCupertinoPageTransitionsBuilder
+    extends CupertinoPageTransitionsBuilder {
+  const BulkaCupertinoPageTransitionsBuilder();
+  @override
+  Duration get transitionDuration => BulkaMotion.navigation;
+  @override
+  Duration get reverseTransitionDuration => BulkaMotion.navigation;
+}
+
+/// A directional transition for in-place pages such as catalog categories.
+class BulkaPageSwitcher extends StatefulWidget {
+  const BulkaPageSwitcher({
+    required this.child,
+    required this.reverse,
+    super.key,
+  });
+  final Widget child;
+  final bool reverse;
+  @override
+  State<BulkaPageSwitcher> createState() => _BulkaPageSwitcherState();
+}
+
+class _BulkaPageSwitcherState extends State<BulkaPageSwitcher>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  Widget? _previous;
+  Animation<Offset> _incoming = const AlwaysStoppedAnimation(Offset.zero);
+  Animation<Offset> _outgoing = const AlwaysStoppedAnimation(Offset.zero);
+
+  @override
+  void initState() {
+    super.initState();
+    _controller =
+        AnimationController(
+          vsync: this,
+          duration: BulkaMotion.navigation,
+          value: 1,
+        )..addStatusListener((status) {
+          if (status == AnimationStatus.completed &&
+              mounted &&
+              _previous != null) {
+            setState(() => _previous = null);
+          }
+        });
+  }
+
+  @override
+  void didUpdateWidget(covariant BulkaPageSwitcher oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.child.key == widget.child.key) return;
+    if (BulkaMotion.reduced(context)) {
+      _previous = null;
+      _controller.value = 1;
+      _incoming = const AlwaysStoppedAnimation(Offset.zero);
+      return;
+    }
+    final incomingStart = _previous?.key == widget.child.key
+        ? _outgoing.value
+        : Offset(widget.reverse ? -0.25 : 1, 0);
+    final outgoingStart = _incoming.value;
+    _previous = oldWidget.child;
+    final curve = _controller.drive(CurveTween(curve: Curves.easeInOutCubic));
+    _incoming = Tween<Offset>(
+      begin: incomingStart,
+      end: Offset.zero,
+    ).animate(curve);
+    _outgoing = Tween<Offset>(
+      begin: outgoingStart,
+      end: Offset(widget.reverse ? 1 : -0.25, 0),
+    ).animate(curve);
+    _controller.forward(from: 0);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (BulkaMotion.reduced(context)) {
+      _previous = null;
+      _controller.value = 1;
+      _incoming = const AlwaysStoppedAnimation(Offset.zero);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Widget _page(Widget page, Animation<Offset> position, bool active) =>
+      KeyedSubtree(
+        key: ValueKey(page.key),
+        child: SlideTransition(
+          position: position,
+          child: HeroMode(
+            enabled: active,
+            child: TickerMode(
+              enabled: active,
+              child: ExcludeSemantics(
+                excluding: !active,
+                child: ExcludeFocus(
+                  excluding: !active,
+                  child: IgnorePointer(
+                    ignoring: !active,
+                    child: RepaintBoundary(child: page),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) => ClipRect(
+    child: Stack(
+      fit: StackFit.expand,
+      children: [
+        if (_previous != null) _page(_previous!, _outgoing, false),
+        _page(widget.child, _incoming, true),
+      ],
+    ),
+  );
 }

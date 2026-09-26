@@ -150,9 +150,7 @@ class _RewardsScreenState extends State<RewardsScreen> {
   Future<void> _purchaseGift() async {
     final result = await showModalBottomSheet<_GiftPurchaseResult>(
       context: context,
-      sheetAnimationStyle: BulkaMotion.reduced(context)
-          ? AnimationStyle.noAnimation
-          : null,
+      sheetAnimationStyle: BulkaMotion.sheetStyle(context),
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => _GiftCertificatePurchaseSheet(
@@ -533,7 +531,7 @@ class _GiftCertificatePurchaseSheetState
   }
 
   Future<void> _submit() async {
-    if (_submitting || !_formKey.currentState!.validate()) return;
+    if (_submitting || !validateBulkaForm(_formKey)) return;
     final amount = _amount;
     final phone = _normalizedPhone;
     if (amount == null || amount < 500 || phone == null) return;

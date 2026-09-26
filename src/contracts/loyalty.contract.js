@@ -89,6 +89,21 @@ const loyaltyApplyBodySchema = loyaltyReserveBodySchema
   })
   .strict();
 
+const loyaltyOfflineEarnBodySchema = z
+  .object({
+    customerCode: z
+      .string()
+      .trim()
+      .max(160)
+      .regex(/^(BULKA-OTP-|CARD-)/),
+    scannedAtUtc: z.iso.datetime({ offset: true }),
+    paidAtUtc: z.iso.datetime({ offset: true }),
+    orderId: uuidSchema,
+    orderTotal: moneySchema,
+    items: z.array(loyaltyItemSchema).min(1).max(500),
+  })
+  .strict();
+
 const pickupHandoffPluginBodySchema = z
   .object({
     branchId: uuidSchema,
@@ -143,6 +158,7 @@ module.exports = {
   giftCardReserveBodySchema,
   giftCardValidateBodySchema,
   loyaltyApplyBodySchema,
+  loyaltyOfflineEarnBodySchema,
   loyaltyCalculateBodySchema,
   loyaltyCancelBodySchema,
   loyaltyCommitBodySchema,

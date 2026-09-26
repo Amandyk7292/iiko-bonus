@@ -1,6 +1,7 @@
 import 'package:bulka_bonus/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _PaymentMethodsApi extends BulkaApiClient {
   @override
@@ -25,6 +26,7 @@ class _PaymentMethodsApi extends BulkaApiClient {
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
   testWidgets('saved cards show the payment network mark', (tester) async {
     appLanguageNotifier.value = 'ru';
     await tester.pumpWidget(

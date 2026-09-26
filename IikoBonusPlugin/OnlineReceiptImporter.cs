@@ -91,6 +91,21 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 order=os.GetOrderById(order.Id);
             }
             var discountType=LoyaltyFlow.FindLoyaltyDiscountType(os);
+            if(OnlineReceiptSync.OrderId(order)==draft.Id)
+            {
+                var excluded=OnlineReceiptDiscounts.ExcludedIds(LoyaltyFlow.ReadPluginSetting("IIKO_ONLINE_EXCLUDED_DISCOUNT_IDS"));
+                foreach(var type in os.GetDiscountTypes().Where(d=>d.IsAutomatic && !d.Deleted && d.IsActive
+                    && (discountType==null || d.Id!=discountType.Id))) excluded.Add(type.Id);
+                var localDiscounts=order.Discounts.Where(d=>!d.DiscountType.IsAutomatic
+                    && (discountType==null || d.DiscountType.Id!=discountType.Id)).ToList();
+                if(localDiscounts.Count>0) {
+                    var edit=os.CreateEditSession();
+                    foreach(var local in localDiscounts) edit.DeleteDiscount(local,order);
+                    os.SubmitChanges(edit,os.GetDefaultCredentials());
+                    order=os.GetOrderById(order.Id);
+                }
+                order=OnlineReceiptDiscounts.Prepare(order,draft.Id,os,discountType,excluded);
+            }
             var ownDiscounts=order.Discounts.Where(d=>discountType!=null && d.DiscountType.Id==discountType.Id).ToList();
             var appliedOwn=order.AppliedDiscounts.Where(d=>discountType!=null && d.Discount?.DiscountType?.Id==discountType.Id).Sum(d=>d.DiscountSum);
             var discount=order.ResultSum+appliedOwn-draft.MerchandiseTotal;

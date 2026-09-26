@@ -115,7 +115,9 @@ test('owner creates a password cashier for exactly one branch', async ({ page },
   await dialog.getByRole('button', { name: 'Добавить сотрудника' }).click();
 
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole('heading', { name: 'Алия Актау 17', exact: true })).toBeVisible();
+  const cashier = page.getByRole('button', { name: /Алия Актау 17.*cashier\.aktau\.17/ });
+  await expect(cashier).toBeVisible();
+  await cashier.click();
   await expect(page.getByText('Вход по логину и паролю', { exact: true })).toBeVisible();
   expect(createdBody).toEqual({
     username: 'cashier.aktau.17',

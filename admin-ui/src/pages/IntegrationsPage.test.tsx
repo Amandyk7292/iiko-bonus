@@ -9,6 +9,9 @@ const apiMocks = vi.hoisted(() => ({
   getIntegrationHealth: vi.fn(),
   setForteWidgetEnabled: vi.fn(),
   runPaymentProbe: vi.fn(),
+  getPosHealth: vi.fn(),
+  savePosPluginPolicy: vi.fn(),
+  actOnPosReconciliation: vi.fn(),
 }));
 
 vi.mock('../lib/api', () => ({
@@ -124,6 +127,60 @@ describe('Payment provider diagnostics', () => {
     });
     apiMocks.setForteWidgetEnabled.mockReset();
     apiMocks.runPaymentProbe.mockReset();
+    apiMocks.getPosHealth.mockReset().mockResolvedValue({
+      success: true,
+      canManage: true,
+      checkedAt,
+      policy: {
+        latestVersion: '1.10.0',
+        minimumVersion: '1.9.0',
+        enforceMinimum: false,
+        downloadUrl: '/plugin.zip',
+        guideUrl: '/guide',
+      },
+      summary: { total: 1, online: 1, attention: 1, outdated: 1, openCases: 1 },
+      devices: [
+        {
+          id: 'terminal',
+          branchId: 'branch',
+          branch: { id: 'branch', name: '19А', city: 'Актау', address: '11 дом' },
+          name: 'Касса 1',
+          role: 'register',
+          active: true,
+          online: true,
+          health: 'attention',
+          pluginVersion: '1.9.0',
+          apiVersion: 'V9Preview7',
+          outdated: true,
+          incompatible: false,
+          connectedToMain: true,
+          printerStatus: 'ready',
+          queues: { offlineReceipts: 1 },
+          statuses: {},
+          pairedAt: checkedAt,
+          lastSeenAt: checkedAt,
+        },
+      ],
+      cases: [
+        {
+          id: 'case',
+          source_key: 'offline:terminal',
+          branch_id: 'branch',
+          terminal_id: 'terminal',
+          kind: 'offline_receipt',
+          severity: 'warning',
+          status: 'open',
+          title: 'Чек ожидает отправки',
+          details: 'Нет связи',
+          payload: {},
+          attempts: 0,
+          last_seen_at: checkedAt,
+          updated_at: checkedAt,
+        },
+      ],
+    });
+    apiMocks.savePosPluginPolicy.mockReset();
+    apiMocks.actOnPosReconciliation.mockReset();
   });
 
   it('renders provider, webhook, cleanup and fallback state without charging', async () => {

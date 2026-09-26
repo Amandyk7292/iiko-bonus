@@ -115,6 +115,7 @@ class _NetworkImage extends StatelessWidget {
     this.loadingPlaceholder,
     this.errorPlaceholder,
     this.onError,
+    this.animate = true,
   });
 
   final String url;
@@ -123,6 +124,7 @@ class _NetworkImage extends StatelessWidget {
   final Widget? loadingPlaceholder;
   final Widget? errorPlaceholder;
   final VoidCallback? onError;
+  final bool animate;
 
   Widget _failedImage() {
     if (onError != null) {
@@ -163,10 +165,9 @@ class _NetworkImage extends StatelessWidget {
           pixelHeight: pixelHeight,
           resizeMode: fit == BoxFit.cover ? 'cover' : 'contain',
         );
-        final transitionDuration = BulkaMotion.duration(
-          context,
-          BulkaMotion.fast,
-        );
+        final transitionDuration = animate
+            ? BulkaMotion.duration(context, BulkaMotion.fast)
+            : Duration.zero;
         final image = kIsWeb
             ? Image.network(
                 effectiveUrl,
@@ -245,6 +246,10 @@ class _NetworkImage extends StatelessWidget {
                     : CachedNetworkImage(
                         imageUrl: url,
                         cacheManager: productImageCache,
+                        memCacheWidth: pixelWidth,
+                        memCacheHeight: pixelHeight,
+                        fadeInDuration: transitionDuration,
+                        fadeOutDuration: transitionDuration,
                         fit: fit,
                         placeholder: (_, _) =>
                             loadingPlaceholder ??

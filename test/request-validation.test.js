@@ -5,6 +5,7 @@ const {
   adminCustomerBonusBodySchema,
   adminCustomerListQuerySchema,
   adminCustomerUpdateBodySchema,
+  adminPersonalAccountAdjustmentSchema,
 } = require('../src/contracts/admin-customer.contract');
 const { paymentReceiptQuerySchema } = require('../src/contracts/payment-receipt.contract');
 const {
@@ -94,6 +95,22 @@ test('customer contracts normalize valid input and reject unsafe mutations', () 
     adminCustomerUpdateBodySchema.safeParse({
       customerId,
       balance: 1_000_000,
+    }).success,
+    false,
+  );
+  assert.equal(
+    adminPersonalAccountAdjustmentSchema.safeParse({
+      amount: 125.5,
+      requestId: customerId,
+      reason: 'Исправление оплаты',
+    }).success,
+    true,
+  );
+  assert.equal(
+    adminPersonalAccountAdjustmentSchema.safeParse({
+      amount: 0,
+      requestId: customerId,
+      reason: 'Исправление оплаты',
     }).success,
     false,
   );

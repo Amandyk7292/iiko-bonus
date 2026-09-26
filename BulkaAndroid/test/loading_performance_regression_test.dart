@@ -33,19 +33,11 @@ http.Response response(Object value) => http.Response(
 
 class FeedApi extends BulkaApiClient {
   final stories = Completer<List<PromoStory>>();
-  final news = Completer<List<NewsItem>>();
   int storyRequests = 0;
-  int newsRequests = 0;
   @override
   Future<List<PromoStory>> getStories() {
     storyRequests++;
     return stories.future;
-  }
-
-  @override
-  Future<List<NewsItem>> getNews() {
-    newsRequests++;
-    return news.future;
   }
 }
 
@@ -77,7 +69,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('stories render without requesting the disabled news feed', (
+  testWidgets('stories render without waiting for removed legacy content', (
     tester,
   ) async {
     final api = FeedApi();
@@ -93,25 +85,6 @@ void main() {
     await frames(tester);
     expect(find.byType(PromoBannerSlider), findsOneWidget);
     expect(find.byType(PromoBannerShimmer), findsNothing);
-    expect(api.newsRequests, 0);
-    await frames(tester);
-    await tester.pumpWidget(const SizedBox());
-  });
-
-  testWidgets('news are not rendered even when the API could return them', (
-    tester,
-  ) async {
-    final api = FeedApi();
-    await tester.pumpWidget(home(api));
-    await frames(tester);
-    api.news.complete([
-      const NewsItem(id: 1, title: 'Быстрая новость', imageUrl: ''),
-    ]);
-    await frames(tester);
-    expect(find.byType(NewsFeed, skipOffstage: false), findsNothing);
-    expect(api.newsRequests, 0);
-    expect(api.stories.isCompleted, isFalse);
-    api.stories.complete([]);
     await frames(tester);
     await tester.pumpWidget(const SizedBox());
   });
@@ -121,7 +94,6 @@ void main() {
   ) async {
     final api = FeedApi();
     api.stories.complete([]);
-    api.news.complete([]);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpWidget(home(api));
     await frames(tester);
@@ -129,7 +101,6 @@ void main() {
     await tester.pumpWidget(home(api, visible: false));
     await tester.pump(const Duration(minutes: 3));
     expect(api.storyRequests, 1);
-    expect(api.newsRequests, 0);
     await tester.pumpWidget(home(api));
     await frames(tester);
     expect(api.storyRequests, 2);
@@ -188,6 +159,67 @@ void main() {
       expect(cart.totalAmount, 300);
       expect(optionRequests, 1);
       await tester.pumpWidget(const SizedBox());
+      api.dispose();
+      cart.dispose();
+    },
+  );
+
+  testWidgets(
+    'unchanged live menu keeps cards while a changed price refreshes them',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'selected_bakery_location_id_pickup': 'branch-one',
+        'selected_bakery_location_pickup': 'Филиал',
+      });
+      var price = 300;
+      final events = StreamController<Map<String, dynamic>>.broadcast();
+      final api = EventMenuApi(
+        MockClient((request) async {
+          if (request.url.path == '/api/guest/locations') {
+            return selectedBakeryLocationsResponse();
+          }
+          if (request.url.path == '/api/guest/menu') {
+            return response({
+              'categories': menu['categories'],
+              'products': [
+                {
+                  ...(menu['products'] as List).first as Map<String, dynamic>,
+                  'price': price,
+                },
+              ],
+            });
+          }
+          return response({'success': true, 'products': {}});
+        }),
+        events.stream,
+      );
+      final cart = CartProvider();
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: cart,
+          child: MaterialApp(
+            theme: buildBulkaTheme(),
+            home: CatalogScreen(api: api, hasSelectedOrderType: true),
+          ),
+        ),
+      );
+      await frames(tester);
+      await tester.tap(
+        find.byKey(const ValueKey('catalog-category-card-Выпечка')),
+      );
+      await tester.pumpAndSettle();
+      final image = find.byKey(const ValueKey('catalog-product-image-bun'));
+      final before = tester.widget(image);
+      events.add({'type': 'menu.updated'});
+      await frames(tester);
+      expect(tester.widget(image), same(before));
+      price = 450;
+      events.add({'type': 'menu.updated'});
+      await frames(tester);
+      expect(find.text('450 ₸'), findsOneWidget);
+      expect(tester.widget(image), isNot(same(before)));
+      await tester.pumpWidget(const SizedBox.shrink());
+      await events.close();
       api.dispose();
       cart.dispose();
     },

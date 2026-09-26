@@ -173,21 +173,34 @@ const branchHoursFor = (hours, localDate) => {
   if (!schedule || typeof schedule !== 'object' || schedule.closed === true) return null;
   const open = parseClock(schedule.open);
   const close = parseClock(schedule.close);
-  if (open === null || close === null || open >= close) return null;
-  return { open, close };
+  if (open === null || close === null || open === close || open === 1440) return null;
+  return { open, close: close < open ? close + 1440 : close };
 };
 
 const validateBranchHours = (instant, hours, offsetMinutes, slotMinutes = 60) => {
   const local = new Date(instant.getTime() + offsetMinutes * 60 * 1000);
-  const schedule = branchHoursFor(hours, local);
-  if (!schedule) throw checkoutError('Расписание выбранного филиала не настроено', 503);
+  const today = branchHoursFor(hours, local);
+  const previous = branchHoursFor(hours, new Date(local.getTime() - 86400000));
   const minute = local.getUTCHours() * 60 + local.getUTCMinutes();
   const interval =
     Number.isInteger(slotMinutes) && slotMinutes >= 15 && slotMinutes <= 240 ? slotMinutes : 60;
-  const firstSlot = Math.ceil(schedule.open / interval) * interval;
-  if (minute < firstSlot || minute >= schedule.close || (minute - firstSlot) % interval !== 0) {
+  const schedules = [
+    today,
+    previous && previous.close > 1440
+      ? { open: previous.open - 1440, close: previous.close - 1440 }
+      : null,
+  ].filter(Boolean);
+  if (!schedules.length) throw checkoutError('Расписание выбранного филиала не настроено', 503);
+  if (
+    !schedules.some((schedule) => {
+      const first = Math.ceil(schedule.open / interval) * interval;
+      return minute >= first && minute < schedule.close && (minute - first) % interval === 0;
+    })
+  ) {
+    const schedule = schedules[0];
+    const firstSlot = Math.ceil(schedule.open / interval) * interval;
     const clock = (value) =>
-      `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+      `${String(Math.floor(((value + 1440) % 1440) / 60)).padStart(2, '0')}:${String(((value + 1440) % 1440) % 60).padStart(2, '0')}`;
     throw checkoutError(
       `Выберите доступное время с ${clock(firstSlot)} до ${clock(schedule.close)}`,
     );
@@ -248,7 +261,17 @@ const normalizeSchedule = (
       localNow.getUTCFullYear() === localScheduled.getUTCFullYear() &&
       localNow.getUTCMonth() === localScheduled.getUTCMonth() &&
       localNow.getUTCDate() === localScheduled.getUTCDate();
-    if (!sameLocalDay) {
+    const midnight = Date.UTC(
+      localNow.getUTCFullYear(),
+      localNow.getUTCMonth(),
+      localNow.getUTCDate(),
+    );
+    const todayHours = branchHoursFor(branchHours, localNow);
+    const overnightContinuation =
+      todayHours?.close > 1440 &&
+      localScheduled.getTime() >= midnight + 86400000 &&
+      localScheduled.getTime() < midnight + todayHours.close * 60000;
+    if (!sameLocalDay && !overnightContinuation) {
       throw checkoutError('Для самовывоза и доставки выберите время на сегодня');
     }
   }

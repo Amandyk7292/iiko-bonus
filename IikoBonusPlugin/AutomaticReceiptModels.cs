@@ -7,7 +7,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember(Name="orderId")] public string OrderId {get;set;}
         [DataMember(Name="receiptId")] public string ReceiptId {get;set;}
         [DataMember(Name="number")] public long Number {get;set;}
+        [DataMember(Name="fiscalDue")] public bool FiscalDue {get;set;}
+        [DataMember(Name="assemblyStatus")] public string AssemblyStatus {get;set;}
+        [DataMember] public bool AssemblyPrinted {get;set;}
         [DataMember] public bool CreationStarted {get;set;}
+    }
+    [DataContract] internal sealed class AutomaticReceiptPoll
+    {
+        [DataMember(Name="terminalId")] public string TerminalId {get;set;}
+        [DataMember(Name="assemblyVersion")] public int AssemblyVersion {get;set;} = 1;
     }
     [DataContract] internal sealed class AutomaticReceiptJobs
     {

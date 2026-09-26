@@ -106,10 +106,6 @@ const emptyPointDraft = (cityId = ''): PointDraft => ({
 });
 
 const validClock = (value: string) => /^(?:(?:[01]\d|2[0-3]):[0-5]\d|24:00)$/.test(value);
-const clockMinutes = (value: string) => {
-  const [hours, minutes] = value.split(':').map(Number);
-  return hours * 60 + minutes;
-};
 const numeric = (value: string) => (value.trim() === '' ? Number.NaN : Number(value));
 
 export default function LocationsPage({ user }: { user: AdminUser | null }) {
@@ -319,7 +315,8 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
     if (
       !validClock(pointDraft.open) ||
       !validClock(pointDraft.close) ||
-      clockMinutes(pointDraft.open) >= clockMinutes(pointDraft.close)
+      pointDraft.open === pointDraft.close ||
+      pointDraft.open === '24:00'
     ) {
       setPointError(t('locations.hoursInvalid'));
       return;
@@ -381,7 +378,8 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
     if (
       !validClock(draft.open) ||
       !validClock(draft.close) ||
-      clockMinutes(draft.open) >= clockMinutes(draft.close)
+      draft.open === draft.close ||
+      draft.open === '24:00'
     ) {
       setFormError(t('locations.hoursInvalid'));
       return;

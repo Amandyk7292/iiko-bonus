@@ -95,6 +95,8 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
   String _filter = 'all';
   bool _loading = true;
   bool _failed = false;
+  bool _usingCachedLocations = false;
+  DateTime? _locationsCachedAt;
   bool _sheetOpen = false;
   bool _visibleTab = true;
   LatLng _center = const LatLng(43.6532, 51.1975);
@@ -158,7 +160,8 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
       });
     }
     try {
-      final branches = await widget.api.getFulfillmentLocations();
+      final result = await LocationCacheRepository(api: widget.api).load();
+      final branches = result.locations;
       final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
       setState(() {
@@ -169,6 +172,8 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
         _city = _cities.contains(saved) ? saved! : _cities.firstOrNull ?? '';
         _loading = false;
         _failed = false;
+        _usingCachedLocations = result.fromCache;
+        _locationsCachedAt = result.cachedAt;
         if (!silent || saved != _city) _focusCity();
       });
       _branchUpdates.value++;
@@ -216,9 +221,7 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
     setState(() => _sheetOpen = true);
     final selected = await showModalBottomSheet<String>(
       context: context,
-      sheetAnimationStyle: BulkaMotion.reduced(context)
-          ? AnimationStyle.noAnimation
-          : null,
+      sheetAnimationStyle: BulkaMotion.sheetStyle(context),
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: Colors.white,
@@ -308,9 +311,7 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
     });
     await showModalBottomSheet<void>(
       context: context,
-      sheetAnimationStyle: BulkaMotion.reduced(context)
-          ? AnimationStyle.noAnimation
-          : null,
+      sheetAnimationStyle: BulkaMotion.sheetStyle(context),
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: Colors.white,
@@ -507,233 +508,261 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
       color: Colors.white,
       child: SafeArea(
         bottom: true,
-        child: LayoutBuilder(
-          builder: (context, constraints) => Column(
-            children: [
-              SizedBox(
-                height: max(100.0, constraints.maxHeight * .32) + 64,
-                child: YandexMapView(
-                  key: ValueKey('directory-map-${AppLang.current}'),
-                  controller: _map,
-                  center: _center,
-                  selectedPoint: null,
-                  zoom: _zoom,
-                  directoryMode: true,
-                  cityLabel: localizeCityName(_city),
-                  onCityTap: _chooseCity,
-                  language: AppLang.current,
-                  interactive: !_sheetOpen,
-                  semanticLabel: 'locations_title'.tr,
-                  unavailableLabel: 'locations_error'.tr,
-                  onCameraChanged: (center, zoom) {
-                    _center = center;
-                    _zoom = zoom;
-                  },
-                  onBranchTap: (id) {
-                    final branch = branches
-                        .where((b) => b.id == id)
-                        .firstOrNull;
-                    if (branch != null) unawaited(_openBranch(branch));
-                  },
-                  branches: [
-                    for (final branch in branches)
-                      if (branch.latitude != null && branch.longitude != null)
-                        YandexMapBranch(
-                          id: branch.id,
-                          name: branch.name,
-                          address: branch.address,
-                          point: LatLng(branch.latitude!, branch.longitude!),
-                        ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(28),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 10),
-                      Container(
-                        width: 34,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE5DFD4),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(18, 12, 18, 10),
-                        child: TextField(
-                          controller: _search,
-                          onChanged: (_) => setState(() {}),
-                          style: _body(15),
-                          decoration: InputDecoration(
-                            hintText:
-                                (MediaQuery.textScalerOf(context).scale(1) > 1.3
-                                        ? 'search_hint'
-                                        : 'directory_search')
-                                    .tr,
-                            prefixIcon: const Icon(Icons.search),
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 12,
-                              horizontal: 16,
-                            ),
-                            suffixIcon: _search.text.isEmpty
-                                ? null
-                                : IconButton(
-                                    tooltip: 'catalog_clear_search'.tr,
-                                    onPressed: () => setState(_search.clear),
-                                    icon: const Icon(Icons.close),
-                                  ),
-                          ),
-                        ),
-                      ),
-                      SizedBox(
-                        height: 44,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 18),
-                          children: [
-                            for (final filter in [
-                              'all',
-                              'pickup',
-                              'delivery',
-                              'preorder',
-                            ])
-                              Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: ChoiceChip(
-                                  label: Text(
-                                    (filter == 'all'
-                                            ? 'directory_all'
-                                            : 'order_$filter')
-                                        .tr,
-                                    style: _body(12),
-                                  ),
-                                  selected: _filter == filter,
-                                  showCheckmark: false,
-                                  selectedColor: const Color(0xFFFFDD70),
-                                  backgroundColor: Colors.white,
-                                  side: BorderSide.none,
-                                  onSelected: (_) =>
-                                      setState(() => _filter = filter),
+        child: Column(
+          children: [
+            if (_usingCachedLocations)
+              LocationCacheNotice(cachedAt: _locationsCachedAt, onRetry: _load),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) => Column(
+                  children: [
+                    SizedBox(
+                      height: max(100.0, constraints.maxHeight * .32) + 64,
+                      child: YandexMapView(
+                        key: ValueKey('directory-map-${AppLang.current}'),
+                        controller: _map,
+                        center: _center,
+                        selectedPoint: null,
+                        zoom: _zoom,
+                        directoryMode: true,
+                        cityLabel: localizeCityName(_city),
+                        onCityTap: _chooseCity,
+                        language: AppLang.current,
+                        interactive: !_sheetOpen,
+                        semanticLabel: 'locations_title'.tr,
+                        unavailableLabel: 'locations_error'.tr,
+                        onCameraChanged: (center, zoom) {
+                          _center = center;
+                          _zoom = zoom;
+                        },
+                        onBranchTap: (id) {
+                          final branch = branches
+                              .where((b) => b.id == id)
+                              .firstOrNull;
+                          if (branch != null) unawaited(_openBranch(branch));
+                        },
+                        branches: [
+                          for (final branch in branches)
+                            if (branch.latitude != null &&
+                                branch.longitude != null)
+                              YandexMapBranch(
+                                id: branch.id,
+                                name: branch.name,
+                                address: branch.address,
+                                point: LatLng(
+                                  branch.latitude!,
+                                  branch.longitude!,
                                 ),
                               ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(28),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 10),
+                            Container(
+                              width: 34,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE5DFD4),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                18,
+                                12,
+                                18,
+                                10,
+                              ),
+                              child: TextField(
+                                controller: _search,
+                                onChanged: (_) => setState(() {}),
+                                style: _body(15),
+                                decoration: InputDecoration(
+                                  hintText:
+                                      (MediaQuery.textScalerOf(
+                                                    context,
+                                                  ).scale(1) >
+                                                  1.3
+                                              ? 'search_hint'
+                                              : 'directory_search')
+                                          .tr,
+                                  prefixIcon: const Icon(Icons.search),
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                    horizontal: 16,
+                                  ),
+                                  suffixIcon: _search.text.isEmpty
+                                      ? null
+                                      : IconButton(
+                                          tooltip: 'catalog_clear_search'.tr,
+                                          onPressed: () =>
+                                              setState(_search.clear),
+                                          icon: const Icon(Icons.close),
+                                        ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              height: 44,
+                              child: ListView(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                ),
+                                children: [
+                                  for (final filter in [
+                                    'all',
+                                    'pickup',
+                                    'delivery',
+                                    'preorder',
+                                  ])
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: ChoiceChip(
+                                        label: Text(
+                                          (filter == 'all'
+                                                  ? 'directory_all'
+                                                  : 'order_$filter')
+                                              .tr,
+                                          style: _body(12),
+                                        ),
+                                        selected: _filter == filter,
+                                        showCheckmark: false,
+                                        selectedColor: const Color(0xFFFFDD70),
+                                        backgroundColor: Colors.white,
+                                        side: BorderSide.none,
+                                        onSelected: (_) =>
+                                            setState(() => _filter = filter),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: branches.isEmpty
+                                  ? Center(
+                                      child: Text(
+                                        'locations_search_empty'.tr,
+                                        style: _body(15),
+                                      ),
+                                    )
+                                  : RefreshIndicator(
+                                      onRefresh: _load,
+                                      child: ListView.separated(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          20,
+                                          8,
+                                          20,
+                                          24,
+                                        ),
+                                        itemCount: branches.length,
+                                        separatorBuilder: (_, index) =>
+                                            const Divider(
+                                              height: 1,
+                                              color: Color(0xFFEEE8DD),
+                                            ),
+                                        itemBuilder: (context, index) {
+                                          final branch = branches[index];
+                                          final hours = bakeryHoursToday(
+                                            branch,
+                                            DateTime.now(),
+                                          );
+                                          return ListTile(
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  vertical: 9,
+                                                ),
+                                            title: Text(
+                                              branch.name,
+                                              style: _title(18),
+                                            ),
+                                            subtitle: Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 7,
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    branch.address,
+                                                    style: _body(
+                                                      14,
+                                                      color: const Color(
+                                                        0xFF908780,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 7),
+                                                  Row(
+                                                    children: [
+                                                      const Icon(
+                                                        Icons.schedule,
+                                                        size: 15,
+                                                        color: _caramel,
+                                                      ),
+                                                      const SizedBox(width: 5),
+                                                      Expanded(
+                                                        child: Text(
+                                                          hours.label,
+                                                          style: _body(
+                                                            12,
+                                                            color: _caramel,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      if (hours.open != null)
+                                                        Text(
+                                                          (hours.open!
+                                                                  ? 'directory_open'
+                                                                  : 'directory_closed')
+                                                              .tr,
+                                                          style: _body(
+                                                            11,
+                                                            color: hours.open!
+                                                                ? const Color(
+                                                                    0xFF458363,
+                                                                  )
+                                                                : const Color(
+                                                                    0xFF9C6257,
+                                                                  ),
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            trailing: const Icon(
+                                              Icons.chevron_right_rounded,
+                                              color: _cocoa,
+                                            ),
+                                            onTap: () => _openBranch(branch),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                            ),
                           ],
                         ),
                       ),
-                      Expanded(
-                        child: branches.isEmpty
-                            ? Center(
-                                child: Text(
-                                  'locations_search_empty'.tr,
-                                  style: _body(15),
-                                ),
-                              )
-                            : RefreshIndicator(
-                                onRefresh: _load,
-                                child: ListView.separated(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    20,
-                                    8,
-                                    20,
-                                    24,
-                                  ),
-                                  itemCount: branches.length,
-                                  separatorBuilder: (_, index) => const Divider(
-                                    height: 1,
-                                    color: Color(0xFFEEE8DD),
-                                  ),
-                                  itemBuilder: (context, index) {
-                                    final branch = branches[index];
-                                    final hours = bakeryHoursToday(
-                                      branch,
-                                      DateTime.now(),
-                                    );
-                                    return ListTile(
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            vertical: 9,
-                                          ),
-                                      title: Text(
-                                        branch.name,
-                                        style: _title(18),
-                                      ),
-                                      subtitle: Padding(
-                                        padding: const EdgeInsets.only(top: 7),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              branch.address,
-                                              style: _body(
-                                                14,
-                                                color: const Color(0xFF908780),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 7),
-                                            Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.schedule,
-                                                  size: 15,
-                                                  color: _caramel,
-                                                ),
-                                                const SizedBox(width: 5),
-                                                Expanded(
-                                                  child: Text(
-                                                    hours.label,
-                                                    style: _body(
-                                                      12,
-                                                      color: _caramel,
-                                                    ),
-                                                  ),
-                                                ),
-                                                if (hours.open != null)
-                                                  Text(
-                                                    (hours.open!
-                                                            ? 'directory_open'
-                                                            : 'directory_closed')
-                                                        .tr,
-                                                    style: _body(
-                                                      11,
-                                                      color: hours.open!
-                                                          ? const Color(
-                                                              0xFF458363,
-                                                            )
-                                                          : const Color(
-                                                              0xFF9C6257,
-                                                            ),
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      trailing: const Icon(
-                                        Icons.chevron_right_rounded,
-                                        color: _cocoa,
-                                      ),
-                                      onTap: () => _openBranch(branch),
-                                    );
-                                  },
-                                ),
-                              ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

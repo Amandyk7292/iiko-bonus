@@ -2136,8 +2136,14 @@ void main() {
     expect(find.text('Тут много интересного'), findsNothing);
     expect(promoRect.top - headerRect.bottom, closeTo(16, 0.01));
     expect(promoRect.left, closeTo(16, 0.01));
-    expect(promoRect.width, closeTo(358, 0.01));
-    expect(promoRect.width / promoRect.height, closeTo(1080 / 480, 0.001));
+    expect(promoRect.width, closeTo(104, 0.01));
+    expect(promoRect.height, closeTo(116, 0.01));
+    expect(
+      tester
+          .widget<ListView>(find.byKey(const ValueKey('home-stories-list')))
+          .scrollDirection,
+      Axis.horizontal,
+    );
     expect(pickupRect.left, closeTo(16, 0.01));
     expect(deliveryRect.right, closeTo(374, 0.01));
     expect(deliveryRect.left - pickupRect.right, closeTo(12, 0.01));
@@ -2169,7 +2175,7 @@ void main() {
         of: find.byType(FloatingNavBar),
         matching: find.byType(BackdropFilter),
       ),
-      findsOneWidget,
+      findsNothing,
     );
 
     final preorderClip = tester.widget<Material>(
@@ -2317,6 +2323,19 @@ void main() {
     expect(find.textContaining('Дарим 5%'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('nav-4')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    final slide = tester.widget<SlideTransition>(
+      find.byKey(const ValueKey('tab-slide-4')),
+    );
+    expect(slide.position.value.dx, inExclusiveRange(0, 1));
+    final outgoingHero = find
+        .descendant(
+          of: find.byKey(const ValueKey('tab-slot-0')),
+          matching: find.byType(HeroMode),
+        )
+        .first;
+    expect(tester.widget<HeroMode>(outgoingHero).enabled, isFalse);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('nav-0')));
     await tester.pumpAndSettle();
@@ -2374,7 +2393,7 @@ void main() {
     expect(find.text('Накопительная'), findsOneWidget);
   });
 
-  testWidgets('tablet uses promo grid and honors reduced motion', (
+  testWidgets('tablet uses compact stories and honors reduced motion', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -2404,10 +2423,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final grid = tester.widget<GridView>(find.byType(GridView));
-    final delegate =
-        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
-    expect(delegate.crossAxisCount, 2);
+    final stories = tester.widget<ListView>(
+      find.byKey(const ValueKey('home-stories-list')),
+    );
+    expect(stories.scrollDirection, Axis.horizontal);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('promo-card-new'))),
+      const Size(104, 116),
+    );
     expect(BulkaMotion.reduced(tester.element(find.byType(MainShell))), isTrue);
     expect(find.byType(NavigationRail), findsOneWidget);
 
@@ -2465,8 +2488,17 @@ void main() {
       expect(find.byType(LocationsScreen), findsNothing);
       expect(openedType, isNull);
       Navigator.of(tester.element(find.byType(AddressSelectionScreen))).pop(
-        const DeliveryAddress(id: 'chosen-address', title: 'Home', house: '1',
-          location: DeliveryLocation(city: 'Астана', address: 'Street 1', latitude: 51.16, longitude: 71.43)),
+        const DeliveryAddress(
+          id: 'chosen-address',
+          title: 'Home',
+          house: '1',
+          location: DeliveryLocation(
+            city: 'Астана',
+            address: 'Street 1',
+            latitude: 51.16,
+            longitude: 71.43,
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       expect(openedType, 'delivery');
@@ -2543,7 +2575,7 @@ void main() {
       ),
       findsNothing,
     );
-    final saveButton = find.text('Сохранить адрес');
+    final saveButton = find.text('Использовать адрес');
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
@@ -2593,7 +2625,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Сюда пока не доставляем'), findsNothing);
-      await tester.tap(find.text('Сохранить адрес'));
+      await tester.tap(find.text('Использовать адрес'));
       await tester.pumpAndSettle();
       expect(find.text('Нет доступных филиалов для доставки'), findsNothing);
       expect(find.text('Заполните поле'), findsWidgets);
@@ -2743,9 +2775,6 @@ class _FakeBulkaApiClient extends BulkaApiClient {
   ];
 
   @override
-  Future<List<NewsItem>> getNews() async => const [];
-
-  @override
   Future<Map<String, dynamic>> getProductOptions(String productId) async =>
       const {};
 
@@ -2861,6 +2890,7 @@ class _CheckoutPaymentRoutingApiClient extends _FakeBulkaApiClient {
     required String branchId,
     required String orderType,
     int days = 7,
+    List<String> productIds = const [],
   }) async => [
     FulfillmentSlot(
       startsAt: _slotStartsAt,
@@ -2963,6 +2993,7 @@ class _DelayedSlotsApiClient extends _FakeBulkaApiClient {
     required String branchId,
     required String orderType,
     int days = 7,
+    List<String> productIds = const [],
   }) async {
     slotRequests++;
     await _slotsReady.future;
@@ -3105,7 +3136,8 @@ final _preorderDeliveryOrder = CustomerOrder(
   amount: 1200,
   subtotal: 1200,
   discount: 0,
-  branch: 'Bulka, Актау',
+  branch: 'Bulka, Астана',
+  branchId: 'astana-1',
   items: const [
     {'id': 'croissant', 'name': 'Круассан', 'quantity': 1, 'price': 1200},
   ],

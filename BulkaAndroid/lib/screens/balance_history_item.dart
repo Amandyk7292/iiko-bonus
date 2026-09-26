@@ -10,9 +10,7 @@ class TransactionCard extends StatelessWidget {
 
     showModalBottomSheet(
       context: context,
-      sheetAnimationStyle: BulkaMotion.reduced(context)
-          ? AnimationStyle.noAnimation
-          : null,
+      sheetAnimationStyle: BulkaMotion.sheetStyle(context),
       backgroundColor: Colors.white,
       isScrollControlled: true,
       builder: (context) {
