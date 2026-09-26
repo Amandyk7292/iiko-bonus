@@ -27,7 +27,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 it('shows real summary before slow comparisons and keeps it after a comparison failure', async () => {
-  const jobs = Array.from({ length: 4 }, deferred);
+  const jobs = Array.from({ length: 5 }, deferred);
   const publish = vi.fn();
   let index = 0;
   const report = vi.fn(() => jobs[index++].promise);
@@ -38,13 +38,14 @@ it('shows real summary before slow comparisons and keeps it after a comparison f
     new AbortController().signal,
     publish,
   );
-  expect(report).toHaveBeenCalledTimes(4);
+  expect(report).toHaveBeenCalledTimes(5);
   jobs[0].resolve(result);
   await Promise.resolve();
   expect(publish).toHaveBeenLastCalledWith({ summary: result });
   jobs[1].resolve(result);
   jobs[2].reject(new Error('comparison unavailable'));
   jobs[3].resolve(result);
+  jobs[4].resolve(result);
   await expect(done).rejects.toThrow('comparison unavailable');
   expect(publish.mock.lastCall?.[0].summary).toBe(result);
 });
@@ -57,4 +58,16 @@ it('does not publish results for a city or period abandoned by the user', async 
   gate.resolve(result);
   await done;
   expect(publish).not.toHaveBeenCalled();
+});
+it('uses the selected scope for branch revenue and reports a failed ranking without hiding totals', async () => {
+  const current = { ...query, filters: [{ field: 'Department', values: ['Bulka 26'], exclude: false }] };
+  const report = vi.fn(async (request: Query) => {
+    if (request.groupBy.includes('Department')) throw new Error('branch report unavailable');
+    return result;
+  });
+  const publish = vi.fn();
+  const signal = new AbortController().signal;
+  await expect(loadOverview(report, current, undefined, signal, publish)).rejects.toThrow('branch report unavailable');
+  expect(report).toHaveBeenCalledWith({ ...current, groupBy: ['Department'], aggregate: ['DishDiscountSumInt'] }, signal);
+  expect(publish.mock.lastCall?.[0]).toMatchObject({ summary: result, branches: null });
 });

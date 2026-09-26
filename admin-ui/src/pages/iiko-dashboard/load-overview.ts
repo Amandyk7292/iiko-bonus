@@ -19,10 +19,19 @@ export async function loadOverview(
           ['previousTrend', { ...previous, groupBy: ['OpenDate.Typed'] }],
         ] as [keyof OverviewData, Query][])
       : []),
+    ['branches', { ...current, groupBy: ['Department'], aggregate: ['DishDiscountSumInt'] }],
   ];
   const results = await Promise.allSettled(
     queries.map(async ([key, query]) => {
-      data[key] = await report(query, signal);
+      try {
+        data[key] = await report(query, signal);
+      } catch (error) {
+        if (key === 'branches') {
+          data.branches = null;
+          if (data.summary && !signal.aborted) publish({ ...data, summary: data.summary });
+        }
+        throw error;
+      }
       if (data.summary && !signal.aborted) publish({ ...data, summary: data.summary });
     }),
   );

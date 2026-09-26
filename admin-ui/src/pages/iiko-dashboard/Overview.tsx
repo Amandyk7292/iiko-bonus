@@ -25,6 +25,7 @@ import { useI18n } from '../../lib/i18n';
 import { useReducedMotion } from '../../lib/motion';
 import { datedRows, metrics, valueFor, type Report } from './model';
 import DataTable from './DataTable';
+import BranchRevenue from './BranchRevenue';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
 export interface OverviewData {
@@ -32,6 +33,7 @@ export interface OverviewData {
   trend?: Report;
   previous?: Report;
   previousTrend?: Report;
+  branches?: Report | null;
 }
 export default function Overview({ data, cards }: { data: OverviewData; cards: string[] }) {
   const { t, formatNumber, formatDate } = useI18n();
@@ -226,6 +228,7 @@ export default function Overview({ data, cards }: { data: OverviewData; cards: s
           </details>
         </section>
       )}
+      <BranchRevenue report={data.branches} />
     </>
   );
 }

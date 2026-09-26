@@ -1,0 +1,20 @@
+.id-branch-revenue-note {
+  color: var(--id-muted, #69705f);
+  font-size: 13px;
+  margin: 8px 0 20px;
+}
+.id-branch-revenue-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.id-branch-revenue-list .id-ranking-bar > div:first-child {
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.id-branch-revenue-list .id-ranking-bar span {
+  overflow-wrap: anywhere;
+}
+.id-branch-revenue-list .id-ranking-bar strong {
+  margin-left: auto;
+}
