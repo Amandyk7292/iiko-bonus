@@ -39,7 +39,7 @@ test('contact cards require complete translations and known display modes', () =
   );
   assert.throws(
     () => normalizeContactCard({ displayMode: 'standard', titles: { ru: 'Bulka' } }),
-    /three languages/i,
+    /Russian and Kazakh/i,
   );
 });
 
@@ -239,4 +239,11 @@ test('admin UI exposes complete contact card and action management', () => {
   assert.match(page, /activeLanguage/);
   assert.match(page, /removeCard/);
   assert.match(page, /removeAction/);
+});
+
+
+test('contact cards save without an English field', () => {
+  const card = normalizeContactCard({displayMode: 'standard', titles: {ru: 'Булка', kk: 'Бөлке'}});
+  assert.equal(card.title_ru, 'Булка');
+  assert.equal(card.title_kk, 'Бөлке');
 });

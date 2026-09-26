@@ -95,14 +95,17 @@ class PersonalAccountOption extends StatefulWidget {
 
 class _PersonalAccountOptionState extends State<PersonalAccountOption> {
   Map<String, dynamic>? _account;
-  StreamSubscription<dynamic>? _events;
+  late final _LiveRefresh _live;
+  String? _error;
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
-    _events = widget.api.customerEvents.listen((event) {
-      if (event['type'] == 'personal-account.updated') unawaited(_load());
-    });
+    _live = _LiveRefresh(
+      widget.api,
+      {'personal-account.updated'},
+      _load,
+      busy: () => _loading,
+    )..request(immediate: true);
   }
 
   bool _loading = false;
@@ -113,15 +116,19 @@ class _PersonalAccountOptionState extends State<PersonalAccountOption> {
     try {
       final account = await widget.api.getPersonalAccount();
       if (!mounted || session != widget.api.sessionCacheScope) return;
-      setState(() => _account = account);
+      setState(() {
+        _account = account;
+        _error = null;
+      });
       widget.onAvailable(
         account['enabled'] == true && account['blocked'] != true,
       );
-    } catch (_) {
-      if (mounted) {
-        setState(() => _account = null);
-        widget.onAvailable(false);
-      }
+    } catch (error) {
+      if (!mounted || session != widget.api.sessionCacheScope) return;
+      setState(() => _error = localizeErrorMessage(error));
+      // A failed refresh is not proof that a known account was disabled.
+      if (_account == null) widget.onAvailable(false);
+      rethrow; // _LiveRefresh retries with backoff, including offline starts.
     } finally {
       _loading = false;
     }
@@ -129,7 +136,7 @@ class _PersonalAccountOptionState extends State<PersonalAccountOption> {
 
   @override
   void dispose() {
-    _events?.cancel();
+    _live.dispose();
     super.dispose();
   }
 
@@ -137,54 +144,73 @@ class _PersonalAccountOptionState extends State<PersonalAccountOption> {
   Widget build(BuildContext context) {
     final account = _account;
     if (account == null || account['enabled'] != true) {
-      return const SizedBox.shrink();
+      return _error == null ? const SizedBox.shrink() : _retryNotice();
     }
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      elevation: 0,
-      color: context.bulkaColors.surfaceCream,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(BulkaRadii.control),
-      ),
-      child: ListTile(
-        key: const ValueKey('checkout-personal-account'),
-        dense: true,
-        contentPadding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
-        leading: Icon(
-          widget.selected ? Icons.radio_button_checked : Icons.radio_button_off,
-          color: context.bulkaColors.brandBrown,
-          size: 22,
+    return Column(
+      children: [
+        Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          elevation: 0,
+          color: context.bulkaColors.surfaceCream,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(BulkaRadii.control),
+          ),
+          child: ListTile(
+            key: const ValueKey('checkout-personal-account'),
+            dense: true,
+            contentPadding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+            leading: Icon(
+              widget.selected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_off,
+              color: context.bulkaColors.brandBrown,
+              size: 22,
+            ),
+            title: Text(
+              _accountText('title'),
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: Text(
+              account['blocked'] == true
+                  ? _accountText('blocked')
+                  : '${_accountText('balance')}: ${_asDouble(account['balance']).toStringAsFixed(2)} ₸',
+            ),
+            trailing: IconButton(
+              key: const ValueKey('checkout-personal-account-topup'),
+              tooltip: _accountText('topup'),
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => PersonalAccountScreen(
+                      api: widget.api,
+                      initialBalance: _asDouble(account['balance']),
+                    ),
+                  ),
+                );
+                _live.request(immediate: true);
+              },
+              icon: const Icon(Icons.add_circle_outline_rounded),
+              color: context.bulkaColors.brandBrown,
+            ),
+            onTap: account['blocked'] == true ? null : widget.onSelect,
+          ),
         ),
-        title: Text(
-          _accountText('title'),
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Text(
-          account['blocked'] == true
-              ? _accountText('blocked')
-              : '${_accountText('balance')}: ${_asDouble(account['balance']).toStringAsFixed(2)} ₸',
-        ),
-        trailing: IconButton(
-          key: const ValueKey('checkout-personal-account-topup'),
-          tooltip: _accountText('topup'),
-          onPressed: () async {
-            await Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => PersonalAccountScreen(
-                  api: widget.api,
-                  initialBalance: _asDouble(account['balance']),
-                ),
-              ),
-            );
-            await _load();
-          },
-          icon: const Icon(Icons.add_circle_outline_rounded),
-          color: context.bulkaColors.brandBrown,
-        ),
-        onTap: account['blocked'] == true ? null : widget.onSelect,
-      ),
+        if (_error != null) _retryNotice(),
+      ],
     );
   }
+
+  Widget _retryNotice() => ListTile(
+    dense: true,
+    title: Text(_accountText('unavailable')),
+    subtitle: Text(_error ?? ''),
+    trailing: IconButton(
+      key: const ValueKey('checkout-personal-account-retry'),
+      tooltip: _accountText('refresh'),
+      onPressed: () => _live.request(immediate: true),
+      icon: const Icon(Icons.refresh),
+    ),
+  );
 }
 
 class PersonalAccountScreen extends StatefulWidget {
@@ -364,7 +390,10 @@ class _PersonalAccountScreenState extends State<PersonalAccountScreen> {
           padding: const EdgeInsets.all(24),
           children: [
             AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
+              duration: BulkaMotion.duration(
+                context,
+                const Duration(milliseconds: 180),
+              ),
               child: account != null || _cachedBalance != null
                   ? Align(
                       key: const ValueKey('personal-account-balance'),

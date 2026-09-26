@@ -99,7 +99,7 @@ foreach ($staleArtifact in @(
 Copy-Item -LiteralPath $pluginDll -Destination (Join-Path $OutputDirectory 'Resto.Front.Api.IikoBonusPlugin.dll') -Force
 Copy-Item -LiteralPath $manifest -Destination (Join-Path $OutputDirectory 'Manifest.xml') -Force
 Copy-Item -LiteralPath (Join-Path $root 'docs/iiko-front-shared-stock.md') -Destination (Join-Path $OutputDirectory 'INSTALL.md') -Force
-foreach ($guide in @('README.md', 'PAIRING.md')) {
+foreach ($guide in @('README.md', 'PAIRING.md', 'PAYMENT_SETUP.md')) {
     $sourceGuide = [IO.Path]::GetFullPath((Join-Path $root "IikoBonusPlugin_Ready/$guide"))
     $targetGuide = [IO.Path]::GetFullPath((Join-Path $OutputDirectory $guide))
     if ($sourceGuide -ne $targetGuide) {

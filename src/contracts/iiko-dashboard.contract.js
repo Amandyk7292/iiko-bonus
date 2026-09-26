@@ -79,6 +79,7 @@ const cashReportQuery = z
     department: z.string().max(250).default(''),
     shift: z.string().max(80).default(''),
     search: z.string().trim().max(160).default(''),
+    productId: z.string().trim().max(80).default(''),
   })
   .strict()
   .refine((input) => Date.parse(input.to) >= Date.parse(input.from), 'Некорректный период');

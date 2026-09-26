@@ -69,6 +69,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await _navigationGate.run(() async {
       final bool? confirmed = await showDialog<bool>(
         context: context,
+        animationStyle: BulkaMotion.reduced(context)
+            ? AnimationStyle.noAnimation
+            : null,
         builder: (BuildContext context) {
           final colors = context.bulkaColors;
           final scheme = Theme.of(context).colorScheme;

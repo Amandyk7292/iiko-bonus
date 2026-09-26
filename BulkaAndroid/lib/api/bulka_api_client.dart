@@ -354,7 +354,26 @@ class BulkaApiClient {
     final streamed = await _client
         .send(request)
         .timeout(const Duration(seconds: 30));
-    final response = await http.Response.fromStream(streamed);
+    final response = await http.Response.fromStream(
+      streamed,
+    ).timeout(const Duration(seconds: 30));
+    if (response.statusCode == 413) {
+      throw ApiException(
+        'avatar_file_too_large'.tr,
+        code: 'CUSTOMER_AVATAR_TOO_LARGE',
+        statusCode: 413,
+      );
+    }
+    if (response.statusCode == 401) {
+      throw ApiException('avatar_auth_error'.tr, statusCode: 401);
+    }
+    if (response.statusCode >= 500 || response.statusCode == 404) {
+      throw ApiException(
+        'avatar_storage_error'.tr,
+        code: 'CUSTOMER_AVATAR_STORAGE',
+        statusCode: response.statusCode,
+      );
+    }
     final json = _decode(response);
     final avatar = _asMap(json['avatar']);
     if (json['success'] != true || avatar.isEmpty) {
@@ -937,11 +956,50 @@ class BulkaApiClient {
     return OrderSubstitution.fromJson(substitution);
   }
 
+  final Map<String, ({DateTime expires, Map<String, dynamic> value})>
+  _productOptionsCache = {};
+  final Map<String, Future<Map<String, dynamic>>> _productOptionsPending = {};
+
+  void invalidateProductOptions(String productId) {
+    _productOptionsCache.remove(productId);
+  }
+
   Future<Map<String, dynamic>> getProductOptions(String productId) async {
-    final json = await _get(
+    final cached = _productOptionsCache[productId];
+    if (cached != null && DateTime.now().isBefore(cached.expires)) {
+      return cached.value;
+    }
+    final pending = _productOptionsPending[productId];
+    if (pending != null) return pending;
+    final request = _fetchProductOptions(productId);
+    _productOptionsPending[productId] = request;
+    try {
+      return await request;
+    } finally {
+      _productOptionsPending.remove(productId);
+    }
+  }
+
+  Future<Map<String, dynamic>> _fetchProductOptions(String productId) async {
+    final json = await _request(
+      'GET',
       '/api/public/product-options?ids=${Uri.encodeQueryComponent(productId)}',
+      allowRefresh: false,
+      timeout: const Duration(seconds: 8),
     );
-    return _asMap(_asMap(json['products'])[productId]);
+    final products = _asMap(json['products']);
+    if (products[productId] is! Map) {
+      throw const FormatException('Missing product options');
+    }
+    final options = _asMap(products[productId]);
+    if (_productOptionsCache.length >= 200) {
+      _productOptionsCache.remove(_productOptionsCache.keys.first);
+    }
+    _productOptionsCache[productId] = (
+      expires: DateTime.now().add(const Duration(seconds: 30)),
+      value: options,
+    );
+    return options;
   }
 
   Future<Map<String, Map<String, dynamic>>> getProductOptionsBatch(
@@ -1706,6 +1764,7 @@ class BulkaApiClient {
     Map<String, dynamic>? body,
     String? bearerToken,
     bool allowRefresh = true,
+    Duration timeout = const Duration(seconds: 15),
   }) async {
     final requestRevision = _sessionRevision;
     final requestAccessToken = _accessToken;
@@ -1720,7 +1779,7 @@ class BulkaApiClient {
         'PATCH' => _client.patch(uri, headers: headers, body: encodedBody),
         'DELETE' => _client.delete(uri, headers: headers, body: encodedBody),
         _ => throw ArgumentError.value(method, 'method'),
-      }.timeout(const Duration(seconds: 15));
+      }.timeout(timeout);
     }
 
     var response = await send();

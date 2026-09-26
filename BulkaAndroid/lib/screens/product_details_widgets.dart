@@ -39,7 +39,6 @@ class _ProductPhotoHeaderState extends State<_ProductPhotoHeader> {
                       url: product.imageUrl,
                       fit: BoxFit.cover,
                       semanticLabel: product.title,
-                      loadingPlaceholder: const SizedBox.shrink(),
                       errorPlaceholder: const SizedBox.shrink(),
                       onError: () {
                         if (mounted && !_failed) setState(() => _failed = true);

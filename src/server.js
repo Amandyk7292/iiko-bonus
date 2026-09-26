@@ -43,6 +43,23 @@ const RESERVATION_RECONCILIATION_INTERVAL_MS = 60 * 1000;
 if (!process.env.VERCEL) {
   const runWorkers = process.env.RUN_BACKGROUND_WORKERS === 'true';
   const runBots = shouldRunBots();
+  const outgoingEnabled = runWorkers && process.env.RUN_IIKO_OUTGOING_SYNC !== 'false';
+  registerWorker('iiko-outgoing-stock', {
+    enabled: outgoingEnabled,
+    intervalMs: 60_000,
+    maxRunMs: 10 * 60_000,
+    // An iiko outage is visible in worker metrics/logs but must not take the
+    // entire customer API out of readiness while local functionality works.
+    critical: false,
+  });
+  if (outgoingEnabled) {
+    const syncOutgoing = () =>
+      runMonitoredWorker('iiko-outgoing-stock', () =>
+        require('./services/iiko-outgoing-sync.service').outgoingSync.sync(),
+      );
+    setTimeout(syncOutgoing, 15_000).unref?.();
+    setInterval(syncOutgoing, 60_000).unref?.();
+  }
   registerWorker('staff-order-reminders', {
     enabled: runWorkers,
     intervalMs: 1000,

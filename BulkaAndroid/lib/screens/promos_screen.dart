@@ -119,6 +119,9 @@ class _PromosScreenState extends State<PromosScreen>
     await _navigationGate.run(() async {
       await showModalBottomSheet<void>(
         context: context,
+        sheetAnimationStyle: BulkaMotion.reduced(context)
+            ? AnimationStyle.noAnimation
+            : null,
         useRootNavigator: true,
         isScrollControlled: true,
         backgroundColor: Colors.white,
@@ -463,7 +466,7 @@ class _PromoTypeTabs extends StatelessWidget {
                   },
                   borderRadius: BorderRadius.circular(BulkaRadii.pill),
                   child: AnimatedContainer(
-                    duration: BulkaMotion.fast,
+                    duration: BulkaMotion.duration(context, BulkaMotion.fast),
                     curve: Curves.easeOutCubic,
                     constraints: const BoxConstraints(minHeight: 48),
                     padding: const EdgeInsets.symmetric(

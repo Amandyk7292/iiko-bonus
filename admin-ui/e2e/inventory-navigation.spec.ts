@@ -50,12 +50,33 @@ const operationsSummary = {
   whatsapp: [],
 };
 
-test('dirty inventory survives blocked Back/Forward and resets on accepted direct branch URL', async ({
+test('legacy inventory navigation reaches the menu and applies the stop list in the selected scope', async ({
   page,
 }) => {
+  const menuScopes: string[] = [];
+  const changes: Record<string, unknown>[] = [];
+  await page.addInitScript((id) => localStorage.setItem('adminSelectedBranchId', id), branchA);
   await page.route('**/admin/api/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    if (url.pathname === '/admin/api/menu') {
+      menuScopes.push(request.headers()['x-bulka-branch-id']);
+      return route.fulfill({
+        json: {
+          success: true,
+          profileKey: 'default',
+          rawMenu: {
+            products: [{ id: productId, name: 'Круассан Арнау', price: 300 }],
+            groups: [],
+          },
+          overrides: { products: [], categories: [], customProducts: [] },
+        },
+      });
+    }
+    if (url.pathname === '/admin/api/menu/product/override') {
+      changes.push(request.postDataJSON());
+      return route.fulfill({ json: { success: true } });
+    }
     if (url.pathname === '/admin/api/session') {
       return route.fulfill({
         status: 200,
@@ -110,41 +131,20 @@ test('dirty inventory survives blocked Back/Forward and resets on accepted direc
 
   await page.goto('/admin/operations');
   await page.getByRole('link', { name: /Стоп-лист/ }).click();
-  await expect(page.getByRole('heading', { name: 'Остатки и стоп-лист' })).toBeVisible();
-
-  await page.getByRole('combobox', { name: 'Филиал', exact: true }).click();
-  await page.getByRole('listbox').getByRole('option', { name: 'Арнау' }).click();
-  await expect(page).toHaveURL(new RegExp(`branch=${branchA}`));
-
-  // Create a forward entry without changing the mounted route, then return to inventory.
-  await page.evaluate(() => {
-    window.history.pushState(null, '', '/admin/operations');
-    window.history.back();
+  await expect(page).toHaveURL(/\/admin\/menu$/);
+  await expect(page.getByRole('heading', { name: 'Круассан Арнау' })).toBeVisible();
+  await page.getByRole('button', { name: 'Добавить в стоп-лист', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Убрать из стоп-листа', exact: true }),
+  ).toBeVisible();
+  expect(changes[0]).toMatchObject({
+    iikoProductId: productId,
+    overrides: { is_stop_listed: true },
   });
-  await expect(page).toHaveURL(new RegExp(`/admin/inventory\\?branch=${branchA}`));
+  expect(menuScopes).toContain(branchA);
 
-  const quantity = page.locator('input[name^="inventoryQuantity-"]');
-  await expect(quantity).toHaveValue('10');
-  await quantity.fill('15');
-  await expect(page.getByText('Есть несохранённые изменения')).toBeVisible();
-
-  page.once('dialog', (dialog) => dialog.dismiss());
-  await page.evaluate(() => window.history.back());
-  await expect(page).toHaveURL(new RegExp(`/admin/inventory\\?branch=${branchA}`));
-  await expect(quantity).toHaveValue('15');
-
-  page.once('dialog', (dialog) => dialog.dismiss());
-  await page.evaluate(() => window.history.forward());
-  await expect(page).toHaveURL(new RegExp(`/admin/inventory\\?branch=${branchA}`));
-  await expect(quantity).toHaveValue('15');
-
-  page.once('dialog', (dialog) => dialog.accept());
-  await page.evaluate((nextBranch) => {
-    window.history.pushState(null, '', `/admin/inventory?branch=${nextBranch}`);
-    window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
-  }, branchB);
-
-  await expect(page).toHaveURL(new RegExp(`branch=${branchB}`));
-  await expect(quantity).toHaveValue('3');
-  await expect(page.getByText('Есть несохранённые изменения')).toHaveCount(0);
+  await page.goto(`/admin/inventory?branch=${branchB}`);
+  await expect(page).toHaveURL(/\/admin\/menu$/);
+  await expect(page.locator('input[name^="inventoryQuantity-"]')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Круассан Арнау' })).toBeVisible();
 });

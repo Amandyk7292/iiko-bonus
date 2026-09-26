@@ -100,7 +100,7 @@ const Map<String, Map<String, String>> _featureStateTranslations = {
   },
   'catalog_stop_list': {
     'ru': 'Нет в наличии',
-    'kk': 'Қоймада жоқ',
+    'kk': 'Сатылымда жоқ',
     'en': 'Unavailable',
   },
   'stock_notify_enable': {

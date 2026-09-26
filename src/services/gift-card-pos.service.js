@@ -71,6 +71,9 @@ const mapPosError = (error) => {
   if (/reservation expired/i.test(message)) {
     return posError('Gift card reservation expired', 409, 'GIFT_CARD_RESERVATION_EXPIRED');
   }
+  if (/reservation is not active|prepared reservation/i.test(message)) {
+    return posError('Gift card reservation is not active', 409, 'GIFT_CARD_RESERVATION_INACTIVE');
+  }
   if (/already committed/i.test(message)) {
     return posError(
       'Gift card reservation is already committed',
@@ -121,6 +124,19 @@ async function reserveGiftCardForPos({
   };
 }
 
+async function prepareGiftCardForPos({ reservationId, idempotencyKey, branchId }) {
+  const { data, error } = await supabase.rpc('prepare_gift_card_for_iiko', {
+    p_branch_id: branchId,
+    p_reservation_id: reservationId,
+    p_request_id: idempotencyKey,
+  });
+  if (error) throw mapPosError(error);
+  if (data?.status !== 'prepared' || data.reservationId !== reservationId) {
+    throw posError('Gift card preparation was not confirmed', 503);
+  }
+  return { id: data.reservationId, status: data.status, duplicate: data.duplicate === true };
+}
+
 async function commitGiftCardForPos({ reservationId, idempotencyKey }) {
   const { data, error } = await supabase.rpc('commit_gift_card_for_iiko', {
     p_reservation_id: reservationId,
@@ -155,6 +171,7 @@ async function cancelGiftCardForPos({ reservationId, idempotencyKey }) {
 module.exports = {
   cancelGiftCardForPos,
   commitGiftCardForPos,
+  prepareGiftCardForPos,
   reserveGiftCardForPos,
   validateGiftCardForPos,
 };

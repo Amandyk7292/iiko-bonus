@@ -67,3 +67,14 @@ test('tier artwork rejects executable, insecure, arbitrary local and credential 
     );
   }
 });
+
+
+test('tiers save with Russian and Kazakh fields only', () => {
+  const request = adminMutationSchemas.tierUpdate.body.parse({
+    ...tier, names: {ru: 'Бронза', kk: 'Қола'},
+    descriptions: {ru: 'Бонусы', kk: 'Бонустар'},
+  });
+  const validated = validateTierPayload(request);
+  assert.equal(validated.names.ru, 'Бронза');
+  assert.equal(validated.names.kk, 'Қола');
+});

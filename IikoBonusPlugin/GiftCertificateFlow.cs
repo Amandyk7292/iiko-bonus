@@ -195,6 +195,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
         [DataMember]
         public bool Terminal { get; set; }
+
+        [DataMember] public int LastHttpStatus { get; set; }
+        [DataMember] public bool LegacyTerminalRechecked { get; set; }
     }
 
     /// <summary>
@@ -236,6 +239,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
         private static Timer _retryTimer;
         private static int _flushInProgress;
+        private static int _unresolvedOrderCount;
+        private static volatile bool _activeStateHealthy=true;
 
         private static int Clamp(int value, int minimum, int maximum)
         {
@@ -254,7 +259,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             if (_retryTimer != null) return;
             _retryTimer = new Timer(
-                _ => FlushPendingOperations(),
+                _ => RunBackgroundTick(),
                 null,
                 TimeSpan.FromSeconds(7),
                 TimeSpan.FromSeconds(RetryIntervalSeconds));
@@ -283,11 +288,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     var saved = ReadFile<Dictionary<Guid, GiftReservationState>>(ActivePath);
                     if (saved == null) return;
                     foreach (var pair in saved) ActiveOrders[pair.Key] = pair.Value;
+                    _activeStateHealthy=true;
                 }
                 catch (Exception ex)
                 {
                     PluginContext.Log.Error(
                         "IikoBonusPlugin: Failed to restore gift reservations: " + ex);
+                    _activeStateHealthy=false;
                 }
             }
         }
@@ -296,15 +303,21 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             try
             {
-                if (ActiveOrders.IsEmpty) return;
+                if(!_activeStateHealthy) {RestoreActiveOrders();if(!_activeStateHealthy)return;}
+                if (ActiveOrders.IsEmpty) {Interlocked.Exchange(ref _unresolvedOrderCount,0);return;}
                 var orders = operationService.GetOrders(true, false)
                     .ToDictionary(order => order.Id, order => order);
 
+                var unresolved=0;
                 foreach (var pair in ActiveOrders.ToArray())
                 {
                     IOrder order;
-                    if (!orders.TryGetValue(pair.Key, out order) ||
-                        order.Status == OrderStatus.Deleted)
+                    if (!orders.TryGetValue(pair.Key, out order))
+                    {
+                        unresolved++;
+                        continue;
+                    }
+                    if (order.Status == OrderStatus.Deleted)
                     {
                         QueueTerminalOperation(
                             "cancel",
@@ -321,6 +334,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                             pair.Value.CommitKey);
                     }
                 }
+                Interlocked.Exchange(ref _unresolvedOrderCount,unresolved);
             }
             catch (Exception ex)
             {
@@ -338,7 +352,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     var queue = ReadFile<List<GiftReservationQueueItem>>(QueuePath) ??
                                 new List<GiftReservationQueueItem>();
                     return "Подарочные сертификаты" +
+                           (_activeStateHealthy ? "" : "\nЖурнал активных резервов повреждён; требуется восстановление") +
                            "\nАктивно в чеках: " + ActiveOrders.Count +
+                           "\nИсход чека не найден, резерв сохранён: " + Volatile.Read(ref _unresolvedOrderCount) +
                            "\nОжидают синхронизации: " + queue.Count(item => !item.Terminal) +
                            "\nТребуют внимания: " + queue.Count(item => item.Terminal);
                 }
@@ -554,6 +570,16 @@ namespace Resto.Front.Api.IikoBonusPlugin
             var operationService = args.Item3;
             if (order == null || operationService == null) return;
 
+            if(!_activeStateHealthy)
+            {
+                RestoreActiveOrders();
+                if(!_activeStateHealthy)
+                {
+                    viewManager.ShowErrorPopup("Журнал резервов сертификатов повреждён. Оплата заблокирована до восстановления и сверки.","ОК");
+                    throw new OperationCanceledException("Bulka gift active journal is unavailable.");
+                }
+            }
+
             var appliedAmount = GetAppliedGiftDiscountAmount(order, operationService);
             GiftReservationState state;
             if (!ActiveOrders.TryGetValue(order.Id, out state))
@@ -580,15 +606,36 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     "Bulka gift certificate amount mismatch.");
             }
 
-            DateTime expiresAt;
-            if (!DateTime.TryParse(state.ExpiresAtUtc, out expiresAt) ||
-                expiresAt.ToUniversalTime() <= DateTime.UtcNow.AddSeconds(30))
+            if (!PersistActiveOrders())
             {
-                viewManager.ShowErrorPopup(
-                    "Резерв сертификата истёк. Удалите сертификат из заказа и примените его заново.",
-                    "ОК");
-                throw new OperationCanceledException(
-                    "Bulka gift certificate reservation expired.");
+                viewManager.ShowErrorPopup("Не удалось сохранить резерв сертификата. Оплата заблокирована до восстановления журнала.","ОК");
+                throw new OperationCanceledException("Bulka gift reservation state could not be persisted.");
+            }
+            PreparePayment(state,viewManager);
+        }
+
+        private static void RunBackgroundTick()
+        {
+            try {ReconcileRestoredOrders(PluginContext.Operations);FlushPendingOperations();}
+            catch(Exception error) {PluginContext.Log.Error("IikoBonusPlugin: Gift background retry failed: "+error.Message);}
+        }
+
+        private static void PreparePayment(GiftReservationState state,IViewManager vm)
+        {
+            try
+            {
+                // The server may already have prepared this reservation when a
+                // prior response was lost. Its durable hold outlives local TTL.
+                var response=LoyaltyFlow.SendApiRequest(HttpMethod.Post,"gift-cards/prepare",new GiftCardReservationMutationRequest {
+                    reservationId=state.ReservationId,idempotencyKey=state.CommitKey });
+                var result=response.IsSuccessStatusCode ? LoyaltyFlow.DeserializeJson<GiftCardReservationResponse>(response.Body) : null;
+                if(result==null || !result.success || result.reservation?.status!="prepared" || result.reservation.id!=state.ReservationId)
+                    throw new InvalidOperationException(LoyaltyFlow.GetApiErrorMessage(response.Body,"Не подтверждён резерв сертификата для оплаты. Повторите после восстановления связи."));
+            }
+            catch(Exception error)
+            {
+                vm.ShowErrorPopup(error.Message,"ОК");
+                throw new OperationCanceledException("Bulka gift settlement preparation is required before payment.",error);
             }
         }
 
@@ -1025,6 +1072,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 foreach (var item in queue)
                 {
                     var key = QueueKey(item);
+                    if(item.Terminal && (item.LastHttpStatus==401 || item.LastHttpStatus==403
+                        || (item.LastHttpStatus==0 && !item.LegacyTerminalRechecked)))
+                    {
+                        // Older versions did not persist HTTP status. Recheck
+                        // each legacy terminal operation once using the SAME
+                        // idempotency key; a business rejection remains terminal.
+                        item.Terminal=false;
+                        item.LegacyTerminalRechecked=true;
+                    }
                     if (item.Terminal)
                     {
                         results[key] = Tuple.Create(item, false);
@@ -1116,11 +1172,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     });
                 if (!response.IsSuccessStatusCode)
                 {
+                    item.LastHttpStatus=(int)response.StatusCode;
                     error = LoyaltyFlow.GetApiErrorMessage(
                         response.Body,
                         "HTTP " + (int)response.StatusCode);
                     retryable =
-                        LoyaltyFlow.IsRetryableStatus(response.StatusCode);
+                        LoyaltyFlow.IsRetryableStatus(response.StatusCode) || response.StatusCode==HttpStatusCode.Unauthorized
+                        || response.StatusCode==HttpStatusCode.Forbidden;
                     return false;
                 }
 
@@ -1151,6 +1209,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             {
                 try
                 {
+                    if(!_activeStateHealthy) {RestoreActiveOrders();if(!_activeStateHealthy)return false;}
                     WriteFile(
                         ActivePath,
                         ActiveOrders.ToDictionary(pair => pair.Key, pair => pair.Value));
@@ -1165,46 +1224,18 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
         }
 
-        private static T ReadFile<T>(string path) where T : class
+        private static T ReadFile<T>(string path) where T : class,new()
         {
-            if (!File.Exists(path)) return null;
-            try
-            {
-                var serializer = new DataContractJsonSerializer(typeof(T));
-                using (var stream =
-                       File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read))
-                {
-                    return (T)serializer.ReadObject(stream);
-                }
-            }
-            catch (Exception primary)
-            {
-                var backup = path + ".bak";
-                if (!File.Exists(backup)) throw;
-                try
-                {
-                    var serializer = new DataContractJsonSerializer(typeof(T));
-                    using (var stream =
-                           File.Open(
-                               backup,
-                               FileMode.Open,
-                               FileAccess.Read,
-                               FileShare.Read))
-                    {
-                        var value = (T)serializer.ReadObject(stream);
-                        PluginContext.Log.Error(
-                            "IikoBonusPlugin: Recovered gift state from backup: " +
-                            primary.Message);
-                        return value;
-                    }
-                }
-                catch (Exception backupError)
-                {
-                    throw new IOException(
-                        "Cannot read gift state or backup.",
-                        new AggregateException(primary, backupError));
-                }
-            }
+            return DurableJsonFile.ReadValidated<T>(path,value=>ValidateStoredState(value)!=null,true);
+        }
+
+        private static T ValidateStoredState<T>(T value) where T:class
+        {
+            if(value==null || (value is List<GiftReservationQueueItem> queue && queue.Any(item=>item==null
+                || string.IsNullOrWhiteSpace(item.ReservationId) || string.IsNullOrWhiteSpace(item.IdempotencyKey)))
+                || (value is Dictionary<Guid,GiftReservationState> active && active.Any(pair=>pair.Key==Guid.Empty || pair.Value==null)))
+                throw new InvalidDataException("Invalid gift journal structure.");
+            return value;
         }
 
         private static void WriteFile<T>(string path, T value)
@@ -1222,7 +1253,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                        FileShare.None))
             {
                 serializer.WriteObject(stream, value);
-                stream.Flush();
+                stream.Flush(true);
             }
 
             if (File.Exists(path))

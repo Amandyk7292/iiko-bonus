@@ -123,7 +123,10 @@ extension _CatalogProductCard on _CatalogScreenState {
                 right: 7,
                 bottom: -20,
                 child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
+                  duration: BulkaMotion.duration(
+                    context,
+                    const Duration(milliseconds: 220),
+                  ),
                   switchInCurve: Curves.easeOutBack,
                   switchOutCurve: Curves.easeIn,
                   transitionBuilder: (child, animation) => FadeTransition(

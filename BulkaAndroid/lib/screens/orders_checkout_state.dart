@@ -27,23 +27,8 @@ extension _CheckoutScreenStatePreferences on _CheckoutScreenState {
 
   Future<void> _loadCheckoutPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedCheckoutId = prefs.getString(_draftKey('checkout_id'));
-    final savedCheckoutCreatedAt = DateTime.tryParse(
-      prefs.getString(_draftKey('checkout_id_created_at')) ?? '',
-    );
-    final savedCheckoutIsFresh =
-        savedCheckoutId != null &&
-        savedCheckoutCreatedAt != null &&
-        DateTime.now().difference(savedCheckoutCreatedAt).abs() <=
-            const Duration(days: 2);
-    if (widget.initialCheckoutId == null &&
-        savedCheckoutId != null &&
-        !savedCheckoutIsFresh) {
-      await Future.wait([
-        prefs.remove(_draftKey('checkout_id')),
-        prefs.remove(_draftKey('checkout_id_created_at')),
-      ]);
-    }
+    // PendingForteOperationStore resolves payment ids before this route opens.
+    // A local timestamp must never retire an unresolved server operation.
     final savedBranch = prefs.getString('selected_bakery_location') ?? '';
     final savedType = _orderTypeFromWire(
       prefs.getString('selected_order_type'),
@@ -84,9 +69,6 @@ extension _CheckoutScreenStatePreferences on _CheckoutScreenState {
       }
       _branch = savedBranch;
       _branchId = prefs.getString('selected_bakery_location_id');
-      _explicitDeliveryBranchId = prefs.getString(
-        'selected_bakery_location_id_delivery',
-      );
       _orderType = savedType;
       _deliveryAddress = address;
       _scheduledSlot = null;

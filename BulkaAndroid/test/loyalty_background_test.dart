@@ -65,14 +65,7 @@ void main() {
           find.byKey(const ValueKey('loyalty-personal-account')),
           findsOneWidget,
         );
-        final cardCenter = tester.getCenter(
-          find.byKey(const ValueKey('loyalty-tier-card')),
-        );
-        final logoCenter = tester.getCenter(
-          find.byKey(const ValueKey('loyalty-card-logo')),
-        );
-        expect(logoCenter.dx, closeTo(cardCenter.dx, 0.01));
-        expect(logoCenter.dy, closeTo(cardCenter.dy, 0.01));
+        expect(find.byKey(const ValueKey('loyalty-card-logo')), findsNothing);
       },
     );
   }

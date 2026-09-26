@@ -20,7 +20,8 @@ async function sendForm() {
       <BroadcastPage />
     </I18nProvider>,
   );
-  for (const language of ['Русский', 'Казахский', 'Английский']) {
+  expect(screen.queryByRole('tab', { name: 'Английский' })).not.toBeInTheDocument();
+  for (const language of ['Русский', 'Казахский']) {
     await user.click(screen.getByRole('tab', { name: language }));
     await user.type(screen.getByLabelText(new RegExp(`Заголовок \\(${language}\\)`)), 'Заголовок');
     await user.type(

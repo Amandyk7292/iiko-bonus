@@ -19,6 +19,7 @@ const adminCustomerListQuerySchema = z
 const adminCustomerBonusBodySchema = z
   .object({
     customerId: customerIdSchema,
+    operationId: z.string().trim().uuid({ version: 'v4' }),
     amount: z.coerce.number().finite().min(-1_000_000).max(1_000_000),
     reason: z.string().trim().min(5).max(240),
     branchId: branchIdSchema.optional(),

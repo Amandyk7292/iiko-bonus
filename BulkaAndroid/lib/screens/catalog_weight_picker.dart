@@ -23,6 +23,9 @@ Future<num?> showCatalogWeightPicker(
   var selectedIndex = 0;
   return showModalBottomSheet<num>(
     context: context,
+    sheetAnimationStyle: BulkaMotion.reduced(context)
+        ? AnimationStyle.noAnimation
+        : null,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Colors.transparent,
@@ -89,7 +92,10 @@ Future<num?> showCatalogWeightPicker(
                 ),
                 const SizedBox(height: 24),
                 AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
+                  duration: BulkaMotion.duration(
+                    context,
+                    const Duration(milliseconds: 180),
+                  ),
                   transitionBuilder: (child, animation) => ScaleTransition(
                     scale: animation,
                     child: FadeTransition(opacity: animation, child: child),

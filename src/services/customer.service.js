@@ -534,14 +534,33 @@ async function getStats({ branchIds = null } = {}) {
   });
 }
 
-async function addManualBonus(customerId, amount, reason, { branchId = null } = {}) {
-  const { data, error } = await supabase.rpc('apply_manual_bonus_scoped', {
+async function addManualBonus(customerId, amount, reason, { branchId = null, operationId } = {}) {
+  const { data, error } = await supabase.rpc('apply_manual_bonus_once', {
+    p_operation_id: operationId,
     p_customer_id: customerId,
     p_amount_change: amount,
     p_reason: reason || null,
     p_branch_id: branchId,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.message?.includes('manual bonus balance is reserved')) {
+      throw Object.assign(
+        new Error('Эти бонусы зарезервированы для оплаты. Дождитесь завершения покупки.'),
+        {
+          statusCode: 409,
+          code: 'MANUAL_BONUS_BALANCE_RESERVED',
+        },
+      );
+    }
+    if (error.message?.includes('manual bonus idempotency conflict')) {
+      throw Object.assign(new Error('Номер операции уже использован для другого изменения'), {
+        statusCode: 409,
+        code: 'MANUAL_BONUS_IDEMPOTENCY_CONFLICT',
+      });
+    }
+    throw new Error(error.message);
+  }
+  if (data.duplicate) return data;
   realtime.publish(
     'transaction.created',
     {
@@ -683,7 +702,13 @@ async function updateCustomerInfo(
   if (region !== undefined) updates.region = region;
   if (birth_date !== undefined) updates.birth_date = birth_date || null;
   if (phone !== undefined && phone !== null) updates.phone = phone;
-  if (avatar_key !== undefined) updates.avatar_key = avatar_key || null;
+  if (avatar_key !== undefined) {
+    updates.avatar_key = avatar_key || null;
+    if (avatar_key !== 'custom') {
+      updates.avatar_url = null;
+      updates.avatar_storage_path = null;
+    }
+  }
   const { error } = await supabase.from('customers').update(updates).eq('id', customerId);
   if (error) throw new Error(error.message);
   if (['name', 'phone'].some((key) => key in updates)) {

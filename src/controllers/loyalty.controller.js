@@ -15,6 +15,7 @@ const { branchPosEnforcementMode } = require('../middlewares/branch-pos-auth.mid
 const {
   cancelLoyalty,
   commitLoyalty,
+  prepareLoyalty,
   reserveLoyalty,
 } = require('../services/loyalty-reservation.service');
 
@@ -380,6 +381,16 @@ async function reserveBonus(req, res) {
   }
 }
 
+async function prepareReservedBonus(req, res) {
+  try {
+    res.json(await prepareLoyalty(req.body, loyaltyAuthContext(req)));
+  } catch (error) {
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.statusCode ? error.message : 'Internal server error' });
+  }
+}
+
 async function commitReservedBonus(req, res) {
   try {
     const result = await commitLoyalty(req.body, loyaltyAuthContext(req));
@@ -417,6 +428,7 @@ module.exports = {
   calculateBonus,
   applyBonus,
   reserveBonus,
+  prepareReservedBonus,
   commitReservedBonus,
   cancelReservedBonus,
 };

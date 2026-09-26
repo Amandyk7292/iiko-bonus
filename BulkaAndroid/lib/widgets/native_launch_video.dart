@@ -12,7 +12,6 @@ class NativeLaunchVideoGate extends StatefulWidget {
 }
 
 class _NativeLaunchVideoGateState extends State<NativeLaunchVideoGate> {
-  static const _duration = Duration(seconds: 5);
   late final VideoPlayerController _controller;
   Timer? _timer;
   bool _ready = false;
@@ -30,7 +29,7 @@ class _NativeLaunchVideoGateState extends State<NativeLaunchVideoGate> {
 
   Future<void> _start() async {
     try {
-      await _controller.initialize();
+      await _controller.initialize().timeout(const Duration(seconds: 10));
       await _controller.setVolume(0);
       await _controller.setLooping(false);
       if (!mounted) return;
@@ -40,7 +39,7 @@ class _NativeLaunchVideoGateState extends State<NativeLaunchVideoGate> {
       debugPrint('Launch animation unavailable: ${error.runtimeType}');
     } finally {
       if (mounted) {
-        _timer = Timer(_duration, () {
+        _timer = Timer(_ready ? _controller.value.duration : Duration.zero, () {
           if (mounted) setState(() => _finished = true);
         });
       }
@@ -57,6 +56,7 @@ class _NativeLaunchVideoGateState extends State<NativeLaunchVideoGate> {
   @override
   Widget build(BuildContext context) {
     return Stack(
+      alignment: Alignment.center,
       fit: StackFit.expand,
       children: [
         widget.child,

@@ -232,13 +232,13 @@ class OrderPaymentStateService {
     const tier = getTierInfo(customer.total_spent, tiers, settings);
     const eligibleAmount = eligibleOrderAmount(order);
     const earnedBonus = Math.max(0, Math.round(eligibleAmount * (Number(tier.percent || 0) / 100)));
+    const activationDelayDays =
+      settings.bonus_activation?.enabled === false
+        ? 0
+        : Number(settings.bonus_activation?.delay_days || 0);
     if (Number(order.bonus_spent || 0) > 0) {
       const { commitCheckoutBonus } = require('./checkout-bonus.service');
-      const result = await commitCheckoutBonus(
-        order,
-        earnedBonus,
-        Number(settings.bonus_activation?.delay_days || 0),
-      );
+      const result = await commitCheckoutBonus(order, earnedBonus, activationDelayDays);
       if (result?.status !== 'committed') return null;
       queueCustomerLoyaltySync(order.customer_id);
       return { ...order, earned_bonus: earnedBonus, bonus_awarded_at: new Date().toISOString() };
@@ -250,7 +250,7 @@ class OrderPaymentStateService {
       earnedBonus,
       orderTotal: eligibleAmount,
       realMoneyPaid: eligibleAmount,
-      activationDelayDays: Number(settings.bonus_activation?.delay_days || 0),
+      activationDelayDays,
       items: order.cart_items,
       branchId: order.branch_id,
     });

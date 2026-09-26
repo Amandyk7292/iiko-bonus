@@ -34,7 +34,7 @@ interface StoryForm {
   remaining: string;
   qrValue: string;
 }
-const languages: ContentLanguage[] = ['ru', 'kz', 'en'];
+const languages: ContentLanguage[] = ['ru', 'kz'];
 const promoTypes: PromoType[] = ['discount', 'promotion', 'subscription'];
 const storyImageDimensions = {
   coverUrl: { width: 1080, height: 480 },

@@ -79,6 +79,8 @@ test('bulk PDF uses fresh stops and prices, eight per A4, shared saved preferenc
   await expect(dialog.getByText(/К печати: 10/)).toBeVisible();
   await dialog.getByLabel('Фон всех ценников, HEX').fill('#792C14');
   await dialog.getByLabel('Цвет текста, HEX').fill('#F5D400');
+  await expect(dialog.locator('.price-label-preview')).toContainText('пшеницы');
+  await expect(dialog.locator('.price-label-preview')).toContainText('үлпектері');
   await dialog.getByRole('checkbox').check();
   const downloadReady = page.waitForEvent('download');
   await dialog.getByRole('button', { name: 'Скачать PDF' }).click();
@@ -87,8 +89,9 @@ test('bulk PDF uses fresh stops and prices, eight per A4, shared saved preferenc
   await download.saveAs(path);
   await expect(dialog.getByRole('status')).toContainText('9 ценников, 2 стр.');
   await expect(dialog.locator('.price-label-preview')).toContainText('750');
-  await expect(dialog.locator('.price-label-preview')).toContainText('пшеницы');
-  await expect(dialog.locator('.price-label-preview')).toContainText('үлпектері');
+  await expect(dialog.locator('.price-label-preview')).not.toContainText('пшеницы');
+  await expect(dialog.locator('.price-label-preview')).not.toContainText('үлпектері');
+  await expect(dialog.locator('svg[aria-label="QR-код товара"]')).toBeVisible();
   await expect(dialog.locator('.price-label-preview')).not.toContainText('…');
   const pdf = await PDFDocument.load(await readFile(path));
   expect(pdf.getPageCount()).toBe(2);

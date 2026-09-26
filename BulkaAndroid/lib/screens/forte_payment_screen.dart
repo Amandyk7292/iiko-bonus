@@ -73,9 +73,9 @@ abstract final class PendingForteOperationStore {
     if (raw == null || raw.isEmpty) return null;
     try {
       final value = PendingForteOperation.fromJson(_asMap(jsonDecode(raw)));
-      if (value == null ||
-          DateTime.now().difference(value.createdAt).abs() >
-              const Duration(days: 2)) {
+      // Age does not resolve a payment: the bank may have charged the customer
+      // while the application was offline. Retain its id until reconciliation.
+      if (value == null) {
         await clear(api);
         return null;
       }
@@ -605,6 +605,9 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
     final shouldClose =
         await showDialog<bool>(
           context: context,
+          animationStyle: BulkaMotion.reduced(context)
+              ? AnimationStyle.noAnimation
+              : null,
           builder: (dialogContext) => BulkaActionDialog(
             title: Text('forte_payment_close_confirm_title'.tr),
             content: Text('forte_payment_close_confirm_hint'.tr),

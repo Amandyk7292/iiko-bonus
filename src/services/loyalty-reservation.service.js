@@ -166,6 +166,7 @@ const mapRpcError = (error, { branch = null } = {}) => {
     message.includes('already belongs') ||
     message.includes('already committed') ||
     message.includes('committed reservation') ||
+    message.includes('prepared reservation') ||
     message.includes('is not active')
   ) {
     return reservationError(
@@ -242,6 +243,25 @@ async function reserveLoyalty(
     expiresAt: data.expires_at,
     duplicate: Boolean(data.duplicate),
   };
+}
+
+async function prepareLoyalty(
+  payload = {},
+  { branchId: authenticatedBranchId, allowLegacy = false } = {},
+) {
+  const normalizedOrder = scopedOrder(payload.orderId, authenticatedBranchId, { allowLegacy });
+  const normalizedReservationId = reservationId(payload.reservationId);
+  const { data, error } = await supabase.rpc('prepare_pos_loyalty_reservation', {
+    p_branch_id: normalizedOrder.branch,
+    p_customer_id: customerId(payload.customerId),
+    p_order_id: normalizedOrder.scoped,
+    p_reservation_id: normalizedReservationId,
+  });
+  if (error) throw mapRpcError(error, { branch: normalizedOrder.branch });
+  if (data?.status !== 'prepared' || data.reservationId !== normalizedReservationId) {
+    throw reservationError('Reservation preparation was not confirmed', 503);
+  }
+  return { success: true, ...data };
 }
 
 async function commitLoyalty(
@@ -354,6 +374,7 @@ module.exports = {
   commitLoyalty,
   posLoyaltyLimits,
   posLoyaltySafetySnapshot,
+  prepareLoyalty,
   reserveLoyalty,
   scopedOrder,
 };

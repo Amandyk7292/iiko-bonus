@@ -83,7 +83,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
             </div>
           ))}
           <p className="page-help">
-            Если KZ или EN не заполнены, приложение использует русское название.
+            Если KZ не заполнен, приложение использует русское название.
           </p>
           <div className="modal-actions">
             <button
@@ -117,7 +117,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
             <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
               <h4 className="text-sm font-semibold text-gray-800">Тексты</h4>
               <div className="flex bg-gray-200 p-1 rounded-lg text-xs font-medium">
-                {(['ru', 'kk', 'en'] as const).map((l) => (
+                {(['ru', 'kk'] as const).map((l) => (
                   <button
                     key={l}
                     type="button"
@@ -207,36 +207,6 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
                   placeholder={editLang === 'ru' ? 'Описание (необязательно)' : 'Перевод описания'}
                 />
               </div>
-
-              <div className="field-group">
-                <label className="field-label" htmlFor={`edit-ingredients-${editLang}`}>
-                  Состав ({editLang.toUpperCase()})
-                </label>
-                <textarea
-                  id={`edit-ingredients-${editLang}`}
-                  rows={3}
-                  value={
-                    editLang === 'ru'
-                      ? editForm.ingredients
-                      : editForm.ingredients_translations[editLang] || ''
-                  }
-                  onChange={(event) => {
-                    if (editLang === 'ru') {
-                      setEditForm({ ...editForm, ingredients: event.target.value });
-                    } else {
-                      setEditForm({
-                        ...editForm,
-                        ingredients_translations: {
-                          ...editForm.ingredients_translations,
-                          [editLang]: event.target.value,
-                        },
-                      });
-                    }
-                  }}
-                  className="input-classic"
-                  placeholder="Мука, масло, яйца..."
-                />
-              </div>
             </div>
           </div>
 
@@ -282,19 +252,6 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
                   : 'Ручная цена действует только в онлайн-каталоге.'}{' '}
                 Цена на кассе не изменится.
               </p>
-            </div>
-            <div className="field-group">
-              <label className="field-label" htmlFor="edit-image-url">
-                Фото (URL)
-              </label>
-              <input
-                id="edit-image-url"
-                type="url"
-                value={editForm.imageUrl}
-                onChange={(e) => setEditForm({ ...editForm, imageUrl: e.target.value })}
-                className="input-classic"
-                placeholder="https://example.com/image.webp"
-              />
             </div>
           </div>
 
@@ -904,20 +861,6 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
           </div>
 
           <div className="field-group">
-            <label className="field-label" htmlFor="custom-image-url">
-              Ссылка на фото (URL)
-            </label>
-            <input
-              id="custom-image-url"
-              type="url"
-              value={customForm.image_url}
-              onChange={(e) => setCustomForm({ ...customForm, image_url: e.target.value })}
-              className="input-classic"
-              placeholder="https://example.com/image.webp"
-            />
-          </div>
-
-          <div className="field-group">
             <label className="field-label" htmlFor="custom-description">
               Описание
             </label>
@@ -927,22 +870,6 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
               value={customForm.description}
               onChange={(e) => setCustomForm({ ...customForm, description: e.target.value })}
               className="input-classic"
-            />
-          </div>
-
-          <div className="field-group">
-            <label className="field-label" htmlFor="custom-ingredients">
-              Состав
-            </label>
-            <textarea
-              id="custom-ingredients"
-              rows={3}
-              value={customForm.ingredients || ''}
-              onChange={(event) =>
-                setCustomForm({ ...customForm, ingredients: event.target.value })
-              }
-              className="input-classic"
-              placeholder="Мука, масло, яйца..."
             />
           </div>
 

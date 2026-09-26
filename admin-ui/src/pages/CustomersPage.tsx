@@ -4,7 +4,13 @@ import { useSearchParams } from '../lib/router';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import { useFeedback } from '../components/Feedback';
-import { api, type AdminUser } from '../lib/api';
+import { api, ApiError, type AdminUser } from '../lib/api';
+import {
+  clearPendingBonus,
+  loadPendingBonus,
+  savePendingBonus,
+  type PendingBonus,
+} from '../lib/pending-bonus';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 import { csvCell } from '../lib/csv';
@@ -41,6 +47,7 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   const [bonusAmount, setBonusAmount] = useState('');
   const [bonusMode, setBonusMode] = useState<'add' | 'subtract'>('add');
   const [bonusReason, setBonusReason] = useState('');
+  const [pendingBonus, setPendingBonus] = useState<PendingBonus | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [formError, setFormError] = useState('');
@@ -192,15 +199,24 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   };
 
   const openBonus = (customer: Customer) => {
+    let pending: PendingBonus | null;
+    try {
+      pending = loadPendingBonus(user?.username || '', customer.id);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : t('common.error'), 'error');
+      return;
+    }
     setBonusCustomer(customer);
-    setBonusAmount('');
-    setBonusMode('add');
-    setBonusReason('');
+    setPendingBonus(pending);
+    setBonusAmount(pending ? String(Math.abs(pending.amount)) : '');
+    setBonusMode(pending && pending.amount < 0 ? 'subtract' : 'add');
+    setBonusReason(pending?.reason || '');
     setFormError('');
   };
 
   const saveBonus = async (event: FormEvent) => {
     event.preventDefault();
+    if (submitting) return;
     const enteredAmount = Number(bonusAmount);
     const amount = bonusMode === 'subtract' ? -enteredAmount : enteredAmount;
     const reason = bonusReason.trim();
@@ -208,7 +224,7 @@ export default function CustomersPage({ user }: CustomersPageProps) {
       setFormError(t('customers.bonusAmountHint'));
       return;
     }
-    if (Number(bonusCustomer.balance || 0) + amount < 0) {
+    if (!pendingBonus && Number(bonusCustomer.balance || 0) + amount < 0) {
       setFormError(t('customers.insufficientBonus'));
       return;
     }
@@ -216,14 +232,50 @@ export default function CustomersPage({ user }: CustomersPageProps) {
       setFormError(t('customers.reasonRequired'));
       return;
     }
+    if (
+      pendingBonus &&
+      pendingBonus.branchScope !== (localStorage.getItem('adminSelectedBranchId') || '')
+    ) {
+      setFormError(t('customers.bonusScopeChanged'));
+      return;
+    }
     setSubmitting(true);
     setFormError('');
     try {
-      await api.addCustomerBonus(bonusCustomer.id, amount, reason);
+      const operation = pendingBonus || {
+        operationId: crypto.randomUUID(),
+        customerId: bonusCustomer.id,
+        amount,
+        reason,
+        branchScope: localStorage.getItem('adminSelectedBranchId') || '',
+      };
+      savePendingBonus(user?.username || '', operation);
+      setPendingBonus(operation);
+      await api.addCustomerBonus(
+        operation.customerId,
+        operation.amount,
+        operation.reason,
+        operation.operationId,
+        operation.branchScope,
+      );
+      clearPendingBonus(user?.username || '', operation.customerId);
+      setPendingBonus(null);
       setBonusCustomer(null);
       toast(t('customers.bonusSaved'));
       await fetchCustomers();
     } catch (caught) {
+      // A later denial cannot prove that an earlier ambiguous request did not commit.
+      const rejectedBeforeApply =
+        caught instanceof ApiError &&
+        (caught.status === 401 ||
+          caught.status === 403 ||
+          (caught.status === 400 &&
+            ['VALIDATION_ERROR', 'MANUAL_BONUS_ZERO_AMOUNT'].includes(caught.code || '')) ||
+          (caught.status === 409 && caught.code === 'MANUAL_BONUS_BALANCE_RESERVED'));
+      if (!pendingBonus && rejectedBeforeApply) {
+        clearPendingBonus(user?.username || '', bonusCustomer.id);
+        setPendingBonus(null);
+      }
       setFormError(caught instanceof Error ? caught.message : t('common.error'));
     } finally {
       setSubmitting(false);
@@ -546,6 +598,11 @@ export default function CustomersPage({ user }: CustomersPageProps) {
             <strong>{bonusCustomer?.name || t('customers.noName')}</strong>
             <span>{bonusCustomer?.phone}</span>
           </p>
+          {pendingBonus && (
+            <p className="field-hint" role="status">
+              {t('customers.bonusPending')}
+            </p>
+          )}
           {formError && (
             <div className="inline-alert inline-alert-error" role="alert">
               {formError}
@@ -557,6 +614,7 @@ export default function CustomersPage({ user }: CustomersPageProps) {
             </label>
             <select
               id="bonus-mode"
+              disabled={submitting || Boolean(pendingBonus)}
               className="input-classic"
               value={bonusMode}
               onChange={(event) => setBonusMode(event.target.value as 'add' | 'subtract')}
@@ -574,6 +632,7 @@ export default function CustomersPage({ user }: CustomersPageProps) {
             </label>
             <input
               id="bonus-amount"
+              disabled={submitting || Boolean(pendingBonus)}
               type="number"
               step="0.01"
               min="0.01"
@@ -582,14 +641,16 @@ export default function CustomersPage({ user }: CustomersPageProps) {
               onChange={(event) => setBonusAmount(event.target.value)}
               required
             />
-            <p className="field-hint">
-              {t('customers.balanceAfter', {
-                amount: formatNumber(
-                  Number(bonusCustomer?.balance || 0) +
-                    (bonusMode === 'subtract' ? -1 : 1) * Number(bonusAmount || 0),
-                ),
-              })}
-            </p>
+            {!pendingBonus && (
+              <p className="field-hint">
+                {t('customers.balanceAfter', {
+                  amount: formatNumber(
+                    Number(bonusCustomer?.balance || 0) +
+                      (bonusMode === 'subtract' ? -1 : 1) * Number(bonusAmount || 0),
+                  ),
+                })}
+              </p>
+            )}
           </div>
           <div className="field-group">
             <label className="field-label" htmlFor="bonus-reason">
@@ -597,6 +658,7 @@ export default function CustomersPage({ user }: CustomersPageProps) {
             </label>
             <textarea
               id="bonus-reason"
+              disabled={submitting || Boolean(pendingBonus)}
               name="reason"
               rows={3}
               className="input-classic"

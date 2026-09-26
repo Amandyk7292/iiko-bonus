@@ -3,9 +3,7 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { I18nProvider, useI18n } from './i18n';
 
-const wrapper = ({ children }: { children: ReactNode }) => (
-  <I18nProvider>{children}</I18nProvider>
-);
+const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{children}</I18nProvider>;
 
 describe('admin interface locale', () => {
   beforeEach(() => {
@@ -26,10 +24,11 @@ describe('admin interface locale', () => {
     expect(document.documentElement.lang).toBe('kk');
   });
 
-  it('uses a localized unknown label for a missing translated key', () => {
+  it('falls back from an unsupported stored locale and localizes missing keys', () => {
     localStorage.setItem('adminLocale', 'en');
     const { result } = renderHook(() => useI18n(), { wrapper });
-    expect(result.current.t('common.save')).toBe('Save');
-    expect(result.current.t('missing.key')).toBe('Unknown');
+    expect(result.current.locale).toBe('ru');
+    expect(result.current.t('common.save')).toBe('Сохранить');
+    expect(result.current.t('missing.key')).toBe('Неизвестно');
   });
 });

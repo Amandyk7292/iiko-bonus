@@ -93,12 +93,12 @@ class _StoryViewerState extends State<StoryViewer>
   void _precacheNeighbors() {
     final media = MediaQuery.of(context);
     final renderSize = _storyRenderSize(media.size);
-    final pixelWidth = _imagePixelBucket(
-      renderSize.width * media.devicePixelRatio,
+    final ratio = networkImageDevicePixelRatio(
+      media.devicePixelRatio,
+      isWeb: kIsWeb,
     );
-    final pixelHeight = _imagePixelBucket(
-      renderSize.height * media.devicePixelRatio,
-    );
+    final pixelWidth = _imagePixelBucket(renderSize.width * ratio);
+    final pixelHeight = _imagePixelBucket(renderSize.height * ratio);
     final indexes = <int>{
       _index,
       if (_index > 0) _index - 1,
@@ -114,7 +114,15 @@ class _StoryViewerState extends State<StoryViewer>
         resizeMode: 'cover',
       );
       unawaited(
-        precacheImage(NetworkImage(effectiveUrl), context, onError: (_, _) {}),
+        precacheImage(
+          networkImageCacheProvider(
+            effectiveUrl,
+            pixelWidth: pixelWidth,
+            pixelHeight: pixelHeight,
+          ),
+          context,
+          onError: (_, _) {},
+        ),
       );
     }
   }

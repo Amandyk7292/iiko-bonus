@@ -67,7 +67,7 @@ class _BulkaWelcomeGateState extends State<BulkaWelcomeGate> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       locale: Locale(_language),
-      supportedLocales: const [Locale('ru'), Locale('kk'), Locale('en')],
+      supportedLocales: const [Locale('ru'), Locale('kk')],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -135,7 +135,6 @@ class _BulkaWelcomeGateState extends State<BulkaWelcomeGate> {
                                 for (final entry in const {
                                   'ru': 'Русский',
                                   'kk': 'Қазақша',
-                                  'en': 'English',
                                 }.entries)
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 12),

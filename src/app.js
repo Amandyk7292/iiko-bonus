@@ -309,6 +309,8 @@ const taplinkStaticHeaders = (res) => {
 // API routes must be registered before the SPA fallbacks below. Otherwise
 // GET /admin/api/* is swallowed by /admin/* and returns index.html with 200.
 app.use(require('./middlewares/client-data-events.middleware').clientDataEvents);
+// Label editor has a scoped code session, independent of full admin access.
+app.use(require('./routes/price-generator.routes'));
 app.use(adminRoutes);
 app.use(require('./routes/pos-pairing.routes'));
 app.use(require('./routes/front-inventory.routes'));
@@ -319,7 +321,6 @@ app.use(walletRoutes);
 app.use(publicRoutes);
 app.use(yandexMapRoutes);
 app.use(require('./routes/screen-cakes.routes'));
-app.use(require('./routes/price-generator.routes'));
 app.use(require('./routes/app-link.routes'));
 app.use(legacyRoutes);
 

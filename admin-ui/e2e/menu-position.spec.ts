@@ -43,7 +43,11 @@ test('saving a product keeps expanded list and position, including a reload', as
           customProducts: [],
         },
       };
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(data) });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(data),
+    });
   });
 
   await page.goto('/admin/menu');
@@ -55,6 +59,9 @@ test('saving a product keeps expanded list and position, including a reload', as
   const before = await page.evaluate(() => window.scrollY);
   await product.getByRole('button', { name: 'Изменить', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Редактировать: Товар 070' });
+  await dialog.getByRole('button', { name: 'KK', exact: true }).click();
+  await dialog.locator('#edit-name-kk').fill('Тауар 070');
+  await dialog.getByRole('button', { name: 'RU', exact: true }).click();
   await dialog.locator('#edit-description-ru').fill('Состав: мука и молоко');
   await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expect(dialog).toHaveCount(0);

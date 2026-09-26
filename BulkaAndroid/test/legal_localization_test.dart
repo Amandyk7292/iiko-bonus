@@ -1,7 +1,19 @@
 import 'package:bulka_bonus/main.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test(
+    'saved English preference migrates to Russian and cannot be selected',
+    () async {
+      SharedPreferences.setMockInitialValues({'app_lang_code': 'en'});
+      await AppLang.init();
+      expect(AppLang.current, 'ru');
+      expect(AppLang.supportedCodes, {'ru', 'kk'});
+      await AppLang.setLanguage('en');
+      expect(AppLang.current, 'ru');
+    },
+  );
   tearDown(() {
     appLanguageNotifier.value = 'ru';
   });
@@ -17,7 +29,7 @@ void main() {
     );
     expect(
       bulkaLegalPageUri('/company-details/', language: 'en').toString(),
-      'https://bulka.com.kz/en/company-details',
+      'https://bulka.com.kz/company-details',
     );
 
     appLanguageNotifier.value = 'kk';

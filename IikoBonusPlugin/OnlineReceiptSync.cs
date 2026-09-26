@@ -16,7 +16,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
         internal const string Prefix="Bulka:";
         internal const string OrderDataKey="bulka.onlineOrderId";
         private readonly string path=Path.Combine(LoyaltyFlow.DataDirectoryPath,"BulkaAutomaticReceipts.json");
-        private readonly Dictionary<string,AutomaticReceiptJob> ledger;
+        private Dictionary<string,AutomaticReceiptJob> ledger=new Dictionary<string,AutomaticReceiptJob>();
+        private bool storageHealthy;
         private readonly SharedStockGuard importer;
         private readonly Timer timer;
         private int busy;
@@ -25,8 +26,26 @@ namespace Resto.Front.Api.IikoBonusPlugin
         internal OnlineReceiptSync(SharedStockGuard guard)
         {
             importer=guard;
-            ledger=DurableJsonFile.Read<Dictionary<string,AutomaticReceiptJob>>(path);
+            TryLoad();
             timer=new Timer(Tick,null,TimeSpan.FromSeconds(8),TimeSpan.FromSeconds(5));
+        }
+        private bool TryLoad()
+        {
+            try
+            {
+                ledger=DurableJsonFile.ReadValidated<Dictionary<string,AutomaticReceiptJob>>(path,
+                    entries=>entries.All(p=>p.Value!=null && p.Key==p.Value.OrderId && Guid.TryParse(p.Key,out _)
+                        && (p.Value.ReceiptId==null || Guid.TryParse(p.Value.ReceiptId,out _))),false);
+                storageHealthy=true;
+                return true;
+            }
+            catch(Exception error)
+            {
+                storageHealthy=false;
+                StatusText="Онлайн-чеки: журнал повреждён; требуется сверка исходных чеков, автосоздание остановлено";
+                PluginContext.Log.Error("Bulka automatic receipt journal: "+error.Message);
+                return false;
+            }
         }
         internal static string OrderId(IOrder order)
         {
@@ -87,6 +106,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             if(disposed || PosPairing.Current==null || Interlocked.CompareExchange(ref busy,1,0)!=0) return;
             try
             {
+                if(!storageHealthy && !TryLoad()) return;
                 var os=PluginContext.Operations;
                 var jobs=Request<AutomaticReceiptJobs>("poll",new InboxPoll {TerminalId=os.GetHostTerminal().Id.ToString()});
                 if(jobs?.Jobs==null) throw new InvalidOperationException("Не читается очередь онлайн-чеков");

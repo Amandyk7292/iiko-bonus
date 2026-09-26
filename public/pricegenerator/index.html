@@ -6,9 +6,11 @@
     <meta name="robots" content="noindex,nofollow" />
     <title>Конструктор этикеток Bulka</title>
     <link rel="icon" href="/favicon.png" />
-    <link rel="stylesheet" href="/pricegenerator/style.css?v=20260918-1" />
+    <link rel="stylesheet" href="/pricegenerator/style.css?v=20260920-1" />
+    <link rel="stylesheet" href="/pricegenerator/edit-access.css?v=20260920-1" />
     <style id="print-page-settings"></style>
-    <script src="/pricegenerator/app.js?v=20260918-1" defer></script>
+    <script src="/pricegenerator/edit-access.js?v=20260920-1" defer></script>
+    <script src="/pricegenerator/app.js?v=20260920-1" defer></script>
   </head>
   <body>
     <header class="topbar">
@@ -26,6 +28,13 @@
         </label>
       </div>
       <div class="top-actions">
+        <button class="button secondary" id="edit-access-open" type="button">
+          Редактировать по коду
+        </button>
+        <span id="edit-access-status" hidden></span>
+        <button class="button secondary" id="edit-access-lock" type="button" hidden>
+          Завершить редактирование
+        </button>
         <button class="button secondary admin-only" id="save-template" type="button">
           Сохранить шаблон
         </button>
@@ -39,6 +48,32 @@
       </div>
     </header>
 
+    <dialog id="edit-access-dialog" aria-labelledby="edit-access-title">
+      <form id="edit-access-form">
+        <h2 id="edit-access-title">Редактирование этикеток</h2>
+        <p>Введите код для изменения товаров, цен и шаблонов.</p>
+        <label for="edit-access-code">Код доступа</label>
+        <input
+          id="edit-access-code"
+          name="code"
+          type="password"
+          inputmode="numeric"
+          pattern="[0-9]{4}"
+          minlength="4"
+          maxlength="4"
+          autocomplete="off"
+          required
+        />
+        <p id="edit-access-error" role="alert"></p>
+        <div class="edit-access-actions">
+          <button class="button secondary" id="edit-access-cancel" type="button">Отмена</button>
+          <button class="button primary" id="edit-access-submit" type="submit">
+            Открыть редактирование
+          </button>
+        </div>
+        <a href="/admin">Или войти как администратор</a>
+      </form>
+    </dialog>
     <main class="workspace">
       <aside class="panel settings-panel">
         <section>

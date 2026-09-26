@@ -21,19 +21,6 @@ extension _CatalogInteractionController on _CatalogScreenState {
     DeliveryAddress address,
   ) async {
     final locations = await _api.getFulfillmentLocations();
-    final prefs = await SharedPreferences.getInstance();
-    final preferredId =
-        prefs.getString('selected_bakery_location_id_delivery') ?? '';
-    if (preferredId.isNotEmpty) {
-      for (final branch in locations) {
-        if (branch.id == preferredId &&
-            branch.active &&
-            branch.deliveryEnabled) {
-          return branch;
-        }
-      }
-      return null;
-    }
     final candidates = <({BakeryLocation branch, double distance})>[];
     for (final branch in locations) {
       if (!branch.active ||
@@ -203,7 +190,8 @@ extension _CatalogInteractionController on _CatalogScreenState {
     _updateCatalogState(() {
       _openedCategory = null;
     });
-    publishClientRoute(Uri(path: '/catalog'), replace: true);
+    _pendingClientUri = Uri(path: '/catalog');
+    publishClientRoute(_pendingClientUri!, replace: true);
     return true;
   }
 
@@ -213,7 +201,8 @@ extension _CatalogInteractionController on _CatalogScreenState {
     _updateCatalogState(() {
       _openedCategory = category;
     });
-    publishClientRoute(_CatalogScreenState._categoryClientUri(category));
+    _pendingClientUri = _CatalogScreenState._categoryClientUri(category);
+    publishClientRoute(_pendingClientUri!);
   }
 
   List<MapEntry<String, List<CatalogProduct>>> get _categoryGroups {
@@ -245,6 +234,9 @@ extension _CatalogInteractionController on _CatalogScreenState {
     _orderTypeDialogOpen = true;
     final chooseOrderType = await showDialog<bool>(
       context: context,
+      animationStyle: BulkaMotion.reduced(context)
+          ? AnimationStyle.noAnimation
+          : null,
       builder: (dialogContext) => BulkaActionDialog(
         scrollable: true,
         content: SizedBox(
@@ -392,45 +384,47 @@ extension _CatalogInteractionController on _CatalogScreenState {
         properties: {'category': product.category},
       );
       _productRouteOpen = true;
+      // Keep background menu refreshes on the route the user just opened.
+      _pendingClientUri = _routeProductUri(product);
       publishClientRoute(
         _routeProductUri(product),
         replace: !updateClientRoute,
       );
       try {
-        nextProduct = await Navigator.of(context).push<CatalogProduct>(
-          PageRouteBuilder<CatalogProduct>(
-            opaque: false,
-            barrierDismissible: true,
-            barrierColor: Colors.black.withValues(alpha: 0.32),
-            barrierLabel: 'close_tooltip'.tr,
-            pageBuilder: (_, _, _) => ProductDetailsScreen(
-              api: _api,
-              branchId: _selectedBakeryId,
-              product: product,
-              liveProducts: _liveProducts,
-              initialQuantity: context.read<CartProvider>().getQuantity(
-                product.id,
-              ),
-              onQuantityChanged: _setProductQuantity,
-              onOpenRelatedProduct: (related) =>
-                  Navigator.of(context).pop(related),
-              initialFavorite: _favoriteProductIds.contains(product.id),
-              onToggleFavorite: () => _toggleFavorite(product),
-              hasSelectedOrderType: widget.hasSelectedOrderType,
-              onEnsureOrderTypeSelected: () =>
-                  _ensureOrderTypeSelected(product),
+        final route = BulkaPageRoute<CatalogProduct>(
+          reduceMotion: BulkaMotion.reduced(context),
+          builder: (_) => ProductDetailsScreen(
+            api: _api,
+            branchId: _selectedBakeryId,
+            product: product,
+            liveProducts: _liveProducts,
+            initialQuantity: context.read<CartProvider>().getQuantity(
+              product.id,
             ),
+            onQuantityChanged: _setProductQuantity,
+            onOpenRelatedProduct: (related) =>
+                Navigator.of(context).pop(related),
+            initialFavorite: _favoriteProductIds.contains(product.id),
+            onToggleFavorite: () => _toggleFavorite(product),
+            hasSelectedOrderType: widget.hasSelectedOrderType,
+            onEnsureOrderTypeSelected: () => _ensureOrderTypeSelected(product),
           ),
         );
+        nextProduct = await Navigator.of(context).push<CatalogProduct>(route);
+        // Retire the product intent as soon as pop starts. Browser history is
+        // not updated on native platforms and must not be our source of truth.
+        if (_productPendingFulfillment == null &&
+            nextProduct == null &&
+            _pendingClientUri != null &&
+            productIdFromClientUri(_pendingClientUri!) == product.id) {
+          _pendingClientUri = _CatalogScreenState._categoryClientUri(
+            product.category,
+          );
+          publishClientRoute(_pendingClientUri!, replace: true);
+        }
+        await route.completed;
       } finally {
         _productRouteOpen = false;
-        final current = normalizedClientUri(clientRouteNotifier.value);
-        if (nextProduct == null && productIdFromClientUri(current) != null) {
-          publishClientRoute(
-            _CatalogScreenState._categoryClientUri(product.category),
-            replace: true,
-          );
-        }
       }
     });
     if (mounted && nextProduct != null) {

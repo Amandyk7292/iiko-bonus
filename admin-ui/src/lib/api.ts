@@ -243,13 +243,17 @@ async function acceptAdminLogin<T>(login: Promise<T>): Promise<T> {
   authenticationRevision++;
   return result;
 }
-export async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+export async function request<T>(
+  endpoint: string,
+  options: RequestInit = {},
+  { notifyUnauthorized = true, branchScope = getAdminBranchScope() } = {},
+): Promise<T> {
   const requestRevision = authenticationRevision;
   const headers = new Headers(options.headers);
   if (options.body && !(options.body instanceof FormData))
     headers.set('Content-Type', 'application/json');
   headers.set('Accept', 'application/json');
-  applyAdminScopeHeaders(headers, endpoint);
+  applyAdminScopeHeaders(headers, endpoint, branchScope);
 
   let response: Response | undefined;
   const requestAbort = composeRequestAbortSignal(options.signal, requestTimeoutMs(endpoint));
@@ -271,7 +275,11 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
       );
       const requestId = errorData.requestId || responseRequestId(response) || undefined;
       const payload = { ...errorData, requestId };
-      if (response.status === 401 && requestRevision === authenticationRevision) {
+      if (
+        notifyUnauthorized &&
+        response.status === 401 &&
+        requestRevision === authenticationRevision
+      ) {
         window.dispatchEvent(new Event('unauthorized'));
       }
       throw new ApiError(
@@ -305,37 +313,7 @@ function json(method: string, data?: unknown): RequestInit {
 }
 
 async function publicAuthRequest<T>(endpoint: string, data: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    credentials: 'same-origin',
-    body: JSON.stringify(data),
-  }).catch(() => {
-    throw new ApiError(
-      'Нет связи с сервером. Проверьте интернет и повторите попытку.',
-      0,
-      'NETWORK_ERROR',
-    );
-  });
-  if (!response.ok) {
-    const errorData = await parseResponse<ApiErrorPayload>(response).catch(
-      (): ApiErrorPayload => ({}),
-    );
-    const requestId = errorData.requestId || responseRequestId(response) || undefined;
-    const payload = {
-      ...errorData,
-      error: errorData.error || 'Не удалось выполнить вход',
-      requestId,
-    };
-    throw new ApiError(
-      adminApiErrorMessage(payload, response.status),
-      response.status,
-      errorData.code,
-      errorData.details,
-      requestId,
-    );
-  }
-  return parseResponse<T>(response);
+  return request<T>(endpoint, json('POST', data), { notifyUnauthorized: false, branchScope: '' });
 }
 
 export const api = {
@@ -344,39 +322,14 @@ export const api = {
     request(`/staff/catalog/${encodeURIComponent(id)}`, json('PATCH', data)),
   login: async (username: string, password: string, code: string) => {
     const loginData = { username, password, ...(code.trim() && { code: code.trim() }) };
-    const response = await fetch(`${BASE_URL}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      credentials: 'same-origin',
-      body: JSON.stringify(loginData),
-    }).catch(() => {
-      throw new ApiError(
-        'Нет связи с сервером. Проверьте интернет и повторите попытку.',
-        0,
-        'NETWORK_ERROR',
-      );
-    });
-    if (!response.ok) {
-      const errorData = await parseResponse<ApiErrorPayload>(response).catch(
-        (): ApiErrorPayload => ({}),
-      );
-      const requestId = errorData.requestId || responseRequestId(response) || undefined;
-      throw new ApiError(
-        adminApiErrorMessage(
-          {
-            ...errorData,
-            error: errorData.error || 'Не удалось выполнить вход',
-            requestId,
-          },
-          response.status,
-        ),
-        response.status,
-        response.status === 401 ? 'AUTH_INVALID' : 'AUTH_CONFIG',
-        errorData.details,
-        requestId,
-      );
+    try {
+      return await acceptAdminLogin(publicAuthRequest<{ user: AdminUser }>('/login', loginData));
+    } catch (error) {
+      if (error instanceof ApiError && error.status > 0) {
+        error.code = error.status === 401 ? 'AUTH_INVALID' : 'AUTH_CONFIG';
+      }
+      throw error;
     }
-    return acceptAdminLogin(parseResponse<{ user: AdminUser }>(response));
   },
 
   requestAdminPhoneLogin: (phone: string) =>
@@ -573,8 +526,27 @@ export const api = {
     ),
   updateCustomer: (id: string, data: Record<string, unknown>) =>
     request<{ success: boolean }>('/customers/update', json('POST', { customerId: id, ...data })),
-  addCustomerBonus: (customerId: string, amount: number, reason: string) =>
-    request<{ success: boolean }>('/customers/bonus', json('POST', { customerId, amount, reason })),
+  addCustomerBonus: async (
+    customerId: string,
+    amount: number,
+    reason: string,
+    operationId: string,
+    branchScope = getAdminBranchScope(),
+  ) => {
+    const result = await request<{ success: boolean }>(
+      '/customers/bonus',
+      json('POST', { customerId, amount, reason, operationId }),
+      { branchScope },
+    );
+    if (result?.success !== true) {
+      throw new ApiError(
+        'Сервер не подтвердил корректировку. Повторите сохранение.',
+        0,
+        'INVALID_API_RESPONSE',
+      );
+    }
+    return result;
+  },
   notifyInactive: () =>
     request<{ success: boolean; notifiedCount?: number; totalNotifiedBalance?: number }>(
       '/customers/notify-inactive',

@@ -445,6 +445,7 @@ router.post(
 );
 
 router.get('/api/customer/profile', publicController.getProfile);
+require('./public/customer-avatar.routes').registerCustomerAvatarRoutes(router);
 router.put(
   '/api/customer/profile',
   validateRequest({ body: profileUpdateBodySchema }),

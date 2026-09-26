@@ -83,6 +83,29 @@ double networkImageDevicePixelRatio(
   return devicePixelRatio.clamp(1.0, isWeb ? 2.25 : 3.0);
 }
 
+/// Matches the provider and ResizeImage key used by CachedNetworkImage/OctoImage.
+ImageProvider networkImageCacheProvider(
+  String url, {
+  required int pixelWidth,
+  required int pixelHeight,
+  bool isWeb = kIsWeb,
+}) => isWeb
+    ? NetworkImage(url)
+    : ResizeImage.resizeIfNeeded(
+        pixelWidth,
+        pixelHeight,
+        CachedNetworkImageProvider(url, cacheManager: productImageCache),
+      );
+
+class _PhotoLoadingIndicator extends StatelessWidget {
+  const _PhotoLoadingIndicator();
+
+  @override
+  Widget build(BuildContext context) => const Center(
+    child: CupertinoActivityIndicator(radius: 12, color: Color(0xFF782B0E)),
+  );
+}
+
 class _NetworkImage extends StatelessWidget {
   const _NetworkImage({
     super.key,
@@ -163,6 +186,11 @@ class _NetworkImage extends StatelessWidget {
                         url,
                         fit: fit,
                         semanticLabel: semanticLabel,
+                        frameBuilder: (_, child, frame, synchronous) =>
+                            synchronous || frame != null
+                            ? child
+                            : (loadingPlaceholder ??
+                                  const _PhotoLoadingIndicator()),
                         errorBuilder: (_, _, _) => _failedImage(),
                       ),
                 frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
@@ -179,7 +207,8 @@ class _NetworkImage extends StatelessWidget {
                             duration: transitionDuration,
                             curve: BulkaMotion.exitCurve,
                             child:
-                                loadingPlaceholder ?? const SizedBox.shrink(),
+                                loadingPlaceholder ??
+                                const _PhotoLoadingIndicator(),
                           ),
                         ),
                       ),
@@ -197,6 +226,7 @@ class _NetworkImage extends StatelessWidget {
               )
             : CachedNetworkImage(
                 imageUrl: effectiveUrl,
+                cacheManager: productImageCache,
                 fit: fit,
                 memCacheWidth: pixelWidth,
                 memCacheHeight: pixelHeight,
@@ -207,12 +237,18 @@ class _NetworkImage extends StatelessWidget {
                 fadeOutCurve: BulkaMotion.exitCurve,
                 useOldImageOnUrlChange: true,
                 placeholder: (_, _) =>
-                    loadingPlaceholder ?? const SizedBox.shrink(),
-                errorWidget: (_, _, _) => effectiveUrl == url
+                    loadingPlaceholder ?? const _PhotoLoadingIndicator(),
+                errorWidget: (_, _, _) =>
+                    effectiveUrl == url ||
+                        originalProductImageUri(Uri.parse(effectiveUrl)) != null
                     ? _failedImage()
                     : CachedNetworkImage(
                         imageUrl: url,
+                        cacheManager: productImageCache,
                         fit: fit,
+                        placeholder: (_, _) =>
+                            loadingPlaceholder ??
+                            const _PhotoLoadingIndicator(),
                         errorWidget: (_, _, _) => _failedImage(),
                       ),
                 imageBuilder: (context, provider) => Image(

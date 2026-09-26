@@ -1,3 +1,4 @@
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:bulka_bonus/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,7 +22,15 @@ void main() {
           location++;
           return true;
         },
-        child: const MaterialApp(home: Text('shop')),
+        child: const MaterialApp(
+          supportedLocales: [Locale('ru'), Locale('kk')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: Text('shop'),
+        ),
       );
       await tester.pumpWidget(gate);
       await tester.pumpAndSettle();
@@ -54,7 +63,7 @@ void main() {
       expect(location, 1);
     },
   );
-  for (final lang in ['ru', 'kk', 'en']) {
+  for (final lang in ['ru', 'kk']) {
     testWidgets(
       'permission explanations remain readable at 320px and 200% in $lang',
       (tester) async {
@@ -76,7 +85,15 @@ void main() {
               prompts++;
               return true;
             },
-            child: const MaterialApp(home: Text('shop')),
+            child: const MaterialApp(
+              supportedLocales: [Locale('ru'), Locale('kk')],
+              localizationsDelegates: [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              home: Text('shop'),
+            ),
           ),
         );
         await tester.pumpAndSettle();
@@ -110,7 +127,15 @@ void main() {
       BulkaPermissionGate(
         requestNotifications: () async => true,
         requestLocation: () async => false,
-        child: const MaterialApp(home: Text('shop')),
+        child: const MaterialApp(
+          supportedLocales: [Locale('ru'), Locale('kk')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: Text('shop'),
+        ),
       ),
     );
     await tester.pumpAndSettle();

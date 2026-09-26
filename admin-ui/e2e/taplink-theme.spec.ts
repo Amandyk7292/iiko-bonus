@@ -212,11 +212,11 @@ test('owner customizes a professional Taplink theme with a live preview', async 
   await cityBlock.getByRole('button', { name: 'Удалить блок' }).click();
   const confirmation = page.getByRole('alertdialog', { name: 'Удалить блок?' });
   await expect(confirmation).toBeVisible();
-  const actionPadding = await confirmation.locator('.modal-confirm-actions').evaluate((element) => {
+  const actionPadding = await confirmation.locator('.modal-footer').evaluate((element) => {
     const styles = getComputedStyle(element);
     return [styles.paddingTop, styles.paddingRight, styles.paddingBottom, styles.paddingLeft];
   });
-  expect(actionPadding).toEqual(['16px', '20px', '20px', '20px']);
+  expect(actionPadding).toEqual(['16px', '20px', '16px', '20px']);
   await confirmation.getByRole('button', { name: 'Отмена' }).click();
   await expect(confirmation).toBeHidden();
 

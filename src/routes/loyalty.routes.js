@@ -27,6 +27,7 @@ const { verifyPluginPickupHandoff } = require('../services/pickup-handoff.servic
 const {
   cancelGiftCardForPos,
   commitGiftCardForPos,
+  prepareGiftCardForPos,
   reserveGiftCardForPos,
   validateGiftCardForPos,
 } = require('../services/gift-card-pos.service');
@@ -60,6 +61,11 @@ router.post(
   '/api/loyalty/reserve',
   validateRequest({ body: loyaltyReserveBodySchema }),
   loyaltyController.reserveBonus,
+);
+router.post(
+  '/api/loyalty/prepare',
+  validateRequest({ body: loyaltyCancelBodySchema }),
+  loyaltyController.prepareReservedBonus,
 );
 router.post(
   '/api/loyalty/commit',
@@ -125,6 +131,25 @@ router.post(
       return res.status(error.statusCode || 500).json({
         success: false,
         error: error.statusCode ? error.message : 'Gift card reservation failed',
+        ...(error.code && { code: error.code }),
+      });
+    }
+  },
+);
+router.post(
+  '/api/loyalty/gift-cards/prepare',
+  validateRequest({ body: giftCardReservationMutationBodySchema }),
+  branchPosAuthMiddleware,
+  async (req, res) => {
+    try {
+      return res.json({
+        success: true,
+        reservation: await prepareGiftCardForPos({ ...req.body, branchId: req.posBranchId }),
+      });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        success: false,
+        error: error.statusCode ? error.message : 'Gift card preparation failed',
         ...(error.code && { code: error.code }),
       });
     }

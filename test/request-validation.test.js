@@ -60,14 +60,34 @@ const customerId = '117615f9-b35f-4eb4-9f6d-777f2236bb25';
 test('customer contracts normalize valid input and reject unsafe mutations', () => {
   const bonus = adminCustomerBonusBodySchema.parse({
     customerId,
+    operationId: 'd3b97360-cdc0-4f74-9630-100ca4f0f813',
     amount: '125.5',
     reason: '  Ошибка кассира  ',
   });
   assert.equal(bonus.amount, 125.5);
   assert.equal(bonus.reason, 'Ошибка кассира');
+  assert.equal(
+    adminCustomerBonusBodySchema.safeParse({ customerId, amount: 1, reason: 'Valid reason' })
+      .success,
+    false,
+  );
+  assert.equal(
+    adminCustomerBonusBodySchema.safeParse({
+      customerId,
+      operationId: 'not-a-uuid',
+      amount: 1,
+      reason: 'Valid reason',
+    }).success,
+    false,
+  );
 
   assert.equal(
-    adminCustomerBonusBodySchema.safeParse({ customerId, amount: 1, reason: '1234' }).success,
+    adminCustomerBonusBodySchema.safeParse({
+      customerId,
+      operationId: bonus.operationId,
+      amount: 1,
+      reason: '1234',
+    }).success,
     false,
   );
   assert.equal(

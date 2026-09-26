@@ -64,7 +64,19 @@ class BulkaMotionSwitcher extends StatelessWidget {
       reverseDuration: effectiveDuration,
       switchInCurve: BulkaMotion.enterCurve,
       switchOutCurve: BulkaMotion.exitCurve,
-      layoutBuilder: layoutBuilder,
+      layoutBuilder: (currentChild, previousChildren) => layoutBuilder(
+        currentChild,
+        previousChildren
+            .map(
+              (child) => HeroMode(
+                enabled: false,
+                child: ExcludeFocus(
+                  child: ExcludeSemantics(child: IgnorePointer(child: child)),
+                ),
+              ),
+            )
+            .toList(),
+      ),
       transitionBuilder: (child, animation) {
         if (effectiveDuration == Duration.zero) return child;
         return FadeTransition(
@@ -267,6 +279,37 @@ class _BulkaPressScaleState extends State<BulkaPressScale>
           );
         },
       ),
+    );
+  }
+}
+
+/// Uses the platform's reversible page transition and native back gesture.
+class BulkaPageRoute<T> extends MaterialPageRoute<T> {
+  BulkaPageRoute({required super.builder, required this.reduceMotion});
+
+  final bool reduceMotion;
+
+  @override
+  Duration get transitionDuration =>
+      reduceMotion ? Duration.zero : super.transitionDuration;
+
+  @override
+  Duration get reverseTransitionDuration =>
+      reduceMotion ? Duration.zero : super.reverseTransitionDuration;
+
+  @override
+  Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    if (reduceMotion || BulkaMotion.reduced(context)) return child;
+    return super.buildTransitions(
+      context,
+      animation,
+      secondaryAnimation,
+      child,
     );
   }
 }

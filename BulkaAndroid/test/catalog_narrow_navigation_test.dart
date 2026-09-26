@@ -85,7 +85,7 @@ void main() {
     );
     expect(selectedDecoration.boxShadow!.single.blurRadius, 7);
     expect((idleCartIndicator.decoration! as BoxDecoration).gradient, isNull);
-    expect((idleCartIndicator.decoration! as BoxDecoration).border, isNotNull);
+    expect((idleCartIndicator.decoration! as BoxDecoration).border, isNull);
     expect(tester.takeException(), isNull);
   });
 }

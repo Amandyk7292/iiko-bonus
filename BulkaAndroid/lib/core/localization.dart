@@ -3,7 +3,7 @@ part of '../main.dart';
 final ValueNotifier<String> appLanguageNotifier = ValueNotifier<String>('ru');
 
 class AppLang {
-  static const supportedCodes = {'ru', 'kk', 'en'};
+  static const supportedCodes = {'ru', 'kk'};
 
   static String get current => appLanguageNotifier.value;
 
@@ -13,7 +13,9 @@ class AppLang {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('app_lang_code');
     final deviceCode = ui.PlatformDispatcher.instance.locale.languageCode;
-    final lang = supportedCodes.contains(saved)
+    final lang = saved == 'en'
+        ? 'ru'
+        : supportedCodes.contains(saved)
         ? saved!
         : supportedCodes.contains(deviceCode)
         ? deviceCode

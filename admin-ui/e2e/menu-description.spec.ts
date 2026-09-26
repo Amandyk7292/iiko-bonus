@@ -39,6 +39,7 @@ test('requires Russian and Kazakh only and copies source text without overwritin
             { id: 'ru', name: 'Только русский', price: 300 },
             { id: 'kk', name: 'Только казахский', price: 300 },
             { id: 'en', name: 'Только английский', price: 300 },
+            { id: 'missing-name', name: 'Без казахского названия', price: 300 },
           ],
           groups: [],
         },
@@ -46,12 +47,30 @@ test('requires Russian and Kazakh only and copies source text without overwritin
           products: [
             {
               iiko_product_id: 'complete',
+              name_translations: { kk: 'Толық' },
               custom_description: 'Русское описание',
               description_translations: { kk: 'Қазақша сипаттама' },
             },
-            { iiko_product_id: 'ru', custom_description: 'Русское описание' },
-            { iiko_product_id: 'kk', description_translations: { kk: 'Қазақша сипаттама' } },
-            { iiko_product_id: 'en', description_translations: { en: 'Description' } },
+            {
+              iiko_product_id: 'ru',
+              name_translations: { kk: 'Орысша' },
+              custom_description: 'Русское описание',
+            },
+            {
+              iiko_product_id: 'kk',
+              name_translations: { kk: 'Қазақша' },
+              description_translations: { kk: 'Қазақша сипаттама' },
+            },
+            {
+              iiko_product_id: 'en',
+              name_translations: { kk: 'Ағылшынша' },
+              description_translations: { en: 'Description' },
+            },
+            {
+              iiko_product_id: 'missing-name',
+              custom_description: 'Русское описание',
+              description_translations: { kk: 'Қазақша сипаттама' },
+            },
           ],
           categories: [],
           customProducts: [],
@@ -67,7 +86,7 @@ test('requires Russian and Kazakh only and copies source text without overwritin
   const complete = page.getByRole('heading', { name: 'Полное', exact: true }).locator('..');
   await expect(complete).toBeVisible();
   await expect(complete.getByText('Неполное описание')).toHaveCount(0);
-  await expect(page.getByText('Неполное описание', { exact: true })).toHaveCount(3);
+  await expect(page.getByText('Неполное описание', { exact: true })).toHaveCount(4);
   await complete.getByRole('button', { name: 'Изменить', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'KK', exact: true }).click();

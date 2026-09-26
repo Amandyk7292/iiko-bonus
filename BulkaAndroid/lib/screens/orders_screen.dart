@@ -150,6 +150,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
   void _showSuccessDialog(BuildContext context) {
     showDialog(
       context: context,
+      animationStyle: BulkaMotion.reduced(context)
+          ? AnimationStyle.noAnimation
+          : null,
       builder: (context) => BulkaActionDialog(
         title: Text(
           'checkout_success_title'.tr,
@@ -244,6 +247,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
   Future<void> _confirmClear(BuildContext context, CartProvider cart) async {
     final shouldClear = await showDialog<bool>(
       context: context,
+      animationStyle: BulkaMotion.reduced(context)
+          ? AnimationStyle.noAnimation
+          : null,
       builder: (dialogContext) => Dialog(
         backgroundColor: Colors.white,
         insetPadding: const EdgeInsets.symmetric(horizontal: 38),
@@ -271,9 +277,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   Expanded(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFFD95F), Color(0xFFFFAF08)],
-                        ),
+                        color: _bulkaYellow,
+                        gradient: _bulkaGlassGradient,
                         borderRadius: BorderRadius.circular(BulkaRadii.card),
                       ),
                       child: TextButton(

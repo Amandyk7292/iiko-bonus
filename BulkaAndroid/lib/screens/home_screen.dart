@@ -70,6 +70,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openBakeryLocations(String orderType) async {
     await _navigationGate.run(() async {
+      if (orderType == 'delivery') {
+        final address = await Navigator.of(context).push<DeliveryAddress>(
+          MaterialPageRoute(
+            builder: (_) => AddressSelectionScreen(api: widget.api),
+          ),
+        );
+        if (!mounted || address == null) return;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('selected_order_type', orderType);
+        if (!mounted) return;
+        await widget.onOpenCatalog(orderType);
+        return;
+      }
       final location = await Navigator.of(context).push<String>(
         MaterialPageRoute(
           builder: (_) =>
@@ -123,6 +136,9 @@ class _HomeScreenState extends State<HomeScreen> {
       // background disappeared completely instead of being softly dimmed.
       await showDialog<void>(
         context: context,
+        animationStyle: BulkaMotion.reduced(context)
+            ? AnimationStyle.noAnimation
+            : null,
         barrierDismissible: true,
         barrierLabel: 'close_tooltip'.tr,
         barrierColor: kIsWeb
@@ -665,9 +681,9 @@ class _OrderTypeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final illustrationWidth = tall ? 230.0 : 142.0;
-    final cacheWidth =
-        (illustrationWidth * MediaQuery.devicePixelRatioOf(context)).ceil();
+    final illustrationWidth = tall ? 230.0 : 128.0;
+    final smallCardHeight =
+        124.0 + max(0.0, MediaQuery.textScalerOf(context).scale(40) - 40);
     return BulkaPressScale(
       enabled: onTap != null,
       child: Container(
@@ -678,12 +694,14 @@ class _OrderTypeCard extends StatelessWidget {
         key: ValueKey('order-card-${illustration.name}'),
         height: MediaQuery.textScalerOf(context).scale(1) > 1.3
             ? 80 + MediaQuery.textScalerOf(context).scale(48)
-            : (tall ? 202 : 96),
+            : (tall ? smallCardHeight * 2 + 10 : smallCardHeight),
         child: Material(
           key: ValueKey('order-card-clip-${illustration.name}'),
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(BulkaRadii.card),
-          clipBehavior: Clip.antiAlias,
+          clipBehavior: defaultTargetPlatform == TargetPlatform.iOS
+              ? Clip.antiAliasWithSaveLayer
+              : Clip.antiAlias,
           child: InkWell(
             onTap: onTap == null
                 ? null
@@ -691,12 +709,16 @@ class _OrderTypeCard extends StatelessWidget {
                     BulkaMotion.lightImpact();
                     onTap!();
                   },
-            borderRadius: BorderRadius.circular(BulkaRadii.control),
+            borderRadius: BorderRadius.circular(BulkaRadii.card),
             child: Ink(
               key: ValueKey('order-card-background-${illustration.name}'),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(BulkaRadii.control),
-                gradient: _bulkaWarmGradient,
+                borderRadius: BorderRadius.circular(BulkaRadii.card),
+                color: _bulkaYellow,
+                image: const DecorationImage(
+                  image: AssetImage('assets/brand/order_background.png'),
+                  fit: BoxFit.cover,
+                ),
               ),
               child: DecoratedBox(
                 position: DecorationPosition.foreground,
@@ -706,30 +728,19 @@ class _OrderTypeCard extends StatelessWidget {
                 child: Stack(
                   clipBehavior: Clip.hardEdge,
                   children: [
-                    const Positioned.fill(
-                      child: IgnorePointer(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: _bulkaSoftHighlight,
-                          ),
-                        ),
-                      ),
-                    ),
                     Positioned(
-                      // Enlarge the artwork below the heading, keeping the
-                      // lower-left action unobstructed.
-                      right: tall ? -46 : -26,
-                      bottom: tall ? -18 : -30,
+                      // Keep small illustrations below two-line localized titles.
+                      right: tall ? -46 : -12,
+                      bottom: tall ? -18 : -32,
                       child: SizedBox(
                         key: ValueKey(
                           'order-illustration-${illustration.name}',
                         ),
                         width: illustrationWidth,
-                        height: tall ? 198 : 112,
+                        height: tall ? 198 : 104,
                         child: _DeferredOrderIllustration(
                           assetPath: illustration.assetPath,
                           fit: BoxFit.contain,
-                          cacheWidth: cacheWidth,
                         ),
                       ),
                     ),
@@ -768,8 +779,8 @@ class _OrderTypeCard extends StatelessWidget {
 }
 
 enum _OrderIllustrationKind {
-  pickup('assets/order/pickup.webp'),
-  preorder('assets/order/preorder.webp'),
+  pickup('assets/order/pickup_transparent.png'),
+  preorder('assets/order/preorder_transparent.png'),
   delivery('assets/order/delivery.webp');
 
   const _OrderIllustrationKind(this.assetPath);
@@ -781,12 +792,10 @@ class _DeferredOrderIllustration extends StatefulWidget {
   const _DeferredOrderIllustration({
     required this.assetPath,
     required this.fit,
-    required this.cacheWidth,
   });
 
   final String assetPath;
   final BoxFit fit;
-  final int cacheWidth;
 
   @override
   State<_DeferredOrderIllustration> createState() =>
@@ -809,14 +818,24 @@ class _DeferredOrderIllustrationState
   Widget build(BuildContext context) {
     return AnimatedOpacity(
       opacity: _ready ? 1 : 0,
-      duration: BulkaMotion.fast,
+      duration: BulkaMotion.duration(context, BulkaMotion.fast),
       curve: BulkaMotion.standardCurve,
       child: _ready
-          ? Image.asset(
-              widget.assetPath,
-              fit: widget.fit,
-              cacheWidth: widget.cacheWidth,
-              filterQuality: FilterQuality.medium,
+          ? LayoutBuilder(
+              builder: (context, constraints) => Image.asset(
+                widget.assetPath,
+                fit: widget.fit,
+                cacheWidth: kIsWeb
+                    ? null
+                    : _imagePixelBucket(
+                        constraints.maxWidth *
+                            networkImageDevicePixelRatio(
+                              MediaQuery.devicePixelRatioOf(context),
+                              isWeb: false,
+                            ),
+                      ),
+                filterQuality: FilterQuality.high,
+              ),
             )
           : const SizedBox.expand(),
     );

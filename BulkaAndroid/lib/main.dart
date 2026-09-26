@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -38,6 +39,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:video_player/video_player.dart';
 
 import 'core/cart_provider.dart';
+import 'core/product_image_cache.dart';
 import 'core/api_origin.dart';
 import 'core/browser_form_factor.dart';
 import 'core/http_client_backend.dart';
@@ -172,6 +174,7 @@ part 'screens/personal_account_screen.dart';
 part 'screens/promos_screen.dart';
 part 'screens/rewards_screen.dart';
 part 'screens/personal_data_screen.dart';
+part 'screens/avatar_crop_screen.dart';
 part 'screens/locations_screen.dart';
 part 'screens/location_directory_screen.dart';
 part 'screens/catalog_screen.dart';
@@ -385,9 +388,17 @@ class _BulkaBootstrapState extends State<_BulkaBootstrap> {
 
   @override
   Widget build(BuildContext context) {
-    if (kIsWeb) return const BulkaBonusApp();
-    return const NativeLaunchVideoGate(
-      child: BulkaWelcomeGate(child: BulkaBonusApp()),
+    final app = FutureBuilder<void>(
+      future: _initialization,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const SizedBox.shrink();
+        }
+        return kIsWeb
+            ? const BulkaBonusApp()
+            : const BulkaWelcomeGate(child: BulkaBonusApp());
+      },
     );
+    return kIsWeb ? app : NativeLaunchVideoGate(child: app);
   }
 }

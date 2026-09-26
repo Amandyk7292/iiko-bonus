@@ -33,7 +33,7 @@ const I18nContext = createContext<I18nValue | null>(null);
 
 function initialLocale(): Locale {
   const stored = localStorage.getItem('adminLocale');
-  if (stored === 'ru' || stored === 'kk' || stored === 'en') return stored;
+  if (stored === 'ru' || stored === 'kk') return stored;
   return 'ru';
 }
 
@@ -48,7 +48,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const value = useMemo<I18nValue>(
     () => ({
       locale,
-      setLocale,
+      setLocale: (next) => setLocale(next === 'kk' ? 'kk' : 'ru'),
       t: (key, vars) =>
         interpolate(
           messages[locale][key] ??

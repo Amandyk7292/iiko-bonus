@@ -1,0 +1,55 @@
+#edit-access-dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 26px;
+  border: 1px solid #eadfd5;
+  border-radius: 20px;
+  color: #55321f;
+}
+#edit-access-dialog::backdrop {
+  background: #23150d66;
+}
+#edit-access-dialog h2 {
+  margin: 0 0 12px;
+}
+#edit-access-dialog p {
+  font-size: 14px;
+  line-height: 1.5;
+}
+#edit-access-dialog label {
+  display: block;
+  font-size: 13px;
+  margin: 18px 0 6px;
+}
+#edit-access-code {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid #d8b899;
+  border-radius: 10px;
+  font: inherit;
+}
+#edit-access-error {
+  color: #a32c16;
+}
+.edit-access-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+#edit-access-dialog a {
+  color: #74351d;
+  font-size: 13px;
+}
+#edit-access-status {
+  font-size: 12px;
+  color: #786b61;
+}
+[hidden] {
+  display: none !important;
+}
+@media print {
+  #edit-access-dialog {
+    display: none !important;
+  }
+}

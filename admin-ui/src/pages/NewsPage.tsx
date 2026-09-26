@@ -21,7 +21,7 @@ interface NewsItem {
   created_at?: string;
   i18n?: Partial<Record<ContentLanguage, Partial<LocalizedNews>>>;
 }
-const languages: ContentLanguage[] = ['ru', 'kz', 'en'];
+const languages: ContentLanguage[] = ['ru', 'kz'];
 const localeKey = (language: ContentLanguage) => (language === 'kz' ? 'kk' : language);
 const blankI18n = (): Record<ContentLanguage, LocalizedNews> => ({
   ru: { title: '', imageUrl: '', description: '' },

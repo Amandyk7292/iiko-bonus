@@ -18,7 +18,6 @@ export default function LanguageSelect({ compact = false }: { compact?: boolean 
         options={[
           { value: 'ru', label: t('language.ru') },
           { value: 'kk', label: t('language.kk') },
-          { value: 'en', label: t('language.en') },
         ]}
       />
     </div>

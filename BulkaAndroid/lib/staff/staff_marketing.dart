@@ -29,7 +29,7 @@ List<StaffField> staffLocaleFields(
   bool multiline = false,
   bool required = false,
 }) => [
-  for (final locale in ['ru', 'kk', 'en'])
+  for (final locale in ['ru', 'kk'])
     StaffField(
       '${key}_$locale',
       '$label · ${locale.toUpperCase()}',
@@ -39,7 +39,7 @@ List<StaffField> staffLocaleFields(
 ];
 Map<String, dynamic> staffLocaleInitial(Map row, List<String> keys) => {
   for (final key in keys)
-    for (final locale in ['ru', 'kk', 'en'])
+    for (final locale in ['ru', 'kk'])
       '${key}_$locale': (row[key] as Map?)?[locale] ?? '',
 };
 Map<String, dynamic> staffPackLocales(
@@ -49,7 +49,7 @@ Map<String, dynamic> staffPackLocales(
   final body = Map<String, dynamic>.from(values);
   for (final key in keys) {
     body[key] = {
-      for (final locale in ['ru', 'kk', 'en'])
+      for (final locale in ['ru', 'kk'])
         locale: body.remove('${key}_$locale') ?? '',
     };
   }

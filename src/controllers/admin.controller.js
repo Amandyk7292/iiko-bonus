@@ -190,7 +190,7 @@ const pushMassHandler = async (req, res) => {
 // Customer specific
 const addBonusHandler = async (req, res) => {
   try {
-    const { customerId, amount, reason } = req.body;
+    const { customerId, amount, reason, operationId } = req.body;
     const limit = manualBonusLimitForAdmin(req.admin);
     const parsedAmount = parseMoney(amount, 'amount', { min: -limit, max: limit });
     if (parsedAmount === 0) {
@@ -203,7 +203,7 @@ const addBonusHandler = async (req, res) => {
     const branchScope = branchScopeForAdmin(req.admin);
     const requestedBranchId = String(req.body?.branchId || '');
     const branchId = hasGlobalBranchAccess(req.admin)
-      ? requestedBranchId || null
+      ? requestedBranchId || (branchScope.length === 1 ? branchScope[0] : null)
       : branchScope.includes(requestedBranchId)
         ? requestedBranchId
         : branchScope[0];
@@ -215,7 +215,11 @@ const addBonusHandler = async (req, res) => {
       reason: normalizedReason,
       amountChange: parsedAmount,
     });
-    await addManualBonus(customerId, parsedAmount, normalizedReason, { branchId });
+    const adjustment = await addManualBonus(customerId, parsedAmount, normalizedReason, {
+      branchId,
+      operationId,
+    });
+    if (adjustment.duplicate) return res.json({ success: true });
 
     try {
       const { data: c } = await supabase

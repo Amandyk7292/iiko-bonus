@@ -273,7 +273,7 @@ export default function WhatsAppSettingsPanel({
               <fieldset className="whatsapp-language-fieldset" disabled={!canConfigure}>
                 <legend>Языки ответов</legend>
                 <div>
-                  {(['ru', 'kk', 'en'] as const).map((language) => (
+                  {(['ru', 'kk'] as const).map((language) => (
                     <label
                       key={language}
                       className={
@@ -289,7 +289,7 @@ export default function WhatsAppSettingsPanel({
                         <Check size={14} strokeWidth={3} />
                       </span>
                       <span>
-                        {language === 'ru' ? 'Русский' : language === 'kk' ? 'Қазақша' : 'English'}
+                        {language === 'ru' ? 'Русский' : 'Қазақша'}
                       </span>
                     </label>
                   ))}

@@ -126,7 +126,9 @@ class _MainShellState extends State<MainShell> {
       widget.onTabChanged?.call(routedTab);
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _catalogKey.currentState?.applyClientUri(uri);
+      if (mounted && clientRouteNotifier.value == uri) {
+        _catalogKey.currentState?.applyClientUri(uri);
+      }
     });
   }
 
@@ -186,7 +188,9 @@ class _MainShellState extends State<MainShell> {
     widget.onTabChanged?.call(1);
     publishClientRoute(uri);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _catalogKey.currentState?.applyClientUri(uri);
+      if (mounted && clientRouteNotifier.value == uri) {
+        _catalogKey.currentState?.applyClientUri(uri);
+      }
     });
   }
 
@@ -405,7 +409,7 @@ class FloatingNavBar extends StatelessWidget {
     final compact = BulkaLayout.compactNavigation(context);
     final narrow = MediaQuery.sizeOf(context).width < 360;
     final highContrast = MediaQuery.highContrastOf(context);
-    final useBlur = !kIsWeb && !highContrast;
+    final useBlur = !kIsWeb && !highContrast && !BulkaMotion.reduced(context);
     final bar = Container(
       height: BulkaLayout.navigationBarHeight(context) + safeBottom,
       padding: EdgeInsets.only(bottom: safeBottom),
@@ -492,7 +496,6 @@ class _NavButton extends StatelessWidget {
     final colors = context.bulkaColors;
     final color = selected ? colors.brandBrown : colors.mutedText;
     final isCenter = item.prominent;
-    final centerIdle = isCenter && !selected;
     final labelFontSize = BulkaTypeScale.caption;
     return Semantics(
       button: true,
@@ -545,15 +548,9 @@ class _NavButton extends StatelessWidget {
                                 : 44),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: selected
-                            ? const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [Color(0xFFFFDB70), Color(0xFFFFB300)],
-                              )
-                            : null,
-                        color: centerIdle
-                            ? colors.brandGold.withValues(alpha: 0.16)
+                        gradient: selected ? _bulkaGlassGradient : null,
+                        color: selected
+                            ? _bulkaYellow
                             : Colors.transparent,
                         border: selected
                             ? Border.all(
@@ -562,16 +559,11 @@ class _NavButton extends StatelessWidget {
                                 ),
                                 width: BulkaStrokes.hairline,
                               )
-                            : centerIdle
-                            ? Border.all(
-                                color: colors.brandGold.withValues(alpha: 0.58),
-                                width: BulkaStrokes.hairline,
-                              )
                             : null,
                         boxShadow: selected
                             ? const [
                                 BoxShadow(
-                                  color: Color(0x2BFFB814),
+                                  color: Color(0x2BFFB300),
                                   blurRadius: 7,
                                   offset: Offset(0, 2),
                                 ),

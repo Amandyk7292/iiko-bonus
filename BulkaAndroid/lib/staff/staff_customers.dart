@@ -473,31 +473,141 @@ class _StaffCustomerEditorState extends State<_StaffCustomerEditor> {
   final _amount = TextEditingController(), _reason = TextEditingController();
   bool _subtract = false, _busy = false;
   String? _error;
+  bool _ready = false;
+  Map<String, dynamic>? _pendingBonus;
+  late final _bonusScope = widget.api.scopeKey;
+  late final _bonusKey =
+      'staff_manual_bonus_v1_${Uri.encodeComponent(_bonusScope)}_${Uri.encodeComponent('${widget.customer['id']}')}';
+  bool get _bonusLocked => widget.bonus && (!_ready || _pendingBonus != null);
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.bonus) {
+      unawaited(_restoreBonus());
+    } else {
+      _ready = true;
+    }
+  }
+
+  Future<void> _restoreBonus() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_bonusKey);
+      if (!mounted) return;
+      if (raw != null) {
+        final pending = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+        final amount = pending['amount'] as num;
+        if (pending['customerId'] != widget.customer['id'] ||
+            !RegExp(
+              r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+              caseSensitive: false,
+            ).hasMatch('${pending['operationId']}') ||
+            !amount.isFinite ||
+            amount == 0) {
+          throw const FormatException('Invalid pending bonus operation');
+        }
+        _pendingBonus = pending;
+        _amount.text = '${amount.abs()}';
+        _subtract = amount < 0;
+        _reason.text = pending['reason'] as String;
+      }
+      setState(() => _ready = true);
+    } catch (_) {
+      // Never discard an uncertain financial operation on a storage failure.
+      if (mounted) {
+        setState(
+          () => _error = staffText(
+            'Не удалось восстановить изменение бонусов. Закройте и откройте форму снова.',
+            'Бонус өзгерісін қалпына келтіру мүмкін болмады. Пішінді қайта ашыңыз.',
+            'Could not restore the bonus adjustment. Close and reopen this form.',
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _save() async {
-    if (_busy || !_form.currentState!.validate()) return;
+    if (_busy || !_ready || !_form.currentState!.validate()) return;
+    final hadPendingBonus = _pendingBonus != null;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await widget.api.request(
+      if (widget.bonus) {
+        if (widget.api.scopeKey != _bonusScope) {
+          throw StateError(
+            staffText(
+              'Вернитесь к исходному филиалу для повтора операции.',
+              'Операцияны қайталау үшін бастапқы филиалға оралыңыз.',
+              'Return to the original branch to retry this operation.',
+            ),
+          );
+        }
+        _pendingBonus ??= {
+          'operationId': staffRequestId(),
+          'customerId': widget.customer['id'],
+          'amount':
+              num.parse(_amount.text.replaceAll(',', '.')) *
+              (_subtract ? -1 : 1),
+          'reason': _reason.text.trim(),
+        };
+        // Durable before sending: timeout, closing the form or restarting the
+        // app must all retry the same adjustment, with the same payload.
+        final saved = await (await SharedPreferences.getInstance()).setString(
+          _bonusKey,
+          jsonEncode(_pendingBonus),
+        );
+        if (!saved) {
+          throw StateError(
+            staffText(
+              'Не удалось сохранить операцию на устройстве. Повторите сохранение.',
+              'Операцияны құрылғыда сақтау мүмкін болмады. Қайта сақтап көріңіз.',
+              'Could not save the operation on this device. Retry saving.',
+            ),
+          );
+        }
+      }
+      final response = await widget.api.request(
         widget.bonus ? '/customers/bonus' : '/customers/update',
         method: 'POST',
-        body: {
-          'customerId': widget.customer['id'],
-          if (widget.bonus) ...{
-            'amount':
-                num.parse(_amount.text.replaceAll(',', '.')) *
-                (_subtract ? -1 : 1),
-            'reason': _reason.text.trim(),
-          } else ...{
-            'name': _name.text.trim(),
-            'phone': _phone.text.trim(),
-          },
-        },
+        body: widget.bonus
+            ? _pendingBonus
+            : {
+                'customerId': widget.customer['id'],
+                'name': _name.text.trim(),
+                'phone': _phone.text.trim(),
+              },
       );
+      if (widget.bonus) {
+        if (response is! Map || response['success'] != true) {
+          throw const StaffApiException(
+            502,
+            'INVALID_API_RESPONSE',
+            'Не удалось подтвердить результат изменения бонусов. Повторите сохранение.',
+          );
+        }
+        await (await SharedPreferences.getInstance()).remove(_bonusKey);
+      }
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
+      // Only a first, definitive pre-mutation rejection releases the draft.
+      // A 4xx after an ambiguous attempt cannot disprove that earlier result.
+      if (widget.bonus &&
+          !hadPendingBonus &&
+          error is StaffApiException &&
+          (const {401, 403}.contains(error.status) ||
+              (error.status == 409 &&
+                  error.code == 'MANUAL_BONUS_BALANCE_RESERVED') ||
+              (error.status == 400 &&
+                  const {
+                    'VALIDATION_ERROR',
+                    'MANUAL_BONUS_ZERO_AMOUNT',
+                  }.contains(error.code)))) {
+        await (await SharedPreferences.getInstance()).remove(_bonusKey);
+        _pendingBonus = null;
+      }
       if (mounted) setState(() => _error = '$error');
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -538,14 +648,14 @@ class _StaffCustomerEditorState extends State<_StaffCustomerEditor> {
                   ChoiceChip(
                     label: Text(staffText('Начислить', 'Қосу', 'Credit')),
                     selected: !_subtract,
-                    onSelected: _busy
+                    onSelected: _busy || _bonusLocked
                         ? null
                         : (_) => setState(() => _subtract = false),
                   ),
                   ChoiceChip(
                     label: Text(staffText('Списать', 'Шығару', 'Debit')),
                     selected: _subtract,
-                    onSelected: _busy
+                    onSelected: _busy || _bonusLocked
                         ? null
                         : (_) => setState(() => _subtract = true),
                   ),
@@ -560,8 +670,9 @@ class _StaffCustomerEditorState extends State<_StaffCustomerEditor> {
                 ),
               ),
               TextFormField(
+                key: const ValueKey('staff-bonus-amount'),
                 controller: _amount,
-                enabled: !_busy,
+                enabled: !_busy && !_bonusLocked,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
@@ -581,8 +692,9 @@ class _StaffCustomerEditorState extends State<_StaffCustomerEditor> {
               const SizedBox(height: 16),
               Text(staffText('Причина изменения', 'Өзгерту себебі', 'Reason')),
               TextFormField(
+                key: const ValueKey('staff-bonus-reason'),
                 controller: _reason,
-                enabled: !_busy,
+                enabled: !_busy && !_bonusLocked,
                 minLines: 2,
                 maxLines: 4,
                 maxLength: 500,
@@ -594,6 +706,14 @@ class _StaffCustomerEditorState extends State<_StaffCustomerEditor> {
                       )
                     : null,
               ),
+              if (_pendingBonus != null)
+                Text(
+                  staffText(
+                    'Результат операции ещё не подтверждён. Повторите сохранение: бонусы не изменятся дважды.',
+                    'Операция нәтижесі әлі расталмады. Сақтауды қайталаңыз: бонустар екі рет өзгермейді.',
+                    'The result is not confirmed yet. Retry saving; the adjustment will not be applied twice.',
+                  ),
+                ),
             ] else ...[
               Text(staffText('Имя', 'Аты', 'Name')),
               TextFormField(controller: _name, enabled: !_busy, maxLength: 160),
@@ -625,7 +745,8 @@ class _StaffCustomerEditorState extends State<_StaffCustomerEditor> {
       ),
       actions: [
         FilledButton(
-          onPressed: _busy ? null : _save,
+          key: const ValueKey('staff-customer-save'),
+          onPressed: _busy || !_ready ? null : _save,
           child: _busy
               ? const SizedBox.square(
                   dimension: 20,

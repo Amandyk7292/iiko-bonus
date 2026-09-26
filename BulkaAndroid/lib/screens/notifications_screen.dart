@@ -857,6 +857,7 @@ class _NotificationCard extends StatelessWidget {
                         height: 10,
                         decoration: const BoxDecoration(
                           color: _bulkaYellow,
+                          gradient: _bulkaGlassGradient,
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -1141,11 +1142,8 @@ class _ContactBrandBadge extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(height * .28),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFD66B), _bulkaYellow],
-        ),
+        color: _bulkaYellow,
+        gradient: _bulkaGlassGradient,
       ),
       child: Image.asset(
         'assets/brand/bulka_logo.png',
@@ -1172,6 +1170,7 @@ class _ContactActionIcon extends StatelessWidget {
       height: frameSize,
       decoration: BoxDecoration(
         color: _bulkaYellow,
+        gradient: _bulkaGlassGradient,
         borderRadius: BorderRadius.circular(BulkaRadii.control),
       ),
       alignment: Alignment.center,

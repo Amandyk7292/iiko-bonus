@@ -32,7 +32,8 @@ jobs:
 
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
         with:
-          name: bulka-iphone-appstore-release-14d9340d271e2bff09273184f9fac59806affc0c
+          pattern: bulka-iphone-appstore-release-*
+          merge-multiple: true
           path: artifact
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ inputs.artifact_run_id }}
@@ -57,6 +58,8 @@ jobs:
 
       - name: Upload IPA to TestFlight
         run: |
+          IPA_COUNT="$(find artifact -type f -name '*.ipa' | wc -l | tr -d ' ')"
+          test "$IPA_COUNT" = 1
           IPA="$(find artifact -type f -name '*.ipa' -print -quit)"
           test -n "$IPA"
           xcrun altool --upload-app \

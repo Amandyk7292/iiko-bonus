@@ -434,7 +434,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                     onClick={() => openCategoryEditModal(g)}
                     className="icon-button bg-amber-50 text-amber-700"
                     aria-label={`Изменить названия категории ${categoryDisplayName}`}
-                    title="Изменить названия RU / KZ / EN"
+                    title="Изменить названия RU / KZ"
                   >
                     <Pencil aria-hidden="true" size={17} />
                   </button>

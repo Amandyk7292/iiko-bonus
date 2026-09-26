@@ -52,7 +52,7 @@ const localizedRequired = (maximum) =>
     .object({
       ru: shortText(maximum, 1),
       kk: shortText(maximum, 1),
-      en: shortText(maximum, 1),
+      en: shortText(maximum).optional(),
     })
     .strict();
 const localizedOptional = (maximum) =>
@@ -693,7 +693,7 @@ const contentI18nSchema = z
   .object({
     ru: contentLocaleSchema,
     kk: contentLocaleSchema,
-    en: contentLocaleSchema,
+    en: contentLocaleSchema.optional(),
   })
   .strict();
 const storyLocaleSchema = z
@@ -710,7 +710,7 @@ const storyI18nSchema = z
     ru: storyLocaleSchema,
     kz: storyLocaleSchema.optional(),
     kk: storyLocaleSchema.optional(),
-    en: storyLocaleSchema,
+    en: storyLocaleSchema.optional(),
   })
   .strict()
   .refine((value) => Boolean(value.kz || value.kk), {

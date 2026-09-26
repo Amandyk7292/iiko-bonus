@@ -82,6 +82,7 @@ test('product label previews both languages and prints a 100 by 60 mm page', asy
   await expect(qr).toBeVisible();
   await expect(qr).toHaveAttribute('x', '820');
   await expect(qr).toHaveAttribute('y', '20');
+  await expect(preview).not.toContainText('Состав:');
   await page.screenshot({ path: testInfo.outputPath('label-with-qr.png'), fullPage: true });
   await toggle.uncheck();
   await expect(qr).toHaveCount(0);
@@ -109,6 +110,7 @@ test('product label previews both languages and prints a 100 by 60 mm page', asy
   await expect(dialog.getByRole('alert')).toContainText('HEX-код');
   await dialog.getByLabel('Цвет фона, HEX').fill('#792C14');
   await dialog.getByLabel('Название на казахском').fill('');
+  await toggle.uncheck();
   const partialPopupReady = page.waitForEvent('popup');
   await dialog.getByRole('button', { name: 'Печать', exact: true }).click();
   const partialPopup = await partialPopupReady;

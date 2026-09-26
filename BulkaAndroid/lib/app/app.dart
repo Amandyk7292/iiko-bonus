@@ -1468,7 +1468,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
           debugShowCheckedModeBanner: false,
           title: 'Bulka',
           locale: Locale(lang),
-          supportedLocales: const [Locale('ru'), Locale('kk'), Locale('en')],
+          supportedLocales: const [Locale('ru'), Locale('kk')],
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,

@@ -102,9 +102,9 @@ abstract final class PendingGiftPurchaseStore {
     if (raw == null || raw.isEmpty) return null;
     try {
       final pending = PendingGiftPurchase.fromJson(_asMap(jsonDecode(raw)));
-      if (pending == null ||
-          DateTime.now().difference(pending.createdAt).abs() >
-              const Duration(days: 7)) {
+      // Retire only after the server resolves this purchase. Time spent
+      // offline cannot prove that its payment failed or was never charged.
+      if (pending == null) {
         await clear(api);
         return null;
       }

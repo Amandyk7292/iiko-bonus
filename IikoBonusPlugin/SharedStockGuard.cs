@@ -62,7 +62,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
     {
         private readonly object gate = new object();
         private readonly string path = Path.Combine(LoyaltyFlow.DataDirectoryPath,"BulkaSharedStock.json");
-        private readonly Dictionary<string,GuardRequest> requests;
+        private Dictionary<string,GuardRequest> requests=new Dictionary<string,GuardRequest>();
         private readonly Timer timer;
         private bool storageHealthy = true;
         private int busy;
@@ -76,23 +76,27 @@ namespace Resto.Front.Api.IikoBonusPlugin
             // The persisted ledger also acts as an arming marker: flipping the
             // config off cannot silently remove protection from existing holds.
             enabledAtStartup = File.Exists(path) || File.Exists(Path.Combine(LoyaltyFlow.DataDirectoryPath,"BulkaSharedStock.enabled")) || string.Equals(LoyaltyFlow.ReadPluginSetting("IIKO_SHARED_STOCK_ENABLED"),"true",StringComparison.OrdinalIgnoreCase);
-            requests = new Dictionary<string,GuardRequest>();
-            if (File.Exists(path))
-            {
-                try
-                {
-                    using(var stream=File.OpenRead(path)) requests=(Dictionary<string,GuardRequest>)new DataContractJsonSerializer(requests.GetType()).ReadObject(stream);
-                    if(requests==null || requests.Any(pair=>pair.Value==null || pair.Key!=pair.Value.ReceiptId || pair.Value.Items==null))
-                        throw new InvalidDataException("Invalid stock ledger");
-                }
-                catch(Exception error) { requests=new Dictionary<string,GuardRequest>(); storageHealthy=false; PluginContext.Log.Error("Bulka shared stock ledger unreadable: "+error.Message); }
-            }
-            else if(Enabled)
-            {
-                try { Save(); }
-                catch(Exception error) {storageHealthy=false; PluginContext.Log.Error("Bulka shared stock ledger could not be created: "+error.Message);}
-            }
+            TryLoadLedger();
             timer=new Timer(Tick,null,TimeSpan.FromSeconds(3),TimeSpan.FromSeconds(10));
+        }
+        private bool TryLoadLedger()
+        {
+            try
+            {
+                requests=DurableJsonFile.ReadValidated<Dictionary<string,GuardRequest>>(path,
+                    entries=>entries.All(pair=>pair.Value!=null && Guid.TryParse(pair.Key,out _) && pair.Key==pair.Value.ReceiptId
+                        && pair.Value.Items!=null && pair.Value.Items.All(item=>item!=null && Guid.TryParse(item.ProductId,out _) && item.Quantity>0)),false);
+                if(!File.Exists(path) && Enabled) Save();
+                storageHealthy=true;
+                return true;
+            }
+            catch(Exception error)
+            {
+                storageHealthy=false;
+                status="Общий учёт: журнал недоступен, требуется восстановление и сверка";
+                PluginContext.Log.Error("Bulka shared stock ledger unreadable: "+error.Message);
+                return false;
+            }
         }
         internal bool IsLinked(IOrder order)
         {
@@ -121,7 +125,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         }
         private void Heartbeat(IOperationService os,bool requireReady)
         {
-            if(!storageHealthy) throw new InvalidOperationException("Не читается журнал резервов. Нужна сверка с администратором; оплата заблокирована.");
+            if(!storageHealthy && !TryLoadLedger()) throw new InvalidOperationException("Не читается журнал резервов. Нужна сверка с администратором; оплата заблокирована.");
             var terminal=os.GetHostTerminal();
             var group=os.GetHostTerminalsGroup();
             var connected=group.MainTerminal!=null && (group.MainTerminal.Id==terminal.Id || os.IsConnectedToMainTerminal());

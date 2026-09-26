@@ -1,7 +1,5 @@
 part of '../main.dart';
 
-const customerAvatarUploadKey = '__upload_custom_avatar__';
-
 @immutable
 class CustomerAvatarOption {
   const CustomerAvatarOption(this.key, this.assetPath);
@@ -115,6 +113,9 @@ Future<String?> showCustomerAvatarPicker(
 }) {
   return showModalBottomSheet<String>(
     context: context,
+    sheetAnimationStyle: BulkaMotion.reduced(context)
+        ? AnimationStyle.noAnimation
+        : null,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Colors.white,
@@ -178,31 +179,6 @@ Future<String?> showCustomerAvatarPicker(
                   icon: const Icon(Icons.close_rounded, size: 22),
                 ),
               ],
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                key: const ValueKey('customer-avatar-upload'),
-                onPressed: () =>
-                    Navigator.pop(sheetContext, customerAvatarUploadKey),
-                icon: const Icon(Icons.add_a_photo_outlined),
-                label: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('avatar_upload'.tr),
-                    Text(
-                      'avatar_upload_hint'.tr,
-                      style: TextStyle(
-                        color: context.bulkaColors.mutedText,
-                        fontSize: BulkaTypeScale.caption,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
             const SizedBox(height: 8),
             Expanded(

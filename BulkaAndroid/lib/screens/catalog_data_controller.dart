@@ -451,10 +451,11 @@ extension _CatalogDataController on _CatalogScreenState {
           pixelHeight: pixelSize,
           resizeMode: 'cover',
         );
-        final source = NetworkImage(effectiveUrl);
-        final ImageProvider<Object> provider = kIsWeb
-            ? source
-            : ResizeImage.resizeIfNeeded(pixelSize, pixelSize, source);
+        final provider = networkImageCacheProvider(
+          effectiveUrl,
+          pixelWidth: pixelSize,
+          pixelHeight: pixelSize,
+        );
         try {
           await precacheImage(provider, context);
         } catch (_) {
@@ -514,25 +515,13 @@ extension _CatalogDataController on _CatalogScreenState {
     if (requestedOrderType == 'delivery') {
       DeliveryAddress? address;
       BakeryLocation? branch;
-      final preferredId =
-          prefs.getString('selected_bakery_location_id_delivery') ?? '';
       try {
         address = await AddressRepository(api: _api).loadSelectedAddress();
       } catch (_) {
         address = null;
       }
       try {
-        if (preferredId.isNotEmpty) {
-          final locations = await _api.getFulfillmentLocations();
-          for (final location in locations) {
-            if (location.id == preferredId &&
-                location.active &&
-                location.deliveryEnabled) {
-              branch = location;
-              break;
-            }
-          }
-        } else if (address != null) {
+        if (address != null) {
           branch = await _resolveDeliveryBranch(address);
         }
       } catch (_) {

@@ -208,6 +208,12 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private static void BeforeProceedOrderPayment(
             ValueTuple<IOrder, IViewManager, IOperationService> args)
         {
+            try { _offlineReceipts?.EnsureHealthy(); }
+            catch(Exception error)
+            {
+                args.Item2.ShowErrorPopup(error.Message,"ОК");
+                throw new OperationCanceledException("Bulka receipt journal is unavailable.",error);
+            }
             if (!_sharedStock.IsLinked(args.Item1))
             {
                 GiftCertificateFlow.BeforeProceedOrderPayment(args);

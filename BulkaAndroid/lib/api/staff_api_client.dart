@@ -192,9 +192,10 @@ class StaffApiClient {
       request.body = jsonEncode(body);
     }
     try {
-      final response = await http.Response.fromStream(
-        await _client.send(request),
-      ).timeout(const Duration(seconds: 120));
+      final response = await _client
+          .send(request)
+          .then(http.Response.fromStream)
+          .timeout(const Duration(seconds: 120));
       if (response.statusCode == 401) _invalidate(sentToken);
       return response;
     } on TimeoutException {
@@ -430,9 +431,10 @@ class StaffApiClient {
         ),
       ),
     );
-    final response = await http.Response.fromStream(
-      await _client.send(request),
-    ).timeout(const Duration(seconds: 120));
+    final response = await _client
+        .send(request)
+        .then(http.Response.fromStream)
+        .timeout(const Duration(seconds: 120));
     if (response.statusCode == 401) _invalidate(sentToken);
     return _decode(response);
   }
@@ -473,9 +475,10 @@ class StaffApiClient {
         contentType: MediaType('audio', 'mp4'),
       ),
     );
-    final response = await http.Response.fromStream(
-      await _client.send(request),
-    ).timeout(const Duration(seconds: 120));
+    final response = await _client
+        .send(request)
+        .then(http.Response.fromStream)
+        .timeout(const Duration(seconds: 120));
     if (response.statusCode == 401) _invalidate(sentToken);
     return _decode(response);
   }

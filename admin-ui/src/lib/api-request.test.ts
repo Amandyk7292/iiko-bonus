@@ -3,14 +3,85 @@ import { api, applyAdminScopeHeaders, composeRequestAbortSignal } from './api';
 import { uploadMenuPhoto } from './menu-photo-api';
 
 describe('admin API request abort composition', () => {
-  it('uploads and binds a photo in one request using the captured branch', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify({ success: true, imageUrl: 'https://example.com/new.jpg' }), {
+  for (const [name, call] of [
+    ['password', () => api.login('admin', 'password', '')],
+    ['phone request', () => api.requestAdminPhoneLogin('+77001234567')],
+    ['phone verify', () => api.verifyAdminPhoneLogin('+77001234567', '123456')],
+    ['operator access', () => api.exchangeWhatsAppOperatorAccess('token')],
+  ] as const) {
+    it.each(['headers', 'body', 'error body'])(
+      `${name} limits stalled %s without revoking the session`,
+      async (phase) => {
+        vi.useFakeTimers();
+        const unauthorized = vi.fn();
+        window.addEventListener('unauthorized', unauthorized);
+        vi.stubGlobal(
+          'fetch',
+          vi.fn((_url: string, options: RequestInit) => {
+            const signal = options.signal!;
+            if (phase === 'headers')
+              return new Promise((_resolve, reject) => {
+                signal.addEventListener('abort', () =>
+                  reject(new DOMException('Aborted', 'AbortError')),
+                );
+              });
+            return Promise.resolve(
+              new Response(
+                new ReadableStream({
+                  start(controller) {
+                    signal.addEventListener('abort', () =>
+                      controller.error(new DOMException('Aborted', 'AbortError')),
+                    );
+                  },
+                }),
+                {
+                  status: phase === 'error body' ? 401 : 200,
+                  headers: { 'Content-Type': 'application/json' },
+                },
+              ),
+            );
+          }),
+        );
+        try {
+          const settled = call().catch((error: unknown) => error);
+          await vi.advanceTimersByTimeAsync(30_000);
+          expect(await settled).toMatchObject({ status: 0, code: 'NETWORK_ERROR' });
+          expect(unauthorized).not.toHaveBeenCalled();
+        } finally {
+          window.removeEventListener('unauthorized', unauthorized);
+        }
+      },
+    );
+  }
+
+  it('authentication rejection preserves an existing session', async () => {
+    const unauthorized = vi.fn();
+    window.addEventListener('unauthorized', unauthorized);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: 'Wrong code' }), {
+          status: 401,
           headers: { 'Content-Type': 'application/json' },
         }),
-      );
+      ),
+    );
+    try {
+      await expect(api.login('admin', 'wrong', '')).rejects.toMatchObject({
+        status: 401,
+        code: 'AUTH_INVALID',
+      });
+      expect(unauthorized).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('unauthorized', unauthorized);
+    }
+  });
+  it('uploads and binds a photo in one request using the captured branch', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true, imageUrl: 'https://example.com/new.jpg' }), {
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
     vi.stubGlobal('fetch', fetchMock);
     localStorage.setItem('adminSelectedBranchId', 'branch-b');
     try {
@@ -273,6 +344,24 @@ describe('admin API request abort composition', () => {
         message: 'Сервер не ответил вовремя. Повторите попытку.',
       });
       await request;
+    },
+  );
+
+  it.each([200, 204])(
+    'requires an explicit successful bonus result before clearing an HTTP %s attempt',
+    async (status) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          new Response(status === 204 ? null : '{}', {
+            status,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      );
+      await expect(
+        api.addCustomerBonus('customer', 25, 'Valid reason', crypto.randomUUID()),
+      ).rejects.toMatchObject({ code: 'INVALID_API_RESPONSE' });
     },
   );
 

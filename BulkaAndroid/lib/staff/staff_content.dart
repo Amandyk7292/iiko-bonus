@@ -206,7 +206,7 @@ class _StaffContentEditorState extends State<_StaffContentEditor> {
     super.initState();
     final item = widget.item ?? {};
     final i18n = item['i18n'] as Map? ?? {};
-    for (final language in ['ru', 'kk', 'en']) {
+    for (final language in ['ru', 'kk']) {
       final data =
           (i18n[language] ?? (language == 'kk' ? i18n['kz'] : null)) as Map? ??
           {};
@@ -304,7 +304,7 @@ class _StaffContentEditorState extends State<_StaffContentEditor> {
     });
     try {
       final i18n = <String, Map<String, dynamic>>{};
-      for (final language in ['ru', 'kk', 'en']) {
+      for (final language in ['ru', 'kk']) {
         i18n[language] = {
           for (final field in _localized)
             field: _c('$language.$field').text.trim(),
@@ -406,11 +406,7 @@ class _StaffContentEditorState extends State<_StaffContentEditor> {
           Wrap(
             spacing: 10,
             children: [
-              for (final language in {
-                'ru': 'Русский',
-                'kk': 'Қазақша',
-                'en': 'English',
-              }.entries)
+              for (final language in {'ru': 'Русский', 'kk': 'Қазақша'}.entries)
                 ChoiceChip(
                   label: Text(language.value),
                   selected: _language == language.key,

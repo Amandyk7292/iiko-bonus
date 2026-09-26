@@ -7,6 +7,7 @@ using System.Text;
 using System.IO;
 using System.Reflection;
 using System.Runtime.Serialization.Json;
+using System.Runtime.Serialization;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Threading;
@@ -156,6 +157,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
         public bool duplicate { get; set; }
     }
 
+    [DataContract]
+    internal sealed class ReservationPrepareResponse
+    {
+        [DataMember] public bool success { get; set; }
+        [DataMember] public string reservationId { get; set; }
+        [DataMember] public string status { get; set; }
+    }
+
     [System.Runtime.Serialization.DataContract]
     public class ReservationCommitRequest
     {
@@ -249,6 +258,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
             new System.Collections.Concurrent.ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         private static Timer _retryTimer;
         private static int _flushInProgress;
+        private static int _unresolvedOrderCount;
+        private static volatile bool _activeStateHealthy=true;
         private static string _lastConnectionStatus = "не проверено";
         private static DateTime? _lastConnectionCheckUtc;
 
@@ -347,6 +358,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             try
             {
+                ReconcileRestoredOrders(PluginContext.Operations);
                 FlushPendingApplyRequests();
                 CheckServerStatus();
             }
@@ -362,13 +374,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
             {
                 try
                 {
-                    if (!File.Exists(ActiveOrdersPath)) return;
                     var saved = ReadSerializedFile<Dictionary<Guid, PluginEntry.OrderLoyaltyData>>(ActiveOrdersPath);
-                    if (saved == null) return;
                     foreach (var pair in saved) PluginEntry.ActiveOrders[pair.Key] = pair.Value;
+                    _activeStateHealthy=true;
                 }
                 catch (Exception ex)
                 {
+                    _activeStateHealthy=false;
                     PluginContext.Log.Error("IikoBonusPlugin: Failed to restore active orders: " + ex);
                 }
             }
@@ -380,6 +392,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             {
                 try
                 {
+                    if(!_activeStateHealthy) {RestoreActiveOrders();if(!_activeStateHealthy)return false;}
                     WriteSerializedFileAtomically(
                         ActiveOrdersPath,
                         PluginEntry.ActiveOrders.ToDictionary(x => x.Key, x => x.Value));
@@ -432,8 +445,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 : "\n\nОшибки:\n" + string.Join("\n", pending.Where(x => x.terminal).Take(5).Select(x =>
                     NormalizeOperation(x.operation) + " / " + x.orderId + ": " + GetSafeErrorBody(x.lastError)));
             return "Bulka Bonus\nAPI: " + ApiBaseUrl + "\n" + tokenStatus + "\n" + branchTokenStatus +
+                   (_activeStateHealthy ? "" : "\nЖурнал активных резервов повреждён; требуется восстановление") +
                    "\nСвязь: " + _lastConnectionStatus + "\nПоследняя проверка: " + checkedAt +
                    "\nОжидают отправки: " + waitingCount + "\nТребуют внимания: " + failedCount +
+                   "\nИсход чека не найден, резерв сохранён: " + Volatile.Read(ref _unresolvedOrderCount) +
                    "\nДанные: " + DataDirectory + failedDetails;
         }
 
@@ -1561,20 +1576,18 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             try
             {
-                if (PluginEntry.ActiveOrders.IsEmpty) return;
+                if(!_activeStateHealthy) {RestoreActiveOrders();if(!_activeStateHealthy)return;}
+                if (PluginEntry.ActiveOrders.IsEmpty) {Interlocked.Exchange(ref _unresolvedOrderCount,0);return;}
                 var orders = operationService.GetOrders(true, false).ToDictionary(order => order.Id, order => order);
+                var unresolved=0;
                 foreach (var pair in PluginEntry.ActiveOrders.ToArray())
                 {
                     IOrder order;
                     if (!orders.TryGetValue(pair.Key, out order))
                     {
-                        if (!string.IsNullOrWhiteSpace(pair.Value.ReservationId))
-                        {
-                            EnqueueOperation("cancel", pair.Key.ToString(), pair.Value.CustomerId,
-                                pair.Value.ReservationId, 0, 0);
-                        }
-                        PluginEntry.ActiveOrders.TryRemove(pair.Key, out _);
-                        PersistActiveOrders();
+                        // A disconnected register or an archived order is not
+                        // evidence of cancellation. Retry reconciliation later.
+                        unresolved++;
                         continue;
                     }
                     if (order.Status == OrderStatus.Closed)
@@ -1592,6 +1605,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                         PersistActiveOrders();
                     }
                 }
+                Interlocked.Exchange(ref _unresolvedOrderCount,unresolved);
             }
             catch (Exception ex)
             {
@@ -1605,6 +1619,16 @@ namespace Resto.Front.Api.IikoBonusPlugin
             var vm = args.Item2;
             var operationService = args.Item3;
             if (order == null) return;
+
+            if(!_activeStateHealthy)
+            {
+                RestoreActiveOrders();
+                if(!_activeStateHealthy)
+                {
+                    vm.ShowErrorPopup("Журнал резервов бонусов повреждён. Оплата заблокирована до восстановления и сверки.","ОК");
+                    throw new OperationCanceledException("Bulka Bonus active journal is unavailable.");
+                }
+            }
 
             var appliedAmount = GetAppliedLoyaltyDiscountAmount(order, operationService);
             PluginEntry.OrderLoyaltyData loyaltyData;
@@ -1655,6 +1679,24 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 vm.ShowErrorPopup("Не удалось сохранить резервацию на кассе. Оплата заблокирована до устранения ошибки диска.", "ОК");
                 throw new OperationCanceledException("Bulka Bonus reservation state could not be persisted.");
             }
+            PreparePayment(order.Id,loyaltyData,vm);
+        }
+
+        private static void PreparePayment(Guid orderId,PluginEntry.OrderLoyaltyData state,IViewManager vm)
+        {
+            try
+            {
+                var response=SendApiRequest(HttpMethod.Post,"prepare",new ReservationCancelRequest {
+                    customerId=state.CustomerId,orderId=orderId.ToString(),reservationId=state.ReservationId });
+                var result=response.IsSuccessStatusCode ? DeserializeJson<ReservationPrepareResponse>(response.Body) : null;
+                if(result==null || !result.success || result.status!="prepared" || result.reservationId!=state.ReservationId)
+                    throw new InvalidOperationException(GetApiErrorMessage(response.Body,"Не подтверждён резерв бонусов для оплаты. Повторите после восстановления связи."));
+            }
+            catch(Exception error)
+            {
+                vm.ShowErrorPopup(error.Message,"ОК");
+                throw new OperationCanceledException("Bulka Bonus settlement preparation is required before payment.",error);
+            }
         }
 
         public static void OnOrderChanged(EntityChangedEventArgs<IOrder> args)
@@ -1670,13 +1712,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
                 if (order.Status == OrderStatus.Deleted)
                 {
-                    if (PluginEntry.ActiveOrders.TryRemove(order.Id, out var deletedData) &&
+                    if (PluginEntry.ActiveOrders.TryGetValue(order.Id, out var deletedData) &&
                         !string.IsNullOrWhiteSpace(deletedData.ReservationId))
                     {
                         EnqueueOperation("cancel", order.Id.ToString(), deletedData.CustomerId,
                             deletedData.ReservationId, 0, 0);
                         Task.Run(() => FlushPendingApplyRequests());
                     }
+                    PluginEntry.ActiveOrders.TryRemove(order.Id,out _);
                     PersistActiveOrders();
                     return;
                 }
@@ -1923,7 +1966,6 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             try
             {
-                if (!File.Exists(QueuePath)) return new List<LoyaltyApplyQueueItem>();
                 return ReadSerializedFile<List<LoyaltyApplyQueueItem>>(QueuePath) ?? new List<LoyaltyApplyQueueItem>();
             }
             catch (Exception ex)
@@ -1938,38 +1980,17 @@ namespace Resto.Front.Api.IikoBonusPlugin
             WriteSerializedFileAtomically(QueuePath, queue);
         }
 
-        private static T ReadSerializedFile<T>(string path) where T : class
+        private static T ReadSerializedFile<T>(string path) where T : class,new()
         {
-            try
-            {
-                var serializer = new DataContractJsonSerializer(typeof(T));
-                using (var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read))
-                {
-                    return (T)serializer.ReadObject(stream);
-                }
-            }
-            catch (Exception primaryError)
-            {
-                var backupPath = path + ".bak";
-                if (File.Exists(backupPath))
-                {
-                    try
-                    {
-                        var serializer = new DataContractJsonSerializer(typeof(T));
-                        using (var backupStream = File.Open(backupPath, FileMode.Open, FileAccess.Read, FileShare.Read))
-                        {
-                            var recovered = (T)serializer.ReadObject(backupStream);
-                            PluginContext.Log.Error("IikoBonusPlugin: Recovered state from backup after read failure: " + primaryError.Message);
-                            return recovered;
-                        }
-                    }
-                    catch (Exception backupError)
-                    {
-                        throw new IOException("Cannot read state or its backup.", new AggregateException(primaryError, backupError));
-                    }
-                }
-                throw;
-            }
+            return DurableJsonFile.ReadValidated<T>(path,value=>ValidateStoredState(value)!=null,true);
+        }
+
+        private static T ValidateStoredState<T>(T value) where T:class
+        {
+            if(value==null || (value is List<LoyaltyApplyQueueItem> queue && queue.Any(item=>item==null || string.IsNullOrWhiteSpace(item.orderId)))
+                || (value is Dictionary<Guid,PluginEntry.OrderLoyaltyData> active && active.Any(pair=>pair.Key==Guid.Empty || pair.Value==null)))
+                throw new InvalidDataException("Invalid loyalty journal structure.");
+            return value;
         }
 
         private static void WriteSerializedFileAtomically<T>(string path, T value)
@@ -1981,7 +2002,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             using (var stream = File.Open(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
                 serializer.WriteObject(stream, value);
-                stream.Flush();
+                stream.Flush(true);
             }
 
             if (File.Exists(path))

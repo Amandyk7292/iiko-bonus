@@ -67,7 +67,7 @@
   color: #73796b;
   pointer-events: none;
 }
-.id-dashboard .id-search-input input {
+.id-dashboard .id-search-input input:not([type='checkbox']):not([type='file']) {
   width: 100%;
   padding-left: 36px;
 }

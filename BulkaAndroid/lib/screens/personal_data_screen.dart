@@ -188,10 +188,6 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
       selectedKey: _selectedAvatarKey,
     );
     if (!mounted || selected == null) return;
-    if (selected == customerAvatarUploadKey) {
-      await _uploadCustomAvatar();
-      return;
-    }
     if (selected == _selectedAvatarKey) return;
     final previous = _selectedAvatarKey;
     final previousUrl = _selectedAvatarUrl;
@@ -239,88 +235,6 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     }
   }
 
-  Future<void> _uploadCustomAvatar() async {
-    final file = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1600,
-      maxHeight: 1600,
-      imageQuality: 90,
-    );
-    if (!mounted || file == null) return;
-
-    const maxBytes = 5 * 1024 * 1024;
-    final length = await file.length();
-    if (!mounted) return;
-    if (length <= 0 || length > maxBytes) {
-      _showInfoMessage('avatar_file_too_large'.tr, isError: true);
-      return;
-    }
-
-    final extension = file.name.split('.').last.toLowerCase();
-    final inferredMime = switch (extension) {
-      'jpg' || 'jpeg' => 'image/jpeg',
-      'png' => 'image/png',
-      'webp' => 'image/webp',
-      _ => '',
-    };
-    final mimeType = (file.mimeType ?? inferredMime).toLowerCase();
-    if (!const {'image/jpeg', 'image/png', 'image/webp'}.contains(mimeType)) {
-      _showInfoMessage('avatar_invalid_format'.tr, isError: true);
-      return;
-    }
-
-    final previousKey = _selectedAvatarKey;
-    final previousUrl = _selectedAvatarUrl;
-    setState(() => _isAvatarSaving = true);
-    try {
-      final avatar = await widget.api.uploadCustomerAvatar(
-        bytes: await file.readAsBytes(),
-        fileName: file.name,
-        mimeType: mimeType,
-      );
-      final avatarKey = _asString(avatar['avatarKey']);
-      final avatarUrl = _asString(avatar['avatarUrl']);
-      if (avatarKey != 'custom' || avatarUrl.isEmpty) {
-        throw ApiException('avatar_save_error'.tr);
-      }
-      if (!mounted) return;
-      setState(() {
-        _selectedAvatarKey = avatarKey;
-        _selectedAvatarUrl = avatarUrl;
-      });
-      try {
-        await widget.onAvatarSaved?.call(
-          customerId: widget.customer.id,
-          phone: widget.customer.phone,
-          avatarKey: avatarKey,
-          avatarUrl: avatarUrl,
-        );
-      } catch (error, stackTrace) {
-        debugPrint('Failed to propagate the uploaded customer avatar: $error');
-        debugPrintStack(stackTrace: stackTrace);
-        unawaited(_refreshProfileInBackground());
-      }
-      _showInfoMessage('avatar_saved'.tr);
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          _selectedAvatarKey = previousKey;
-          _selectedAvatarUrl = previousUrl;
-        });
-      }
-      final message = switch (error) {
-        ApiException(code: 'CUSTOMER_AVATAR_TOO_LARGE') =>
-          'avatar_file_too_large'.tr,
-        ApiException(code: 'CUSTOMER_AVATAR_FORMAT') =>
-          'avatar_invalid_format'.tr,
-        _ => localizeErrorMessage(error, fallbackKey: 'avatar_save_error'),
-      };
-      _showInfoMessage(message, isError: true);
-    } finally {
-      if (mounted) setState(() => _isAvatarSaving = false);
-    }
-  }
-
   void _handleBack() {
     if (!_isAvatarSaving) {
       widget.onBack();
@@ -331,6 +245,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     if (_isLoading || _isAvatarSaving) return;
     final confirm = await showDialog<bool>(
       context: context,
+      animationStyle: BulkaMotion.reduced(context)
+          ? AnimationStyle.noAnimation
+          : null,
       builder: (context) => BulkaActionDialog(
         title: Text(
           'delete_account_title'.tr,
