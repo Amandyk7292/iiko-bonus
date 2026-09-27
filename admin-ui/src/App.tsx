@@ -27,6 +27,7 @@ import Topbar from './components/Topbar';
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const CustomersPage = lazy(() => import('./pages/CustomersPage'));
 const OrdersPage = lazy(() => import('./pages/OrdersPage'));
+const SettlementsPage = lazy(() => import('./pages/SettlementsPage'));
 const TransactionsPage = lazy(() => import('./pages/TransactionsPage'));
 const IikoPage = lazy(() => import('./pages/IikoPage'));
 const IikoDashboardPage = lazy(() => import('./pages/IikoDashboardPage'));
@@ -578,6 +579,7 @@ export default function App() {
                   <Route path="/" element={<Navigate to={firstPath} replace />} />
                   <Route path="/operations" element={guard('/operations', <OperationsPage />)} />
                   <Route path="/analytics" element={guard('/analytics', <AnalyticsPage />)} />
+                  <Route path="/settlements" element={guard('/settlements', <SettlementsPage />)} />
                   <Route
                     path="/transactions"
                     element={guard('/transactions', <TransactionsPage />)}

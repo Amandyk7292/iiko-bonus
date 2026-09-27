@@ -1,0 +1,105 @@
+.settlements-page {
+  min-width: 0;
+}
+.settlements-page .card {
+  padding: clamp(16px, 2vw, 24px);
+  min-width: 0;
+}
+.settlements-page h2 {
+  margin-bottom: 16px;
+}
+.settlement-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 16px;
+}
+.settlement-filters .field-group {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.settlements-page .responsive-table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.settlements-page .data-table {
+  width: 100%;
+  white-space: nowrap;
+}
+.settlements-page td,
+.settlements-page th {
+  padding: 12px;
+  text-align: left;
+}
+.settlements-page td small {
+  display: block;
+  white-space: normal;
+  min-width: 120px;
+}
+.settlements-page td button {
+  display: block;
+  margin-top: 8px;
+}
+.settlement-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+.settlement-details {
+  margin: 0;
+}
+.settlement-details > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+}
+.settlement-details dd {
+  margin: 0;
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .settlement-filters .field-group {
+    flex-basis: 100%;
+  }
+  .settlements-page .page-header {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+}
+.settlements-page h1 {
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0 0 8px;
+}
+.settlements-page h2 {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.settlements-page .page-header {
+  margin-bottom: 20px;
+}
+.settlements-page td button {
+  min-width: 108px;
+  white-space: normal;
+}
+.settlement-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+}
+.settlement-confirm input[type='checkbox'] {
+  appearance: auto;
+  position: static;
+  opacity: 1;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  margin: 2px 0;
+}

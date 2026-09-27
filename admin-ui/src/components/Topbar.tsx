@@ -33,6 +33,7 @@ const routeKeys: Record<string, string> = {
   '/operations': 'operations',
   '/analytics': 'analytics',
   '/transactions': 'transactions',
+  '/settlements': 'settlements',
   '/iiko': 'iiko',
   '/iiko-dashboard': 'iikoDashboard',
   '/broadcast': 'broadcast',
