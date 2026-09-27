@@ -1,6 +1,8 @@
+import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 const ru: Record<string, string> = {
   ...dashboard.ru,
+  ...referralReport.ru,
   'bonus.referralTitle': 'Приглашение друзей',
   'bonus.referralHint':
     'Оба клиента получают бонусы после первой оплаченной покупки друга. Новые суммы действуют для новых приглашений; уже принятые сохраняют свои условия.',

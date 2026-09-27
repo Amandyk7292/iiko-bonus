@@ -39,6 +39,10 @@ it('loads and saves both referral rewards through the existing settings API', as
           inviter_bonus: 1500,
           friend_bonus: 500,
           min_first_order: 0,
+          max_invites_per_day: 20,
+          max_rewards_per_month: 30,
+          max_reward_amount_per_month: 30000,
+          review_same_device: true,
         },
       }),
     );

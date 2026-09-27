@@ -1,6 +1,87 @@
 part of '../main.dart';
 
 const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
+  'referral_history': {
+    'ru': 'Мои приглашения',
+    'kk': 'Менің шақыруларым',
+    'en': 'My invitations',
+  },
+  'referral_summary': {
+    'ru':
+        'Зарегистрировались: {registered}\nСовершили покупку: {purchased}\nНачислено вам: {earned} ₸\nОтозвано: {reversed} ₸',
+    'kk':
+        'Тіркелді: {registered}\nСатып алды: {purchased}\nСізге есептелді: {earned} ₸\nҚайтарылды: {reversed} ₸',
+    'en':
+        'Registered: {registered}\nPurchased: {purchased}\nAwarded to you: {earned} ₸\nReversed: {reversed} ₸',
+  },
+  'referral_debt': {
+    'ru':
+        'Бонусный долг: {amount} ₸. Погашается будущими бонусами; деньги не списываются.',
+    'kk':
+        'Бонус қарызы: {amount} ₸. Келесі бонустардан өтеледі; ақша алынбайды.',
+    'en':
+        'Bonus debt: {amount} ₸. Repaid by future bonuses; no money is charged.',
+  },
+  'referral_empty': {
+    'ru': 'Пока никто не зарегистрировался по вашей ссылке.',
+    'kk': 'Сілтемеңіз арқылы әлі ешкім тіркелмеді.',
+    'en': 'Nobody has registered through your link yet.',
+  },
+  'referral_friend_number': {
+    'ru': 'Друг №{number}',
+    'kk': 'Дос №{number}',
+    'en': 'Friend #{number}',
+  },
+  'referral_purchased': {
+    'ru': 'Первая покупка совершена',
+    'kk': 'Алғашқы сатып алу жасалды',
+    'en': 'First purchase completed',
+  },
+  'referral_your_reward': {
+    'ru': 'Ваша награда: {amount} ₸',
+    'kk': 'Сыйлығыңыз: {amount} ₸',
+    'en': 'Your reward: {amount} ₸',
+  },
+  'referral_status_registered': {
+    'ru': 'Ожидает первой покупки',
+    'kk': 'Алғашқы сатып алуды күтуде',
+    'en': 'Awaiting first purchase',
+  },
+  'referral_status_qualified': {
+    'ru': 'Ожидает начисления',
+    'kk': 'Есептеуді күтуде',
+    'en': 'Awaiting reward',
+  },
+  'referral_status_rewarded': {
+    'ru': 'Награда начислена',
+    'kk': 'Сыйлық есептелді',
+    'en': 'Reward credited',
+  },
+  'referral_status_cancelled': {
+    'ru': 'Награда отменена',
+    'kk': 'Сыйлық жойылды',
+    'en': 'Reward cancelled',
+  },
+  'referral_status_reversed': {
+    'ru': 'Награда отозвана после возврата',
+    'kk': 'Қайтарудан кейін сыйлық қайтарылды',
+    'en': 'Reward reversed after refund',
+  },
+  'referral_status_review': {
+    'ru': 'На проверке',
+    'kk': 'Тексеруде',
+    'en': 'Under review',
+  },
+  'referral_more': {
+    'ru': 'Показать ещё',
+    'kk': 'Тағы көрсету',
+    'en': 'Show more',
+  },
+  'referral_refresh': {
+    'ru': 'Обновить историю',
+    'kk': 'Тарихты жаңарту',
+    'en': 'Refresh history',
+  },
   'orders_branch_unknown': {
     'ru': 'Филиал не указан',
     'kk': 'Филиал көрсетілмеген',

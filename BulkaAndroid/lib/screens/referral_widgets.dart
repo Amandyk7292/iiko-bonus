@@ -88,10 +88,144 @@ class _ReferralScreenState extends State<ReferralScreen> {
                     },
               child: Text('rewards_copy'.tr),
             ),
+            const SizedBox(height: 32),
+            _ReferralHistory(api: widget.api),
           ],
         );
       },
     ),
+  );
+}
+
+class _ReferralHistory extends StatefulWidget {
+  const _ReferralHistory({required this.api});
+  final BulkaApiClient api;
+  @override
+  State<_ReferralHistory> createState() => _ReferralHistoryState();
+}
+
+class _ReferralHistoryState extends State<_ReferralHistory> {
+  Map<String, dynamic>? _history;
+  final List<Map<String, dynamic>> _items = [];
+  bool _loading = false;
+  bool _failed = false;
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load({bool refresh = false}) async {
+    if (_loading) return;
+    setState(() {
+      _loading = true;
+      _failed = false;
+    });
+    try {
+      final data = await widget.api.getReferralHistory(
+        offset: refresh ? 0 : _items.length,
+      );
+      if (!mounted) return;
+      setState(() {
+        _history = data;
+        if (refresh) _items.clear();
+        _items.addAll(
+          (data['items'] is List ? data['items'] as List : []).map(_asMap),
+        );
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _failed = true;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(
+        'referral_history'.tr,
+        style: Theme.of(context).textTheme.titleLarge,
+      ),
+      const SizedBox(height: 12),
+      if (_history != null) ...[
+        Text(
+          'referral_summary'.trArgs({
+            'registered': '${_history!['registered'] ?? 0}',
+            'purchased': '${_history!['purchased'] ?? 0}',
+            'earned': formatMoney(_asDouble(_history!['earned'])),
+            'reversed': formatMoney(_asDouble(_history!['reversed'])),
+          }),
+        ),
+        if (_asDouble(_history!['debt']) > 0)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              'referral_debt'.trArgs({
+                'amount': formatMoney(_asDouble(_history!['debt'])),
+              }),
+            ),
+          ),
+        if (_items.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text('referral_empty'.tr),
+          ),
+        ..._items.map(
+          (item) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'referral_friend_number'.trArgs({
+                    'number': '${item['number']}',
+                  }),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                Text('referral_status_${_asString(item['status'])}'.tr),
+                if (item['purchased'] == true) Text('referral_purchased'.tr),
+                if (_asDouble(item['reward']) > 0)
+                  Text(
+                    'referral_your_reward'.trArgs({
+                      'amount': formatMoney(_asDouble(item['reward'])),
+                    }),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+      if (_failed) ...[
+        Text('referral_load_error'.tr),
+        TextButton(
+          onPressed: _loading ? null : () => _load(),
+          child: Text('referral_retry'.tr),
+        ),
+      ],
+      if (_loading) const Center(child: CircularProgressIndicator()),
+      if (!_loading && !_failed && _history != null)
+        TextButton(
+          onPressed: () => _load(
+            refresh: _items.length >= _asDouble(_history!['registered']),
+          ),
+          child: Text(
+            (_items.length < _asDouble(_history!['registered'])
+                    ? 'referral_more'
+                    : 'referral_refresh')
+                .tr,
+          ),
+        ),
+    ],
   );
 }
 

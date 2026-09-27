@@ -5,6 +5,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ReferralApi extends BulkaApiClient {
+  @override
+  Future<Map<String, dynamic>> getReferralHistory({int offset = 0}) async => {
+    'registered': 1,
+    'purchased': 1,
+    'earned': 1000,
+    'reversed': 0,
+    'debt': 0,
+    'items': [
+      {
+        'id': 'invite',
+        'number': 1,
+        'purchased': true,
+        'status': 'rewarded',
+        'reward': 1000,
+      },
+    ],
+  };
   bool offline = false;
   @override
   Future<Map<String, dynamic>> getPersonalAccount() async => {'balance': 0};
@@ -79,10 +96,13 @@ void main() {
     await tester.tap(invitation);
     await tester.pumpAndSettle();
     expect(find.byType(ReferralScreen), findsOneWidget);
-    expect(find.textContaining('1000 ₸'), findsOneWidget);
+    expect(find.textContaining('1000 ₸'), findsWidgets);
     await tester.tap(find.text('Скопировать'));
     await tester.pumpAndSettle();
     expect(clipboard, 'https://bulka.com.kz/catalog?ref=BULKA-1234ABCD');
+    await tester.ensureVisible(find.text('Друг №1'));
+    expect(find.text('Награда начислена'), findsOneWidget);
+    expect(find.textContaining('Зарегистрировались: 1'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
   testWidgets(

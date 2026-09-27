@@ -822,8 +822,35 @@ router.put(
     }
   },
 );
+router.get('/api/customer/referral/history', async (req, res) => {
+  const offset = Number(req.query.offset || 0);
+  if (!Number.isInteger(offset) || offset < 0 || offset > 100000)
+    return res.status(400).json({ success: false, error: 'Invalid offset' });
+  try {
+    res.json({
+      success: true,
+      history: await require('../services/referral.service').customerReferralHistory(
+        req.customerAuth.id,
+        offset,
+      ),
+    });
+  } catch (_error) {
+    res.status(500).json({ success: false, error: 'Не удалось загрузить приглашения' });
+  }
+});
 router.get('/api/customer/referral', async (req, res) => {
   try {
+    const installation = req.query.installationId;
+    if (
+      installation !== undefined &&
+      (typeof installation !== 'string' || !/^[A-Za-z0-9._:-]{8,160}$/.test(installation))
+    ) {
+      return res.status(400).json({ success: false, error: 'Invalid installation' });
+    }
+    await require('../services/referral.service').rememberReferralDevice(
+      req.customerAuth.id,
+      installation,
+    );
     res.json({
       success: true,
       referral: await marketing.getOrCreateReferralCode(req.customerAuth.id),

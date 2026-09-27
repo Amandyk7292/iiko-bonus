@@ -1,6 +1,8 @@
+import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 const kk: Record<string, string> = {
   ...dashboard.kk,
+  ...referralReport.kk,
   'bonus.referralTitle': 'Достарды шақыру',
   'bonus.referralHint':
     'Екі клиент те досының алғашқы төленген сатып алуынан кейін бонус алады. Жаңа сомалар жаңа шақыруларға қолданылады; қабылданған шақырулардың шарттары сақталады.',

@@ -37,6 +37,10 @@ const customerRegistrationBodySchema = z
     gender: nullableShortText(16),
     birthdate: nullableShortText(10),
     email: nullableShortText(254),
+    installationId: z
+      .string()
+      .regex(/^[A-Za-z0-9._:-]{8,160}$/)
+      .optional(),
     referralCode: z
       .string()
       .trim()

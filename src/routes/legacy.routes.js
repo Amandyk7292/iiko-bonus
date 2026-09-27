@@ -464,6 +464,10 @@ router.post(
       // Persist the legal audit before consuming a one-time credential grant.
       // A transient audit failure must remain safely retryable for the client.
       await recordCustomerLegalConsent(customer.id, legalConsent);
+      await require('../services/referral.service').rememberReferralDevice(
+        customer.id,
+        req.body.installationId,
+      );
       if (req.body.referralCode) {
         await require('../services/commerce-marketing.service').redeemReferralCode(
           customer.id,

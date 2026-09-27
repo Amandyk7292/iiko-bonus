@@ -286,6 +286,10 @@ const settingsBodySchema = optionalPatch(
           inviter_bonus: moneySchema.max(1_000_000).multipleOf(0.01),
           friend_bonus: moneySchema.max(1_000_000).multipleOf(0.01),
           min_first_order: moneySchema.max(1_000_000).multipleOf(0.01),
+          max_invites_per_day: z.number().int().min(1).max(10000).optional(),
+          max_rewards_per_month: z.number().int().min(1).max(10000).optional(),
+          max_reward_amount_per_month: moneySchema.max(10_000_000).multipleOf(0.01).optional(),
+          review_same_device: z.boolean().optional(),
         })
         .strict()
         .optional(),

@@ -6,6 +6,7 @@ import { useFeedback } from '../components/Feedback';
 import { api } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import ReferralSettings, { type ReferralPolicy } from './ReferralSettings';
+import ReferralReport from './ReferralReport';
 
 interface BonusSettings {
   bonus_referral: ReferralPolicy;
@@ -35,6 +36,12 @@ export default function BonusPage() {
           inviter_bonus: Number(data.bonus_referral?.inviter_bonus ?? 1000),
           friend_bonus: Number(data.bonus_referral?.friend_bonus ?? 500),
           min_first_order: Number(data.bonus_referral?.min_first_order ?? 0),
+          max_invites_per_day: Number(data.bonus_referral?.max_invites_per_day ?? 20),
+          max_rewards_per_month: Number(data.bonus_referral?.max_rewards_per_month ?? 30),
+          max_reward_amount_per_month: Number(
+            data.bonus_referral?.max_reward_amount_per_month ?? 30000,
+          ),
+          review_same_device: data.bonus_referral?.review_same_device !== false,
         },
         base_cashback_percent: Number(data.base_cashback_percent ?? 0),
         max_discount_percent: Number(data.max_discount_percent ?? 0),
@@ -246,6 +253,7 @@ export default function BonusPage() {
           </button>
         </div>
       </form>
+      <ReferralReport />
     </div>
   );
 }

@@ -292,6 +292,7 @@ class BulkaApiClient {
     final json = await _post('/api/auth/register', {
       if (referralCode != null && referralCode.isNotEmpty)
         'referralCode': referralCode,
+      'installationId': await PushNotifications.installationId(),
       'phone': phone,
       'name': name,
       'surname': surname,
@@ -1379,8 +1380,16 @@ class BulkaApiClient {
   }
 
   Future<Map<String, dynamic>> getReferral() async {
-    final json = await _get('/api/customer/referral');
+    final installation = await PushNotifications.installationId();
+    final json = await _get(
+      '/api/customer/referral?installationId=${Uri.encodeQueryComponent(installation)}',
+    );
     return _asMap(json['referral']);
+  }
+
+  Future<Map<String, dynamic>> getReferralHistory({int offset = 0}) async {
+    final json = await _get('/api/customer/referral/history?offset=$offset');
+    return _asMap(json['history']);
   }
 
   Future<void> redeemReferral(String code) async {
