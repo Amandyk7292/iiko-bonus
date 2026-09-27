@@ -4,6 +4,13 @@ const { randomUUID } = require('node:crypto');
 const { readFileSync } = require('node:fs');
 const { PGlite } = require('@electric-sql/pglite');
 const db = new PGlite();
+const legacy = {
+  owner: randomUUID(),
+  friend: randomUUID(),
+  code: randomUUID(),
+  redemption: randomUUID(),
+  order: randomUUID(),
+};
 test.before(async () => {
   await db.exec(`create role anon; create role authenticated; create role service_role;
     create table settings(key text primary key,value text);
@@ -26,10 +33,55 @@ test.before(async () => {
     '20260927010000_referral_links_first_purchase.sql',
     '20260927120000_referral_controls.sql',
   ]) {
+    if (file === '20260927120000_referral_controls.sql') {
+      await db.query('insert into customers(id,balance) values($1,500),($2,300)', [
+        legacy.owner,
+        legacy.friend,
+      ]);
+      await db.query(
+        "insert into referral_codes(id,customer_id,code,reward_referrer,reward_friend) values($1,$2,'BULKA-LEGACY01',9999,9999)",
+        [legacy.code, legacy.owner],
+      );
+      await db.query(
+        "insert into kaspi_orders(id,customer_id,amount,status) values($1,$2,2000,'refunded')",
+        [legacy.order, legacy.friend],
+      );
+      await db.query(
+        "insert into referral_redemptions(id,referral_code_id,referred_customer_id,order_id,status,rewarded_at) values($1,$2,$3,$4,'rewarded',now())",
+        [legacy.redemption, legacy.code, legacy.friend, legacy.order],
+      );
+      await db.query(
+        "insert into transactions(customer_id,order_id,type,amount) values($1,$3,'deposit',500),($2,$4,'deposit',300)",
+        [
+          legacy.owner,
+          legacy.friend,
+          'REFERRAL-' + legacy.redemption + ':owner',
+          'REFERRAL-' + legacy.redemption + ':friend',
+        ],
+      );
+    }
     await db.exec(readFileSync('supabase/migrations/' + file, 'utf8'));
   }
 });
 test.after(() => db.close());
+test('migration recovers historical rewards from ledger without retroactively reversing old refunds', async () => {
+  const row = (
+    await db.query('select reward_referrer,reward_friend from referral_redemptions where id=$1', [
+      legacy.redemption,
+    ])
+  ).rows[0];
+  assert.equal(Number(row.reward_referrer), 500);
+  assert.equal(Number(row.reward_friend), 300);
+  assert.equal(
+    (
+      await db.query('select state from referral_first_purchases where customer_id=$1', [
+        legacy.friend,
+      ])
+    ).rows[0].state,
+    'rejected',
+  );
+  assert.equal(Number((await wallet(legacy.owner)).balance), 500);
+});
 async function fixture(policy = {}) {
   await db.query("update settings set value=$1 where key='bonus_referral'", [
     JSON.stringify({

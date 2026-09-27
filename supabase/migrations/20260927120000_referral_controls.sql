@@ -16,6 +16,26 @@ alter table public.referral_first_purchases add column refunded_amount numeric(1
 create index referral_purchase_identity on public.referral_first_purchases(source,purchase_id);
 create index referral_review_queue on public.referral_redemptions(created_at) where review_state='pending';
 
+-- Old rewards predate snapshots. Recover amounts from the actual ledger, never
+-- from today's configurable reward. Do not retroactively revoke old refunds.
+update public.referral_redemptions r set
+  reward_friend=coalesce(r.reward_friend,(select sum(t.amount) from public.transactions t
+    where t.order_id='REFERRAL-'||r.id||':friend' and t.customer_id=r.referred_customer_id and t.type='deposit'),0),
+  reward_referrer=coalesce(r.reward_referrer,(select sum(t.amount) from public.transactions t
+    join public.referral_codes c on c.customer_id=t.customer_id
+    where c.id=r.referral_code_id and t.order_id='REFERRAL-'||r.id||':owner' and t.type='deposit'),0),
+  purchase_source=coalesce(r.purchase_source,'online'),purchase_id=coalesce(r.purchase_id,r.order_id)
+where r.rewarded_at is not null and r.order_id is not null;
+insert into public.referral_first_purchases(customer_id,source,purchase_id,amount,branch_id,purchased_at,state,refunded_amount)
+select r.referred_customer_id,'online',o.id,o.amount,o.branch_id,coalesce(r.rewarded_at,r.created_at),
+  case when o.status='refunded' then 'rejected' else 'done' end,
+  case when o.status='refunded' then o.amount else greatest(0,coalesce(o.partially_refunded_amount,0)) end
+from public.referral_redemptions r join public.kaspi_orders o on o.id=r.order_id
+where r.rewarded_at is not null and r.status='rewarded' and o.amount>0
+on conflict(customer_id) do update set source=excluded.source,purchase_id=excluded.purchase_id,
+  amount=excluded.amount,branch_id=excluded.branch_id,purchased_at=excluded.purchased_at,
+  state=excluded.state,refunded_amount=excluded.refunded_amount;
+
 create table public.referral_devices (
   customer_id uuid not null references public.customers(id) on delete cascade,
   device_hash text not null check(length(device_hash)=64), created_at timestamptz not null default now(),
