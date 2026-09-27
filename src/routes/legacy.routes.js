@@ -456,13 +456,20 @@ router.post(
       if (isEstablishedCustomer(existingCustomer)) {
         return res.status(409).json({ success: false, error: 'Customer is already registered' });
       }
-      let customer = existingCustomer || (await getOrCreateCustomerByPhone(phone, fullName));
+      // Keep incomplete registrations retryable if consent/referral storage fails.
+      let customer = existingCustomer || (await getOrCreateCustomerByPhone(phone, 'Новый Гость'));
       if (!customer)
         return res.status(404).json({ success: false, error: 'Cannot create customer' });
 
       // Persist the legal audit before consuming a one-time credential grant.
       // A transient audit failure must remain safely retryable for the client.
       await recordCustomerLegalConsent(customer.id, legalConsent);
+      if (req.body.referralCode) {
+        await require('../services/commerce-marketing.service').redeemReferralCode(
+          customer.id,
+          req.body.referralCode,
+        );
+      }
       if (req.registrationAuth.credentialGrantId) {
         const passwordHash = await consumeRegistrationCredentialGrant({
           phone,

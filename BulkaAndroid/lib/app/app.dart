@@ -165,6 +165,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       );
     }
     _appLinkSubscription = _appLinks.uriLinkStream.listen(_handleIncomingLink);
+    if (!kIsWeb) unawaited(_captureInitialReferral());
     unawaited(
       _bootstrap().catchError((Object error, StackTrace stack) {
         _startupShellTimer?.cancel();
@@ -341,6 +342,15 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     unawaited(_refreshProfile(phone));
   }
 
+  Future<void> _captureInitialReferral() async {
+    try {
+      final link = await _appLinks.getInitialLink();
+      if (link != null) await PendingReferral.capture(link);
+    } catch (_) {
+      // Link lookup must never block startup or a restored staff session.
+    }
+  }
+
   Future<void> _bootstrap() async {
     // Keep the brand transition stable on warm starts without introducing a
     // multi-second artificial wait that feels like startup lag.
@@ -351,6 +361,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         : Future<RequiredAppUpdate?>.value();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('app_theme_mode');
+    await PendingReferral.capture(currentClientUri());
     await SessionStore.clearLegacyCustomerData(prefs);
     await AddressRepository.removePersistedGuestAddresses(prefs);
     var phone = prefs.getString('phone');
@@ -940,6 +951,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     if (token == null || (!kIsWeb && refreshToken == null)) {
       return 'error_session_missing'.tr;
     }
+    await PendingReferral.set('');
     _accessToken = token;
     _refreshToken = refreshToken;
     _api.setSession(
@@ -1304,6 +1316,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   void _handleIncomingLink(Uri uri) {
+    if (_api.accessToken == null) unawaited(PendingReferral.capture(uri));
     if (_staff.isCashier) {
       if (uri.path == '/admin/kitchen' || uri.host == 'kitchen') {
         unawaited(_openStaffPortal(kitchen: true));

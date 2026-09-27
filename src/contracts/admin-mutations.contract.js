@@ -283,9 +283,9 @@ const settingsBodySchema = optionalPatch(
       bonus_referral: z
         .object({
           enabled: z.boolean(),
-          inviter_bonus: moneySchema,
-          friend_bonus: moneySchema,
-          min_first_order: moneySchema,
+          inviter_bonus: moneySchema.max(1_000_000).multipleOf(0.01),
+          friend_bonus: moneySchema.max(1_000_000).multipleOf(0.01),
+          min_first_order: moneySchema.max(1_000_000).multipleOf(0.01),
         })
         .strict()
         .optional(),

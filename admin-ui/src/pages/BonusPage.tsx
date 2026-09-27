@@ -5,8 +5,10 @@ import PageState from '../components/PageState';
 import { useFeedback } from '../components/Feedback';
 import { api } from '../lib/api';
 import { useI18n } from '../lib/i18n';
+import ReferralSettings, { type ReferralPolicy } from './ReferralSettings';
 
 interface BonusSettings {
+  bonus_referral: ReferralPolicy;
   base_cashback_percent: number;
   max_discount_percent: number;
   bonus_expiration: { enabled: boolean; expiration_days: number; notify_before_days: number };
@@ -28,6 +30,12 @@ export default function BonusPage() {
     try {
       const data = await api.getSettings();
       const loaded = {
+        bonus_referral: {
+          enabled: data.bonus_referral?.enabled === true,
+          inviter_bonus: Number(data.bonus_referral?.inviter_bonus ?? 1000),
+          friend_bonus: Number(data.bonus_referral?.friend_bonus ?? 500),
+          min_first_order: Number(data.bonus_referral?.min_first_order ?? 0),
+        },
         base_cashback_percent: Number(data.base_cashback_percent ?? 0),
         max_discount_percent: Number(data.max_discount_percent ?? 0),
         bonus_expiration: {
@@ -217,6 +225,12 @@ export default function BonusPage() {
           )}
         </fieldset>
 
+        <ReferralSettings
+          value={settings.bonus_referral}
+          onChange={(bonus_referral) =>
+            setSettings((current) => current && { ...current, bonus_referral })
+          }
+        />
         <div className="form-footer">
           <button
             type="submit"

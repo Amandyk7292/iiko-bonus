@@ -37,6 +37,11 @@ const customerRegistrationBodySchema = z
     gender: nullableShortText(16),
     birthdate: nullableShortText(10),
     email: nullableShortText(254),
+    referralCode: z
+      .string()
+      .trim()
+      .regex(/^BULKA-[A-Za-z0-9]{8}$/)
+      .optional(),
     acceptedLegal: z.literal(true),
     legalConsent: legalConsentSchema,
   })

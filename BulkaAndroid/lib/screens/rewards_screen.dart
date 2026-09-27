@@ -245,6 +245,7 @@ class _RewardsScreenState extends State<RewardsScreen> {
   @override
   Widget build(BuildContext context) {
     final code = _asString(_referral?['code']);
+    final referralUrl = _asString(_referral?['url']);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -318,39 +319,60 @@ class _RewardsScreenState extends State<RewardsScreen> {
                 _RewardsCard(
                   icon: Icons.group_add_outlined,
                   title: 'rewards_invite_friend'.tr,
-                  description: 'rewards_invite_description'.tr,
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: _lightCardHighlight,
-                      borderRadius: BorderRadius.circular(BulkaRadii.control),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            code,
-                            style: const TextStyle(
-                              fontFamily: _headingFont,
-                              fontSize: BulkaTypeScale.titleSmall,
-                              fontWeight: FontWeight.w700,
-                            ),
+                  description: _referral?['enabled'] == false
+                      ? 'referral_disabled'.tr
+                      : 'rewards_invite_description'.trArgs({
+                          'owner':
+                              '${formatMoney(_asDouble(_referral?['reward_referrer']))} ₸',
+                          'friend':
+                              '${formatMoney(_asDouble(_referral?['reward_friend']))} ₸',
+                          'minimum':
+                              '${formatMoney(_asDouble(_referral?['min_first_order']))} ₸',
+                        }),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: _lightCardHighlight,
+                          borderRadius: BorderRadius.circular(
+                            BulkaRadii.control,
                           ),
                         ),
-                        IconButton(
-                          onPressed: code.isEmpty
-                              ? null
-                              : () async {
-                                  await Clipboard.setData(
-                                    ClipboardData(text: code),
-                                  );
-                                  _message('rewards_code_copied'.tr);
-                                },
-                          icon: const Icon(Icons.copy_rounded),
-                          tooltip: 'rewards_copy'.tr,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                code,
+                                style: const TextStyle(
+                                  fontFamily: _headingFont,
+                                  fontSize: BulkaTypeScale.titleSmall,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed:
+                                  referralUrl.isEmpty ||
+                                      _referral?['enabled'] == false
+                                  ? null
+                                  : () async {
+                                      await Clipboard.setData(
+                                        ClipboardData(text: referralUrl),
+                                      );
+                                      _message('referral_link_copied'.tr);
+                                    },
+                              icon: const Icon(Icons.copy_rounded),
+                              tooltip: 'rewards_copy'.tr,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 12),
+                      _ReferralShareButton(
+                        url: _referral?['enabled'] == false ? '' : referralUrl,
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 16),

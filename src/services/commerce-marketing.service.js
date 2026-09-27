@@ -271,21 +271,41 @@ async function consumePromotionReservation(order) {
 }
 
 async function getOrCreateReferralCode(customerId) {
+  const terms = await require('./referral.service').referralTerms();
+  const present = (row) => ({
+    ...row,
+    ...terms,
+    url: `https://bulka.com.kz/catalog?ref=${encodeURIComponent(row.code)}`,
+  });
   const { data: existing, error: readError } = await supabase
     .from('referral_codes')
     .select('*')
     .eq('customer_id', customerId)
     .maybeSingle();
   if (readError) throw readError;
-  if (existing) return existing;
+  if (existing) return present(existing);
   const code = `BULKA-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
   const { data, error } = await supabase
     .from('referral_codes')
-    .insert({ customer_id: customerId, code, reward_referrer: 500, reward_friend: 300 })
+    .insert({
+      customer_id: customerId,
+      code,
+      reward_referrer: terms.reward_referrer,
+      reward_friend: terms.reward_friend,
+    })
     .select('*')
     .single();
+  if (error?.code === '23505') {
+    const { data: raced, error: raceError } = await supabase
+      .from('referral_codes')
+      .select('*')
+      .eq('customer_id', customerId)
+      .single();
+    if (raceError) throw raceError;
+    return present(raced);
+  }
   if (error) throw error;
-  return data;
+  return present(data);
 }
 
 async function redeemReferralCode(customerId, code) {
@@ -296,6 +316,8 @@ async function redeemReferralCode(customerId, code) {
   });
   if (error) {
     const message = String(error.message || '').toLowerCase();
+    if (message.includes('referral disabled'))
+      throw commerceError('Приглашения временно отключены');
     if (message.includes('own referral')) throw commerceError('Нельзя применить свой код');
     if (message.includes('expired')) throw commerceError('Код истёк');
     if (message.includes('limit')) throw commerceError('Лимит кода исчерпан');

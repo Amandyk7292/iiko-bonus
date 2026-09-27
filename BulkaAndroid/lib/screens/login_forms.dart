@@ -146,6 +146,8 @@ extension _LoginScreenForms on _LoginScreenState {
                 ),
                 const SizedBox(height: 12),
                 _buildReadOnlyPhoneField(),
+                const SizedBox(height: 12),
+                const _ReferralRegistrationField(),
                 const SizedBox(height: 20),
                 CheckboxListTile(
                   value: _termsAccepted,

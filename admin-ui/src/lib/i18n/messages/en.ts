@@ -1,6 +1,14 @@
 import dashboard from '../iiko-dashboard';
 const en: Record<string, string> = {
   ...dashboard.en,
+  'bonus.referralTitle': 'Invite friends',
+  'bonus.referralHint':
+    'Both customers earn bonuses after the friend’s first paid purchase. New amounts apply to new invitations; accepted invitations keep their terms.',
+  'bonus.referralEnabled': 'Accept new invitations',
+  'bonus.referral.inviter_bonus': 'Inviter reward, ₸ in bonuses',
+  'bonus.referral.friend_bonus': 'New customer reward, ₸ in bonuses',
+  'bonus.referral.min_first_order': 'Minimum first purchase, ₸',
+
   'language.ru': 'Русский',
   'language.kk': 'Қазақша',
   'language.en': 'English',

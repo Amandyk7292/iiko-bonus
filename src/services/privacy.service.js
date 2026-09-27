@@ -20,6 +20,7 @@ const DIRECT_EXPORT_RELATIONS = Object.freeze([
   ['reviews', 'order_reviews', 'customer_id'],
   ['referralCodes', 'referral_codes', 'customer_id'],
   ['referralRedemptions', 'referral_redemptions', 'referred_customer_id'],
+  ['referralPurchases', 'referral_first_purchases', 'customer_id'],
   ['promotionRedemptions', 'promotion_redemptions', 'customer_id'],
   ['giftCardTransactions', 'gift_card_transactions', 'customer_id'],
   ['inventoryReservations', 'inventory_reservations', 'customer_id'],

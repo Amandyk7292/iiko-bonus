@@ -1102,11 +1102,50 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
   },
   'rewards_invite_description': {
     'ru':
-        'Друг получит бонус после регистрации, а вы — после его первого оплаченного заказа.',
+        'После первой покупки друга вы получите {owner} бонусами, а друг — {friend}. Минимальная сумма покупки: {minimum}. При покупке на кассе нужно показать карту Bulka.',
     'kk':
-        'Досыңыз тіркелгеннен кейін бонус алады, ал сіз оның алғашқы төленген тапсырысынан кейін бонус аласыз.',
+        'Досыңыздың алғашқы сатып алуынан кейін сізге {owner}, досыңызға {friend} бонус беріледі. Ең аз сома: {minimum}. Кассада Bulka картасын көрсетіңіз.',
     'en':
-        'Your friend gets a bonus after signing up, and you get one after their first paid order.',
+        'After your friend’s first purchase, you receive {owner} in bonuses and your friend receives {friend}. Minimum purchase: {minimum}. Show the Bulka card at the checkout.',
+  },
+  'referral_registration_label': {
+    'ru': 'Код приглашения (необязательно)',
+    'kk': 'Шақыру коды (міндетті емес)',
+    'en': 'Invitation code (optional)',
+  },
+  'referral_registration_hint': {
+    'ru':
+        'Код из ссылки сохранён автоматически. Его можно изменить или удалить.',
+    'kk': 'Сілтемедегі код автоматты сақталады. Өзгертуге немесе жоюға болады.',
+    'en': 'The link code is saved automatically. You can edit or remove it.',
+  },
+  'referral_share_link': {
+    'ru': 'Пригласить по ссылке',
+    'kk': 'Сілтемемен шақыру',
+    'en': 'Share invitation link',
+  },
+  'referral_share_message': {
+    'ru':
+        'Приглашаю в Bulka! Зарегистрируйся по моей ссылке — после первой покупки мы оба получим бонусы.',
+    'kk':
+        'Bulka-ға шақырамын! Сілтемем арқылы тіркел — алғашқы сатып алудан кейін екеуміз де бонус аламыз.',
+    'en':
+        'Join me on Bulka! Register with my link and we both earn bonuses after your first purchase.',
+  },
+  'referral_share_error': {
+    'ru': 'Не удалось отправить ссылку. Скопируйте её кнопкой рядом с кодом.',
+    'kk': 'Сілтеме жіберілмеді. Код жанындағы түймемен көшіріңіз.',
+    'en': 'Could not share. Copy the link using the button beside the code.',
+  },
+  'referral_link_copied': {
+    'ru': 'Ссылка приглашения скопирована',
+    'kk': 'Шақыру сілтемесі көшірілді',
+    'en': 'Invitation link copied',
+  },
+  'referral_disabled': {
+    'ru': 'Новые приглашения временно отключены.',
+    'kk': 'Жаңа шақырулар уақытша өшірілген.',
+    'en': 'New invitations are temporarily disabled.',
   },
   'rewards_code_copied': {
     'ru': 'Код скопирован',

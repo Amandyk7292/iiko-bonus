@@ -1,6 +1,14 @@
 import dashboard from '../iiko-dashboard';
 const ru: Record<string, string> = {
   ...dashboard.ru,
+  'bonus.referralTitle': 'Приглашение друзей',
+  'bonus.referralHint':
+    'Оба клиента получают бонусы после первой оплаченной покупки друга. Новые суммы действуют для новых приглашений; уже принятые сохраняют свои условия.',
+  'bonus.referralEnabled': 'Принимать новые приглашения',
+  'bonus.referral.inviter_bonus': 'Пригласившему, ₸ бонусами',
+  'bonus.referral.friend_bonus': 'Новому клиенту, ₸ бонусами',
+  'bonus.referral.min_first_order': 'Минимальная первая покупка, ₸',
+
   'language.ru': 'Русский',
   'language.kk': 'Казахский',
   'language.en': 'Английский',

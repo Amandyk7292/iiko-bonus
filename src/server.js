@@ -159,6 +159,14 @@ if (!process.env.VERCEL) {
     );
     reservationReconciliationTimer.unref?.();
 
+    const processReferrals = () =>
+      runMonitoredWorker(
+        'referral-rewards',
+        require('./services/referral.service').processReferralPurchases,
+      );
+    setTimeout(processReferrals, 12_000);
+    setInterval(processReferrals, 15_000).unref?.();
+
     const runMarketing = () =>
       runMonitoredWorker('marketing-automation', async () => {
         await enqueueAutomatedMessages();
@@ -223,6 +231,7 @@ if (!process.env.VERCEL) {
     enabled: runWorkers,
     intervalMs: 10 * 60 * 1000,
   });
+  registerWorker('referral-rewards', { enabled: runWorkers, intervalMs: 15_000, critical: true });
   registerWorker('privacy-storage-cleanup', {
     enabled: runWorkers,
     intervalMs: 60 * 1000,

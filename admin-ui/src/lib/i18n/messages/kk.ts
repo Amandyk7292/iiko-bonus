@@ -1,6 +1,14 @@
 import dashboard from '../iiko-dashboard';
 const kk: Record<string, string> = {
   ...dashboard.kk,
+  'bonus.referralTitle': 'Достарды шақыру',
+  'bonus.referralHint':
+    'Екі клиент те досының алғашқы төленген сатып алуынан кейін бонус алады. Жаңа сомалар жаңа шақыруларға қолданылады; қабылданған шақырулардың шарттары сақталады.',
+  'bonus.referralEnabled': 'Жаңа шақыруларды қабылдау',
+  'bonus.referral.inviter_bonus': 'Шақырған адамға бонус, ₸',
+  'bonus.referral.friend_bonus': 'Жаңа клиентке бонус, ₸',
+  'bonus.referral.min_first_order': 'Алғашқы сатып алудың ең аз сомасы, ₸',
+
   'language.ru': 'Русский',
   'language.kk': 'Қазақша',
   'language.en': 'English',

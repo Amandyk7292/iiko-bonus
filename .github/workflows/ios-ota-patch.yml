@@ -95,11 +95,11 @@ jobs:
             # Compared with the release, this tree removes Icons.add_alert_rounded and
             # Icons.notifications_active_rounded. The installed font contains
             # all remaining glyphs. The audit fixes preserve the 213 icon references
-            # from stable patch 16 (ecf55440). Native files, assets and dependencies
-            # are unchanged; the catalog helper extraction preserves method bodies.
-            # Flutter analyze and all 538 tests passed on Windows.
+            # from stable patch 17. Referral links change Dart code only; native
+            # files, assets, dependencies and all 213 icon names are unchanged.
+            # Flutter analyze and all 541 tests passed on Windows.
             # Fail closed for any other app source tree.
-            if [[ "$RELEASE_VERSION" != "1.0.8+43" || "$(git rev-parse HEAD:BulkaAndroid)" != "db19a6542866bd89254102f72875b68cd62a23af" ]]; then
+            if [[ "$RELEASE_VERSION" != "1.0.8+43" || "$(git rev-parse HEAD:BulkaAndroid)" != "fa1e4a7458409ec5d43251fc1c01e3546316ed53" ]]; then
               echo "::error::Icon-removal exception requires the reviewed 1.0.8+43 app tree."
               exit 1
             fi

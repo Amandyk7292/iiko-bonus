@@ -288,7 +288,10 @@ class BulkaApiClient {
     String? email,
     required String registrationToken,
   }) async {
+    final referralCode = await PendingReferral.read();
     final json = await _post('/api/auth/register', {
+      if (referralCode != null && referralCode.isNotEmpty)
+        'referralCode': referralCode,
       'phone': phone,
       'name': name,
       'surname': surname,
@@ -310,6 +313,7 @@ class BulkaApiClient {
         response.message ?? response.error ?? 'error_register'.tr,
       );
     }
+    await PendingReferral.set('');
     return response;
   }
 

@@ -39,9 +39,9 @@ const defaultSettings = {
     min_check: 0,
   },
   bonus_referral: {
-    enabled: false,
-    inviter_bonus: 300,
-    friend_bonus: 300,
+    enabled: true,
+    inviter_bonus: 1000,
+    friend_bonus: 500,
     min_first_order: 0,
   },
   bonus_automailing: {
