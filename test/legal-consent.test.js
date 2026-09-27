@@ -86,7 +86,7 @@ test('registration route enforces consent before creating or updating the custom
     registration.indexOf('validateLegalConsent') < registration.indexOf('getCustomerByPhone'),
   );
   assert.ok(
-    registration.indexOf('recordCustomerLegalConsent') < registration.indexOf("from('customers')"),
+    registration.indexOf('recordCustomerLegalConsent') < registration.indexOf('finishRegistration'),
   );
 });
 

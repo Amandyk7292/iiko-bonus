@@ -7,6 +7,12 @@ const {
 } = require('./privacy-storage-cleanup.service');
 
 const DIRECT_EXPORT_RELATIONS = Object.freeze([
+  [
+    'branchInvitations',
+    'branch_signup_claims',
+    'customer_id',
+    'id,branch_id,verified_at,expires_at,completed_at',
+  ],
   ['transactions', 'transactions', 'customer_id'],
   ['orders', 'kaspi_orders', 'customer_id'],
   ['paymentReceipts', 'payment_receipts', 'customer_id'],

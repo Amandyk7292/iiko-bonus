@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Приглашение в Bulka</title>
+    <link rel="stylesheet" href="/branch-invite-assets/style.css" />
+    <script src="/branch-invite-assets/app.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a href="/" class="brand" aria-label="Bulka — главная">Bulka<span>ПЕКАРНЯ РЯДОМ</span></a
+        ><span class="eyebrow">Приглашение от пекарни</span>
+      </header>
+      <section class="card">
+        <p class="step">01 · ЗНАКОМИМСЯ</p>
+        <h1>Ваша Bulka приглашает</h1>
+        <p id="branch" class="branch" aria-live="polite">Загружаем точку…</p>
+        <p>
+          Подтвердите номер, затем установите приложение. Ваше приглашение сохранится на 30 дней —
+          повторно сканировать QR не нужно.
+        </p>
+        <form id="phone-form" hidden>
+          <label for="phone">Номер телефона</label
+          ><input
+            id="phone"
+            type="tel"
+            autocomplete="tel"
+            inputmode="tel"
+            placeholder="+7 700 123 45 67"
+            maxlength="24"
+            required
+          /><label class="consent"
+            ><input id="consent" type="checkbox" required /><span
+              >Согласен на сохранение привязки моего номера к этой точке для учёта приглашения.
+              <a href="/privacy" target="_blank" rel="noopener"
+                >Политика конфиденциальности</a
+              ></span
+            ></label
+          ><button id="start" type="submit">Подтвердить через WhatsApp</button>
+        </form>
+        <section id="code-section" hidden>
+          <p>
+            Откройте WhatsApp, отправьте подготовленное сообщение боту и введите полученный код
+            здесь.
+          </p>
+          <a id="whatsapp" class="button secondary" target="_blank" rel="noopener"
+            >Получить код в WhatsApp</a
+          >
+          <form id="code-form">
+            <label for="code">Код подтверждения</label
+            ><input
+              id="code"
+              type="text"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              pattern="[0-9]{4}"
+              maxlength="4"
+              required
+            /><button id="verify" type="submit">Сохранить приглашение</button>
+          </form>
+          <button id="change" class="link-button" type="button">
+            Изменить номер / запросить новый код
+          </button>
+        </section>
+        <p id="error" class="error" role="alert" hidden></p>
+        <p id="success" class="success" role="status" hidden></p>
+      </section>
+      <section class="download">
+        <p class="step">02 · ПРИСОЕДИНЯЙТЕСЬ</p>
+        <h2>Продолжите в приложении</h2>
+        <p>
+          Войдите с тем же номером и завершите регистрацию. Тогда пекарня получит +1 в своём
+          рейтинге. Покупать ничего не обязательно.
+        </p>
+        <a class="button secondary" href="/applink">Скачать приложение</a>
+        <p class="note">
+          Можно скачать и без подтверждения номера здесь, но приглашение от точки не сохранится.
+        </p>
+      </section>
+      <footer>Тёплые встречи начинаются с Bulka.</footer>
+    </main>
+  </body>
+</html>

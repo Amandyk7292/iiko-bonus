@@ -488,11 +488,7 @@ router.post(
       if (safeGender) updateData.gender = safeGender;
       if (safeBirthdate) updateData.birth_date = safeBirthdate;
 
-      const { error: updateError } = await supabase
-        .from('customers')
-        .update(updateData)
-        .eq('id', customer.id);
-      if (updateError) throw updateError;
+      await require('../services/branch-signup.service').finishRegistration(customer, updateData);
       Object.assign(customer, updateData);
 
       res.json(await buildAuthenticatedCustomerPayload(customer, req, res));

@@ -382,6 +382,7 @@ router.get('/admin/api/operations/summary', async (req, res) => {
 registerPaymentIntegrationAdminRoutes(router);
 registerPosHealthAdminRoutes(router);
 require('./admin/referral.routes').registerReferralAdminRoutes(router);
+require('./admin/branch-signup.routes').registerBranchSignupAdminRoutes(router);
 registerOrderSubstitutionAdminRoutes(router, { assertOrderAccess });
 registerBackendSafetyAdminRoutes(router, { assertOrderAccess });
 registerBusinessFoundationAdminRoutes(router, { assertOrderAccess });

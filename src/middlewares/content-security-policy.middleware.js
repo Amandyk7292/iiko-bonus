@@ -272,6 +272,8 @@ function directivesForPath(requestPath, nonce) {
   if (staticDocumentPolicies.has(normalizedPath)) {
     return staticDocumentPolicies.get(normalizedPath);
   }
+  if (normalizedPath.startsWith('/invite/'))
+    return staticDocumentPolicy('public/branch-invite/index.html');
   if (normalizedPath.startsWith('/payment-receipts/')) return receiptPolicy;
   if (normalizedPath.startsWith('/wallet/')) return walletPolicy;
   if (normalizedPath.startsWith('/tilda-copy-bot')) {
