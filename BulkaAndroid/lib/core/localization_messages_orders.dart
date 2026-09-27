@@ -1100,6 +1100,14 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'Досыңызды шақырыңыз',
     'en': 'Invite a friend',
   },
+  'referral_load_error': {
+    'ru':
+        'Не удалось загрузить приглашение. Проверьте подключение и повторите попытку.',
+    'kk': 'Шақыру жүктелмеді. Байланысты тексеріп, қайталап көріңіз.',
+    'en':
+        'Could not load your invitation. Check your connection and try again.',
+  },
+  'referral_retry': {'ru': 'Повторить', 'kk': 'Қайталау', 'en': 'Retry'},
   'rewards_invite_description': {
     'ru':
         'После первой покупки друга вы получите {owner} бонусами, а друг — {friend}. Минимальная сумма покупки: {minimum}. При покупке на кассе нужно показать карту Bulka.',

@@ -510,6 +510,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'support_title'.tr,
                       onTap: () => unawaited(openBulkaSupportWhatsApp(context)),
                     ),
+                    _ProfileMenuItem(
+                      icon: Icons.account_balance_wallet_outlined,
+                      title: 'rewards_invite_friend'.tr,
+                      onTap: () =>
+                          _openPage((_) => ReferralScreen(api: widget.api)),
+                    ),
                     const Divider(
                       height: 1,
                       indent: 60,
