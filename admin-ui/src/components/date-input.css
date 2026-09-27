@@ -1,0 +1,83 @@
+.date-input-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  min-width: 0;
+}
+.date-input-trigger span {
+  overflow-wrap: anywhere;
+}
+.date-input-trigger svg {
+  flex-shrink: 0;
+}
+.date-input-calendar {
+  display: grid;
+  gap: 16px;
+}
+.date-input-heading {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 90px 44px;
+  gap: 4px;
+  align-items: center;
+}
+.date-input-heading .input-classic {
+  padding: 8px;
+  min-width: 0;
+  width: 100%;
+}
+.date-input-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+.date-input-grid span {
+  text-align: center;
+  font-size: 12px;
+  color: var(--sagi-muted);
+}
+.date-input-grid button {
+  min-width: 0;
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--sagi-text);
+  background: var(--sagi-soft);
+}
+.date-input-grid button.is-outside {
+  color: var(--sagi-muted);
+  background: transparent;
+}
+.date-input-grid button[aria-current='date'] {
+  box-shadow: inset 0 0 0 1px var(--sagi-green);
+}
+.date-input-grid button[aria-pressed='true'] {
+  background: var(--sagi-cocoa);
+  color: white;
+}
+.date-input-grid button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.date-input-grid button:not(:disabled):hover {
+  box-shadow: inset 0 0 0 2px var(--sagi-green);
+}
+@media (max-width: 400px) {
+  .date-input-heading {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+  }
+  .date-input-heading > :nth-child(1) {
+    grid-area: 1/1;
+  }
+  .date-input-heading > :nth-child(2) {
+    grid-area: 1/2;
+  }
+  .date-input-heading > :nth-child(3) {
+    grid-area: 2/2;
+  }
+  .date-input-heading > :nth-child(4) {
+    grid-area: 1/3;
+  }
+}

@@ -1,0 +1,98 @@
+/* Shared layout rules also cover dialogs portalled outside the admin shell. */
+.form-footer {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.field-group,
+.section-heading > div,
+.page-header > div {
+  min-width: 0;
+}
+.section-heading,
+.page-header {
+  gap: 16px;
+}
+.section-heading h2,
+.page-header h1,
+.field-label {
+  overflow-wrap: anywhere;
+}
+:is(.btn-classic, .btn-outline, .btn-primary, .btn-secondary) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+  line-height: 1.4;
+  min-height: 48px;
+  max-width: 100%;
+  gap: 8px;
+}
+:is(.btn-classic, .btn-outline, .btn-primary, .btn-secondary) svg {
+  flex-shrink: 0;
+}
+.modal-header .icon-button {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 48px;
+}
+.modal-title {
+  line-height: 1.35;
+}
+.modal-description,
+.field-hint {
+  line-height: 1.55;
+}
+.modal-body > :first-child {
+  margin-top: 0;
+}
+.modal-body > :last-child {
+  margin-bottom: 0;
+}
+.qr-invite-body {
+  display: grid;
+  gap: 20px;
+}
+.qr-invite-body > p {
+  margin: 0;
+}
+.qr-invite-body .field-hint {
+  padding: 12px;
+  border: 1px solid var(--sagi-border);
+  border-radius: 12px;
+  background: var(--sagi-soft);
+  user-select: all;
+}
+.qr-invite-body .modal-actions {
+  margin-top: 0;
+}
+:is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--sagi-green);
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .modal-header,
+  .modal-body {
+    padding: 16px;
+  }
+  .modal-title {
+    font-size: 20px;
+  }
+  .modal-actions,
+  .form-footer {
+    gap: 10px;
+  }
+  .modal-actions > :is(button, a),
+  .form-footer > :is(button, a) {
+    flex: 1 1 140px;
+  }
+  .input-classic,
+  .select-control-trigger {
+    font-size: 16px;
+  }
+  .section-heading,
+  .page-header {
+    flex-wrap: wrap;
+  }
+  .qr-invite-body {
+    gap: 16px;
+  }
+}

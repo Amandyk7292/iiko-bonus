@@ -1,3 +1,4 @@
+import DateInput from '../components/DateInput';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { request, type PosHealthResponse } from '../lib/api';
 import { useI18n } from '../lib/i18n';
@@ -134,9 +135,10 @@ export default function ReferralReport() {
       <div className="form-grid form-grid-2">
         <label className="field-group">
           <span>{t('referrals.from')}</span>
-          <input
+          <DateInput
             className="input-classic"
             type="date"
+            required
             value={from}
             max={to}
             onChange={(e) => {
@@ -147,9 +149,10 @@ export default function ReferralReport() {
         </label>
         <label className="field-group">
           <span>{t('referrals.to')}</span>
-          <input
+          <DateInput
             className="input-classic"
             type="date"
+            required
             value={to}
             min={from}
             onChange={(e) => {

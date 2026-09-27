@@ -1,3 +1,4 @@
+import DateInput from '../components/DateInput';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, Download, Gift, RefreshCw, Search } from 'lucide-react';
 import { Link, useSearchParams } from '../lib/router';
@@ -221,7 +222,7 @@ export default function TransactionsPage() {
           <label className="field-label" htmlFor="transactions-from">
             {t('common.from')}
           </label>
-          <input
+          <DateInput
             id="transactions-from"
             type="date"
             value={dateFrom}
@@ -234,7 +235,7 @@ export default function TransactionsPage() {
           <label className="field-label" htmlFor="transactions-to">
             {t('common.to')}
           </label>
-          <input
+          <DateInput
             id="transactions-to"
             type="date"
             value={dateTo}

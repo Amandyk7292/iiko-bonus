@@ -1,3 +1,4 @@
+import DateInput from '../components/DateInput';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { request } from '../lib/api';
 import { useI18n } from '../lib/i18n';
@@ -32,6 +33,7 @@ export default function BranchSignupRace() {
   const [error, setError] = useState('');
   const [qr, setQr] = useState<Branch | null>(null);
   const [copied, setCopied] = useState(false);
+  const [qrError, setQrError] = useState('');
   const revision = useRef(0);
   const load = useCallback(async () => {
     const current = ++revision.current;
@@ -75,10 +77,11 @@ export default function BranchSignupRace() {
       <div className="form-grid form-grid-2">
         <div className="field-group">
           <label htmlFor="race-from">{kk ? 'Басталу күні' : 'С даты'}</label>
-          <input
+          <DateInput
             className="input-classic"
             id="race-from"
             type="date"
+            required
             value={from}
             max={to}
             onChange={(event) => setFrom(event.target.value)}
@@ -86,10 +89,11 @@ export default function BranchSignupRace() {
         </div>
         <div className="field-group">
           <label htmlFor="race-to">{kk ? 'Аяқталу күні' : 'По дату'}</label>
-          <input
+          <DateInput
             className="input-classic"
             id="race-to"
             type="date"
+            required
             value={to}
             min={from}
             onChange={(event) => setTo(event.target.value)}
@@ -157,6 +161,7 @@ export default function BranchSignupRace() {
                         onClick={() => {
                           setQr(row);
                           setCopied(false);
+                          setQrError('');
                         }}
                       >
                         QR
@@ -172,44 +177,54 @@ export default function BranchSignupRace() {
       )}
       {qr && (
         <Modal open title={qr.name} onClose={() => setQr(null)}>
-          <p>{qr.city}</p>
-          <img
-            src={`/admin/api/bonus/branch-race/${qr.id}/qr`}
-            alt={`QR: ${qr.name}`}
-            width="280"
-            height="280"
-            style={{ display: 'block', maxWidth: '100%', height: 'auto', margin: 'auto' }}
-          />
-          <p className="field-hint" style={{ overflowWrap: 'anywhere' }}>
-            {qr.url}
-          </p>
-          <div className="form-footer">
-            <a
-              className="btn-outline"
-              href={`/admin/api/bonus/branch-race/${qr.id}/qr`}
-              download={`bulka-${qr.id}.png`}
-            >
-              {kk ? 'QR жүктеу' : 'Скачать QR'}
-            </a>
-            <button
-              className="btn-classic"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(qr.url);
-                  setCopied(true);
-                } catch {
-                  setError(kk ? 'Сілтемені қолмен көшіріңіз' : 'Скопируйте ссылку вручную');
-                }
-              }}
-            >
-              {copied
-                ? kk
-                  ? 'Көшірілді'
-                  : 'Скопировано'
-                : kk
-                  ? 'Сілтемені көшіру'
-                  : 'Копировать ссылку'}
-            </button>
+          <div className="modal-body qr-invite-body">
+            <p>{qr.city}</p>
+            <img
+              src={`/admin/api/bonus/branch-race/${qr.id}/qr`}
+              alt={`QR: ${qr.name}`}
+              width="280"
+              height="280"
+              style={{ display: 'block', maxWidth: '100%', height: 'auto', margin: 'auto' }}
+            />
+            <p className="field-hint" style={{ overflowWrap: 'anywhere' }}>
+              {qr.url}
+            </p>
+            {qrError && (
+              <p className="inline-alert inline-alert-error" role="alert">
+                {qrError}
+              </p>
+            )}
+            <div className="modal-actions">
+              <a
+                className="btn-outline"
+                href={`/admin/api/bonus/branch-race/${qr.id}/qr`}
+                download={`bulka-${qr.id}.png`}
+              >
+                {kk ? 'QR жүктеу' : 'Скачать QR'}
+              </a>
+              <button
+                className="btn-classic"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(qr.url);
+                    setCopied(true);
+                    setQrError('');
+                  } catch {
+                    setQrError(
+                      kk ? 'Сілтемені қолмен көшіріңіз' : 'Скопируйте ссылку вручную из поля выше',
+                    );
+                  }
+                }}
+              >
+                {copied
+                  ? kk
+                    ? 'Көшірілді'
+                    : 'Скопировано'
+                  : kk
+                    ? 'Сілтемені көшіру'
+                    : 'Копировать ссылку'}
+              </button>
+            </div>
           </div>
         </Modal>
       )}

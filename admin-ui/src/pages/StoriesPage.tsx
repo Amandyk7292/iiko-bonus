@@ -1,3 +1,4 @@
+import DateInput from '../components/DateInput';
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
   Clock,
@@ -194,10 +195,7 @@ export default function StoriesPage() {
     setFormError('');
   };
 
-  const uploadFile = async (
-    event: ChangeEvent<HTMLInputElement>,
-    field: 'contentUrl',
-  ) => {
+  const uploadFile = async (event: ChangeEvent<HTMLInputElement>, field: 'contentUrl') => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
@@ -209,9 +207,7 @@ export default function StoriesPage() {
       const actual = await imageDimensions(file);
       const required = storyImageDimensions[field];
       if (actual.width !== required.width || actual.height !== required.height) {
-        setFormError(
-          t('stories.contentDimensions'),
-        );
+        setFormError(t('stories.contentDimensions'));
         return;
       }
     } catch {
@@ -625,7 +621,7 @@ export default function StoriesPage() {
                 <label className="field-label" htmlFor="story-starts-at">
                   {t('stories.startsAt')}
                 </label>
-                <input
+                <DateInput
                   id="story-starts-at"
                   type="datetime-local"
                   className="input-classic"
@@ -642,7 +638,7 @@ export default function StoriesPage() {
                 <label className="field-label" htmlFor="story-ends-at">
                   {t('stories.endsAt')}
                 </label>
-                <input
+                <DateInput
                   id="story-ends-at"
                   type="datetime-local"
                   min={form.startsAt || undefined}

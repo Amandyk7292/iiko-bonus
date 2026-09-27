@@ -1,3 +1,4 @@
+import DateInput from '../components/DateInput';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Gift, LoaderCircle, Plus, RefreshCw, Save, Sparkles, Zap } from 'lucide-react';
 import Modal from '../components/Modal';
@@ -676,7 +677,7 @@ export default function MarketingPage() {
           </label>
           <label className="field-group">
             <span className="field-label">{t('marketing.expiresAt')}</span>
-            <input
+            <DateInput
               name="giftExpiresAt"
               type="datetime-local"
               className="input-classic"

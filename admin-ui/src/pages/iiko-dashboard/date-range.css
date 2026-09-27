@@ -166,3 +166,34 @@
     height: 38px;
   }
 }
+
+/* The reporting range calendar uses the same comfortable controls. */
+.id-dashboard .id-calendar-heading button,
+.id-dashboard .id-calendar-whole-month,
+.id-dashboard .id-calendar-footer button {
+  min-height: 44px;
+  height: auto;
+}
+.id-dashboard .id-calendar-days button {
+  min-height: 44px;
+  height: 44px;
+  font-size: 14px;
+}
+.id-dashboard .id-calendar-heading select {
+  min-height: 44px;
+}
+.id-calendar {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+@media (max-width: 600px) {
+  .id-calendar {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 360px;
+    max-width: calc(100vw - 32px);
+    z-index: 110;
+  }
+}
