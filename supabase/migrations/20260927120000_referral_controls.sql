@@ -66,12 +66,14 @@ update public.settings set value = (coalesce(value::jsonb,'{}') || jsonb_build_o
 
 create function public.collect_referral_bonus_debt() returns trigger
 language plpgsql security definer set search_path=public as $$
-declare collected numeric;
+declare collected numeric; held numeric;
 begin
   if old.referral_bonus_debt > 0 then
     -- A checkout may debit and credit in one UPDATE. Recover from the resulting
     -- available balance, not only the net increase, without touching reservations.
-    collected := least(greatest(0,new.balance-coalesce(new.reserved_balance,0)),old.referral_bonus_debt);
+    select coalesce(sum(discount_amount),0) into held from public.loyalty_reservations
+      where customer_id=new.id and status='active' and expires_at>now();
+    collected := least(greatest(0,new.balance-held),old.referral_bonus_debt);
     if collected<=0 then return new; end if;
     new.balance := new.balance-collected;
     new.referral_bonus_debt := greatest(0,new.referral_bonus_debt-collected);
@@ -81,8 +83,22 @@ begin
   end if;
   return new;
 end; $$;
-create trigger collect_referral_bonus_debt before update of balance,reserved_balance on public.customers
+create trigger collect_referral_bonus_debt before update of balance on public.customers
 for each row execute function public.collect_referral_bonus_debt();
+
+-- Checkout updates balance before committing its reservation. Once released,
+-- collect any remaining available cashback without touching other active holds.
+create function public.collect_referral_debt_after_reservation() returns trigger
+language plpgsql security definer set search_path=public as $$
+begin
+  if old.status='active' and new.status<>'active' then
+    update public.customers set balance=balance where id=new.customer_id and referral_bonus_debt>0;
+  end if;
+  return new;
+end; $$;
+create trigger collect_referral_debt_after_reservation after update of status on public.loyalty_reservations
+for each row execute function public.collect_referral_debt_after_reservation();
+revoke all on function public.collect_referral_debt_after_reservation() from public,anon,authenticated;
 
 -- Keep original eligibility checks, with serialized invitation limits and device review.
 alter function public.redeem_referral_code(uuid,text) rename to redeem_referral_code_v1;
@@ -201,8 +217,10 @@ begin
     return jsonb_build_object('status','unchanged'); end if;
   select customer_id into owner_id from public.referral_codes where id=r.referral_code_id;
   perform 1 from public.customers where id in(owner_id,p_customer_id) order by id for update;
-  select greatest(0,balance-coalesce(reserved_balance,0)) into friend_available from public.customers where id=p_customer_id;
-  select greatest(0,balance-coalesce(reserved_balance,0)) into owner_available from public.customers where id=owner_id;
+  select greatest(0,balance-(select coalesce(sum(discount_amount),0) from public.loyalty_reservations
+    where customer_id=p_customer_id and status='active' and expires_at>now())) into friend_available from public.customers where id=p_customer_id;
+  select greatest(0,balance-(select coalesce(sum(discount_amount),0) from public.loyalty_reservations
+    where customer_id=owner_id and status='active' and expires_at>now())) into owner_available from public.customers where id=owner_id;
   f:=least(friend_available,r.reward_friend); o:=least(owner_available,r.reward_referrer);
   update public.customers set balance=balance-f,referral_bonus_debt=referral_bonus_debt+r.reward_friend-f where id=p_customer_id;
   update public.customers set balance=balance-o,referral_bonus_debt=referral_bonus_debt+r.reward_referrer-o where id=owner_id;

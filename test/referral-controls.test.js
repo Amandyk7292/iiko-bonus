@@ -14,10 +14,10 @@ const legacy = {
 test.before(async () => {
   await db.exec(`create role anon; create role authenticated; create role service_role;
     create table settings(key text primary key,value text);
-    create table customers(id uuid primary key,name text,balance numeric default 0,reserved_balance numeric default 0,total_spent numeric default 0,updated_at timestamptz);
+    create table customers(id uuid primary key,name text,balance numeric default 0,total_spent numeric default 0,updated_at timestamptz);
     create table bulka_locations(id uuid primary key,name text);
     create table kaspi_orders(id uuid primary key,customer_id uuid,amount numeric,branch_id uuid,status text,partially_refunded_amount numeric default 0);
-    create table loyalty_reservations(id uuid primary key,customer_id uuid,order_total numeric,discount_amount numeric default 0,status text,committed_at timestamptz,pos_branch_id uuid);
+    create table loyalty_reservations(id uuid primary key,customer_id uuid,order_total numeric,discount_amount numeric default 0,status text,committed_at timestamptz,pos_branch_id uuid,expires_at timestamptz default now()+interval '1 day');
     create table transactions(id uuid default gen_random_uuid(),customer_id uuid,order_id text,type text,amount numeric,description text,branch_id uuid);`);
   const suite = readFileSync(
     'supabase/migrations/20260715090000_commerce_operations_suite.sql',
@@ -125,7 +125,11 @@ test('refund revokes each reward once; spent and reserved amounts become debt re
   await accept(f);
   await buy(f);
   await rpc('process_referral_purchase', f.friend);
-  await db.query('update customers set balance=100,reserved_balance=80 where id=$1', [f.owner]);
+  await db.query('update customers set balance=100 where id=$1', [f.owner]);
+  await db.query(
+    "insert into loyalty_reservations(id,customer_id,discount_amount,status) values($1,$2,80,'active')",
+    [randomUUID(), f.owner],
+  );
   await db.query('update customers set balance=0 where id=$1', [f.friend]);
   await db.query("update kaspi_orders set status='refunded' where id=$1", [f.purchase]);
   assert.equal((await rpc('reverse_referral_purchase', f.friend)).status, 'reversed');
@@ -250,14 +254,31 @@ test('POS branch and full cancellation flow through referral accounting', async 
 
 test('combined POS debit and cashback cannot bypass bonus debt repayment', async () => {
   const f = await fixture();
+  await db.query('update customers set balance=80,referral_bonus_debt=100 where id=$1', [f.friend]);
   await db.query(
-    'update customers set balance=80,reserved_balance=80,referral_bonus_debt=100 where id=$1',
-    [f.friend],
+    "insert into loyalty_reservations(id,customer_id,discount_amount,status) values($1,$2,80,'active')",
+    [f.purchase, f.friend],
   );
-  await db.query('update customers set balance=balance-80+10,reserved_balance=0 where id=$1', [
+  await db.query('update customers set balance=balance-80+10 where id=$1', [f.friend]);
+  assert.deepEqual(await wallet(f.friend), { balance: '10', debt: '100.00' });
+  await db.query(
+    "update loyalty_reservations set status='committed',committed_at=now(),order_total=2000 where id=$1",
+    [f.purchase],
+  );
+  assert.deepEqual(await wallet(f.friend), { balance: '0', debt: '90.00' });
+});
+
+test('cancelled and expired holds do not hide debt; another live hold stays protected', async () => {
+  const f = await fixture();
+  await db.query('update customers set balance=100,referral_bonus_debt=100 where id=$1', [
     f.friend,
   ]);
-  assert.deepEqual(await wallet(f.friend), { balance: '0', debt: '90.00' });
+  await db.query(
+    "insert into loyalty_reservations(id,customer_id,discount_amount,status,expires_at) values($1,$2,60,'active',now()+interval '1 day'),($3,$2,40,'active',now()+interval '1 day'),($4,$2,500,'active',now()-interval '1 day')",
+    [f.purchase, f.friend, randomUUID(), randomUUID()],
+  );
+  await db.query("update loyalty_reservations set status='cancelled' where id=$1", [f.purchase]);
+  assert.deepEqual(await wallet(f.friend), { balance: '40', debt: '40.00' });
 });
 
 test('manual POS return records cumulative refunds and does not double reverse', async () => {
