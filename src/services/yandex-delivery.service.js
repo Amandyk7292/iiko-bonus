@@ -7,7 +7,6 @@ const { credentialHash, decryptSecret, encryptSecret } = require('../utils/secre
 const realtime = require('./realtime.service');
 const businessApi = require('./yandex-business-api');
 const { assertCargoPrice } = require('./yandex-cargo-price');
-
 const {
   API_FAMILIES,
   API_PREFIX,
@@ -36,7 +35,6 @@ const {
   businessExternalOrderAlreadyBoundError,
   validateDeliveryOrder,
 } = require('./yandex-delivery-payloads');
-
 async function estimateCheckoutDelivery(checkout, pricing) {
   const config = getConfig();
   assertConfigured(config, API_FAMILIES.CARGO);
@@ -78,7 +76,6 @@ async function estimateCheckoutDelivery(checkout, pricing) {
     );
   }
 }
-
 async function apiRequest(path, { method = 'POST', body, query = {}, config = getConfig() } = {}) {
   assertConfigured(config, API_FAMILIES.CARGO);
   const url = new URL(`${config.baseUrl}${API_PREFIX}${path}`);
@@ -2561,7 +2558,7 @@ async function getCancellationInfo(orderId) {
   };
 }
 
-async function cancelDelivery(orderId, { allowPaid = false } = {}) {
+async function cancelDelivery(orderId, { allowPaid = false, onlyUnassigned = false } = {}) {
   let job = await findActiveJob(orderId);
   if (!job) throw deliveryError('Активная доставка не найдена', 404);
   const apiFamily = job.api_family || API_FAMILIES.CARGO;
@@ -2670,6 +2667,13 @@ async function cancelDelivery(orderId, { allowPaid = false } = {}) {
       rules.state === 'free' &&
       ['search', 'scheduling'].includes(preCancelStatus) &&
       !preCancelHasPerformer;
+    if (onlyUnassigned && !strictlyPrePickup) {
+      throw deliveryError(
+        'Курьер уже назначен или состояние доставки требует проверки',
+        409,
+        'COURIER_TIMEOUT_NOT_UNASSIGNED',
+      );
+    }
     const result = await client.cancelOrder(job.external_claim_id, rules.state);
     if (String(result?.status || '').toLowerCase() !== 'cancelled') {
       const error = deliveryError(
@@ -2765,6 +2769,29 @@ async function cancelDelivery(orderId, { allowPaid = false } = {}) {
   }
   await syncDeliveryJob(job);
   job = await readJob(job.id);
+  if (
+    onlyUnassigned &&
+    (![
+      'new',
+      'estimating',
+      'ready_for_approval',
+      'accepted',
+      'performer_lookup',
+      'performer_draft',
+      'performer_not_found',
+      'estimating_failed',
+      'cancelled',
+      'failed',
+    ].includes(job.provider_status) ||
+      job.courier_name ||
+      job.courier_phone)
+  ) {
+    throw deliveryError(
+      'Курьер уже назначен или состояние доставки требует проверки',
+      409,
+      'COURIER_TIMEOUT_NOT_UNASSIGNED',
+    );
+  }
   if (isTerminalStatus(job.provider_status)) return normalizeDeliveryJob(job);
   const terms = await getCancellationInfo(orderId);
   if (terms.cancelState === 'unavailable') {

@@ -18,7 +18,7 @@ function database(orders) {
   };
   return { db, calls };
 }
-test('15 minute cutoff excludes recently paid orders and retries claimed refunds with their original key', async () => {
+test('10 minute cutoff excludes recently paid orders and retries claimed refunds with their original key', async () => {
   const { db, calls } = database([
     { id: 'first' },
     { id: 'retry', acceptance_timeout_at: '2026-09-10T10:00:00Z' },
@@ -26,7 +26,7 @@ test('15 minute cutoff excludes recently paid orders and retries claimed refunds
   const cancelled = [];
   const result = await cancelUnacceptedOrders({
     db,
-    now: Date.parse('2026-09-10T10:15:00Z'),
+    now: Date.parse('2026-09-10T10:10:00Z'),
     cancel: async (order, reason, options) => cancelled.push({ order, reason, options }),
   });
   assert.equal(result.cancelled, 2);
@@ -34,12 +34,12 @@ test('15 minute cutoff excludes recently paid orders and retries claimed refunds
     calls.some(
       (c) =>
         c[0] === 'or' &&
-        c[1].includes('staff_acceptance_requested_at.lte.2026-09-10T10:00:00.000Z'),
+        c[1].includes('acceptance_watch_started_at.lte.2026-09-10T10:00:00.000Z'),
     ),
   );
   assert.deepEqual(
     cancelled.map((c) => c.options.allowedFulfillmentStatuses),
-    [['new'], ['cancelled']],
+    [['new', 'pending'], ['cancelled']],
   );
   assert.ok(
     cancelled.every(

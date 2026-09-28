@@ -244,12 +244,54 @@ test('other refund callers retain their existing uncertain-result handling', asy
   assert.equal(h.current().refund_status, 'unknown');
 });
 
+test('courier assignment racing the final refund claim prevents payment refund', async (t) => {
+  const h = harness(t, {
+    state: {
+      courier_timeout_at: '2026-09-28T00:00:00Z',
+      courier_id: null,
+      courier_assigned_at: null,
+      delivery_status: 'unassigned',
+    },
+  });
+  const snapshot = { ...h.current() };
+  h.current().courier_id = 'assigned-concurrently';
+  await assert.rejects(
+    h.service.cancelPaidOrder(snapshot, 'Нет курьера', {
+      allowedFulfillmentStatuses: ['preparing'],
+      cancelBeforeRefund: true,
+      courierTimeout: true,
+    }),
+    { code: 'PAYMENT_REFUND_CONFLICT' },
+  );
+  assert.equal(h.bankRequests(), 0);
+  assert.equal(h.current().fulfillment_status, 'preparing');
+});
+
+test('zero-money order completes cancellation and loyalty reversal without a bank request', async (t) => {
+  let reversed = false;
+  installModule(t, '../src/services/order-payment-state.service', {
+    reverseOrderLoyalty: async (o) => {
+      reversed = true;
+      return o;
+    },
+  });
+  installModule(t, '../src/services/inventory.service', {
+    releaseOrderReservations: async () => {},
+  });
+  const h = harness(t, { state: { amount: 0, bonus_spent: 1000 } });
+  await h.service.cancelPaidOrder(h.current(), 'Нет курьера', { cancelBeforeRefund: true });
+  assert.equal(h.bankRequests(), 0);
+  assert.equal(h.current().status, 'refunded');
+  assert.equal(reversed, true);
+});
+
 test('automatic timeout cannot refund an order accepted during the cancellation claim', async (t) => {
   const h = harness(t, {
     acceptanceRaces: true,
     state: {
       fulfillment_status: 'new',
       staff_acceptance_requested_at: '2026-09-10T10:00:00Z',
+      acceptance_watch_started_at: '2026-09-10T10:00:00Z',
       acceptance_timeout_at: null,
     },
   });
@@ -271,6 +313,7 @@ test('automatic timeout persists cancellation and reuses an uncertain refund key
     state: {
       fulfillment_status: 'new',
       staff_acceptance_requested_at: '2026-09-10T10:00:00Z',
+      acceptance_watch_started_at: '2026-09-10T10:00:00Z',
       acceptance_timeout_at: null,
     },
   });

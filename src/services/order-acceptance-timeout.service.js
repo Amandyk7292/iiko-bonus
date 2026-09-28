@@ -1,8 +1,8 @@
 const { supabase } = require('../config/supabase');
 const { cancelPaidOrder } = require('./customer-order.service');
 
-const ACCEPTANCE_TIMEOUT_MS = 15 * 60 * 1000;
-const TIMEOUT_REASON = 'Заказ не принят филиалом в течение 15 минут.';
+const ACCEPTANCE_TIMEOUT_MS = 10 * 60 * 1000;
+const TIMEOUT_REASON = 'Заказ не принят филиалом в течение 10 минут.';
 
 async function cancelUnacceptedOrders({
   db = supabase,
@@ -27,7 +27,7 @@ async function cancelUnacceptedOrders({
     .eq('status', 'paid')
     .or('refund_status.is.null,refund_status.eq.failed,refund_status.eq.unknown')
     .or(
-      `and(fulfillment_status.eq.new,staff_acceptance_requested_at.lte.${cutoff}),acceptance_timeout_at.not.is.null`,
+      `and(fulfillment_status.in.(new,pending),acceptance_watch_started_at.lte.${cutoff}),acceptance_timeout_at.not.is.null`,
     )
     .or(
       `acceptance_timeout_retry_at.is.null,acceptance_timeout_retry_at.lte.${new Date(now).toISOString()}`,
@@ -40,7 +40,9 @@ async function cancelUnacceptedOrders({
   for (const order of data || []) {
     try {
       await cancel(order, TIMEOUT_REASON, {
-        allowedFulfillmentStatuses: order.acceptance_timeout_at ? ['cancelled'] : ['new'],
+        allowedFulfillmentStatuses: order.acceptance_timeout_at
+          ? ['cancelled']
+          : ['new', 'pending'],
         cancelBeforeRefund: true,
         reuseRefundRequestId: true,
         acceptPendingRefund: false,

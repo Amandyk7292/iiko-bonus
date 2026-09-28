@@ -60,7 +60,7 @@ async function getOperationsSummary({
 } = {}) {
   const scoped = Array.isArray(branchIds) ? branchIds.map(String).filter(Boolean) : [];
   const orderSelect =
-    'id,order_number,amount,branch_id,branch_name,status,fulfillment_status,fulfillment_type,preorder_fulfillment_type,kitchen_status,promised_ready_at,delivery_status,courier_id,refund_status,last_error,created_at,updated_at';
+    'id,order_number,amount,branch_id,branch_name,status,fulfillment_status,fulfillment_type,preorder_fulfillment_type,kitchen_status,promised_ready_at,delivery_status,courier_id,refund_status,last_error,created_at,updated_at,acceptance_watch_started_at';
   // Load the complete actionable set instead of taking the newest N orders.
   // An unresolved order can be old while still requiring an operator's
   // attention, so closed history must not displace it in this dashboard.
@@ -203,6 +203,11 @@ async function getOperationsSummary({
     },
     counts: {
       newOrders: newOrders.length,
+      unacceptedOverdue: newOrders.filter(
+        (order) =>
+          order.acceptance_watch_started_at &&
+          Date.parse(order.acceptance_watch_started_at) <= now - 5 * 60_000,
+      ).length,
       activeOrders: activeOrders.length,
       kitchenOverdue: kitchenOverdue.length,
       deliveryAttention: deliveryAttention.length,

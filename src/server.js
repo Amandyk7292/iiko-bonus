@@ -72,6 +72,13 @@ if (!process.env.VERCEL) {
     critical: true,
   });
   if (runWorkers) {
+    registerWorker('order-waiting-policy', { enabled: true, intervalMs: 15000, maxRunMs: 300000 });
+    const checkWaiting = () =>
+      runMonitoredWorker('order-waiting-policy', () =>
+        require('./services/order-waiting-policy.service').processOrderWaiting(),
+      );
+    setTimeout(checkWaiting, 7000).unref?.();
+    setInterval(checkWaiting, 15000).unref?.();
     const expireUnaccepted = () =>
       runMonitoredWorker('order-acceptance-timeout', () =>
         require('./services/order-acceptance-timeout.service').cancelUnacceptedOrders(),

@@ -19,7 +19,7 @@ import {
   getAdminCityScopes,
   parseAdminScopeSelection,
 } from '../lib/admin-city-scope';
-import { useAdminRealtime } from '../lib/admin-realtime';
+import { useAdminRealtime, useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 import {
   STAFF_PUSH_LOGOUT_FAILED,
@@ -84,6 +84,12 @@ export default function Topbar({
   const [loggingOut, setLoggingOut] = useState(false);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const notificationsButtonRef = useRef<HTMLButtonElement>(null);
+  useAdminRealtimeEvents(['order.attention'], (event) => {
+    toast(
+      `Заказ №${event.data.orderNumber} не принят ${event.data.stage} минут. Откройте «Заказы».`,
+      'info',
+    );
+  });
   const staffPushRef = useRef<StaffPushControlHandle>(null);
   const page = routeKeys[location.pathname] ?? 'operations';
   const usesCityScope = location.pathname === '/menu';
@@ -124,6 +130,13 @@ export default function Topbar({
 
   const notificationItems = counts
     ? [
+        {
+          key: 'unaccepted',
+          label: 'Не приняты более 5 минут',
+          value: counts.unacceptedOverdue || 0,
+          path: '/orders',
+          icon: ShoppingBag,
+        },
         {
           key: 'payments',
           label: t('notifications.paymentIssues'),

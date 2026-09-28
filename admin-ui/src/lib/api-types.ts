@@ -209,6 +209,9 @@ export interface AdminOrder {
   effectiveFulfillmentType?: 'pickup' | 'delivery';
   deliveryStatus?: string;
   hasDeliveryProof?: boolean;
+  acceptanceStartedAt?: string | null;
+  courierSearchStartedAt?: string | null;
+  courierAssignedAt?: string | null;
   kitchenStatus?: string;
   courierDispatchStatus?: string | null;
   posReceiptDue?: boolean;
@@ -548,6 +551,7 @@ export interface OperationsSummary {
   };
   counts: {
     newOrders: number;
+    unacceptedOverdue?: number;
     activeOrders: number;
     kitchenOverdue: number;
     deliveryAttention: number;

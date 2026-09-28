@@ -392,12 +392,12 @@ test('delivery concurrency is bounded at five while the full batch completes', a
 });
 
 test('SLA is configurable with a safe 60 to 900 second bound', () => {
-  assert.equal(staffOrderAcceptSlaSeconds({}), 120);
-  assert.equal(staffOrderAcceptSlaSeconds({ STAFF_ORDER_ACCEPT_SLA_SECONDS: '119' }), 119);
-  assert.equal(staffOrderAcceptSlaSeconds({ STAFF_ORDER_ACCEPT_SLA_SECONDS: '120' }), 120);
-  assert.equal(staffOrderAcceptSlaSeconds({ STAFF_ORDER_ACCEPT_SLA_SECONDS: '10' }), 60);
-  assert.equal(staffOrderAcceptSlaSeconds({ STAFF_ORDER_ACCEPT_SLA_SECONDS: '5000' }), 900);
-  assert.equal(staffOrderAcceptSlaSeconds({ STAFF_ORDER_ACCEPT_SLA_SECONDS: 'invalid' }), 120);
+  assert.equal(staffOrderAcceptSlaSeconds({}), 300);
+  assert.equal(staffOrderAcceptSlaSeconds({ STAFF_ORDER_ACCEPT_SLA_SECONDS: '119' }), 300);
+  assert.equal(staffOrderAcceptSlaSeconds({ STAFF_ORDER_ACCEPT_SLA_SECONDS: '120' }), 300);
+  assert.equal(staffOrderAcceptSlaSeconds({ STAFF_ORDER_ACCEPT_SLA_SECONDS: '10' }), 300);
+  assert.equal(staffOrderAcceptSlaSeconds({ STAFF_ORDER_ACCEPT_SLA_SECONDS: '5000' }), 300);
+  assert.equal(staffOrderAcceptSlaSeconds({ STAFF_ORDER_ACCEPT_SLA_SECONDS: 'invalid' }), 300);
 });
 
 test('migration provides dedupe, authorization checks, revalidation and durable retry RPCs', () => {

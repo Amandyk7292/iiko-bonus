@@ -27,6 +27,7 @@ vi.mock('./StaffPushControl', async () => {
 });
 
 vi.mock('../lib/admin-realtime', () => ({
+  useAdminRealtimeEvents: vi.fn(),
   useAdminRealtime: () => ({
     summary: null,
     connectionStatus: 'online',

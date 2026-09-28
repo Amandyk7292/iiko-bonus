@@ -10,6 +10,38 @@ const { decryptSecret } = require('../src/utils/secret-envelope.util');
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 const JOB_ID = '22222222-2222-4222-8222-222222222222';
 
+test('automatic no-courier cancellation refuses a freshly assigned Business courier', async (t) => {
+  let cancels = 0;
+  const job = {
+    id: JOB_ID,
+    order_id: ORDER_ID,
+    provider: 'yandex',
+    api_family: 'business_v2',
+    external_claim_id: 'freshly-assigned',
+    provider_status: 'search',
+    internal_status: 'unassigned',
+    currency: 'KZT',
+  };
+  const h = loadService(t, {
+    jobs: [job],
+    client: {
+      getOrderInfo: async () => ({
+        id: job.external_claim_id,
+        status: 'waiting',
+        cancel_rules: { can_cancel: true, state: 'free' },
+      }),
+      cancelOrder: async () => {
+        cancels++;
+        return { status: 'cancelled' };
+      },
+    },
+  });
+  await assert.rejects(h.service.cancelDelivery(ORDER_ID, { onlyUnassigned: true }), {
+    code: 'COURIER_TIMEOUT_NOT_UNASSIGNED',
+  });
+  assert.equal(cancels, 0);
+});
+
 const makeOrder = (overrides = {}) => ({
   id: ORDER_ID,
   order_number: 100042,

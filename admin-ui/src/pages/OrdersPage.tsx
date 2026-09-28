@@ -66,6 +66,11 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const [yandexOrder, setYandexOrder] = useState<AdminOrder | null>(null);
   const [deliveryProof, setDeliveryProof] = useState<DeliveryProof | null>(null);
   const [proofLoading, setProofLoading] = useState(false);
+  const [clock, setClock] = useState(Date.now);
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 15000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [proofEmpty, setProofEmpty] = useState(false);
   const [cancellationOrder, setCancellationOrder] = useState<AdminOrder | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
@@ -364,6 +369,37 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                     <td data-label={t('orders.number')}>
                       <div className="order-cell-content">
                         <strong>№{order.number}</strong>
+                        {order.paymentStatus === 'paid' &&
+                          ['new', 'pending'].includes(order.orderStatus) &&
+                          order.acceptanceStartedAt &&
+                          Date.parse(order.acceptanceStartedAt) <= clock && (
+                            <span className="status-pill status-warning">
+                              Не принят:{' '}
+                              {Math.max(
+                                0,
+                                Math.floor((clock - Date.parse(order.acceptanceStartedAt)) / 60000),
+                              )}{' '}
+                              мин. Автоотмена через 10 минут ожидания.
+                            </span>
+                          )}
+                        {order.paymentStatus === 'paid' &&
+                          ['accepted', 'preparing', 'ready'].includes(order.orderStatus) &&
+                          order.courierSearchStartedAt &&
+                          !order.courierAssignedAt &&
+                          ['unassigned', 'cancelled'].includes(
+                            order.deliveryStatus || 'unassigned',
+                          ) && (
+                            <span className="status-pill status-warning">
+                              Поиск курьера:{' '}
+                              {Math.max(
+                                0,
+                                Math.floor(
+                                  (clock - Date.parse(order.courierSearchStartedAt)) / 60000,
+                                ),
+                              )}{' '}
+                              мин. Лимит — 20 минут.
+                            </span>
+                          )}
                         {order.posReceiptDue && (
                           <span className="status-pill status-warning">
                             {t('kitchen.receiptDue')}

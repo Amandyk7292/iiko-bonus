@@ -39,6 +39,7 @@ interface AdminRealtimeValue {
 }
 
 const EVENT_TYPES = [
+  'order.attention',
   'connected',
   'order.created',
   'order.updated',
@@ -63,6 +64,7 @@ const EVENT_TYPES = [
 ];
 
 const SUMMARY_EVENT_TYPES = new Set([
+  'order.attention',
   'connected',
   'order.created',
   'order.updated',
@@ -455,7 +457,7 @@ export function AdminRealtimeProvider({
         }
         if (SUMMARY_EVENT_TYPES.has(type)) scheduleSummaryRefresh();
         if (
-          type === 'order.created' &&
+          (type === 'order.created' || type === 'order.attention') &&
           soundEnabledRef.current &&
           String(event.data.paymentStatus || '') === 'paid'
         ) {

@@ -68,6 +68,8 @@ const ORDER_FIELDS = [
   'route_distance_km',
   'preparation_minutes',
   'courier_assigned_at',
+  'acceptance_watch_started_at',
+  'courier_search_started_at',
   'out_for_delivery_at',
   'delivered_at',
   'delivery_pin',
@@ -294,6 +296,9 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     refundError: order.refund_error || null,
     lastError: order.last_error || null,
     deliveryStatus: order.delivery_status || 'unassigned',
+    acceptanceStartedAt: order.acceptance_watch_started_at || null,
+    courierSearchStartedAt: order.courier_search_started_at || null,
+    courierAssignedAt: order.courier_assigned_at || null,
     hasDeliveryProof: Array.isArray(order.delivery_proofs)
       ? order.delivery_proofs.some((proof) => Boolean(proof.id))
       : Boolean(order.delivery_proofs?.id),
@@ -759,6 +764,7 @@ async function cancelPaidOrder(
     acceptPendingRefund = false,
     cancelExternalDelivery = false,
     unacceptedBefore = null,
+    courierTimeout = false,
   } = {},
 ) {
   const currentStatus =
@@ -847,6 +853,9 @@ async function cancelPaidOrder(
         acceptance_timeout_at: current.acceptance_timeout_at || requestedAt,
         acceptance_timeout_retry_at: new Date(Date.now() + 60_000).toISOString(),
       }),
+      ...(courierTimeout && {
+        courier_timeout_retry_at: new Date(Date.now() + 60_000).toISOString(),
+      }),
     })
     .eq('id', current.id)
     .eq('status', 'paid');
@@ -855,8 +864,15 @@ async function cancelPaidOrder(
     claim = current.acceptance_timeout_at
       ? claim.eq('acceptance_timeout_at', current.acceptance_timeout_at)
       : claim
-          .lte('staff_acceptance_requested_at', unacceptedBefore)
+          .lte('acceptance_watch_started_at', unacceptedBefore)
           .is('acceptance_timeout_at', null);
+  }
+  if (courierTimeout) {
+    claim = claim
+      .eq('courier_timeout_at', current.courier_timeout_at)
+      .is('courier_id', null)
+      .is('courier_assigned_at', null)
+      .in('delivery_status', ['unassigned', 'cancelled']);
   }
   claim = current.refund_status
     ? claim.eq('refund_status', current.refund_status)
@@ -881,7 +897,10 @@ async function cancelPaidOrder(
   }
 
   if (cancelBeforeRefund || cancelExternalDelivery) {
-    if (unacceptedBefore && !current.acceptance_timeout_at)
+    if (
+      (unacceptedBefore && !current.acceptance_timeout_at) ||
+      (courierTimeout && current.fulfillment_status !== 'cancelled')
+    )
       await notifyOrderStatus(claimed).catch((error) =>
         console.error('Не удалось отправить уведомление об автоотмене:', error.message),
       );
@@ -914,13 +933,21 @@ async function cancelPaidOrder(
       giftRefundPrepared = true;
     }
     const remainingRefund = Number(claimed.amount) - Number(claimed.partially_refunded_amount || 0);
-    if (!Number.isFinite(remainingRefund) || remainingRefund <= 0) {
+    if (
+      !Number.isFinite(remainingRefund) ||
+      remainingRefund < 0 ||
+      (remainingRefund === 0 && Number(claimed.amount) !== 0)
+    ) {
       throw refundError(409, 'Заказ уже полностью возвращён', 'PAYMENT_REFUND_CONFLICT');
     }
-    refund = await refundPaymentForOrder(claimed, remainingRefund, {
-      reason,
-      idempotencyKey: claimed.refund_request_id || refundRequestId,
-    });
+    if (remainingRefund === 0) {
+      refund = { reference: null, requestId: claimed.refund_request_id };
+    } else {
+      refund = await refundPaymentForOrder(claimed, remainingRefund, {
+        reason,
+        idempotencyKey: claimed.refund_request_id || refundRequestId,
+      });
+    }
   } catch (error) {
     const pending = await markRefundFailure(claimed, error).catch((saveError) =>
       console.error('Не удалось сохранить ошибку возврата:', saveError.message),

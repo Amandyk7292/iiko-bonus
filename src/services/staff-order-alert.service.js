@@ -51,9 +51,8 @@ function receiverRequired(env = process.env) {
   return env.OPS_ALERT_RECEIVER_REQUIRED === 'true';
 }
 
-function staffOrderAcceptSlaSeconds(env = process.env) {
-  const value = Number(env.STAFF_ORDER_ACCEPT_SLA_SECONDS || 120);
-  return Number.isSafeInteger(value) ? Math.min(900, Math.max(60, value)) : 120;
+function staffOrderAcceptSlaSeconds() {
+  return 300;
 }
 
 function retryDelaySeconds(attempt) {
