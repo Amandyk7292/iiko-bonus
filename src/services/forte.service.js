@@ -660,6 +660,7 @@ class ForteService {
           normalizedStatus,
         ));
     const metadata = {
+      provider_payment_confirmed_at: nextStatus === 'paid' ? new Date().toISOString() : null,
       provider_status: normalized.status || 'Unknown',
       payment_reconciled_at: FINAL_PAYMENT_STATUSES.has(nextStatus)
         ? new Date().toISOString()

@@ -66,7 +66,9 @@ export default function BranchOrderCards({
             <dl className="branch-order-details">
               {[
                 ['settlements.copy17', b.bonuses],
-                ['settlements.copy18', b.delivery],
+                ['settlements.auto.customerDelivery', b.delivery],
+                ['settlements.auto.deliveryCost', b.delivery_actual_cost ?? 0],
+                ['settlements.auto.deliveryNet', b.delivery_net_cost ?? 0],
                 ['settlements.copy19', b.discounts],
                 ['settlements.copy20', b.commission],
                 ['settlements.simple.bankFee', b.acquiring_fee],
@@ -77,6 +79,7 @@ export default function BranchOrderCards({
                 </div>
               ))}
             </dl>
+            {!!b.delivery_unknown && <p>{t('settlements.auto.deliveryUnknown')}</p>}
             {b.unverified > 0 && (
               <p>{t('settlements.simple.unverified', { count: b.unverified })}</p>
             )}

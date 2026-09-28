@@ -1710,6 +1710,7 @@ class ForteWidgetService {
     this.validateCheckout(order, normalized, expectedToken, options);
     const nextStatus = mapWidgetStatus(normalized);
     const metadata = {
+      provider_payment_confirmed_at: nextStatus === 'paid' ? new Date().toISOString() : null,
       provider_status: normalized.status || normalized.transactionStatus || 'pending',
       provider_transaction_id: normalized.providerTransactionId || null,
       provider_payment_system: FORTE_WIDGET_INTEGRATION,

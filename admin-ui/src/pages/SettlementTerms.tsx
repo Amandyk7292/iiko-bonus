@@ -17,9 +17,8 @@ export default function SettlementTerms({
     [branch, setBranch] = useState(''),
     [partner, setPartner] = useState(''),
     [name, setName] = useState(''),
-    [commission, setCommission] = useState('0'),
+    [commission, setCommission] = useState('4'),
     [bonus, setBonus] = useState('100'),
-    [delivery, setDelivery] = useState('platform'),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   const save = async () => {
@@ -31,9 +30,9 @@ export default function SettlementTerms({
         body: JSON.stringify({
           branch,
           partner: partner || null,
-          commission: Math.round(Number(commission) * 100),
+          commission: partner ? 400 : 0,
           bonus: Math.round(Number(bonus) * 100),
-          delivery,
+          delivery: 'partner',
         }),
       });
       await onSaved();
@@ -118,7 +117,6 @@ export default function SettlementTerms({
                 setPartner(t?.partner_id || '');
                 setCommission(String((t?.commission_bps || 0) / 100));
                 setBonus(String((t?.bonus_compensation_bps ?? 10000) / 100));
-                setDelivery(t?.delivery_recipient || 'platform');
               }}
             />
           </div>
@@ -136,14 +134,15 @@ export default function SettlementTerms({
           </div>
           <div className="form-grid form-grid-2">
             <label className="field-group">
-              <span>{kk ? 'Bulka комиссиясы, %' : 'Комиссия Bulka, %'}</span>
+              <span>{kk ? 'Bulka комиссиясы, %' : 'Комиссия Bulka, % — эквайринг включён'}</span>
               <input
                 type="number"
                 className="input-classic"
                 min="0"
                 max="100"
                 step="0.01"
-                value={commission}
+                readOnly
+                value={partner ? '4' : '0'}
                 onChange={(e) => setCommission(e.target.value)}
               />
             </label>
@@ -163,22 +162,13 @@ export default function SettlementTerms({
           <p className="field-hint">
             {kk
               ? 'Комиссия жеткізусіз ақшалай төлемнен есептеледі.'
-              : 'Комиссия считается от оставшейся после возвратов денежной оплаты товаров, без доставки и бонусов. 100% компенсации бонусов означает, что их оплачивает Bulka. Комиссия эквайринга — за счёт партнёра, по факту сверки.'}
+              : 'Комиссия считается от оставшейся после возвратов денежной оплаты товаров, без доставки и бонусов. 100% компенсации бонусов означает, что их оплачивает Bulka. Единая комиссия Bulka — 4%, эквайринг включён и повторно не удерживается. Доставка удерживается по фактическим расходам; оплата доставки клиентом учитывается в пользу партнёра.'}
           </p>
-          <div className="field-group">
-            <label htmlFor="settlement-delivery">
-              {kk ? 'Жеткізу ақысы кімге тиесілі' : 'Кому причитается плата за доставку'}
-            </label>
-            <SelectControl
-              id="settlement-delivery"
-              value={delivery}
-              onChange={setDelivery}
-              options={[
-                { value: 'platform', label: 'Bulka' },
-                { value: 'partner', label: kk ? 'Серіктес' : 'Партнёр' },
-              ]}
-            />
-          </div>
+          <p className="field-hint">
+            {kk
+              ? 'Жеткізуді Bulka төлейді. Нүктенің нақты шығындары айлық есепте ұсталады, клиенттің жеткізу төлемі есепке алынады.'
+              : 'Bulka оплачивает доставку. В расчёте месяца удерживаются фактические расходы точки, с учётом платы за доставку от клиентов.'}
+          </p>
           {error && (
             <p className="inline-alert inline-alert-error" role="alert">
               {error}

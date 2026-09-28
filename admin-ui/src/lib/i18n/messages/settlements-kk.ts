@@ -1,4 +1,16 @@
 export default {
+  'settlements.auto.bankCompany': 'Bulka шығыны',
+  'settlements.auto.statement': 'Үзінді көшірмемен расталды',
+  'settlements.auto.paymentConfirmed': 'Төлем расталды',
+  'settlements.auto.review': 'Айырмашылық бар — тексеру қажет',
+  'settlements.auto.wait': 'Төлем күтілуде',
+  'settlements.auto.bankIncluded': 'Bulka 4% комиссиясына кіреді',
+  'settlements.auto.deliveryPending': 'Жеткізудің соңғы құны күтілуде',
+  'settlements.auto.deliveryCost': 'Жеткізу шығындары',
+  'settlements.auto.customerDelivery': 'Клиенттер төлеген жеткізу',
+  'settlements.auto.deliveryNet': 'Нүкте есебінен жеткізу',
+  'settlements.auto.deliveryUnknown': 'Соңғы құны жоқ жеткізулер бар — есеп алдын ала',
+
   'settlements.month.more': 'Тағы көрсету',
   'settlements.detail.amount': 'Тапсырыстың ақшалай бөлігі',
   'settlements.portal.role': 'Франчайзи',
@@ -19,7 +31,7 @@ export default {
   'settlements.simple.issues': 'Тексеруді қажет етеді',
   'settlements.bank.title': 'FortePay төлемдерін тексеру',
   'settlements.bank.note':
-    'Мұнда тексерілмеген төлемдер мен айырмашылықтар бар. Тексеру FortePay күйін сұрайды, ақша алынбайды. Банктің қайтару жауабы клиент картасына түскенін растамайды. Ішінара қайтарымдар мен комиссияларды үзінді көшірмемен тексеріңіз.',
+    'FortePay растаулары автоматты түрде есепке алынады. Фондық тексеру даулы төлемдерді өңдейді. Мұнда тек айырмашылықтар және соңғы құны жоқ жеткізулер көрсетіледі. Эквайринг Bulka 4% комиссиясына кіреді.',
   'settlements.bank.open': 'Тексерілетін төлемдер',
   'settlements.bank.check': 'FortePay арқылы тексеру',
   'settlements.bank.checked': 'Тексерілді',

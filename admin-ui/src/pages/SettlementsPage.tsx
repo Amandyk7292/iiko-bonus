@@ -260,29 +260,64 @@ export default function SettlementsPage() {
                       </td>
                       <td>
                         {o.payment_recipient === 'platform' ? 'Bulka' : t('settlements.copy42')}
-                        {!o.reconciled && <small>{t('settlements.copy43')}</small>}
+                        <small>
+                          {t(
+                            o.payment_confirmed
+                              ? 'settlements.auto.paymentConfirmed'
+                              : o.payment_statement_confirmed
+                                ? 'settlements.auto.statement'
+                                : o.payment_review
+                                  ? 'settlements.auto.review'
+                                  : 'settlements.auto.wait',
+                          )}
+                        </small>
                       </td>
                       <td>
                         {o.acquiring_fee === null
-                          ? t('settlements.copy44')
+                          ? t(
+                              o.settlement_model === 2
+                                ? o.partner
+                                  ? 'settlements.auto.bankIncluded'
+                                  : 'settlements.auto.bankCompany'
+                                : 'settlements.copy44',
+                            )
                           : money(o.acquiring_fee)}
                       </td>
-                      <td>{o.partner ? money(o.entitlement) : t('settlements.copy45')}</td>
+                      <td>
+                        {o.partner ? money(o.entitlement) : t('settlements.copy45')}
+                        {o.partner && o.settlement_model === 2 && (
+                          <small>
+                            {t('settlements.auto.deliveryCost')}:{' '}
+                            {o.delivery_actual_cost == null
+                              ? t('settlements.auto.deliveryPending')
+                              : money(o.delivery_actual_cost)}{' '}
+                            · {t('settlements.auto.customerDelivery')}: {money(o.delivery_net)}
+                          </small>
+                        )}
+                      </td>
                       <td>
                         {o.branch_changed
                           ? t('settlements.copy46')
-                          : o.reconciled
-                            ? t('settlements.copy31')
-                            : t('settlements.copy47')}
-                        {report.canManage && ['paid', 'refunded'].includes(o.status) && (
-                          <button
-                            className="btn-outline"
-                            disabled={busy || o.branch_changed}
-                            onClick={() => setOrder(o)}
-                          >
-                            {t('settlements.copy48')}
-                          </button>
-                        )}
+                          : o.delivery_cost_pending
+                            ? t('settlements.auto.deliveryPending')
+                            : o.payment_review
+                              ? t('settlements.auto.review')
+                              : o.payment_confirmed
+                                ? t('settlements.auto.paymentConfirmed')
+                                : o.payment_statement_confirmed
+                                  ? t('settlements.auto.statement')
+                                  : t('settlements.auto.wait')}
+                        {report.canManage &&
+                          ['paid', 'refunded'].includes(o.status) &&
+                          (o.payment_review === undefined ? !o.reconciled : o.payment_review) && (
+                            <button
+                              className="btn-outline"
+                              disabled={busy || o.branch_changed}
+                              onClick={() => setOrder(o)}
+                            >
+                              {t('settlements.copy48')}
+                            </button>
+                          )}
                       </td>
                     </tr>
                   ))}

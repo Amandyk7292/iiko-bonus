@@ -4,6 +4,9 @@ import { request } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 export type Drill = { branch?: string; metric: string; name?: string };
 type Row = {
+  payment_confirmed?: boolean;
+  payment_review?: boolean;
+  delivery_cost_pending?: boolean;
   order_id: string;
   order_number: number;
   branch: string;
@@ -120,13 +123,16 @@ export default function SettlementDetails({
             <p>
               {t(
                 'settlements.bank.' +
-                  (o.payment_method !== 'forte_card'
-                    ? 'manual'
-                    : !o.bank_check_current
-                      ? 'unchecked'
-                      : o.bank_issue || 'unchecked'),
+                  (o.payment_confirmed && !o.payment_review
+                    ? 'ok'
+                    : o.payment_method !== 'forte_card'
+                      ? 'manual'
+                      : !o.bank_check_current
+                        ? 'unchecked'
+                        : o.bank_issue || 'unchecked'),
               )}
             </p>
+            {o.delivery_cost_pending && <p>{t('settlements.auto.deliveryPending')}</p>}
             {o.checked_at && (
               <small>
                 {t('settlements.bank.checked')}:{' '}

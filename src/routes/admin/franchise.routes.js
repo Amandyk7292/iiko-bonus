@@ -181,6 +181,10 @@ function registerFranchiseRoutes(router) {
     handle(async (req, res) => {
       const b = req.body;
       checkBranch(req, b.branch);
+      if (b.partner && b.commission !== 400)
+        return res
+          .status(400)
+          .json({ error: 'Единая комиссия Bulka для франчайзи — 4%, эквайринг включён' });
       res.json({
         id: await rpc('franchise_set_terms', {
           p_branch: b.branch,

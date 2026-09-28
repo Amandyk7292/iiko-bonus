@@ -10,6 +10,9 @@ export type Terms = {
 };
 export type Config = { locations: Location[]; partners: Partner[]; terms: Terms[] };
 export type BranchReport = {
+  delivery_actual_cost?: number;
+  delivery_unknown?: number;
+  delivery_net_cost?: number;
   branch_id: string | null;
   name: string;
   city: string;
@@ -40,6 +43,13 @@ export type Balance = {
   blocked: number;
 };
 export type OrderFinance = {
+  settlement_model?: number;
+  payment_statement_confirmed?: boolean;
+  payment_confirmed?: boolean;
+  payment_review?: boolean;
+  delivery_actual_cost?: number | null;
+  delivery_cost_pending?: boolean;
+  delivery_net_cost?: number | null;
   order_id: string;
   order_number: number;
   ordered_at: string;

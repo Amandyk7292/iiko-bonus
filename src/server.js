@@ -145,6 +145,18 @@ if (!process.env.VERCEL) {
     setTimeout(reconcileForteOrders, 20 * 1000);
     setInterval(reconcileForteOrders, 60 * 1000);
 
+    const reconcileFranchise = () =>
+      runMonitoredWorker('franchise-reconciliation', () =>
+        require('./services/franchise-automation.service').reconcileFranchise(),
+      );
+    registerWorker('franchise-reconciliation', {
+      enabled: true,
+      intervalMs: 60000,
+      maxRunMs: 300000,
+    });
+    setTimeout(reconcileFranchise, 30000);
+    setInterval(reconcileFranchise, 60000).unref?.();
+
     const cleanupUnpaidOrders = () =>
       runMonitoredWorker('payment-expiration-cleanup', cleanupExpiredPayments);
     setTimeout(cleanupUnpaidOrders, 25 * 1000);
