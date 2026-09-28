@@ -7,15 +7,22 @@ alter table public.kaspi_orders
  add column courier_timeout_at timestamptz,
  add column courier_timeout_retry_at timestamptz;
 
+create function public.order_schedule_time(p_scheduled timestamptz,p_pickup text)
+returns timestamptz language plpgsql stable set search_path=public,pg_temp as $$
+begin
+ if p_scheduled is not null then return p_scheduled; end if;
+ if p_pickup is null or p_pickup !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ]' then return null; end if;
+ begin return p_pickup::timestamptz; exception when invalid_datetime_format or datetime_field_overflow then return null; end;
+end $$;
 create function public.order_acceptance_start(p_requested timestamptz,p_type text,p_scheduled timestamptz,p_preparation integer)
 returns timestamptz language sql immutable set search_path=public,pg_temp as $$
- select case when p_requested is null then null when p_type='preorder' and p_scheduled is not null
+ select case when p_requested is null or (p_type='preorder' and p_scheduled is null) then null when p_type='preorder' and p_scheduled is not null
  then greatest(p_requested,p_scheduled-make_interval(mins=>greatest(1,coalesce(p_preparation,30)))) else p_requested end;
 $$;
 
 create function public.track_order_waiting_clocks() returns trigger language plpgsql set search_path=public,pg_temp as $$
 begin
- new.acceptance_watch_started_at:=public.order_acceptance_start(new.staff_acceptance_requested_at,new.fulfillment_type,coalesce(new.scheduled_at,new.pickup_time),new.preparation_minutes);
+ new.acceptance_watch_started_at:=public.order_acceptance_start(new.staff_acceptance_requested_at,new.fulfillment_type,public.order_schedule_time(new.scheduled_at,new.pickup_time),new.preparation_minutes);
  if new.courier_timeout_at is not null and old.courier_timeout_at is not null
    and new.courier_id is distinct from old.courier_id and new.courier_id is not null then
   raise exception 'COURIER_TIMEOUT_CANCELLATION_IN_PROGRESS';
@@ -37,7 +44,7 @@ end $$;
 create trigger track_order_waiting_clocks before insert or update on public.kaspi_orders
  for each row execute function public.track_order_waiting_clocks();
 -- Preserve historical orders. Only their original timestamps determine elapsed time.
-update public.kaspi_orders set acceptance_watch_started_at=public.order_acceptance_start(staff_acceptance_requested_at,fulfillment_type,coalesce(scheduled_at,pickup_time),preparation_minutes)
+update public.kaspi_orders set acceptance_watch_started_at=public.order_acceptance_start(staff_acceptance_requested_at,fulfillment_type,public.order_schedule_time(scheduled_at,pickup_time),preparation_minutes)
  where status='paid' and fulfillment_status not in('completed','cancelled');
 
 create index order_acceptance_watch_due on public.kaspi_orders(acceptance_watch_started_at)
@@ -114,8 +121,8 @@ end $$;
 create trigger guard_courier_timeout_job before insert or update of provider_status on public.delivery_jobs
  for each row execute function public.guard_courier_timeout_job();
 
-revoke all on function public.order_acceptance_start(timestamptz,text,timestamptz,integer),public.claim_order_waiting_notices(),public.claim_courier_timeout(uuid,timestamptz) from public,anon,authenticated;
-grant execute on function public.order_acceptance_start(timestamptz,text,timestamptz,integer),public.claim_order_waiting_notices(),public.claim_courier_timeout(uuid,timestamptz) to service_role;
+revoke all on function public.order_schedule_time(timestamptz,text),public.order_acceptance_start(timestamptz,text,timestamptz,integer),public.claim_order_waiting_notices(),public.claim_courier_timeout(uuid,timestamptz) from public,anon,authenticated;
+grant execute on function public.order_schedule_time(timestamptz,text),public.order_acceptance_start(timestamptz,text,timestamptz,integer),public.claim_order_waiting_notices(),public.claim_courier_timeout(uuid,timestamptz) to service_role;
 create or replace function public.claim_staff_push_reminder_deliveries(
   p_limit integer default 100
 )

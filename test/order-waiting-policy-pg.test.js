@@ -42,13 +42,21 @@ test.before(async () => {
   await db.exec(sql('20260909231000_recurring_cashier_reminders'));
   await db.exec(sql('20260910132000_front_tablet_fallback'));
   await db.exec(
-    `alter table kaspi_orders add column fulfillment_type text default 'delivery', add column preorder_fulfillment_type text, add column scheduled_at timestamptz, add column pickup_time timestamptz, add column preparation_minutes integer, add column courier_id uuid, add column courier_assigned_at timestamptz, add column courier_dispatch_status text, add column courier_dispatch_attempted_at timestamptz, add column delivery_status text default 'unassigned'; create table delivery_jobs(id uuid primary key default gen_random_uuid(),order_id uuid,provider_status text,internal_status text,courier_name text,courier_phone text);`,
+    `alter table kaspi_orders add column fulfillment_type text default 'delivery', add column preorder_fulfillment_type text, add column scheduled_at timestamptz, add column pickup_time varchar(40), add column preparation_minutes integer, add column courier_id uuid, add column courier_assigned_at timestamptz, add column courier_dispatch_status text, add column courier_dispatch_attempted_at timestamptz, add column delivery_status text default 'unassigned'; create table delivery_jobs(id uuid primary key default gen_random_uuid(),order_id uuid,provider_status text,internal_status text,courier_name text,courier_phone text);`,
   );
   await db.exec(sql('20260928160000_order_waiting_policy'));
   await db.exec(`create trigger test_enqueue after insert on staff_push_outbox
     for each row execute function enqueue_staff_push_reminder();`);
 });
 test.after(() => db.close());
+test('legacy textual pickup dates are safe and malformed preorders do not time out', async () => {
+  const result = await db.query(
+    "select order_schedule_time(null,'2026-10-01T12:00:00Z') valid,order_schedule_time(null,'25:99') invalid,order_acceptance_start(now(),'preorder',null,30) blocked",
+  );
+  assert.equal(Date.parse(result.rows[0].valid), Date.parse('2026-10-01T12:00:00Z'));
+  assert.equal(result.rows[0].invalid, null);
+  assert.equal(result.rows[0].blocked, null);
+});
 
 async function order(minutes, status = 'new') {
   const b = randomUUID(),
