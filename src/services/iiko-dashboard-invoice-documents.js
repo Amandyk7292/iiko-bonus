@@ -1,5 +1,6 @@
 const { failure } = require('./iiko-dashboard-client');
 const { list } = require('./iiko-dashboard-barters');
+const { isInternalSupplier } = require('./iiko-dashboard-invoice-suppliers');
 
 const xmlList = async (request, path, root, item) => {
   const result = await request(path, undefined, 'xml');
@@ -26,7 +27,8 @@ async function loadInvoiceDocuments(request, input) {
   const suppliers = (await xmlList(request, 'suppliers', 'employees', 'employee')).filter(
     (supplier) => /^[a-f0-9-]{36}$/i.test(String(supplier.id || '')),
   );
-  const documents = await mapConcurrent(suppliers, 3, async (supplier) => {
+  const externalSuppliers = suppliers.filter((supplier) => !isInternalSupplier(supplier));
+  const documents = await mapConcurrent(externalSuppliers, 3, async (supplier) => {
     const query = new URLSearchParams({
       from: input.from,
       to: input.to,

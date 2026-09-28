@@ -1,6 +1,7 @@
 const { failure } = require('./iiko-dashboard-client');
 const { reportSource } = require('./iiko-dashboard-source');
 const { list } = require('./iiko-dashboard-barters');
+const { isInternalSupplier } = require('./iiko-dashboard-invoice-suppliers');
 
 const column = (name, type = 'STRING') => ({ name, type });
 const columns = {
@@ -37,6 +38,7 @@ function invoiceReport(data, input) {
   const seen = new Set();
   const invoices = [];
   for (const document of data.documents) {
+    if (isInternalSupplier(suppliers.get(document.supplier))) continue;
     if (document.status !== 'PROCESSED' || !document.id || seen.has(document.id)) continue;
     const date = label(document.dateIncoming || document.incomingDate);
     const number = label(document.documentNumber || document.incomingDocumentNumber);

@@ -141,6 +141,51 @@ test('invoice query constrains the server and date range', () => {
   assert(!invoiceQuery.safeParse({ ...input, total: 1 }).success);
 });
 
+test('internal store suppliers are excluded from invoices, details, totals and supplier filters', () => {
+  const internal = [
+    { id: 'workshop', name: 'ЦЕХ ОСНОВНОЙ: Склад Кулинарный выпечка', representsStore: 'true' },
+    { id: 'branch', name: 'Точка', representsStore: true },
+    { id: 'archived-store', name: 'Архив', deleted: 'true', representedStoreId: supplier.id },
+  ];
+  const data = dataset([
+    document('external'),
+    ...internal.map((s) => document(s.id, { supplier: s.id })),
+  ]);
+  data.suppliers.push(...internal);
+  const report = invoiceReport(data, input);
+  assert.deepEqual(report.summary, { invoices: 1, suppliers: 1, productLines: 1, total: 1000 });
+  assert.deepEqual(
+    report.invoices.map((x) => x.identity),
+    ['external'],
+  );
+  assert.equal(report.rows.length, 1);
+  assert.equal(invoiceReport(data, { ...input, supplier: internal[0].name }).invoices.length, 0);
+});
+
+test('external purchases for production remain even when supplier name contains workshop', () => {
+  const data = dataset([document('external')]);
+  data.suppliers = [
+    {
+      ...supplier,
+      name: 'Цех поставщика',
+      representsStore: 'false',
+      representedStoreId: '00000000-0000-0000-0000-000000000000',
+    },
+  ];
+  data.departments[0].name = 'ЦЕХ ОСНОВНОЙ';
+  assert.equal(invoiceReport(data, input).summary.total, 1000);
+});
+
+test('loader does not request internal supplier documents', async () => {
+  const internal = { id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', representsStore: 'true' };
+  const data = await loadInvoiceDocuments(async (path) => {
+    if (path === 'suppliers') return { employees: { employee: [internal, supplier] } };
+    assert(path.includes('supplierId=' + supplier.id));
+    return { incomingInvoiceDtoes: '' };
+  }, input);
+  assert.equal(data.documents.length, 0);
+});
+
 test('invoice routes require an admin, poll safely and export numeric values', async (t) => {
   const express = require('express');
   const AdmZip = require('adm-zip');
