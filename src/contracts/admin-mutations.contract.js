@@ -1000,6 +1000,7 @@ const automationBodySchema = z
   .strict();
 
 const staffRoleSchema = z.enum([
+  'franchisee',
   'branch_manager',
   'operator',
   'marketer',
@@ -1090,6 +1091,7 @@ const accessUpdateBodySchema = z
   .object({
     displayName: nullableText(160).optional(),
     role: z.enum([
+      'franchisee',
       'owner',
       'branch_manager',
       'operator',

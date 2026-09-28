@@ -8,8 +8,9 @@ const branch = randomUUID(),
   partner = randomUUID();
 test.before(async () => {
   await db.exec(`create role anon;create role authenticated;create role service_role;
+ create table admin_user_profiles(username text primary key,role text constraint admin_user_profiles_role_check check(role in ('owner','viewer')));
  create table bulka_locations(id uuid primary key,name text,city text);
- create table kaspi_orders(id uuid primary key,branch_id uuid,customer_id uuid,order_number integer,created_at timestamptz default now(),status text,fulfillment_status text,refund_status text,amount numeric,bonus_spent numeric,discount_amount numeric,delivery_fee numeric,partially_refunded_amount numeric);
+ create table kaspi_orders(id uuid primary key,branch_id uuid,customer_id uuid,order_number integer,created_at timestamptz default now(),status text,fulfillment_status text,refund_status text,amount numeric,bonus_spent numeric,discount_amount numeric,delivery_fee numeric,partially_refunded_amount numeric,cancellation_reason text,payment_method text);
  create table order_partial_refund_adjustments(order_id uuid,spent_bonus_restored numeric);
  create table order_partial_refunds(id uuid primary key,order_id uuid,status text);
  create table order_partial_refund_items(refund_id uuid,line_key text,refund_amount numeric);`);
@@ -17,6 +18,8 @@ test.before(async () => {
     '20260928090000_franchise_accounts.sql',
     '20260928091000_franchise_finances.sql',
     '20260928092000_franchise_operations.sql',
+    '20260928120000_franchise_controls.sql',
+    '20260928121000_franchise_report_detail.sql',
   ])
     await db.exec(readFileSync('supabase/migrations/' + file, 'utf8').replace(/^\uFEFF/, ''));
   await db.query("insert into bulka_locations values($1,'Точка','Актау')", [branch]);
@@ -203,4 +206,117 @@ test('payout detail applies scope and retains every allocation', async () => {
   ).rows[0].r;
   assert.equal(visible.items.length, 1);
   assert.equal(Number(visible.items[0].amount), 980);
+});
+
+async function monthFixture() {
+  const b = randomUUID(),
+    p = randomUUID(),
+    id = randomUUID();
+  await db.query("insert into bulka_locations values($1,'Франшиза','Астана')", [b]);
+  await db.query(
+    "insert into franchise_partners(id,name,created_by) values($1,'Франчайзи','owner')",
+    [p],
+  );
+  await db.query("select franchise_set_terms($1,$2,1000,10000,'platform','owner')", [b, p]);
+  await db.query(
+    "insert into kaspi_orders(id,branch_id,order_number,status,fulfillment_status,amount,bonus_spent,delivery_fee,created_at,payment_method) values($1,$2,77,'paid','completed',1000,0,0,'2025-01-12','forte_card')",
+    [id, b],
+  );
+  return { b, p, id };
+}
+async function preview(b, p, month = '2025-01-01') {
+  return (await db.query('select franchise_month_preview($1,$2,$3) r', [b, p, month])).rows[0].r;
+}
+async function closeMonth(b, p, sig, month = '2025-01-01') {
+  return (
+    await db.query("select franchise_close_month($1,$2,$3,$4,'owner') id", [b, p, month, sig])
+  ).rows[0].id;
+}
+test('month closure is immutable, checks signatures, moves late refunds to next month exactly once', async () => {
+  const { b, p, id } = await monthFixture();
+  let v = await preview(b, p);
+  assert.equal(v.blocked, 1);
+  await assert.rejects(closeMonth(b, p, v.signature), /Resolve/);
+  await reconcile(id, 20);
+  v = await preview(b, p);
+  assert.equal(Number(v.entitlement), 880);
+  await assert.rejects(closeMonth(b, p, '0'.repeat(32)), /Resolve/);
+  const closure = await closeMonth(b, p, v.signature);
+  await assert.rejects(closeMonth(b, p, v.signature), /already closed/);
+  await db.query("update kaspi_orders set status='refunded' where id=$1", [id]);
+  await reconcile(id, 20);
+  const unchanged = (
+    await db.query('select snapshot from franchise_month_closures where id=$1', [closure])
+  ).rows[0].snapshot;
+  assert.equal(Number(unchanged.entitlement), 880);
+  const next = await preview(b, p, '2025-02-01');
+  assert.equal(next.items.length, 1);
+  assert.equal(next.items[0].adjustment, true);
+  assert.equal(Number(next.entitlement), -900);
+  assert.equal(Number(next.cash_net), -1000);
+  await assert.rejects(closeMonth(b, p, next.signature, '2025-03-01'), /consecutively/);
+  await closeMonth(b, p, next.signature, '2025-02-01');
+  assert.equal((await preview(b, p, '2025-03-01')).items.length, 0);
+});
+test('partner filtering isolates historical orders even on the same branch', async () => {
+  const { b, p, id } = await monthFixture();
+  const other = randomUUID();
+  await db.query("insert into franchise_partners(id,name,created_by) values($1,'Другой','owner')", [
+    other,
+  ]);
+  const report = (
+    await db.query("select franchise_report_v2('2025-01-01','2025-02-01',$1,$2,0,$3) r", [
+      [b],
+      b,
+      other,
+    ])
+  ).rows[0].r;
+  assert.equal(report.totalOrders, 0);
+  assert.equal(report.balances.length, 0);
+  const detail = (
+    await db.query(
+      "select franchise_order_drilldown('2025-01-01','2025-02-01',$1,$2,$3,'orders',0) r",
+      [[b], b, p],
+    )
+  ).rows[0].r;
+  assert.equal(detail.total, 1);
+  assert.equal(detail.orders[0].order_id, id);
+  assert.equal('customer_id' in detail.orders[0], false);
+  assert.equal('provider_auth_ciphertext' in detail.orders[0], false);
+});
+test('cancelled drilldown returns reason and provider errors block month until manual reconciliation', async () => {
+  const { b, p, id } = await monthFixture();
+  await reconcile(id);
+  await db.query(
+    "update kaspi_orders set fulfillment_status='cancelled',cancellation_reason='Клиент передумал' where id=$1",
+    [id],
+  );
+  let d = (
+    await db.query(
+      "select franchise_order_drilldown('2025-01-01','2025-02-01',$1,$2,$3,'cancelled',0) r",
+      [[b], b, p],
+    )
+  ).rows[0].r;
+  assert.equal(d.orders[0].cancellation_reason, 'Клиент передумал');
+  assert.equal((await preview(b, p)).blocked, 1);
+  await db.query("update kaspi_orders set fulfillment_status='completed' where id=$1", [id]);
+  await reconcile(id);
+  await db.query(
+    "insert into franchise_bank_checks(order_id,checked_by,signature,payment_status,refund_status,issue,checked_at) values($1,'owner','x','pending','none','payment_unconfirmed',now()+interval '1 second')",
+    [id],
+  );
+  assert.equal((await preview(b, p)).blocked, 1);
+});
+
+test('application service role cannot edit or delete a closed snapshot', async () => {
+  await db.exec('set role service_role');
+  try {
+    await assert.rejects(
+      db.exec("update franchise_month_closures set snapshot='{}'"),
+      /permission denied/,
+    );
+    await assert.rejects(db.exec('delete from franchise_month_items'), /permission denied/);
+  } finally {
+    await db.exec('reset role');
+  }
 });

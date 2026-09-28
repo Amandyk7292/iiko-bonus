@@ -45,6 +45,8 @@ test('financial report adapts and blocks unverified payout; custom dates and rec
       data = { user: { username: 'owner', role: 'owner', branchIds: [] } };
     else if (path.endsWith('/scope'))
       data = { locations: [{ id: branch, name: order.branch, city: 'Актау', active: true }] };
+    else if (path.endsWith('/settlements/months')) data = { months: [] };
+    else if (path.endsWith('/settlements/portal-users')) data = { users: [], links: [] };
     else if (path.endsWith('/settlements/config'))
       data = {
         locations: [{ id: branch, name: order.branch, city: 'Актау' }],

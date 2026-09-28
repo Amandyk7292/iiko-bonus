@@ -559,6 +559,7 @@ export default function App() {
           <main id="main-content" className="sagi-main" tabIndex={-1}>
             <Topbar
               operatorMode={isWhatsAppOperator}
+              partnerMode={role === 'franchisee'}
               cashierMode={role === 'cashier'}
               embeddedStaffMode={embeddedStaffMode}
               scopeLocations={scopeLocations}

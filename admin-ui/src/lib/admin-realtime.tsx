@@ -277,7 +277,11 @@ export function AdminRealtimeProvider({
   const refreshTimerRef = useRef<number | null>(null);
   const summaryRequestRef = useRef<Promise<void> | null>(null);
   const summaryGenerationRef = useRef(0);
-  const canLoadSummary = role !== 'whatsapp_operator' && role !== 'courier' && role !== 'cashier';
+  const canLoadSummary =
+    role !== 'whatsapp_operator' &&
+    role !== 'courier' &&
+    role !== 'cashier' &&
+    role !== 'franchisee';
   const streamIdentity = identity?.username
     ? JSON.stringify([
         identity.username,
@@ -417,6 +421,7 @@ export function AdminRealtimeProvider({
   }, [branchId, refreshSummary]);
 
   useEffect(() => {
+    if (role === 'franchisee') return;
     const params = new URLSearchParams();
     const selection = parseAdminScopeSelection(branchId);
     if (selection.kind === 'branch') params.set('scopeBranchId', selection.branchId);
@@ -470,7 +475,7 @@ export function AdminRealtimeProvider({
       active = false;
       unsubscribe();
     };
-  }, [branchId, playOrderAlarm, scheduleSummaryRefresh, streamIdentity]);
+  }, [branchId, playOrderAlarm, scheduleSummaryRefresh, streamIdentity, role]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {

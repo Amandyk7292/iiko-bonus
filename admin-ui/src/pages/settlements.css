@@ -261,3 +261,24 @@
     max-width: 55%;
   }
 }
+
+.settlement-count-link {
+  background: transparent;
+  border: 0;
+  color: var(--text-primary);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 4px 8px;
+}
+.settlement-count-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+.settlements-page .btn-outline {
+  white-space: normal;
+}

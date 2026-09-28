@@ -34,6 +34,17 @@ function checkBranch(req, branch) {
 async function rpc(name, params) {
   const { data, error } = await supabase.rpc(name, params);
   if (error) {
+    const closingMessages = {
+      'Month is not finished': 'Можно закрыть только завершённый месяц.',
+      'Month already closed or out of order':
+        'Этот или более поздний месяц уже закрыт. Откройте сохранённый расчёт в архиве.',
+      'Close months consecutively': 'Сначала закройте предыдущий месяц: пропускать месяцы нельзя.',
+      'Resolve discrepancies and reload preview':
+        'Расчёт изменился или есть несверенные заказы. Повторите проверку расчёта.',
+    };
+    if (Object.hasOwn(closingMessages, error.message)) {
+      throw Object.assign(new Error(closingMessages[error.message]), { statusCode: 409 });
+    }
     if (error.code === 'P0001')
       throw Object.assign(
         new Error('Данные изменились или требуется сверка. Обновите отчёт и проверьте заказы.'),
@@ -49,6 +60,17 @@ async function rpc(name, params) {
 }
 const handle = (fn) => async (req, res) => {
   try {
+    if (req.admin.role === 'franchisee') {
+      const { data, error } = await supabase
+        .from('franchise_portal_users')
+        .select('partner_id')
+        .eq('username', String(req.admin.sub || req.admin.username))
+        .maybeSingle();
+      if (error) throw error;
+      if (!data)
+        return res.status(403).json({ error: 'Владелец ещё не подключил ваш кабинет к партнёру' });
+      req.franchisePartner = data.partner_id;
+    }
     await fn(req, res);
   } catch (error) {
     sendApiError(res, error);
@@ -64,17 +86,28 @@ async function readAll(makeQuery) {
   }
 }
 function registerFranchiseRoutes(router) {
+  require('./franchise-controls.routes').registerFranchiseControls(router, {
+    handle,
+    owner,
+    rpc,
+    checkBranch,
+    actor,
+    query,
+    day,
+    readAll,
+  });
   router.get(
     '/admin/api/transactions/settlements',
     validateRequest({ query }),
     handle(async (req, res) => {
       if (req.query.branch) checkBranch(req, req.query.branch);
-      const result = await rpc('franchise_report', {
+      const result = await rpc('franchise_report_v2', {
         p_from: `${req.query.from}T00:00:00+05:00`,
         p_to: new Date(Date.parse(`${req.query.to}T00:00:00+05:00`) + 86400000).toISOString(),
         p_branches: branchScopeForAdmin(req.admin),
         p_branch: req.query.branch || null,
         p_offset: req.query.offset,
+        p_partner: req.franchisePartner || null,
       });
       res.json({ ...result, canManage: req.admin.role === 'owner' });
     }),
@@ -93,6 +126,7 @@ function registerFranchiseRoutes(router) {
           .select('*')
           .order('effective_at', { ascending: false })
           .order('id');
+        if (req.franchisePartner) q = q.eq('partner_id', req.franchisePartner);
         return scope.length ? q.in('branch_id', scope) : q;
       });
       const terms = allTerms.filter(
@@ -107,7 +141,13 @@ function registerFranchiseRoutes(router) {
             })
           : [];
 
-      res.json({ locations, terms, partners });
+      res.json({
+        locations: req.franchisePartner
+          ? locations.filter((l) => allTerms.some((t) => t.branch_id === l.id))
+          : locations,
+        terms,
+        partners,
+      });
     }),
   );
   router.post(
@@ -229,7 +269,8 @@ function registerFranchiseRoutes(router) {
         .eq('id', req.params.id)
         .maybeSingle();
       if (error) throw error;
-      if (!p) return res.status(404).json({ error: 'Выплата не найдена' });
+      if (!p || (req.franchisePartner && p.partner_id !== req.franchisePartner))
+        return res.status(404).json({ error: 'Выплата не найдена' });
       checkBranch(req, p.branch_id);
       res.json(
         await rpc('franchise_payout_detail', {

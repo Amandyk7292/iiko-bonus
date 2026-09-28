@@ -23,6 +23,7 @@ const { applyAdminBranchSelection } = require('../utils/admin-scope.util');
 const { authenticateCashier } = require('../services/admin-credential-auth.service');
 
 const ADMIN_ROLES = new Set([
+  'franchisee',
   'admin',
   'owner',
   'branch_manager',
@@ -49,6 +50,7 @@ const sessionOptionsForAdmin = (admin) =>
   admin?.role === 'cashier' ? CASHIER_SESSION_OPTIONS : DEFAULT_ADMIN_SESSION_OPTIONS;
 
 const ROLE_AREAS = {
+  franchisee: new Set(['session', 'scope', 'transactions']),
   owner: new Set(['*']),
   admin: new Set(['*']),
   branch_manager: new Set([
@@ -586,6 +588,17 @@ const cashierMutationAllowed = (req, area) => {
 
 const adminMutationRoleMiddleware = (req, res, next) => {
   const readOnly = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+  if (req.admin.role === 'franchisee') {
+    const path = String(req.path || '').replace(/^\/+/, '');
+    if (
+      !readOnly ||
+      !/^(?:session|scope(?:\/.*)?|transactions\/settlements(?:\/.*)?)$/.test(path)
+    ) {
+      return res
+        .status(403)
+        .json({ error: 'Кабинет партнёра доступен только для просмотра своих расчётов' });
+    }
+  }
   if (req.admin.role === 'viewer' && !readOnly) {
     return res.status(403).json({ error: 'Viewer role is read-only' });
   }

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const calls = [];
+let portalPartner = null;
 const configPath = require.resolve('../src/config/supabase');
 require.cache[configPath] = {
   id: configPath,
@@ -9,6 +10,20 @@ require.cache[configPath] = {
   loaded: true,
   exports: {
     supabase: {
+      from(table) {
+        assert.equal(table, 'franchise_portal_users');
+        return {
+          select() {
+            return this;
+          },
+          eq() {
+            return this;
+          },
+          async maybeSingle() {
+            return { data: portalPartner ? { partner_id: portalPartner } : null, error: null };
+          },
+        };
+      },
       rpc: async (name, args) => {
         calls.push({ name, args });
         return {
@@ -84,7 +99,7 @@ test('calendar validation rejects normalized invalid date and oversized period',
     assert.equal((await run('GET', '', { query })).status, 400);
 });
 test('only owner may mutate financial settings or record payouts', async () => {
-  for (const role of ['viewer', 'admin', 'branch_manager'])
+  for (const role of ['viewer', 'admin', 'branch_manager', 'franchisee'])
     for (const path of ['/partners', '/terms', '/payouts'])
       assert.equal((await run('POST', path, { role })).status, 403);
 });
@@ -102,4 +117,33 @@ test('terms validate percentages and permitted branch before RPC', async () => {
     200,
   );
   assert.equal((await run('POST', '/terms', { body: { ...body, commission: 10001 } })).status, 400);
+});
+
+test('franchisee report and drilldown bind partner from server and fail closed when unlinked', async () => {
+  const branch = randomUUID();
+  portalPartner = randomUUID();
+  calls.length = 0;
+  const q = { from: '2026-09-01', to: '2026-09-30' };
+  let r = await run('GET', '', { role: 'franchisee', branchIds: [branch], query: q });
+  assert.equal(r.status, 200);
+  assert.equal(calls[0].args.p_partner, portalPartner);
+  assert.deepEqual(calls[0].args.p_branches, [branch]);
+  r = await run('GET', '/details', {
+    role: 'franchisee',
+    branchIds: [branch],
+    query: { ...q, metric: 'cancelled' },
+  });
+  assert.equal(r.status, 200);
+  assert.equal(calls[1].args.p_partner, portalPartner);
+  r = await run('GET', '', {
+    role: 'franchisee',
+    branchIds: [branch],
+    query: { ...q, partner: randomUUID() },
+  });
+  assert.equal(r.status, 400);
+  portalPartner = null;
+  calls.length = 0;
+  r = await run('GET', '', { role: 'franchisee', branchIds: [branch], query: q });
+  assert.equal(r.status, 403);
+  assert.equal(calls.length, 0);
 });

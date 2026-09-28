@@ -1,3 +1,6 @@
+import SettlementDetails, { type Drill } from './SettlementDetails';
+import SettlementMonths from './SettlementMonths';
+import SettlementPortal from './SettlementPortal';
 import BranchOrderCards from './BranchOrderCards';
 import { useSettlementFilters } from './use-settlement-filters';
 import { ExportBranches, ExportPayout } from './SettlementExports';
@@ -40,6 +43,7 @@ export default function SettlementsPage() {
     [busy, setBusy] = useState(false);
   const [order, setOrder] = useState<OrderFinance | null>(null),
     [balance, setBalance] = useState<Balance | null>(null);
+  const [drill, setDrill] = useState<Drill | null>(null);
   const sequence = useRef(0);
   const load = useCallback(async () => {
     const seq = ++sequence.current;
@@ -135,9 +139,21 @@ export default function SettlementsPage() {
             <h2>{t('settlements.copy8')}</h2>
             <ExportBranches rows={report.branches} />
             <p className="field-hint">{t('settlements.simple.note')}</p>
-            <BranchOrderCards branches={report.branches} />
+            <BranchOrderCards branches={report.branches} onDrill={setDrill} />
             {report.branches.length === 0 && <p>{t('settlements.copy23')}</p>}
           </section>
+          <section className="card">
+            <h2>{t('settlements.bank.title')}</h2>
+            <p>{t('settlements.bank.note')}</p>
+            <button
+              className="btn-outline"
+              onClick={() => setDrill({ branch: branch || undefined, metric: 'issues' })}
+            >
+              {t('settlements.bank.open')}
+            </button>
+          </section>
+          <SettlementMonths config={config} canManage={report.canManage} />
+          {report.canManage && <SettlementPortal config={config} />}
           <section className="card">
             <h2>{t('settlements.copy24')}</h2>
             <p>{t('settlements.copy80')}</p>
@@ -340,6 +356,15 @@ export default function SettlementsPage() {
             {!report.payouts.length && <p>{t('settlements.copy57')}</p>}
           </section>
         </div>
+      )}
+      {drill && (
+        <SettlementDetails
+          drill={drill}
+          from={from}
+          to={to}
+          canManage={!!report?.canManage}
+          onClose={() => setDrill(null)}
+        />
       )}
       {order && <ReconcileOrder order={order} onClose={() => setOrder(null)} onSaved={load} />}
       {balance && (

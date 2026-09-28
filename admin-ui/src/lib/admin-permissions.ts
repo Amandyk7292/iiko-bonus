@@ -1,4 +1,5 @@
 export const ADMIN_ALLOWED_PATHS: Record<string, string[]> = {
+  franchisee: ['/settlements'],
   branch_manager: [
     '/operations',
     '/analytics',

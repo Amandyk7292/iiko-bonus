@@ -60,6 +60,7 @@ const routeKeys: Record<string, string> = {
 export default function Topbar({
   onMenuClick,
   operatorMode = false,
+  partnerMode = false,
   cashierMode = false,
   embeddedStaffMode = false,
   scopeLocations = [],
@@ -68,6 +69,7 @@ export default function Topbar({
 }: {
   onMenuClick?: () => void;
   operatorMode?: boolean;
+  partnerMode?: boolean;
   cashierMode?: boolean;
   embeddedStaffMode?: boolean;
   scopeLocations?: AdminScopeLocation[];
@@ -192,7 +194,7 @@ export default function Topbar({
         </div>
       </div>
       <div className="topbar-actions">
-        {!operatorMode && !cashierMode && <AdminGlobalSearch />}
+        {!operatorMode && !cashierMode && !partnerMode && <AdminGlobalSearch />}
         {cashierMode && (
           <div className="cashier-staff-controls">
             <div className="cashier-branch realtime-status" aria-label={t('adminScope.branch')}>
@@ -233,7 +235,7 @@ export default function Topbar({
             />
           </div>
         )}
-        {!operatorMode && !cashierMode && (
+        {!operatorMode && !cashierMode && !partnerMode && (
           <div className="topbar-notifications" ref={notificationsRef}>
             <button
               ref={notificationsButtonRef}

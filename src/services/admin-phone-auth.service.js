@@ -5,7 +5,14 @@ const { buildWhatsAppContact } = require('../utils/whatsapp.util');
 const { normalizeKazakhstanPhone } = require('../utils/phone.util');
 
 const ADMIN_PHONE_LOGIN_TTL_MS = 5 * 60 * 1000;
-const ADMIN_PHONE_ROLES = new Set(['branch_manager', 'operator', 'marketer', 'courier', 'viewer']);
+const ADMIN_PHONE_ROLES = new Set([
+  'franchisee',
+  'branch_manager',
+  'operator',
+  'marketer',
+  'courier',
+  'viewer',
+]);
 
 const adminPhoneError = (message, statusCode = 400, code = 'ADMIN_PHONE_AUTH_ERROR') =>
   Object.assign(new Error(message), { statusCode, code });

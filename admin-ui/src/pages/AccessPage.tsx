@@ -44,6 +44,7 @@ interface StaffDraft {
 }
 
 const roleLabelKeys: Record<string, string> = {
+  franchisee: 'settlements.portal.role',
   owner: 'access.role.owner',
   branch_manager: 'access.role.branchManager',
   operator: 'access.role.operator',

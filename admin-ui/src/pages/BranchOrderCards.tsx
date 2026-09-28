@@ -1,6 +1,13 @@
 import { useI18n } from '../lib/i18n';
+import type { Drill } from './SettlementDetails';
 import type { BranchReport } from './settlements-model';
-export default function BranchOrderCards({ branches }: { branches: BranchReport[] }) {
+export default function BranchOrderCards({
+  branches,
+  onDrill,
+}: {
+  branches: BranchReport[];
+  onDrill: (drill: Drill) => void;
+}) {
   const { t, formatNumber } = useI18n();
   const money = (value: number) => `${formatNumber(Number(value))} ₸`;
   return (
@@ -22,7 +29,21 @@ export default function BranchOrderCards({ branches }: { branches: BranchReport[
             ].map(([label, value]) => (
               <div key={label}>
                 <dt>{t(String(label))}</dt>
-                <dd>{formatNumber(Number(value))}</dd>
+                <dd>
+                  <button
+                    className="settlement-count-link"
+                    aria-label={`${t(String(label))}: ${value} · ${b.name}`}
+                    onClick={() =>
+                      onDrill({
+                        branch: b.branch_id || '00000000-0000-0000-0000-000000000000',
+                        metric: String(label).split('.').pop()!,
+                        name: b.name,
+                      })
+                    }
+                  >
+                    {formatNumber(Number(value))}
+                  </button>
+                </dd>
               </div>
             ))}
           </dl>
