@@ -66,6 +66,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const [yandexOrder, setYandexOrder] = useState<AdminOrder | null>(null);
   const [deliveryProof, setDeliveryProof] = useState<DeliveryProof | null>(null);
   const [proofLoading, setProofLoading] = useState(false);
+  const [proofEmpty, setProofEmpty] = useState(false);
   const [cancellationOrder, setCancellationOrder] = useState<AdminOrder | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
   const normalizedCancellationReason = normalizeCancellationReason(cancellationReason);
@@ -225,9 +226,12 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
 
   const openDeliveryProof = async (order: AdminOrder) => {
     setProofLoading(true);
+    setProofEmpty(false);
     setDeliveryProof(null);
     try {
-      setDeliveryProof((await api.getDeliveryProof(order.id)).proof);
+      const proof = (await api.getDeliveryProof(order.id)).proof;
+      setDeliveryProof(proof);
+      setProofEmpty(!proof);
     } catch (caught) {
       toast(
         caught instanceof Error ? caught.message : 'Не удалось загрузить подтверждение',
@@ -464,15 +468,18 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                                   {t('kitchen.dispatch.yandex')}
                                 </button>
                               )}
-                            {order.deliveryStatus === 'delivered' && (
+                            {order.deliveryStatus === 'delivered' && order.hasDeliveryProof && (
                               <button
                                 type="button"
                                 className="text-button-refund"
                                 onClick={() => void openDeliveryProof(order)}
                               >
                                 <Camera size={14} aria-hidden="true" />
-                                Подтверждение
+                                Фото подтверждения
                               </button>
+                            )}
+                            {order.deliveryStatus === 'delivered' && !order.hasDeliveryProof && (
+                              <small>Фото подтверждения не получено</small>
                             )}
                           </div>
                         )}
@@ -653,13 +660,24 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
         </div>
       </Modal>
       <Modal
-        open={proofLoading || Boolean(deliveryProof)}
-        onClose={() => !proofLoading && setDeliveryProof(null)}
+        open={proofLoading || proofEmpty || Boolean(deliveryProof)}
+        onClose={() => {
+          if (!proofLoading) {
+            setDeliveryProof(null);
+            setProofEmpty(false);
+          }
+        }}
         title="Подтверждение доставки"
-        description="Фото доступно по временной защищённой ссылке."
+        description={deliveryProof ? 'Фото доступно по временной защищённой ссылке.' : undefined}
         size="md"
       >
         <div className="modal-body">
+          {proofEmpty && (
+            <p>
+              Фото подтверждения не получено. Статус «Доставлен» не означает, что курьер передал
+              фотографию.
+            </p>
+          )}
           {proofLoading ? (
             <PageState compact type="loading" />
           ) : (

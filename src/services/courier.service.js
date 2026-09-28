@@ -1009,7 +1009,7 @@ async function getDeliveryProof(orderId) {
     .eq('order_id', orderId)
     .maybeSingle();
   if (error) throw error;
-  if (!data) throw courierError('Подтверждение доставки не найдено', 404);
+  if (!data) return null;
   const { data: signed, error: signedError } = await supabase.storage
     .from('delivery-proofs')
     .createSignedUrl(data.photo_path, 10 * 60);

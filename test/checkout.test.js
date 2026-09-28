@@ -19,6 +19,19 @@ const {
 const { slotHorizonDays, timezoneOffsetMinutes } = require('../src/services/slot.service');
 
 const primaryBranchId = '11111111-1111-4111-8111-111111111111';
+test('delivery proof availability comes from saved evidence, not delivered status', () => {
+  const order = { id: 'delivered', delivery_status: 'delivered' };
+  assert.equal(normalizeOrder(order).hasDeliveryProof, false);
+  assert.equal(normalizeOrder({ ...order, delivery_proofs: [] }).hasDeliveryProof, false);
+  assert.equal(
+    normalizeOrder({ ...order, delivery_proofs: { id: 'proof' } }).hasDeliveryProof,
+    true,
+  );
+  assert.equal(
+    normalizeOrder({ ...order, delivery_proofs: [{ id: 'proof' }] }).hasDeliveryProof,
+    true,
+  );
+});
 const branchHours = { daily: { open: '08:00', close: '21:00' } };
 const cities = [
   {

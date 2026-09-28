@@ -294,6 +294,9 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     refundError: order.refund_error || null,
     lastError: order.last_error || null,
     deliveryStatus: order.delivery_status || 'unassigned',
+    hasDeliveryProof: Array.isArray(order.delivery_proofs)
+      ? order.delivery_proofs.some((proof) => Boolean(proof.id))
+      : Boolean(order.delivery_proofs?.id),
     courierDispatchStatus: order.courier_dispatch_status || null,
     posReceiptDue: Boolean(order.pos_receipt_due),
     tabletReadyAt: order.tablet_ready_at || null,
@@ -444,7 +447,7 @@ async function listAdminOrders({
   let query = supabase
     .from('kaspi_orders')
     .select(
-      `${ORDER_FIELDS},customers(name,phone),couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS}`,
+      `${ORDER_FIELDS},customers(name,phone),delivery_proofs(id),couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS}`,
       { count: 'exact' },
     );
 

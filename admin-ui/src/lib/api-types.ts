@@ -208,6 +208,7 @@ export interface AdminOrder {
   preorderFulfillmentType?: 'pickup' | 'delivery' | null;
   effectiveFulfillmentType?: 'pickup' | 'delivery';
   deliveryStatus?: string;
+  hasDeliveryProof?: boolean;
   kitchenStatus?: string;
   courierDispatchStatus?: string | null;
   posReceiptDue?: boolean;

@@ -61,6 +61,52 @@ const renderPage = (role = 'branch_manager') => {
 };
 
 describe('Orders workspace permissions and refund flow', () => {
+  it('does not offer a photo for a delivered order without saved proof', async () => {
+    apiMocks.getOrders.mockResolvedValue({
+      orders: [
+        {
+          ...order,
+          deliveryStatus: 'delivered',
+          deliveryProvider: 'yandex',
+          hasDeliveryProof: false,
+        },
+      ],
+      total: 1,
+    });
+    renderPage();
+    expect(await screen.findByText('Фото подтверждения не получено')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Фото подтверждения' })).not.toBeInTheDocument();
+  });
+  it('opens the saved delivery photo', async () => {
+    apiMocks.getOrders.mockResolvedValue({
+      orders: [{ ...order, deliveryStatus: 'delivered', hasDeliveryProof: true }],
+      total: 1,
+    });
+    apiMocks.getDeliveryProof.mockResolvedValue({
+      proof: {
+        photoUrl: 'https://example.com/proof.jpg',
+        pinVerified: true,
+        createdAt: order.createdAt,
+      },
+    });
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Фото подтверждения' }));
+    expect(await screen.findByAltText('Фото передачи заказа клиенту')).toHaveAttribute(
+      'src',
+      'https://example.com/proof.jpg',
+    );
+  });
+  it('handles proof removed since the list loaded without an error toast', async () => {
+    apiMocks.getOrders.mockResolvedValue({
+      orders: [{ ...order, deliveryStatus: 'delivered', hasDeliveryProof: true }],
+      total: 1,
+    });
+    apiMocks.getDeliveryProof.mockResolvedValue({ proof: null });
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Фото подтверждения' }));
+    expect(await screen.findByText(/Статус «Доставлен» не означает/)).toBeInTheDocument();
+    expect(toast).not.toHaveBeenCalled();
+  });
   it('cashier can cancel an order but cannot dispatch or move it to other statuses', async () => {
     const user = userEvent.setup();
     apiMocks.updateOrderStatus.mockResolvedValue({

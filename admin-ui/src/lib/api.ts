@@ -847,7 +847,7 @@ export const api = {
       `/couriers/${encodeURIComponent(id)}/activity`,
     ),
   getDeliveryProof: (orderId: string) =>
-    request<{ success: boolean; proof: DeliveryProof }>(
+    request<{ success: boolean; proof: DeliveryProof | null }>(
       `/orders/${encodeURIComponent(orderId)}/delivery-proof`,
     ),
 
