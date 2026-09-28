@@ -1,3 +1,4 @@
+import { useSettlementFilters } from './use-settlement-filters';
 import { ExportBranches, ExportPayout } from './SettlementExports';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import DateInput from '../components/DateInput';
@@ -8,14 +9,30 @@ import SettlementTerms from './SettlementTerms';
 import { ReconcileOrder, RecordPayout } from './SettlementActions';
 import type { Config, Report, Balance, OrderFinance } from './settlements-model';
 import './settlements.css';
-const today = () => new Date(Date.now() + 5 * 3600000).toISOString().slice(0, 10);
 export default function SettlementsPage() {
-  const { formatNumber } = useI18n();
+  const { formatNumber, formatDate, t } = useI18n();
+  const status = (value: string) =>
+    t(
+      'settlements.status.' +
+        ([
+          'paid',
+          'refunded',
+          'pending',
+          'created',
+          'failed',
+          'expired',
+          'cancelled',
+          'new',
+          'accepted',
+          'preparing',
+          'ready',
+          'completed',
+        ].includes(value)
+          ? value
+          : 'unknown'),
+    );
   const money = (n: number) => `${formatNumber(Number(n))} ₸`;
-  const [from, setFrom] = useState(() => `${today().slice(0, 7)}-01`),
-    [to, setTo] = useState(today),
-    [branch, setBranch] = useState(''),
-    [offset, setOffset] = useState(0);
+  const { from, to, branch, offset, setFrom, setTo, setBranch, setOffset } = useSettlementFilters();
   const [config, setConfig] = useState<Config>({ locations: [], partners: [], terms: [] }),
     [report, setReport] = useState<Report | null>(null),
     [error, setError] = useState(''),
@@ -41,12 +58,12 @@ export default function SettlementsPage() {
     } catch (e) {
       if (seq === sequence.current) {
         setReport(null);
-        setError(e instanceof Error ? e.message : 'Не удалось загрузить отчёт');
+        setError(e instanceof Error ? e.message : t('settlements.copy58'));
       }
     } finally {
       if (seq === sequence.current) setBusy(false);
     }
-  }, [from, to, branch, offset]);
+  }, [from, to, branch, offset, t]);
   useEffect(() => {
     void load();
     return () => {
@@ -57,57 +74,55 @@ export default function SettlementsPage() {
     <div className="page settlements-page">
       <div className="page-header">
         <div>
-          <h1>Отчёт по точкам и партнёрам</h1>
-          <p>Заказы приложения, оплата и взаиморасчёты</p>
+          <h1>{t('settlements.copy0')}</h1>
+          <p>{t('settlements.copy1')}</p>
         </div>
         {report?.canManage && <SettlementTerms config={config} onSaved={load} />}
       </div>
       <div className="card settlement-filters">
         <label className="field-group">
-          <span>С даты</span>
+          <span>{t('settlements.copy2')}</span>
           <DateInput
+            required
             value={from}
             max={to}
+            min={new Date(Date.parse(to) - 366 * 86400000).toISOString().slice(0, 10)}
             onChange={(e) => {
               setFrom(e.target.value);
-              setOffset(0);
             }}
           />
         </label>
         <label className="field-group">
-          <span>По дату</span>
+          <span>{t('settlements.copy3')}</span>
           <DateInput
+            required
             value={to}
             min={from}
+            max={new Date(Date.parse(from) + 366 * 86400000).toISOString().slice(0, 10)}
             onChange={(e) => {
               setTo(e.target.value);
-              setOffset(0);
             }}
           />
         </label>
         <div className="field-group">
-          <label htmlFor="report-branch">Точка</label>
+          <label htmlFor="report-branch">{t('settlements.copy4')}</label>
           <SelectControl
             id="report-branch"
             value={branch}
             onChange={(v) => {
               setBranch(v);
-              setOffset(0);
             }}
             options={[
-              { value: '', label: 'Все доступные точки' },
+              { value: '', label: t('settlements.copy5') },
               ...config.locations.map((l) => ({ value: l.id, label: `${l.city} · ${l.name}` })),
             ]}
           />
         </div>
         <button className="btn-outline" disabled={busy} onClick={() => void load()}>
-          {busy ? 'Загрузка…' : 'Обновить'}
+          {busy ? t('settlements.copy6') : t('settlements.copy7')}
         </button>
       </div>
-      <p className="field-hint">
-        Заказы отобраны по дате создания, время Казахстана. Статусы и возвраты — на текущий момент.
-        Эквайринг и получатель денег сверяются вручную с банковской выпиской.
-      </p>
+      <p className="field-hint">{t('settlements.copy78')}</p>
       {error && (
         <p role="alert" className="inline-alert inline-alert-error">
           {error}
@@ -116,24 +131,48 @@ export default function SettlementsPage() {
       {report && (
         <div aria-busy={busy} className="form-stack">
           <section className="card">
-            <h2>Заказы по точкам</h2>
-            <div className="responsive-table-wrap">
+            <h2>{t('settlements.copy8')}</h2>
+            <p className="field-hint">{t('settlements.copy9')}</p>
+            <div className="settlement-summary">
+              {report.branches.map((b) => (
+                <article key={b.branch_id || 'none'}>
+                  <strong>{b.name}</strong>
+                  <dl>
+                    <dt>{t('settlements.copy16')}</dt>
+                    <dd>{money(b.net_cash)}</dd>
+                    <dt>{t('settlements.copy11')}</dt>
+                    <dd>
+                      {b.orders} / {b.customers}
+                    </dd>
+                    <dt>{t('settlements.copy15')}</dt>
+                    <dd>{money(b.refunds)}</dd>
+                  </dl>
+                </article>
+              ))}
+            </div>
+            <ExportBranches rows={report.branches} />
+            <div
+              className="responsive-table-wrap"
+              tabIndex={0}
+              role="region"
+              aria-label={t('settlements.copy10')}
+            >
               <table className="data-table data-table-compact">
                 <thead>
                   <tr>
                     {[
-                      'Точка',
-                      'Заказы / покупатели',
-                      'Оплачено / выполнено',
-                      'Отменено / с возвратом',
-                      'Оплачено деньгами',
-                      'Возвращено',
-                      'Деньги после возвратов',
-                      'Бонусы',
-                      'Доставка',
-                      'Скидки при заказе',
-                      'Комиссия Bulka',
-                      'Эквайринг',
+                      t('settlements.copy4'),
+                      t('settlements.copy11'),
+                      t('settlements.copy12'),
+                      t('settlements.copy13'),
+                      t('settlements.copy14'),
+                      t('settlements.copy15'),
+                      t('settlements.copy16'),
+                      t('settlements.copy17'),
+                      t('settlements.copy18'),
+                      t('settlements.copy19'),
+                      t('settlements.copy20'),
+                      t('settlements.copy21'),
                     ].map((x) => (
                       <th key={x}>{x}</th>
                     ))}
@@ -164,36 +203,39 @@ export default function SettlementsPage() {
                       <td>{money(b.commission)}</td>
                       <td>
                         {money(b.acquiring_fee)}
-                        {b.unverified > 0 && <small>Без сверки: {b.unverified}</small>}
+                        {b.unverified > 0 && (
+                          <small>
+                            {t('settlements.copy22')} {b.unverified}
+                          </small>
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            {report.branches.length === 0 && <p>За выбранный период заказов нет.</p>}
-            <p className="field-hint">
-              Доставка входит в денежную оплату. Бонусы и доставка — после возвратов. Покупатели
-              считаются отдельно по точкам. Несверенные комиссии могут измениться.
-            </p>
+            {report.branches.length === 0 && <p>{t('settlements.copy23')}</p>}
+            <p className="field-hint">{t('settlements.copy79')}</p>
           </section>
           <section className="card">
-            <h2>Остатки партнёров за всё время</h2>
-            <p>
-              Остатки не ограничены выбранными датами. Отрицательная сумма — долг партнёра,
-              уменьшающий следующие выплаты. До сверки сумма предварительная.
-            </p>
-            <div className="responsive-table-wrap">
+            <h2>{t('settlements.copy24')}</h2>
+            <p>{t('settlements.copy80')}</p>
+            <div
+              className="responsive-table-wrap"
+              tabIndex={0}
+              role="region"
+              aria-label={t('settlements.copy10')}
+            >
               <table className="data-table data-table-compact">
                 <thead>
                   <tr>
                     {[
-                      'Точка / партнёр',
-                      'Причитается',
-                      'Перечислено',
-                      'Остаток',
-                      'Проверка',
-                      'Действие',
+                      t('settlements.copy25'),
+                      t('settlements.copy26'),
+                      t('settlements.copy27'),
+                      t('settlements.copy28'),
+                      t('settlements.copy29'),
+                      t('settlements.copy30'),
                     ].map((x) => (
                       <th key={x}>{x}</th>
                     ))}
@@ -209,7 +251,11 @@ export default function SettlementsPage() {
                       <td>{money(b.accrued)}</td>
                       <td>{money(b.paid_out)}</td>
                       <td>{money(b.balance)}</td>
-                      <td>{b.blocked > 0 ? `Требуют сверки: ${b.blocked}` : 'Сверено'}</td>
+                      <td>
+                        {b.blocked > 0
+                          ? `${t('settlements.copy22')} ${b.blocked}`
+                          : t('settlements.copy31')}
+                      </td>
                       <td>
                         {report.canManage && (
                           <button
@@ -217,7 +263,7 @@ export default function SettlementsPage() {
                             disabled={busy || b.blocked > 0 || Number(b.balance) <= 0}
                             onClick={() => setBalance(b)}
                           >
-                            Учесть перевод
+                            {t('settlements.copy32')}
                           </button>
                         )}
                       </td>
@@ -226,27 +272,27 @@ export default function SettlementsPage() {
                 </tbody>
               </table>
             </div>
-            {report.balances.length === 0 && (
-              <p>
-                Заказов франчайзи пока нет. Собственные точки — в отчёте выше. Настройте партнёра до
-                приёма его первых заказов.
-              </p>
-            )}
+            {report.balances.length === 0 && <p>{t('settlements.copy81')}</p>}
           </section>
           <section className="card">
-            <h2>Заказы и сверка</h2>
-            <div className="responsive-table-wrap">
+            <h2>{t('settlements.copy33')}</h2>
+            <div
+              className="responsive-table-wrap"
+              tabIndex={0}
+              role="region"
+              aria-label={t('settlements.copy10')}
+            >
               <table className="data-table data-table-compact">
                 <thead>
                   <tr>
                     {[
-                      'Заказ / точка',
-                      'Статус оплаты / заказа',
-                      'Деньги / возврат',
-                      'Получатель',
-                      'Эквайринг',
-                      'Причитается партнёру',
-                      'Сверка',
+                      t('settlements.copy34'),
+                      t('settlements.copy35'),
+                      t('settlements.copy36'),
+                      t('settlements.copy37'),
+                      t('settlements.copy21'),
+                      t('settlements.copy38'),
+                      t('settlements.copy39'),
                     ].map((x) => (
                       <th key={x}>{x}</th>
                     ))}
@@ -258,40 +304,46 @@ export default function SettlementsPage() {
                       <td>
                         #{o.order_number}
                         <small>
-                          {o.branch || 'Без точки'} · {o.partner || 'Bulka'}
+                          {o.branch || t('settlements.copy40')} · {o.partner || 'Bulka'}
                         </small>
                         <small>
-                          {new Date(o.ordered_at).toLocaleString('ru-RU', {
+                          {formatDate(o.ordered_at, {
                             timeZone: 'Asia/Almaty',
                           })}
                         </small>
                       </td>
                       <td>
-                        {o.status} / {o.fulfillment_status}
+                        {status(o.status)} / {status(o.fulfillment_status)}
                       </td>
                       <td>
                         {money(o.cash_amount)}
-                        <small>Возврат: {money(o.cash_refunded)}</small>
+                        <small>
+                          {t('settlements.copy41')} {money(o.cash_refunded)}
+                        </small>
                       </td>
                       <td>
-                        {o.payment_recipient === 'platform' ? 'Bulka' : 'Партнёр'}
-                        {!o.reconciled && <small>Не подтверждено</small>}
+                        {o.payment_recipient === 'platform' ? 'Bulka' : t('settlements.copy42')}
+                        {!o.reconciled && <small>{t('settlements.copy43')}</small>}
                       </td>
-                      <td>{o.acquiring_fee === null ? 'Не указана' : money(o.acquiring_fee)}</td>
-                      <td>{o.partner ? money(o.entitlement) : 'Собственная точка'}</td>
+                      <td>
+                        {o.acquiring_fee === null
+                          ? t('settlements.copy44')
+                          : money(o.acquiring_fee)}
+                      </td>
+                      <td>{o.partner ? money(o.entitlement) : t('settlements.copy45')}</td>
                       <td>
                         {o.branch_changed
-                          ? 'Точка изменена'
+                          ? t('settlements.copy46')
                           : o.reconciled
-                            ? 'Сверено'
-                            : 'Не сверено'}
+                            ? t('settlements.copy31')
+                            : t('settlements.copy47')}
                         {report.canManage && ['paid', 'refunded'].includes(o.status) && (
                           <button
                             className="btn-outline"
                             disabled={busy || o.branch_changed}
                             onClick={() => setOrder(o)}
                           >
-                            Сверить
+                            {t('settlements.copy48')}
                           </button>
                         )}
                       </td>
@@ -300,51 +352,53 @@ export default function SettlementsPage() {
                 </tbody>
               </table>
             </div>
-            {report.orders.length === 0 && <p>Заказов нет.</p>}
+            {report.orders.length === 0 && <p>{t('settlements.copy49')}</p>}
             <div className="settlement-pagination">
               <button
                 className="btn-outline"
                 disabled={busy || offset === 0}
                 onClick={() => setOffset(Math.max(0, offset - 50))}
               >
-                Назад
+                {t('settlements.copy50')}
               </button>
               <span>
                 {report.totalOrders
                   ? `${offset + 1}–${Math.min(offset + 50, report.totalOrders)}`
                   : '0'}{' '}
-                из {report.totalOrders}
+                {t('settlements.copy52')} {report.totalOrders}
               </span>
               <button
                 className="btn-outline"
                 disabled={busy || offset + 50 >= report.totalOrders}
                 onClick={() => setOffset(offset + 50)}
               >
-                Далее
+                {t('settlements.copy51')}
               </button>
             </div>
           </section>
           <section className="card">
-            <h2>Зафиксированные переводы за период</h2>
-            <p className="field-hint">
-              Последние 100 записей по дате перевода. Это учёт выполненных переводов, не команда
-              банку.
-            </p>
-            <div className="responsive-table-wrap">
+            <h2>{t('settlements.copy53')}</h2>
+            <p className="field-hint">{t('settlements.copy82')}</p>
+            <div
+              className="responsive-table-wrap"
+              tabIndex={0}
+              role="region"
+              aria-label={t('settlements.copy10')}
+            >
               <table className="data-table data-table-compact">
                 <thead>
                   <tr>
-                    <th>Дата</th>
-                    <th>Точка / партнёр</th>
-                    <th>Сумма</th>
-                    <th>Банковский документ</th>
+                    <th>{t('settlements.copy54')}</th>
+                    <th>{t('settlements.copy25')}</th>
+                    <th>{t('settlements.copy55')}</th>
+                    <th>{t('settlements.copy56')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {report.payouts.map((p) => (
                     <tr key={p.id}>
                       <td>
-                        {new Date(p.paid_at).toLocaleDateString('ru-RU', {
+                        {formatDate(p.paid_at, {
                           timeZone: 'Asia/Almaty',
                         })}
                       </td>
@@ -362,7 +416,7 @@ export default function SettlementsPage() {
                 </tbody>
               </table>
             </div>
-            {!report.payouts.length && <p>Переводы не зарегистрированы.</p>}
+            {!report.payouts.length && <p>{t('settlements.copy57')}</p>}
           </section>
         </div>
       )}

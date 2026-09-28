@@ -1,7 +1,7 @@
 import DateInput from '../components/DateInput';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Gift, LoaderCircle, Plus, RefreshCw, Save, Sparkles, Zap } from 'lucide-react';
-import Modal from '../components/Modal';
+import Modal from '../components/GuardedModal';
 import PageState from '../components/PageState';
 import SelectControl from '../components/SelectControl';
 import PromotionFields from '../components/PromotionFields';

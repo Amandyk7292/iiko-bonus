@@ -1,6 +1,10 @@
+import settlements from './settlements-ru';
 import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 const ru: Record<string, string> = {
+  ...settlements,
+
+
   ...dashboard.ru,
   ...referralReport.ru,
   'bonus.referralTitle': 'Приглашение друзей',

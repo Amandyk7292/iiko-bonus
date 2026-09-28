@@ -90,6 +90,27 @@ test('financial report adapts and blocks unverified payout; custom dates and rec
   await expect(
     page.getByRole('dialog').getByRole('button', { name: 'Зафиксировать выплату' }),
   ).toBeDisabled();
+  await page.getByRole('dialog').getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await page.locator('.date-input-trigger').first().click();
+  await expect(page.getByRole('button', { name: 'Очистить', exact: true })).toHaveCount(0);
+  await page.getByRole('dialog').getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Скачать CSV для Excel' })).toBeVisible();
+  await page.getByRole('button', { name: 'Партнёры и условия', exact: true }).click();
+  await page.getByLabel('Название нового партнёра', { exact: true }).fill('Черновик');
+  await page.keyboard.press('Escape');
+  const warning = page.getByRole('dialog', { name: 'Закрыть без сохранения?', exact: true });
+  await expect(warning).toBeVisible();
+  await warning.getByRole('button', { name: 'Отмена', exact: true }).click();
+  await expect(warning).toHaveCount(0);
+  await expect(page.getByLabel('Название нового партнёра', { exact: true })).toHaveValue(
+    'Черновик',
+  );
+  await page.keyboard.press('Escape');
+  await warning.getByRole('button', { name: 'Сбросить и продолжить', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.goto('/admin/settlements?from=2026-09-02&to=2026-09-20');
+  await page.reload();
+  await expect(page.locator('.date-input-trigger').first()).toContainText('02.09.2026');
   await page.screenshot({
     path: info.outputPath('settlements.png'),
     fullPage: true,

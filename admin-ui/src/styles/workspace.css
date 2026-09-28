@@ -39,7 +39,7 @@
   margin-top: 8px;
 }
 .sagi-nav-title {
-  color: #767973;
+  color: #555b50;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.1em;
@@ -172,7 +172,7 @@
 }
 .sagi-shell .data-table th {
   background: #f7f8f5;
-  color: #71756c;
+  color: #555b50;
   text-transform: none;
   font-weight: 500;
   letter-spacing: 0;

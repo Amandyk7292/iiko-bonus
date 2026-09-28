@@ -1,3 +1,4 @@
+import { useI18n } from '../lib/i18n';
 import { useState } from 'react';
 import { request } from '../lib/api';
 import { csvCell } from '../lib/csv';
@@ -15,6 +16,7 @@ function download(rows: unknown[][], name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 export function ExportBranches({ rows }: { rows: BranchReport[] }) {
+  const { t } = useI18n();
   return (
     <button
       className="btn-outline"
@@ -22,23 +24,23 @@ export function ExportBranches({ rows }: { rows: BranchReport[] }) {
         download(
           [
             [
-              'Точка',
-              'Город',
-              'Заказы',
-              'Покупатели',
-              'Оплачено',
-              'Выполнено',
-              'Отменено',
-              'С возвратом',
-              'Деньги',
-              'Возвраты',
-              'Осталось денег',
-              'Бонусы',
-              'Доставка',
-              'Скидки',
-              'Комиссия Bulka',
-              'Сверенный эквайринг',
-              'Без сверки',
+              t('settlements.copy4'),
+              t('settlements.copy60'),
+              t('settlements.copy61'),
+              t('settlements.copy62'),
+              t('settlements.copy63'),
+              t('settlements.copy64'),
+              t('settlements.copy65'),
+              t('settlements.copy66'),
+              t('settlements.copy67'),
+              t('settlements.copy68'),
+              t('settlements.copy69'),
+              t('settlements.copy17'),
+              t('settlements.copy18'),
+              t('settlements.copy70'),
+              t('settlements.copy20'),
+              t('settlements.copy71'),
+              t('settlements.copy72'),
             ],
             ...rows.map((r) => [
               r.name,
@@ -64,11 +66,12 @@ export function ExportBranches({ rows }: { rows: BranchReport[] }) {
         )
       }
     >
-      Скачать CSV для Excel
+      {t('settlements.copy59')}
     </button>
   );
 }
 export function ExportPayout({ payout }: { payout: Payout }) {
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   const run = async () => {
@@ -80,17 +83,17 @@ export function ExportPayout({ payout }: { payout: Payout }) {
       }>(`/transactions/settlements/payouts/${payout.id}`);
       download(
         [
-          ['Перевод', payout.bank_reference],
-          ['Партнёр', payout.partner],
-          ['Точка', payout.branch],
-          ['Сумма', Number(payout.amount)],
-          ['Заказ', 'ID', 'Сумма распределения'],
+          [t('settlements.copy73'), payout.bank_reference],
+          [t('settlements.copy42'), payout.partner],
+          [t('settlements.copy4'), payout.branch],
+          [t('settlements.copy55'), Number(payout.amount)],
+          [t('settlements.copy74'), 'ID', t('settlements.copy75')],
           ...r.items.map((i) => [i.order_number, i.order_id, Number(i.amount)]),
         ],
         `payout-${payout.id}.csv`,
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Ошибка');
+      setError(e instanceof Error ? e.message : t('settlements.copy76'));
     } finally {
       setBusy(false);
     }
@@ -98,7 +101,7 @@ export function ExportPayout({ payout }: { payout: Payout }) {
   return (
     <>
       <button className="btn-outline" disabled={busy} onClick={() => void run()}>
-        {busy ? 'Загрузка…' : 'Заказы выплаты · CSV'}
+        {busy ? t('settlements.copy6') : t('settlements.copy77')}
       </button>
       {error && <small role="alert">{error}</small>}
     </>

@@ -1,6 +1,10 @@
+import settlements from './settlements-kk';
 import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 const kk: Record<string, string> = {
+  ...settlements,
+
+
   ...dashboard.kk,
   ...referralReport.kk,
   'bonus.referralTitle': 'Достарды шақыру',

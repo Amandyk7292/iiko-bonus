@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { request } from '../lib/api';
 import { useI18n } from '../lib/i18n';
-import Modal from '../components/Modal';
+import Modal from '../components/GuardedModal';
 import SelectControl from '../components/SelectControl';
 import type { Config } from './settlements-model';
 export default function SettlementTerms({

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import Modal from '../components/Modal';
+import Modal from '../components/GuardedModal';
 import SelectControl from '../components/SelectControl';
 import { request } from '../lib/api';
 import { useI18n } from '../lib/i18n';
@@ -13,7 +13,7 @@ export function ReconcileOrder({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
-  const { formatNumber, locale } = useI18n();
+  const { formatNumber, locale, t } = useI18n();
   const kk = locale === 'kk';
   const [fee, setFee] = useState(order.acquiring_fee === null ? '' : String(order.acquiring_fee)),
     [recipient, setRecipient] = useState(order.payment_recipient),
@@ -55,13 +55,13 @@ export function ReconcileOrder({
         </p>
         <dl className="settlement-details">
           {[
-            ['Оплата деньгами', order.cash_amount],
-            ['Подтверждённые возвраты', order.cash_refunded],
-            ['Осталось денег', order.cash_net],
-            ['Списанные бонусы после возвратов', order.bonus_net],
-            ['Доставка после возвратов', order.delivery_net],
-            ['Комиссия Bulka', order.platform_commission],
-            ['Компенсация бонусов', order.bonus_compensation],
+            [t('settlements.reconcile0'), order.cash_amount],
+            [t('settlements.reconcile1'), order.cash_refunded],
+            [t('settlements.reconcile2'), order.cash_net],
+            [t('settlements.reconcile3'), order.bonus_net],
+            [t('settlements.reconcile4'), order.delivery_net],
+            [t('settlements.reconcile5'), order.platform_commission],
+            [t('settlements.reconcile6'), order.bonus_compensation],
           ].map(([label, value]) => (
             <div key={label}>
               <dt>{label}</dt>
@@ -143,7 +143,7 @@ export function RecordPayout({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
-  const { formatNumber, locale } = useI18n();
+  const { formatNumber, locale, t } = useI18n();
   const kk = locale === 'kk';
   const [id] = useState(() => crypto.randomUUID()),
     [reference, setReference] = useState(''),

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Building2, Clock3, LoaderCircle, MapPin, Pencil, Plus, RefreshCw } from 'lucide-react';
-import Modal from '../components/Modal';
+import Modal from '../components/GuardedModal';
 import PageState from '../components/PageState';
 import YandexLocationMap, { type MapPointDetails } from '../components/YandexLocationMap';
 import { useFeedback } from '../components/Feedback';

@@ -103,3 +103,45 @@
   flex: 0 0 20px;
   margin: 2px 0;
 }
+.settlements-page .responsive-table-wrap:focus-visible {
+  outline: 3px solid #75551f;
+  outline-offset: 3px;
+}
+.settlements-page .data-table td {
+  font-variant-numeric: tabular-nums;
+}
+.settlement-summary {
+  display: none;
+}
+@media (max-width: 600px) {
+  .settlement-summary {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .settlement-summary article {
+    border: 1px solid #dedfd8;
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .settlement-summary dl {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    margin: 12px 0 0;
+  }
+  .settlement-summary dd {
+    margin: 0;
+    font-weight: 600;
+  }
+  .settlements-page .data-table th:first-child,
+  .settlements-page .data-table td:first-child {
+    position: sticky;
+    left: 0;
+    background: #fff;
+    z-index: 1;
+    max-width: 130px;
+    white-space: normal;
+    box-shadow: 2px 0 3px #00000010;
+  }
+}
