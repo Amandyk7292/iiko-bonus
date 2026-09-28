@@ -1,4 +1,21 @@
 export default {
+  'settlements.simple.orders': 'Всего заказов',
+  'settlements.simple.buyers': 'Покупателей',
+  'settlements.simple.paid': 'Оплачено',
+  'settlements.simple.completed': 'Выполнено',
+  'settlements.simple.cancelled': 'Отменено',
+  'settlements.simple.refunded': 'С возвратом',
+  'settlements.simple.received': 'Получено от клиентов',
+  'settlements.simple.returned': 'Вернули клиентам',
+  'settlements.simple.remaining': 'Осталось после возвратов',
+  'settlements.simple.details': 'Бонусы, доставка и комиссии',
+  'settlements.simple.bankFee': 'Подтверждённая комиссия банка',
+  'settlements.simple.unverified': 'Комиссия банка ещё не проверена по {{count}} заказам.',
+  'settlements.simple.note':
+    'Один покупатель может сделать несколько заказов. Оплаченный заказ может позже быть отменён или возвращён — эти числа не нужно складывать.',
+  'settlements.simple.moneyNote':
+    '«Осталось» — полученные деньги минус возвраты. Это не прибыль: комиссии и другие расходы ещё не вычтены. Доставка уже входит в оплату.',
+
   'settlements.reconcile0': 'Оплата деньгами',
   'settlements.reconcile1': 'Подтверждённые возвраты',
   'settlements.reconcile2': 'Осталось денег',

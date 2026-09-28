@@ -1,3 +1,4 @@
+import BranchOrderCards from './BranchOrderCards';
 import { useSettlementFilters } from './use-settlement-filters';
 import { ExportBranches, ExportPayout } from './SettlementExports';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -132,90 +133,10 @@ export default function SettlementsPage() {
         <div aria-busy={busy} className="form-stack">
           <section className="card">
             <h2>{t('settlements.copy8')}</h2>
-            <p className="field-hint">{t('settlements.copy9')}</p>
-            <div className="settlement-summary">
-              {report.branches.map((b) => (
-                <article key={b.branch_id || 'none'}>
-                  <strong>{b.name}</strong>
-                  <dl>
-                    <dt>{t('settlements.copy16')}</dt>
-                    <dd>{money(b.net_cash)}</dd>
-                    <dt>{t('settlements.copy11')}</dt>
-                    <dd>
-                      {b.orders} / {b.customers}
-                    </dd>
-                    <dt>{t('settlements.copy15')}</dt>
-                    <dd>{money(b.refunds)}</dd>
-                  </dl>
-                </article>
-              ))}
-            </div>
             <ExportBranches rows={report.branches} />
-            <div
-              className="responsive-table-wrap"
-              tabIndex={0}
-              role="region"
-              aria-label={t('settlements.copy10')}
-            >
-              <table className="data-table data-table-compact">
-                <thead>
-                  <tr>
-                    {[
-                      t('settlements.copy4'),
-                      t('settlements.copy11'),
-                      t('settlements.copy12'),
-                      t('settlements.copy13'),
-                      t('settlements.copy14'),
-                      t('settlements.copy15'),
-                      t('settlements.copy16'),
-                      t('settlements.copy17'),
-                      t('settlements.copy18'),
-                      t('settlements.copy19'),
-                      t('settlements.copy20'),
-                      t('settlements.copy21'),
-                    ].map((x) => (
-                      <th key={x}>{x}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.branches.map((b) => (
-                    <tr key={b.branch_id || 'none'}>
-                      <td>
-                        {b.name}
-                        <small>{b.city}</small>
-                      </td>
-                      <td>
-                        {b.orders} / {b.customers}
-                      </td>
-                      <td>
-                        {b.paid_orders} / {b.completed_orders}
-                      </td>
-                      <td>
-                        {b.cancelled_orders} / {b.refunded_orders}
-                      </td>
-                      <td>{money(b.cash)}</td>
-                      <td>{money(b.refunds)}</td>
-                      <td>{money(b.net_cash)}</td>
-                      <td>{money(b.bonuses)}</td>
-                      <td>{money(b.delivery)}</td>
-                      <td>{money(b.discounts)}</td>
-                      <td>{money(b.commission)}</td>
-                      <td>
-                        {money(b.acquiring_fee)}
-                        {b.unverified > 0 && (
-                          <small>
-                            {t('settlements.copy22')} {b.unverified}
-                          </small>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <p className="field-hint">{t('settlements.simple.note')}</p>
+            <BranchOrderCards branches={report.branches} />
             {report.branches.length === 0 && <p>{t('settlements.copy23')}</p>}
-            <p className="field-hint">{t('settlements.copy79')}</p>
           </section>
           <section className="card">
             <h2>{t('settlements.copy24')}</h2>

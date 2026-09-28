@@ -1,0 +1,68 @@
+import { useI18n } from '../lib/i18n';
+import type { BranchReport } from './settlements-model';
+export default function BranchOrderCards({ branches }: { branches: BranchReport[] }) {
+  const { t, formatNumber } = useI18n();
+  const money = (value: number) => `${formatNumber(Number(value))} ₸`;
+  return (
+    <div className="branch-order-cards">
+      {branches.map((b) => (
+        <article className="branch-order-card" key={b.branch_id || 'none'}>
+          <header>
+            <h3>{b.name}</h3>
+            <span>{b.city}</span>
+          </header>
+          <dl className="branch-order-counts">
+            {[
+              ['settlements.simple.orders', b.orders],
+              ['settlements.simple.buyers', b.customers],
+              ['settlements.simple.paid', b.paid_orders],
+              ['settlements.simple.completed', b.completed_orders],
+              ['settlements.simple.cancelled', b.cancelled_orders],
+              ['settlements.simple.refunded', b.refunded_orders],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <dt>{t(String(label))}</dt>
+                <dd>{formatNumber(Number(value))}</dd>
+              </div>
+            ))}
+          </dl>
+          <dl className="branch-order-money">
+            <div>
+              <dt>{t('settlements.simple.received')}</dt>
+              <dd>{money(b.cash)}</dd>
+            </div>
+            <div>
+              <dt>{t('settlements.simple.returned')}</dt>
+              <dd>{money(b.refunds)}</dd>
+            </div>
+            <div className="branch-order-net">
+              <dt>{t('settlements.simple.remaining')}</dt>
+              <dd>{money(b.net_cash)}</dd>
+            </div>
+          </dl>
+          <details>
+            <summary>{t('settlements.simple.details')}</summary>
+            <dl className="branch-order-details">
+              {[
+                ['settlements.copy17', b.bonuses],
+                ['settlements.copy18', b.delivery],
+                ['settlements.copy19', b.discounts],
+                ['settlements.copy20', b.commission],
+                ['settlements.simple.bankFee', b.acquiring_fee],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <dt>{t(String(label))}</dt>
+                  <dd>{money(Number(value))}</dd>
+                </div>
+              ))}
+            </dl>
+            {b.unverified > 0 && (
+              <p>{t('settlements.simple.unverified', { count: b.unverified })}</p>
+            )}
+            <p className="field-hint">{t('settlements.simple.moneyNote')}</p>
+          </details>
+        </article>
+      ))}
+    </div>
+  );
+}

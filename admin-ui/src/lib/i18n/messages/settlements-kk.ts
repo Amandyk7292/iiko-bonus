@@ -1,4 +1,21 @@
 export default {
+  'settlements.simple.orders': 'Барлық тапсырыс',
+  'settlements.simple.buyers': 'Сатып алушы',
+  'settlements.simple.paid': 'Төленген',
+  'settlements.simple.completed': 'Орындалған',
+  'settlements.simple.cancelled': 'Бас тартылған',
+  'settlements.simple.refunded': 'Қайтарылған',
+  'settlements.simple.received': 'Клиенттерден алынған',
+  'settlements.simple.returned': 'Клиенттерге қайтарылған',
+  'settlements.simple.remaining': 'Қайтарудан кейін қалған',
+  'settlements.simple.details': 'Бонустар, жеткізу және комиссиялар',
+  'settlements.simple.bankFee': 'Расталған банк комиссиясы',
+  'settlements.simple.unverified': '{{count}} тапсырыстың банк комиссиясы әлі тексерілмеген.',
+  'settlements.simple.note':
+    'Бір сатып алушы бірнеше тапсырыс бере алады. Төленген тапсырыс кейін жойылуы не қайтарылуы мүмкін — бұл сандарды қоспаңыз.',
+  'settlements.simple.moneyNote':
+    '«Қалған» — түскен ақша минус қайтарымдар. Бұл пайда емес: комиссиялар мен басқа шығындар әлі шегерілмеген. Жеткізу төлемге кіреді.',
+
   'settlements.reconcile0': 'Ақшалай төлем',
   'settlements.reconcile1': 'Расталған қайтарымдар',
   'settlements.reconcile2': 'Қалған ақша',
