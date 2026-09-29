@@ -43,9 +43,9 @@ const defaultSettings = {
     inviter_bonus: 1000,
     friend_bonus: 500,
     min_first_order: 0,
-    max_invites_per_day: 20,
-    max_rewards_per_month: 30,
-    max_reward_amount_per_month: 30000,
+    max_invites_per_day: 0,
+    max_rewards_per_month: 0,
+    max_reward_amount_per_month: 0,
     review_same_device: true,
   },
   bonus_automailing: {

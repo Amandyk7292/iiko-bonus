@@ -30,6 +30,8 @@ it('loads and saves both referral rewards through the existing settings API', as
     const inviter = await screen.findByLabelText('Пригласившему, ₸ бонусами');
     expect(inviter).toHaveValue(1000);
     expect(screen.getByLabelText('Новому клиенту, ₸ бонусами')).toHaveValue(500);
+    expect(screen.queryByText('Приглашений в день на клиента')).not.toBeInTheDocument();
+    expect(screen.getByText(/Приглашения и реферальные награды — без/)).toBeInTheDocument();
     fireEvent.change(inviter, { target: { value: '1500' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     expect(save).toHaveBeenCalledWith(
@@ -39,9 +41,9 @@ it('loads and saves both referral rewards through the existing settings API', as
           inviter_bonus: 1500,
           friend_bonus: 500,
           min_first_order: 0,
-          max_invites_per_day: 20,
-          max_rewards_per_month: 30,
-          max_reward_amount_per_month: 30000,
+          max_invites_per_day: 0,
+          max_rewards_per_month: 0,
+          max_reward_amount_per_month: 0,
           review_same_device: true,
         },
       }),

@@ -20,11 +20,12 @@ const referralReport = {
       'Подтвердите возврат по чеку. Это учёт уже выполненного возврата, деньги покупателю отсюда не перечисляются. Укажите общую возвращённую сумму по этой покупке.',
     'referrals.returnTotal': 'Всего возвращено по покупке, ₸',
     'bonus.referralLimitsHint':
-      'Дневной лимит ограничивает новые приглашения. Превышение месячных лимитов наград отправляет начисление на проверку.',
+      'Приглашения и реферальные награды — без дневных и месячных лимитов.',
     'bonus.referral.max_invites_per_day': 'Приглашений в день на клиента',
     'bonus.referral.max_rewards_per_month': 'Наград в месяц на клиента',
     'bonus.referral.max_reward_amount_per_month': 'Бонусов пригласившему за месяц, ₸',
-    'bonus.referralDeviceReview': 'Проверять повторные регистрации с одного устройства',
+    'bonus.referralDeviceReview':
+      'Защита включена: одно устройство — один аккаунт для реферальных бонусов. Другие аккаунты могут входить и заказывать, но повторные награды не начисляются.',
     'referrals.title': 'Приглашения: отчёт и контроль',
     'referrals.cohort':
       'Период выбирает дату регистрации друга. Выручка — первая покупка за вычетом возвратов.',
@@ -52,6 +53,8 @@ const referralReport = {
     'referrals.status.cancelled': 'Отменено',
     'referrals.status.reversed': 'Отозвано после возврата',
     'referrals.status.review': 'На проверке',
+    'referrals.risk.missing_device':
+      'Нет данных об устройстве. Клиенту нужно открыть раздел приглашений в приложении.',
     'referrals.risk.shared_device': 'Повторные регистрации с одного устройства',
     'referrals.risk.monthly_limit': 'Превышен месячный лимит наград',
     'referrals.inspect': 'Рассмотреть',
@@ -94,11 +97,12 @@ const referralReport = {
       'Чек бойынша қайтаруды растаңыз. Бұл жасалған қайтаруды есепке алу; мұнда ақша аударылмайды. Сатып алу бойынша жалпы қайтарылған соманы енгізіңіз.',
     'referrals.returnTotal': 'Сатып алу бойынша қайтарылған сома, ₸',
     'bonus.referralLimitsHint':
-      'Күндік шек жаңа шақыруларды шектейді. Айлық сыйлық шегінен асса, есептеу тексеруге жіберіледі.',
+      'Шақырулар мен рефералдық сыйлықтарға күндік және айлық шектеу жоқ.',
     'bonus.referral.max_invites_per_day': 'Клиентке күндік шақыру саны',
     'bonus.referral.max_rewards_per_month': 'Клиентке айлық сыйлық саны',
     'bonus.referral.max_reward_amount_per_month': 'Шақырушыға айлық бонус, ₸',
-    'bonus.referralDeviceReview': 'Бір құрылғыдан қайталанған тіркелуді тексеру',
+    'bonus.referralDeviceReview':
+      'Қорғаныс қосулы: рефералдық бонустар үшін бір құрылғыға бір аккаунт. Басқа аккаунттар кіріп, тапсырыс бере алады, бірақ қайталама сыйлық алмайды.',
     'referrals.title': 'Шақырулар: есеп және бақылау',
     'referrals.cohort':
       'Кезең достың тіркелу күнін таңдайды. Түсім — қайтаруларды шегерген алғашқы сатып алу.',
@@ -126,6 +130,8 @@ const referralReport = {
     'referrals.status.cancelled': 'Жойылды',
     'referrals.status.reversed': 'Қайтарудан кейін қайтарылды',
     'referrals.status.review': 'Тексеруде',
+    'referrals.risk.missing_device':
+      'Құрылғы деректері жоқ. Клиент қолданбадағы шақырулар бөлімін ашуы керек.',
     'referrals.risk.shared_device': 'Бір құрылғыдан қайталанған тіркелу',
     'referrals.risk.monthly_limit': 'Айлық сыйлық шегінен асты',
     'referrals.inspect': 'Қарау',
@@ -167,12 +173,12 @@ const referralReport = {
     'referrals.returnHint':
       'Confirm the return against the receipt. This records a completed refund; no money is sent here. Enter the cumulative refunded amount for this purchase.',
     'referrals.returnTotal': 'Total refunded for purchase, ₸',
-    'bonus.referralLimitsHint':
-      'Daily limits restrict new invitations. Monthly reward limits send awards for review.',
+    'bonus.referralLimitsHint': 'Invitations and referral rewards have no daily or monthly limits.',
     'bonus.referral.max_invites_per_day': 'Invitations per customer per day',
     'bonus.referral.max_rewards_per_month': 'Rewards per customer per month',
     'bonus.referral.max_reward_amount_per_month': 'Monthly inviter reward limit, ₸',
-    'bonus.referralDeviceReview': 'Review repeated registrations from one device',
+    'bonus.referralDeviceReview':
+      'Protection is always on: one referral account per device. Other accounts can sign in and order, but cannot receive duplicate referral rewards.',
     'referrals.title': 'Invitations: reporting and monitoring',
     'referrals.cohort':
       'Dates select friend registrations. Revenue is the first purchase less refunds.',
@@ -200,6 +206,8 @@ const referralReport = {
     'referrals.status.cancelled': 'Cancelled',
     'referrals.status.reversed': 'Reversed after refund',
     'referrals.status.review': 'Under review',
+    'referrals.risk.missing_device':
+      'Device data is missing. The customer must open referrals in the app.',
     'referrals.risk.shared_device': 'Repeated registrations from one device',
     'referrals.risk.monthly_limit': 'Monthly reward limit exceeded',
     'referrals.inspect': 'Review',

@@ -53,34 +53,7 @@ export default function ReferralSettings({
         ))}
       </div>
       <p className="field-hint">{t('bonus.referralLimitsHint')}</p>
-      <div className="form-grid form-grid-2">
-        {(
-          ['max_invites_per_day', 'max_rewards_per_month', 'max_reward_amount_per_month'] as const
-        ).map((key) => (
-          <label className="field-group" key={key}>
-            <span className="field-label">{t(`bonus.referral.${key}`)}</span>
-            <input
-              className="input-classic"
-              type="number"
-              min={key === 'max_reward_amount_per_month' ? 0 : 1}
-              max={key === 'max_reward_amount_per_month' ? 10000000 : 10000}
-              step={key === 'max_reward_amount_per_month' ? 0.01 : 1}
-              required
-              value={value[key]}
-              onChange={(event) => onChange({ ...value, [key]: Number(event.target.value) })}
-            />
-          </label>
-        ))}
-      </div>
-      <label className="switch-row">
-        <input
-          type="checkbox"
-          checked={value.review_same_device}
-          onChange={(event) => onChange({ ...value, review_same_device: event.target.checked })}
-        />
-        <span className="switch-control" aria-hidden="true" />
-        <span>{t('bonus.referralDeviceReview')}</span>
-      </label>
+      <p className="field-hint">{t('bonus.referralDeviceReview')}</p>
     </fieldset>
   );
 }

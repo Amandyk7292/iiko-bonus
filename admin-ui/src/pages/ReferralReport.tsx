@@ -401,6 +401,7 @@ export default function ReferralReport() {
               disabled={
                 saving ||
                 note.trim().length < 3 ||
+                (!returning && review.risk_reasons.some(reason => ['shared_device', 'missing_device'].includes(reason))) ||
                 (returning &&
                   (returnTotal <= 0 ||
                     returnTotal > Number(review.amount) ||
