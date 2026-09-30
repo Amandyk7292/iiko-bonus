@@ -160,5 +160,3 @@ begin
   end if;
   return result;
 end; $$;
-
-
