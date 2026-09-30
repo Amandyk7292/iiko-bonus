@@ -8,6 +8,7 @@ const hash = () => randomBytes(32).toString('hex');
 
 test.before(async () => {
   await db.exec(`create role anon; create role authenticated; create role service_role;
+    alter default privileges in schema public grant all on tables to service_role;
     create table settings(key text primary key,value text);
     create table customers(id uuid primary key,name text,balance numeric default 0,total_spent numeric default 0,updated_at timestamptz);
     create table bulka_locations(id uuid primary key,name text);
@@ -29,6 +30,7 @@ test.before(async () => {
     '20260927120000_referral_controls.sql',
     '20260929100000_referral_unlimited_device_owner.sql',
     '20260930120000_referral_stable_device.sql',
+    '20261001010000_referral_device_history_permissions.sql',
   ]) {
     await db.exec(readFileSync('supabase/migrations/' + file, 'utf8'));
   }
@@ -254,13 +256,20 @@ test('unlimited friends on separate verified devices continue to earn', async ()
 
 test('database clients cannot rewrite permanent owners or invoke privileged enrollment', async () => {
   for (const role of ['anon', 'authenticated', 'service_role']) {
-    const row = (
-      await db.query(
-        `select has_table_privilege($1,'referral_stable_device_owners','UPDATE') u,has_table_privilege($1,'referral_stable_device_owners','DELETE') d`,
-        [role],
-      )
-    ).rows[0];
-    assert.deepEqual(row, { u: false, d: false });
+    for (const table of [
+      'referral_device_owners',
+      'referral_stable_device_owners',
+      'referral_stable_devices',
+      'referral_device_proofs',
+    ]) {
+      const row = (
+        await db.query(
+          `select has_table_privilege($1,$2,'UPDATE') u,has_table_privilege($1,$2,'DELETE') d`,
+          [role, table],
+        )
+      ).rows[0];
+      assert.deepEqual(row, { u: false, d: false }, role + ':' + table);
+    }
   }
   assert.equal(
     (
@@ -270,4 +279,22 @@ test('database clients cannot rewrite permanent owners or invoke privileged enro
     ).rows[0].ok,
     false,
   );
+});
+
+test('trusted enrollment works without direct write access to device bindings or proofs', async () => {
+  const customer = await account();
+  await db.exec('set role service_role');
+  try {
+    assert.equal(await remember(customer), null);
+    assert.equal(await risk(customer), null);
+    for (const table of ['referral_stable_devices', 'referral_device_proofs']) {
+      assert.equal(
+        (await db.query("select has_table_privilege('service_role',$1,'INSERT') ok", [table]))
+          .rows[0].ok,
+        false,
+      );
+    }
+  } finally {
+    await db.exec('reset role');
+  }
 });
