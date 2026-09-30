@@ -44,7 +44,7 @@ test('Google Wallet object exposes actual balance as loyalty points', () => {
   });
   assert.deepEqual(object.textModulesData, []);
   assert.equal(object.hexBackgroundColor, '#FFB300');
-  assert.equal(buildGoogleLoyaltyObject({...customer, name: null}, tier).accountName, '');
+  assert.equal(buildGoogleLoyaltyObject({ ...customer, name: null }, tier).accountName, '');
 });
 
 test('Google Wallet balance update requests a visible Wallet notification', () => {
@@ -65,11 +65,11 @@ test('Apple Wallet serial and update tags are stable', () => {
   assert.equal(customerIdFromSerial('bulka-invalid'), null);
   assert.equal(
     customerUpdateTag({ updated_at: '2026-07-15T10:20:30.123Z' }),
-    Date.parse('2026-09-20T16:25:00.000Z'),
+    Date.parse('2026-09-30T19:20:58.000Z'),
   );
   assert.equal(
-    customerUpdateTag({ updated_at: '2026-09-20T16:30:30.123Z' }),
-    Date.parse('2026-09-20T16:30:30.123Z'),
+    customerUpdateTag({ updated_at: '2026-09-30T19:30:30.123Z' }),
+    Date.parse('2026-09-30T19:30:30.123Z'),
   );
 });
 
@@ -85,7 +85,6 @@ test('Wallet amount keeps real decimals without trailing zero noise', () => {
   assert.equal(formatWalletAmount(100.5), '100.5');
   assert.equal(formatWalletAmount(100.25), '100.25');
 });
-
 
 test('Apple artwork fits PassKit at every display scale', async () => {
   const sharp = require('sharp');

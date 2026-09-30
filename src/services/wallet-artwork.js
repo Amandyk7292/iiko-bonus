@@ -15,7 +15,7 @@ function getWalletArtwork() {
           .resize({ width: 160 * scale, height: 50 * scale, fit: 'inside' })
           .png()
           .toBuffer();
-        buffers[`strip${suffix}.png`] = await sharp(path.join(directory, 'ornament.png'))
+        buffers[`strip${suffix}.png`] = await sharp(path.join(directory, 'brand-pattern.jpg'))
           .resize(375 * scale, 144 * scale, { fit: 'cover', position: 'centre' })
           .png()
           .toBuffer();

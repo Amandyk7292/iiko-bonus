@@ -8,7 +8,10 @@ const GOOGLE_WALLET_SCOPE = 'https://www.googleapis.com/auth/wallet_object.issue
 function localizedString(defaultLanguage, defaultValue, translations = {}) {
   return {
     defaultValue: { language: defaultLanguage, value: defaultValue },
-    translatedValues: Object.entries(translations).map(([language, value]) => ({ language, value })),
+    translatedValues: Object.entries(translations).map(([language, value]) => ({
+      language,
+      value,
+    })),
   };
 }
 
@@ -34,11 +37,11 @@ function buildLoyaltyClass(classId, publicBaseUrl, reviewStatus = 'UNDER_REVIEW'
       en: 'Bulka Bonus',
     }),
     programLogo: walletImage(`${assetBase}/bulka-wallet-logo.png`, 'Логотип Bulka'),
-    wideProgramLogo: walletImage(
-      `${assetBase}/bulka-wallet-wide-logo.png`,
-      'Логотип Bulka Bonus',
+    wideProgramLogo: walletImage(`${assetBase}/bulka-wallet-wide-logo.png`, 'Логотип Bulka Bonus'),
+    heroImage: walletImage(
+      `${publicBaseUrl}/assets/loyalty/bulka-wallet-pattern-v1.jpg`,
+      'Фирменный узор Bulka',
     ),
-    heroImage: walletImage(`${assetBase}/bulka-wallet-hero.png`, 'Свежая выпечка Bulka'),
     hexBackgroundColor: '#1E140C',
     countryCode: 'KZ',
     accountNameLabel: 'Гость',
