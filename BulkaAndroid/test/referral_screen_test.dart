@@ -23,6 +23,7 @@ class ReferralApi extends BulkaApiClient {
     ],
   };
   bool offline = false;
+  String? deviceReason;
   @override
   Future<Map<String, dynamic>> getPersonalAccount() async => {'balance': 0};
   @override
@@ -31,7 +32,8 @@ class ReferralApi extends BulkaApiClient {
     return {
       'code': 'BULKA-1234ABCD',
       'url': 'https://bulka.com.kz/catalog?ref=BULKA-1234ABCD',
-      'enabled': true,
+      'enabled': deviceReason == null,
+      'deviceReason': deviceReason,
       'reward_referrer': 1000,
       'reward_friend': 500,
       'min_first_order': 0,
@@ -123,6 +125,26 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('BULKA-1234ABCD'), findsOneWidget);
       expect(find.text('Пригласить по ссылке'), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'second account sees the restriction and cannot copy or share an invitation',
+    (tester) async {
+      final api = ReferralApi()..deviceReason = 'shared_device';
+      addTearDown(api.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildBulkaTheme(),
+          home: ReferralScreen(api: api),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('только первому аккаунту'), findsOneWidget);
+      final copy = tester.widget<OutlinedButton>(
+        find.widgetWithText(OutlinedButton, 'Скопировать'),
+      );
+      expect(copy.onPressed, isNull);
+      expect(tester.takeException(), isNull);
     },
   );
 }

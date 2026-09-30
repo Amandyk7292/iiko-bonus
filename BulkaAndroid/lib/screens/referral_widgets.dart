@@ -50,6 +50,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
         final referral = snapshot.data!;
         final url = _asString(referral['url']);
         final enabled = referral['enabled'] == true && url.isNotEmpty;
+        final deviceReason = _asString(referral['deviceReason']);
         return ListView(
           padding: const EdgeInsets.all(24),
           children: [
@@ -63,8 +64,23 @@ class _ReferralScreenState extends State<ReferralScreen> {
                       'minimum':
                           '${formatMoney(_asDouble(referral['min_first_order']))} ₸',
                     })
-                  : 'referral_disabled'.tr,
+                  : (deviceReason == 'shared_device'
+                            ? 'referral_device_claimed'
+                            : deviceReason == 'missing_device'
+                            ? 'referral_device_missing'
+                            : 'referral_disabled')
+                        .tr,
             ),
+            if (deviceReason == 'missing_device') ...[
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () {
+                  final request = widget.api.getReferral();
+                  setState(() => _referral = request);
+                },
+                child: Text('referral_retry'.tr),
+              ),
+            ],
             const SizedBox(height: 24),
             SelectableText(
               _asString(referral['code']),

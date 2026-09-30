@@ -39,6 +39,10 @@ const personalization = require('../services/personalization.service');
 const savedVariants = require('../services/saved-variants.service');
 const reviews = require('../services/review.service');
 const marketing = require('../services/commerce-marketing.service');
+const {
+  referralDeviceBodySchema,
+  referralDeviceChallengeSchema,
+} = require('../contracts/referral-device.contract');
 const notificationPreferences = require('../services/notification-preferences.service');
 const support = require('../services/support.service');
 const liveActivity = require('../services/live-activity.service');
@@ -839,6 +843,44 @@ router.get('/api/customer/referral/history', async (req, res) => {
     res.status(500).json({ success: false, error: 'Не удалось загрузить приглашения' });
   }
 });
+router.post(
+  '/api/customer/referral/device/challenge',
+  publicApiRateLimit,
+  validateRequest({ body: referralDeviceChallengeSchema }),
+  async (req, res) => {
+    res.json({
+      success: true,
+      ...require('../services/referral-device-proof.service').createDeviceChallenge(
+        req.customerAuth.id,
+        req.body.referralDevice,
+        req.body.installationId,
+      ),
+    });
+  },
+);
+router.post(
+  '/api/customer/referral/device',
+  publicApiRateLimit,
+  validateRequest({ body: referralDeviceBodySchema }),
+  async (req, res) => {
+    try {
+      const eligibility = await require('../services/referral.service').rememberReferralDevice(
+        req.customerAuth.id,
+        req.body.installationId,
+        req.body.referralDevice,
+        req.body.proof,
+      );
+      res.json({ success: true, eligibility });
+    } catch (error) {
+      const status = [400, 409, 503].includes(error.statusCode) ? error.statusCode : 500;
+      res.status(status).json({
+        success: false,
+        error:
+          status === 500 ? 'Не удалось подтвердить устройство. Попробуйте позже.' : error.message,
+      });
+    }
+  },
+);
 router.get('/api/customer/referral', async (req, res) => {
   try {
     const installation = req.query.installationId;

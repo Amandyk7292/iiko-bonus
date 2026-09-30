@@ -51,6 +51,7 @@ import 'core/staff_push_bridge_contract.dart';
 import 'core/url_navigation.dart';
 import 'core/network_recovery.dart';
 import 'core/referral_link.dart';
+import 'core/referral_device_identity.dart';
 import 'firebase_options.dart';
 import 'widgets/admin_portal_webview.dart';
 import 'widgets/forte_checkout_webview.dart';

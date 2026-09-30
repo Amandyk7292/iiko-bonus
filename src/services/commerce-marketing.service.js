@@ -272,11 +272,20 @@ async function consumePromotionReservation(order) {
 
 async function getOrCreateReferralCode(customerId) {
   const terms = await require('./referral.service').referralTerms();
+  const { data: deviceRisk, error: deviceError } = await supabase.rpc('referral_device_risk', {
+    p_customer_id: customerId,
+  });
+  if (deviceError) throw deviceError;
   const present = (row) => ({
     ...row,
     ...terms,
-    url: `https://bulka.com.kz/catalog?ref=${encodeURIComponent(row.code)}`,
+    enabled: terms.enabled && deviceRisk === null,
+    deviceEligible: deviceRisk === null,
+    deviceReason: deviceRisk,
+    url:
+      deviceRisk === null ? `https://bulka.com.kz/catalog?ref=${encodeURIComponent(row.code)}` : '',
   });
+  if (deviceRisk !== null) return present({ code: '' });
   const { data: existing, error: readError } = await supabase
     .from('referral_codes')
     .select('*')
@@ -316,6 +325,14 @@ async function redeemReferralCode(customerId, code) {
   });
   if (error) {
     const message = String(error.message || '').toLowerCase();
+    if (message.includes('referral device already claimed')) {
+      const denied = commerceError(
+        'На этом устройстве приглашение доступно только первому аккаунту',
+        409,
+      );
+      denied.code = 'REFERRAL_DEVICE_CLAIMED';
+      throw denied;
+    }
     if (message.includes('referral disabled'))
       throw commerceError('Приглашения временно отключены');
     if (message.includes('own referral')) throw commerceError('Нельзя применить свой код');

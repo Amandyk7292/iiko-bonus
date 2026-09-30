@@ -65,6 +65,10 @@ class BulkaApiClient {
   bool _eventLoopRunning = false;
   DateTime? _lastEventReconnect;
   bool _disposed = false;
+  Future<void>? _referralDeviceSync;
+  String? _referralDeviceSyncAccount;
+  String? _referralDeviceSyncedAccount;
+  String? _referralDeviceAttemptedAccount;
 
   Stream<Map<String, dynamic>> get customerEvents {
     _eventController ??= StreamController<Map<String, dynamic>>.broadcast(
@@ -107,6 +111,12 @@ class BulkaApiClient {
       unawaited(_cancelEventStream());
     }
     _startEventLoopIfAuthenticated();
+    if (changed &&
+        isAuthenticated &&
+        _referralDeviceAttemptedAccount != _referralAccount) {
+      _referralDeviceAttemptedAccount = _referralAccount;
+      unawaited(_rememberReferralDevice().catchError((_) {}));
+    }
   }
 
   void setAccessToken(String? token) {
@@ -289,10 +299,12 @@ class BulkaApiClient {
     required String registrationToken,
   }) async {
     final referralCode = await PendingReferral.read();
+    final referralDevice = await ReferralDeviceIdentity.read();
     final json = await _post('/api/auth/register', {
       if (referralCode != null && referralCode.isNotEmpty)
         'referralCode': referralCode,
       'installationId': await PushNotifications.installationId(),
+      'referralDevice': ?referralDevice,
       'phone': phone,
       'name': name,
       'surname': surname,
@@ -1380,6 +1392,7 @@ class BulkaApiClient {
   }
 
   Future<Map<String, dynamic>> getReferral() async {
+    await _rememberReferralDevice().catchError((_) {});
     final installation = await PushNotifications.installationId();
     final json = await _get(
       '/api/customer/referral?installationId=${Uri.encodeQueryComponent(installation)}',
@@ -1393,9 +1406,87 @@ class BulkaApiClient {
   }
 
   Future<void> redeemReferral(String code) async {
+    await _rememberReferralDevice();
     final json = await _post('/api/customer/referral/redeem', {'code': code});
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+  }
+
+  Future<void> _rememberReferralDevice() async {
+    if (!isAuthenticated || _referralDeviceSyncedAccount == _referralAccount) {
+      return;
+    }
+    while (_referralDeviceSync != null) {
+      final pending = _referralDeviceSync!;
+      if (_referralDeviceSyncAccount == _referralAccount) {
+        return pending;
+      }
+      await pending.catchError((_) {});
+      if (identical(_referralDeviceSync, pending)) {
+        _referralDeviceSync = null;
+        _referralDeviceSyncAccount = null;
+      }
+      // A different account may have logged in during the previous request.
+      if (!isAuthenticated ||
+          _referralDeviceSyncedAccount == _referralAccount) {
+        return;
+      }
+    }
+    final request = _syncReferralDevice();
+    _referralDeviceSync = request;
+    _referralDeviceSyncAccount = _referralAccount;
+    try {
+      await request;
+    } finally {
+      if (identical(_referralDeviceSync, request)) {
+        _referralDeviceSync = null;
+        _referralDeviceSyncAccount = null;
+      }
+    }
+  }
+
+  String? get _referralAccount =>
+      _sessionCacheScope ?? _sessionPhone ?? _accessToken;
+
+  Future<void> _syncReferralDevice() async {
+    final account = _referralAccount;
+    final device = await ReferralDeviceIdentity.read();
+    if (device == null ||
+        _disposed ||
+        account != _referralAccount ||
+        !isAuthenticated) {
+      return;
+    }
+    final request = {
+      'installationId': await PushNotifications.installationId(),
+      'referralDevice': device,
+    };
+    if (_disposed || account != _referralAccount || !isAuthenticated) return;
+    final challenge = await _post(
+      '/api/customer/referral/device/challenge',
+      request,
+    );
+    if (challenge['success'] != true) return;
+    final token = await ReferralDeviceIdentity.proof(
+      _asString(challenge['nonce']),
+    );
+    if (token == null ||
+        token.isEmpty ||
+        _disposed ||
+        account != _referralAccount ||
+        !isAuthenticated) {
+      return;
+    }
+    final json = await _post('/api/customer/referral/device', {
+      ...request,
+      'proof': {'challenge': challenge['challenge'], 'token': token},
+    });
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'referral_load_error'.tr));
+    }
+    if (!_disposed && isAuthenticated && account == _referralAccount) {
+      _referralDeviceSyncedAccount = account;
     }
   }
 

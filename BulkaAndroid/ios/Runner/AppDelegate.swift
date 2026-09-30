@@ -2,6 +2,7 @@ import ActivityKit
 import Flutter
 import UIKit
 import WebKit
+import DeviceCheck
 
 @available(iOS 16.2, *)
 struct BulkaOrderActivityAttributes: ActivityAttributes {
@@ -25,6 +26,7 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
 @objc class AppDelegate: FlutterAppDelegate {
   private var orderStatusChannel: FlutterMethodChannel?
   private var adminSessionChannel: FlutterMethodChannel?
+  private var referralDeviceChannel: FlutterMethodChannel?
   private var activityTokenTasks: [String: Task<Void, Never>] = [:]
 
   override func application(
@@ -33,6 +35,25 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
     if let controller = window?.rootViewController as? FlutterViewController {
+      let deviceChannel = FlutterMethodChannel(
+        name: "com.bulka.bonus/referral_device",
+        binaryMessenger: controller.binaryMessenger
+      )
+      deviceChannel.setMethodCallHandler { call, result in
+        guard call.method == "proof" else { return result(FlutterMethodNotImplemented) }
+        guard DCDevice.current.isSupported else {
+          return result(FlutterError(code: "DEVICE_CHECK_UNAVAILABLE", message: "Device check unavailable", details: nil))
+        }
+        DCDevice.current.generateToken { data, _ in
+          DispatchQueue.main.async {
+            guard let data else {
+              return result(FlutterError(code: "DEVICE_CHECK_UNAVAILABLE", message: "Device check unavailable", details: nil))
+            }
+            result(data.base64EncodedString())
+          }
+        }
+      }
+      referralDeviceChannel = deviceChannel
       let sessionChannel = FlutterMethodChannel(
         name: "com.bulka.bonus/admin_session",
         binaryMessenger: controller.binaryMessenger

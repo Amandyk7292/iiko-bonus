@@ -464,15 +464,23 @@ router.post(
       // Persist the legal audit before consuming a one-time credential grant.
       // A transient audit failure must remain safely retryable for the client.
       await recordCustomerLegalConsent(customer.id, legalConsent);
-      await require('../services/referral.service').rememberReferralDevice(
-        customer.id,
-        req.body.installationId,
-      );
-      if (req.body.referralCode) {
-        await require('../services/commerce-marketing.service').redeemReferralCode(
+      const referralEligibility =
+        await require('../services/referral.service').rememberReferralDevice(
           customer.id,
-          req.body.referralCode,
+          req.body.installationId,
+          req.body.referralDevice,
         );
+      if (req.body.referralCode && referralEligibility.reason !== 'shared_device') {
+        try {
+          await require('../services/commerce-marketing.service').redeemReferralCode(
+            customer.id,
+            req.body.referralCode,
+          );
+        } catch (error) {
+          if (error.code !== 'REFERRAL_DEVICE_CLAIMED') throw error;
+          referralEligibility.eligible = false;
+          referralEligibility.reason = 'shared_device';
+        }
       }
       if (req.registrationAuth.credentialGrantId) {
         const passwordHash = await consumeRegistrationCredentialGrant({
@@ -491,7 +499,10 @@ router.post(
       await require('../services/branch-signup.service').finishRegistration(customer, updateData);
       Object.assign(customer, updateData);
 
-      res.json(await buildAuthenticatedCustomerPayload(customer, req, res));
+      res.json({
+        ...(await buildAuthenticatedCustomerPayload(customer, req, res)),
+        referralEligibility,
+      });
     } catch (err) {
       sendCustomerAuthError(res, err);
     }

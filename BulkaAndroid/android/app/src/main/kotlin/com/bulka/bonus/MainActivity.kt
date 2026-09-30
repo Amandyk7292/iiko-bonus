@@ -10,6 +10,9 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import com.google.android.play.core.integrity.IntegrityManagerFactory
+import com.google.android.play.core.integrity.IntegrityTokenRequest
 import android.webkit.CookieManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -66,6 +69,26 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.bulka.bonus/referral_device")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "androidId" -> result.success(
+                        Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID),
+                    )
+                    "proof" -> {
+                        val nonce = call.argument<String>("nonce")
+                        if (nonce == null || !nonce.matches(Regex("[A-Za-z0-9_-]{43}"))) {
+                            result.error("INVALID_CHALLENGE", "Invalid device challenge", null)
+                        } else {
+                            IntegrityManagerFactory.create(applicationContext)
+                                .requestIntegrityToken(IntegrityTokenRequest.builder().setNonce(nonce).build())
+                                .addOnSuccessListener { result.success(it.token()) }
+                                .addOnFailureListener { result.error("DEVICE_CHECK_UNAVAILABLE", "Device check unavailable", null) }
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.bulka.bonus/admin_session")
             .setMethodCallHandler { call, result ->
                 when (call.method) {

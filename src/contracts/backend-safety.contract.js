@@ -1,4 +1,5 @@
 const { z } = require('../middlewares/validation.middleware');
+const { stableReferralDeviceSchema } = require('./referral-device.contract');
 
 const nullableShortText = (maximum) => z.string().trim().max(maximum).nullable().optional();
 const uuidSchema = z.string().trim().uuid();
@@ -41,6 +42,7 @@ const customerRegistrationBodySchema = z
       .string()
       .regex(/^[A-Za-z0-9._:-]{8,160}$/)
       .optional(),
+    referralDevice: stableReferralDeviceSchema.optional(),
     referralCode: z
       .string()
       .trim()

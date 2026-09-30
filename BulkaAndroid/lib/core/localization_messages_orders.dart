@@ -1236,6 +1236,22 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'Жаңа шақырулар уақытша өшірілген.',
     'en': 'New invitations are temporarily disabled.',
   },
+  'referral_device_claimed': {
+    'ru':
+        'На этом устройстве реферальные бонусы доступны только первому аккаунту. Вы можете продолжать пользоваться приложением и делать покупки.',
+    'kk':
+        'Бұл құрылғыда шақыру бонустары тек бірінші аккаунтқа қолжетімді. Қолданбаны пайдалануды және сатып алуды жалғастыра аласыз.',
+    'en':
+        'Referral rewards on this device are available only to its first account. You can still use the app and make purchases.',
+  },
+  'referral_device_missing': {
+    'ru':
+        'Устройство пока не подтверждено для реферальных бонусов. Откройте этот раздел в последней версии Bulka на телефоне и повторите проверку. Регистрация и покупки доступны.',
+    'kk':
+        'Құрылғы шақыру бонустары үшін әлі расталмады. Телефоныңыздағы Bulka қолданбасының соңғы нұсқасында осы бөлімді ашып, қайта тексеріңіз. Тіркелу мен сатып алу қолжетімді.',
+    'en':
+        'This device has not yet been verified for referral rewards. Open this section in the latest Bulka app on your phone and retry. Registration and purchases remain available.',
+  },
   'rewards_code_copied': {
     'ru': 'Код скопирован',
     'kk': 'Код көшірілді',

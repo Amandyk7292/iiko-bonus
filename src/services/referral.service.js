@@ -59,16 +59,35 @@ async function processReferralPurchases() {
   if (failure) throw failure;
 }
 
-async function rememberReferralDevice(customerId, installationId) {
-  if (!installationId) return;
-  const hash = require('node:crypto').createHash('sha256').update(installationId).digest('hex');
-  const { error } = await supabase
-    .from('referral_devices')
-    .upsert(
-      { customer_id: customerId, device_hash: hash },
-      { onConflict: 'customer_id,device_hash', ignoreDuplicates: true },
-    );
+async function rememberReferralDevice(customerId, installationId, referralDevice, proof) {
+  const { referralDeviceBodySchema } = require('../contracts/referral-device.contract');
+  const parsed = referralDeviceBodySchema.safeParse({ installationId, referralDevice, proof });
+  if (!parsed.success)
+    throw Object.assign(new Error('Invalid referral device'), { statusCode: 400 });
+  const hash = (value) => require('node:crypto').createHash('sha256').update(value).digest('hex');
+  const device = parsed.data.referralDevice;
+  // Never replace a missing native identifier with a new random installation.
+  let stableHash = null;
+  if (device?.kind === 'android_id' && /^(0{16}|9774d56d682e549c)$/i.test(device.id)) {
+    throw Object.assign(new Error('Invalid referral device'), { statusCode: 400 });
+  }
+  let verified = null;
+  if (device && proof) {
+    const verifier = require('./referral-device-proof.service');
+    verified = await verifier.verifyDeviceProof(customerId, device, installationId, proof);
+    stableHash = verifier.stableDeviceHash(device);
+  }
+  const { data, error } = await supabase.rpc('remember_stable_referral_device', {
+    p_customer_id: customerId,
+    p_installation_hash: installationId ? hash(installationId) : null,
+    p_stable_hash: stableHash,
+    p_kind: stableHash ? device.kind : null,
+    p_proof_hash: verified?.hash || null,
+    p_challenge_hash: proof ? hash(proof.challenge) : null,
+    p_blocked: verified?.blocked || false,
+  });
   if (error) throw error;
+  return { eligible: data === null, reason: data };
 }
 
 async function customerReferralHistory(customerId, offset = 0) {

@@ -101,20 +101,19 @@ test('device evidence stores a hash, while customer history binds the authentica
   const originalFrom = supabase.from,
     originalRpc = supabase.rpc;
   let recorded, args;
-  supabase.from = () => ({
-    upsert: async (value) => {
+  supabase.rpc = async (name, value) => {
+    if (name === 'remember_stable_referral_device') {
       recorded = value;
-      return {};
-    },
-  });
-  supabase.rpc = async (_, value) => {
+      return { data: 'missing_device' };
+    }
     args = value;
     return { data: { registered: 0 } };
   };
   try {
     await rememberReferralDevice('customer', 'installation-12345');
-    assert.equal(recorded.customer_id, 'customer');
-    assert.match(recorded.device_hash, /^[a-f0-9]{64}$/);
+    assert.equal(recorded.p_customer_id, 'customer');
+    assert.match(recorded.p_installation_hash, /^[a-f0-9]{64}$/);
+    assert.equal(recorded.p_stable_hash, null);
     assert.equal(JSON.stringify(recorded).includes('installation-12345'), false);
     await customerReferralHistory('authenticated-customer', 30);
     assert.deepEqual(args, { p_customer_id: 'authenticated-customer', p_offset: 30 });
