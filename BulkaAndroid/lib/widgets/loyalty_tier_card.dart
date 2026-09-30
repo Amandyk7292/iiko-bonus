@@ -44,7 +44,7 @@ class LoyaltyTierCard extends StatelessWidget {
           decoration: const BoxDecoration(
             color: Color(0xFFFFB300),
             image: DecorationImage(
-              image: AssetImage('assets/brand/loyalty_background.png'),
+              image: AssetImage('assets/brand/loyalty_background.jpg'),
               fit: BoxFit.cover,
             ),
           ),
