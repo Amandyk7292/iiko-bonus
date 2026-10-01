@@ -23,12 +23,13 @@ export function IikoProductEditor({ controller }: { controller: MenuPageControll
       catalogValid={form.fulfillment_types.length > 0}
       main={
         <>
-          <div className="product-editor-language" role="group" aria-label="Язык текста">
+          <div className="segmented-control" role="group" aria-label="Язык текста">
             {(['ru', 'kk'] as const).map((value) => (
               <button
                 key={value}
                 type="button"
                 aria-pressed={lang === value}
+                className={lang === value ? 'is-active' : undefined}
                 onClick={() => setEditLang(value)}
               >
                 {value === 'ru' ? 'Русский' : 'Қазақша'}

@@ -2,6 +2,7 @@ import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import Modal from '../../components/Modal';
 import ProductBadges, { type ProductBadgesHandle } from './ProductBadges';
+import './ProductEditorModal.css';
 
 const tabs = [
   { key: 'main', label: 'Основное' },
@@ -101,7 +102,11 @@ export default function ProductEditorModal({
           requestAnimationFrame(() => field.focus());
         }}
       >
-        <div className="product-editor-tabs" role="tablist" aria-label="Настройки товара">
+        <div
+          className="segmented-control product-editor-tabs"
+          role="tablist"
+          aria-label="Настройки товара"
+        >
           {tabs.map(({ key, label }, index) => (
             <button
               key={key}
@@ -110,6 +115,7 @@ export default function ProductEditorModal({
               id={`${id}-${key}-tab`}
               aria-controls={`${id}-${key}-panel`}
               aria-selected={tab === key}
+              className={tab === key ? 'is-active' : undefined}
               tabIndex={tab === key ? 0 : -1}
               disabled={locked}
               onClick={() => selectTab(key)}
