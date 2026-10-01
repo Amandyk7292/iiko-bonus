@@ -257,7 +257,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                         />
                       </label>
                       <div className="pointer-events-none absolute top-2 left-2 right-16 flex flex-col items-start gap-1">
-                        <ProductPhotoSticker badges={p.badges} size={64} />
+                        <ProductPhotoSticker badges={p.badges} size={44} />
                         <ProductBadgeChips badges={p.badges} />
                         {isHidden && (
                           <span className="px-2 py-0.5 bg-gray-800/70 text-white text-[10px] font-medium rounded-md">

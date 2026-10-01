@@ -53,6 +53,39 @@ test('sticker migration preserves all three text badges and has no automatic pro
     (await db.query('select badge_ids from product_badge_assignments')).rows[0].badge_ids,
     textIds,
   );
+  await db.exec(
+    fs.readFileSync('supabase/migrations/20261001100000_product_heart_sticker.sql', 'utf8'),
+  );
+  assert.deepEqual(
+    (await db.query('select badge_ids,sticker_id from product_badge_assignments')).rows[0],
+    { badge_ids: textIds, sticker_id: stickerId },
+    'updated artwork keeps the product selection and its three text badges',
+  );
+  assert.deepEqual(
+    (await db.query('select label,label_kk,image_url from product_badges where id=$1', [stickerId]))
+      .rows[0],
+    {
+      label: 'Менің таңдауым (сердце)',
+      label_kk: 'Менің таңдауым (жүрек)',
+      image_url: 'https://bulka.com.kz/assets/product-stickers/my-choice-heart-v2.png',
+    },
+  );
+  assert.deepEqual(
+    (
+      await db.query('select label,label_kk,image_url from product_badges where id=$1', [
+        'ab7f4960-35ed-4cd8-9fb6-c794d481aa85',
+      ])
+    ).rows[0],
+    {
+      label: 'Менің таңдауым (круг)',
+      label_kk: 'Менің таңдауым (шеңбер)',
+      image_url: 'https://bulka.com.kz/assets/product-stickers/my-choice-circle-v2.png',
+    },
+  );
+  assert.equal(
+    (await db.query('select count(*)::int as count from product_badges')).rows[0].count,
+    5,
+  );
   await assert.rejects(
     db.query("update product_badges set image_url='javascript:alert(1)' where id=$1", [stickerId]),
   );

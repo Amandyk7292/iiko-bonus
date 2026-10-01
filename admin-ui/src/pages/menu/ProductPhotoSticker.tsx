@@ -20,7 +20,7 @@ export function ProductStickerThumbnail({
         loading="lazy"
       />
       <div className="absolute left-0 top-0">
-        <ProductPhotoSticker badges={badges} size={32} />
+        <ProductPhotoSticker badges={badges} size={24} />
       </div>
     </div>
   );
@@ -28,7 +28,7 @@ export function ProductStickerThumbnail({
 
 export default function ProductPhotoSticker({
   badges = [],
-  size = 80,
+  size = 52,
 }: {
   badges?: ProductBadge[];
   size?: number;

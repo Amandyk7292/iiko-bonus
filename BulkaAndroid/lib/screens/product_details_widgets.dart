@@ -28,6 +28,13 @@ class _ProductPhotoHeaderState extends State<_ProductPhotoHeader> {
         final hasPhoto = reservesPhotoSpace && !_failed;
         final hasSticker = product.badges.any(ProductPhotoSticker.isSticker);
         final extent = (constraints.maxWidth * 1.16).clamp(360.0, 520.0);
+        const stickerExtent = 72.0;
+        const stickerTitleGap = 12.0;
+        final titleTop = reservesPhotoSpace
+            ? extent - 78
+            : hasSticker
+            ? 88 + stickerExtent + stickerTitleGap
+            : 88.0;
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           child: Stack(
@@ -72,27 +79,20 @@ class _ProductPhotoHeaderState extends State<_ProductPhotoHeader> {
               if (hasSticker)
                 Positioned(
                   left: 16,
-                  top: 78,
-                  right: 144,
+                  top: titleTop - stickerExtent - stickerTitleGap,
+                  width: stickerExtent,
+                  height: stickerExtent,
                   child: ProductPhotoSticker(
                     badges: product.badges,
-                    size: reservesPhotoSpace ? 120 : 80,
+                    size: stickerExtent,
                   ),
                 ),
               Padding(
-                padding: EdgeInsets.fromLTRB(
-                  24,
-                  reservesPhotoSpace
-                      ? extent - 78
-                      : hasSticker
-                      ? 176
-                      : 88,
-                  24,
-                  20,
-                ),
+                padding: EdgeInsets.fromLTRB(24, titleTop, 24, 20),
                 child: Align(
                   alignment: Alignment.center,
                   child: Text(
+                    key: const ValueKey('product-photo-title'),
                     product.title,
                     textAlign: TextAlign.center,
                     style: TextStyle(

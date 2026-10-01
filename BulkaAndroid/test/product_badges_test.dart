@@ -38,7 +38,7 @@ void main() {
         const MaterialApp(
           home: Scaffold(
             body: SizedBox(
-              width: 60,
+              width: 40,
               child: ProductPhotoSticker(
                 badges: [
                   {
@@ -54,7 +54,7 @@ void main() {
       );
       expect(
         tester.getSize(find.byKey(const ValueKey('product-sticker-portrait'))),
-        const Size(60, 60),
+        const Size(40, 40),
       );
       expect(tester.takeException(), isNull);
     },

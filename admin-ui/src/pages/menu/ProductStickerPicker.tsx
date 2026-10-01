@@ -118,7 +118,7 @@ export default function ProductStickerPicker({
               />
             )}
             <div className="absolute left-2 top-2">
-              <ProductPhotoSticker badges={[selected]} size={96} />
+              <ProductPhotoSticker badges={[selected]} size={64} />
             </div>
           </div>
           <figcaption className="text-sm text-gray-600">

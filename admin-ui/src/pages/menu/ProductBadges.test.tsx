@@ -26,22 +26,31 @@ it('reuses an existing badge instead of creating a new one for each product', as
   expect(request.mock.calls.some((call) => call[1]?.method === 'POST')).toBe(false);
 });
 
-it('selects the portrait sticker without replacing existing text badges and can remove it', async () => {
+it('switches between heart and round stickers without replacing text badges and can remove it', async () => {
   const sticker = {
     id: 'portrait',
-    label: 'Шамрадтың таңдауы',
+    label: 'Менің таңдауым (сердце)',
     imageUrl: 'https://example.com/sticker.png',
     background: '#782b0e',
     foreground: '#ffffff',
   };
   request.mockResolvedValue({
-    badges: [sticker, { id: 'hit', label: 'Хит', background: '#782b0e', foreground: '#ffffff' }],
+    badges: [
+      sticker,
+      {
+        ...sticker,
+        id: 'round',
+        label: 'Менің таңдауым (круг)',
+        imageUrl: 'https://example.com/round.png',
+      },
+      { id: 'hit', label: 'Хит', background: '#782b0e', foreground: '#ffffff' },
+    ],
     selected: ['hit'],
     stickerId: null,
   });
   render(<ProductBadges productId="bread" imageUrl="https://example.com/bread.jpg" />);
   const user = userEvent.setup();
-  await user.click(await screen.findByRole('button', { name: 'Шамрадтың таңдауы' }));
+  await user.click(await screen.findByRole('button', { name: 'Менің таңдауым (сердце)' }));
   expect(screen.getByLabelText('Предпросмотр стикера на товаре')).toBeVisible();
   expect(screen.getByRole('button', { name: '✓ Хит' })).toHaveAttribute('aria-pressed', 'true');
   await user.click(screen.getByRole('button', { name: 'Сохранить оформление товара' }));
@@ -50,6 +59,24 @@ it('selects the portrait sticker without replacing existing text badges and can 
       '/menu/badges/assignment',
       expect.objectContaining({
         body: JSON.stringify({ productId: 'bread', badgeIds: ['hit'], stickerId: 'portrait' }),
+      }),
+    ),
+  );
+  await user.click(screen.getByRole('button', { name: 'Менің таңдауым (круг)' }));
+  expect(screen.getByRole('button', { name: 'Менің таңдауым (сердце)' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  expect(screen.getByRole('button', { name: 'Менің таңдауым (круг)' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await user.click(screen.getByRole('button', { name: 'Сохранить оформление товара' }));
+  await waitFor(() =>
+    expect(request).toHaveBeenCalledWith(
+      '/menu/badges/assignment',
+      expect.objectContaining({
+        body: JSON.stringify({ productId: 'bread', badgeIds: ['hit'], stickerId: 'round' }),
       }),
     ),
   );

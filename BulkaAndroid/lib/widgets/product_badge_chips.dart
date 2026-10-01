@@ -45,7 +45,7 @@ class ProductBadgeChips extends StatelessWidget {
 }
 
 class ProductPhotoSticker extends StatelessWidget {
-  const ProductPhotoSticker({required this.badges, this.size = 80, super.key});
+  const ProductPhotoSticker({required this.badges, this.size = 52, super.key});
   final List<Map<String, dynamic>> badges;
   final double size;
 
