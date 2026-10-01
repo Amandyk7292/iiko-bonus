@@ -5,6 +5,18 @@ import ProductBadges from './ProductBadges';
 const request = vi.hoisted(() => vi.fn());
 vi.mock('../../lib/api', () => ({ request }));
 beforeEach(() => request.mockReset());
+it('can recover a failed load without closing the product editor', async () => {
+  request.mockRejectedValueOnce(new Error('Оформление временно недоступно')).mockResolvedValue({
+    badges: [{ id: 'hit', label: 'Хит', background: '#782b0e', foreground: '#ffffff' }],
+    selected: ['hit'],
+  });
+  const user = userEvent.setup();
+  render(<ProductBadges productId="bread" />);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Оформление временно недоступно');
+  await user.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
+  expect(await screen.findByRole('button', { name: '✓ Хит' })).toBeEnabled();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
 it('reuses an existing badge instead of creating a new one for each product', async () => {
   request.mockResolvedValue({
     badges: [{ id: 'shared', label: 'Хит', background: '#782b0e', foreground: '#ffffff' }],
@@ -102,6 +114,7 @@ it('creates a shared badge with Russian and Kazakh names', async () => {
   const onSaved = vi.fn();
   render(<ProductBadges productId="one" onSaved={onSaved} />);
   const user = userEvent.setup();
+  await user.click(screen.getByText('Создать метку'));
   await waitFor(() => expect(screen.getByLabelText('Название на русском')).toBeEnabled());
   await user.type(screen.getByLabelText('Название на русском'), 'Острое');
   await user.type(screen.getByLabelText('Название на казахском'), 'Ащы');

@@ -58,6 +58,33 @@ describe('Modal motion and accessibility', () => {
     expect(screen.queryByRole('dialog', { name: 'Проверка' })).not.toBeInTheDocument();
   });
 
+  it('skips hidden tabs, disabled fieldsets and collapsed details in the focus trap', async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <Modal open title="Товар" onClose={() => {}}>
+          <button>Видимая кнопка</button>
+          <div hidden inert>
+            <input aria-label="Скрытая вкладка" />
+          </div>
+          <fieldset disabled>
+            <button>Недоступная кнопка</button>
+          </fieldset>
+          <details>
+            <summary>Дополнительно</summary>
+            <input aria-label="Скрытое поле" />
+          </details>
+        </Modal>
+      </I18nProvider>,
+    );
+    const close = screen.getByRole('button', { name: 'Закрыть' });
+    close.focus();
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(screen.getByText('Дополнительно')).toHaveFocus();
+    await user.keyboard('{Tab}');
+    expect(close).toHaveFocus();
+  });
+
   it('keeps the page locked and parent open when a nested modal closes', () => {
     vi.useFakeTimers();
     const closeParent = vi.fn();

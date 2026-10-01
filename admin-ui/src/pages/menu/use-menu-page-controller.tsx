@@ -363,7 +363,7 @@ export function useMenuPageController({
     }
   };
 
-  const handleSaveCustom = async (e: FormEvent) => {
+  const handleSaveCustom = async (e: FormEvent, saveAppearance?: () => Promise<boolean>) => {
     e.preventDefault();
     if (!customForm.name || !customForm.price) return;
     if (normalizeFulfillmentTypes(customForm.fulfillment_types).length === 0) {
@@ -372,6 +372,7 @@ export function useMenuPageController({
     }
     setSubmitting(true);
     try {
+      if (saveAppearance && !(await saveAppearance())) return;
       await api.upsertCustomProduct(customForm);
       toast('Блюдо успешно сохранено', 'success');
       setModalOpen(false);
@@ -411,7 +412,7 @@ export function useMenuPageController({
     setEditModalOpen(true);
   };
 
-  const handleSaveProductEdit = async (e: FormEvent) => {
+  const handleSaveProductEdit = async (e: FormEvent, saveAppearance?: () => Promise<boolean>) => {
     e.preventDefault();
     if (!editingProduct) return;
     if (editForm.fulfillment_types.length === 0) {
@@ -420,6 +421,7 @@ export function useMenuPageController({
     }
     setEditSaving(true);
     try {
+      if (saveAppearance && !(await saveAppearance())) return;
       const updated: ProductOverride = {
         iiko_product_id: editingProduct.id,
         custom_name:

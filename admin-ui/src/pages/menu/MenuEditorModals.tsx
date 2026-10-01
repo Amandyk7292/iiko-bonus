@@ -1,10 +1,8 @@
-import { Copy, LoaderCircle, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { LoaderCircle, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import Modal from '../../components/Modal';
-import ProductBadges from './ProductBadges';
+import { CustomProductEditor, IikoProductEditor } from './ProductEditorForms';
 import SelectControl from '../../components/SelectControl';
 import {
-  FulfillmentTypeFields,
-  ProductFactsFields,
   builderOptionSections,
   createModifierOption,
   menuLanguages,
@@ -21,27 +19,13 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
     setCategoryEditForm,
     categoryEditSaving,
     editModalOpen,
-    setEditModalOpen,
-    editingProduct,
-    editForm,
-    setEditForm,
-    editLang,
-    setEditLang,
-    editSaving,
     modalOpen,
-    setModalOpen,
-    customForm,
-    setCustomForm,
-    submitting,
     optionsProduct,
     setOptionsProduct,
     optionsDraft,
     setOptionsDraft,
     optionsSaving,
     handleSaveCategoryEdit,
-    handleSaveCustom,
-    handleSaveProductEdit,
-    handleCopyRussianDescription,
     updateBuilderOption,
     addBuilderOption,
     removeBuilderOption,
@@ -105,181 +89,9 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
         </form>
       </Modal>
 
-      {/* Модальное окно РЕДАКТИРОВАНИЯ товара iiko */}
-      <Modal
-        open={editModalOpen}
-        onClose={() => setEditModalOpen(false)}
-        title={`Редактировать: ${editForm.name.trim() || editingProduct?.name || ''}`}
-      >
-        <form onSubmit={handleSaveProductEdit} className="modal-body form-stack">
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-            <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
-              <h4 className="text-sm font-semibold text-gray-800">Тексты</h4>
-              <div className="flex bg-gray-200 p-1 rounded-lg text-xs font-medium">
-                {(['ru', 'kk'] as const).map((l) => (
-                  <button
-                    key={l}
-                    type="button"
-                    onClick={() => setEditLang(l)}
-                    className={`px-3 py-1.5 rounded-md transition-colors ${editLang === l ? 'bg-white shadow text-amber-600' : 'text-gray-600 hover:text-gray-900'}`}
-                  >
-                    {l.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-4 space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => void handleCopyRussianDescription()}
-                  className="inline-flex min-h-11 justify-center items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm font-medium rounded-lg transition-colors border border-blue-100"
-                >
-                  <Copy aria-hidden="true" size={16} />
-                  Скопировать русское описание
-                </button>
-                <a
-                  href="https://translate.yandex.ru/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-blue-700 underline"
-                >
-                  Яндекс Переводчик
-                </a>
-              </div>
-
-              <div className="field-group">
-                <label className="field-label" htmlFor={`edit-name-${editLang}`}>
-                  Название ({editLang.toUpperCase()})
-                </label>
-                <input
-                  id={`edit-name-${editLang}`}
-                  type="text"
-                  value={
-                    editLang === 'ru' ? editForm.name : editForm.name_translations[editLang] || ''
-                  }
-                  onChange={(e) => {
-                    if (editLang === 'ru') {
-                      setEditForm({ ...editForm, name: e.target.value });
-                    } else {
-                      setEditForm({
-                        ...editForm,
-                        name_translations: {
-                          ...editForm.name_translations,
-                          [editLang]: e.target.value,
-                        },
-                      });
-                    }
-                  }}
-                  className="input-classic"
-                  placeholder={editLang === 'ru' ? 'Название товара' : 'Перевод названия'}
-                />
-              </div>
-
-              <div className="field-group">
-                <label className="field-label" htmlFor={`edit-description-${editLang}`}>
-                  Описание ({editLang.toUpperCase()})
-                </label>
-                <textarea
-                  id={`edit-description-${editLang}`}
-                  rows={3}
-                  value={
-                    editLang === 'ru'
-                      ? editForm.description
-                      : editForm.description_translations[editLang] || ''
-                  }
-                  onChange={(e) => {
-                    if (editLang === 'ru') {
-                      setEditForm({ ...editForm, description: e.target.value });
-                    } else {
-                      setEditForm({
-                        ...editForm,
-                        description_translations: {
-                          ...editForm.description_translations,
-                          [editLang]: e.target.value,
-                        },
-                      });
-                    }
-                  }}
-                  className="input-classic"
-                  placeholder={editLang === 'ru' ? 'Описание (необязательно)' : 'Перевод описания'}
-                />
-              </div>
-            </div>
-          </div>
-
-          <ProductFactsFields
-            idPrefix="edit-product"
-            value={editForm}
-            onChange={(key, value) => setEditForm((current) => ({ ...current, [key]: value }))}
-          />
-          <ProductBadges
-            key={editingProduct?.id}
-            productId={editingProduct?.id}
-            imageUrl={editForm.imageUrl || editingProduct?.imageLinks?.[0]}
-            onSaved={() => void controller.fetchMenu(true)}
-          />
-
-          <FulfillmentTypeFields
-            idPrefix="edit-fulfillment"
-            value={editForm.fulfillment_types}
-            onChange={(fulfillment_types) =>
-              setEditForm((current) => ({ ...current, fulfillment_types }))
-            }
-          />
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="field-group">
-              <label className="field-label" htmlFor="edit-price">
-                Цена (₸)
-              </label>
-              <input
-                id="edit-price"
-                type="number"
-                value={editForm.price || ''}
-                onChange={(e) => setEditForm({ ...editForm, price: Number(e.target.value) })}
-                className="input-classic"
-              />
-              <button
-                type="button"
-                className="btn-secondary mt-2"
-                disabled={editSaving}
-                onClick={() =>
-                  setEditForm((current) => ({ ...current, price: editingProduct?.price ?? 0 }))
-                }
-              >
-                Использовать цену iiko ({editingProduct?.price ?? 0} ₸)
-              </button>
-              <p className="text-sm mt-2">
-                {editForm.price === (editingProduct?.price ?? 0)
-                  ? 'После сохранения цена на сайте будет обновляться из iiko.'
-                  : 'Ручная цена действует только в онлайн-каталоге.'}{' '}
-                Цена на кассе не изменится.
-              </p>
-            </div>
-          </div>
-
-          <div className="modal-actions">
-            <button
-              type="button"
-              onClick={() => setEditModalOpen(false)}
-              className="btn-outline px-5"
-              disabled={editSaving}
-            >
-              Отмена
-            </button>
-            <button
-              type="submit"
-              disabled={editSaving}
-              className="btn-classic px-5 inline-flex items-center gap-2"
-            >
-              {editSaving && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
-              {editSaving ? 'Сохранение…' : 'Сохранить'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+      {editModalOpen && (
+        <IikoProductEditor key={controller.editingProduct?.id} controller={controller} />
+      )}
 
       <Modal
         open={Boolean(optionsProduct)}
@@ -814,110 +626,9 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
         </div>
       </Modal>
 
-      {/* Модальное окно добавления кастомного блюда */}
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={customForm.id ? `Редактировать: ${customForm.name}` : 'Добавить своё блюдо'}
-        size="xl"
-      >
-        <form onSubmit={handleSaveCustom} className="modal-body form-stack">
-          <div className="field-group">
-            <label className="field-label" htmlFor="custom-name">
-              Название блюда *
-            </label>
-            <input
-              id="custom-name"
-              type="text"
-              required
-              value={customForm.name}
-              onChange={(e) => setCustomForm({ ...customForm, name: e.target.value })}
-              className="input-classic"
-              placeholder="Например: Спец-комбо Bulka"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="field-group">
-              <label className="field-label" htmlFor="custom-price">
-                Цена (₸) *
-              </label>
-              <input
-                id="custom-price"
-                type="number"
-                required
-                value={customForm.price || ''}
-                onChange={(e) => setCustomForm({ ...customForm, price: Number(e.target.value) })}
-                className="input-classic"
-              />
-            </div>
-            <div className="field-group">
-              <label className="field-label" htmlFor="custom-category">
-                Категория
-              </label>
-              <input
-                id="custom-category"
-                type="text"
-                value={customForm.category_name}
-                onChange={(e) => setCustomForm({ ...customForm, category_name: e.target.value })}
-                className="input-classic"
-              />
-            </div>
-          </div>
-
-          <div className="field-group">
-            <label className="field-label" htmlFor="custom-description">
-              Описание
-            </label>
-            <textarea
-              id="custom-description"
-              rows={3}
-              value={customForm.description}
-              onChange={(e) => setCustomForm({ ...customForm, description: e.target.value })}
-              className="input-classic"
-            />
-          </div>
-
-          <ProductFactsFields
-            idPrefix="custom-product"
-            value={customForm}
-            onChange={(key, value) => setCustomForm((current) => ({ ...current, [key]: value }))}
-          />
-          <ProductBadges
-            key={customForm.id || 'new'}
-            productId={customForm.id}
-            imageUrl={customForm.image_url}
-            onSaved={() => void controller.fetchMenu(true)}
-          />
-
-          <FulfillmentTypeFields
-            idPrefix="custom-fulfillment"
-            value={customForm.fulfillment_types}
-            onChange={(fulfillment_types) =>
-              setCustomForm((current) => ({ ...current, fulfillment_types }))
-            }
-          />
-
-          <div className="modal-actions">
-            <button
-              type="button"
-              onClick={() => setModalOpen(false)}
-              className="btn-outline px-5"
-              disabled={submitting}
-            >
-              Отмена
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="btn-classic px-5 inline-flex items-center gap-2"
-            >
-              {submitting && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
-              {submitting ? 'Сохранение…' : 'Сохранить'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+      {modalOpen && (
+        <CustomProductEditor key={controller.customForm.id || 'new'} controller={controller} />
+      )}
     </>
   );
 }

@@ -58,10 +58,19 @@ export default function Modal({
     if (!mounted) return;
     const previous = document.activeElement as HTMLElement | null;
     const focusableSelector =
-      'a[href], button:not(:disabled), textarea:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])';
+      'a[href], button:not(:disabled), textarea:not(:disabled), input:not(:disabled), select:not(:disabled), summary, [tabindex]:not([tabindex="-1"])';
+    const isFocusable = (element: HTMLElement) =>
+      !element.closest('[hidden], [inert]') &&
+      !element.matches(':disabled') &&
+      (element.tabIndex !== -1 || element.tagName === 'SUMMARY') &&
+      !Array.from(element.closest('details:not([open])')?.children || []).some(
+        (child) => child.tagName !== 'SUMMARY' && child.contains(element),
+      );
     const timer = window.setTimeout(() => {
       const firstAutofocus = panelRef.current?.querySelector<HTMLElement>('[autofocus]');
-      const firstFocusable = panelRef.current?.querySelector<HTMLElement>(focusableSelector);
+      const firstFocusable = Array.from(
+        panelRef.current?.querySelectorAll<HTMLElement>(focusableSelector) || [],
+      ).find(isFocusable);
       (firstAutofocus ?? firstFocusable ?? closeRef.current)?.focus({ preventScroll: true });
     }, 0);
     const onKeyDown = (event: KeyboardEvent) => {
@@ -73,7 +82,7 @@ export default function Modal({
       if (event.key !== 'Tab' || !panelRef.current) return;
       const focusable = Array.from(
         panelRef.current.querySelectorAll<HTMLElement>(focusableSelector),
-      ).filter((element) => !element.hasAttribute('disabled') && element.tabIndex !== -1);
+      ).filter(isFocusable);
       if (focusable.length === 0) {
         event.preventDefault();
         closeRef.current?.focus();

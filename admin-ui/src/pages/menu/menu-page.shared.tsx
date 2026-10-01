@@ -1,4 +1,5 @@
 import { CheckCircle2 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import SelectControl from '../../components/SelectControl';
 
 export type ProductBadge = {
@@ -401,10 +402,30 @@ export const normalizeFactChoices = (
   ];
 };
 
+function FactsSection({
+  grouped,
+  title,
+  children,
+}: {
+  grouped: boolean;
+  title: string;
+  children: ReactNode;
+}) {
+  return grouped ? (
+    <details className="product-editor-disclosure">
+      <summary>{title}</summary>
+      <div className="pt-3">{children}</div>
+    </details>
+  ) : (
+    <>{children}</>
+  );
+}
+
 export function ProductFactsFields({
   value,
   onChange,
   idPrefix,
+  grouped = false,
 }: {
   value: ProductFactsDraft;
   onChange: (
@@ -412,6 +433,7 @@ export function ProductFactsFields({
     value: string | string[] | number | ProductStorageCondition[] | null | undefined,
   ) => void;
   idPrefix: string;
+  grouped?: boolean;
 }) {
   const numberField = (
     key: Exclude<
@@ -496,122 +518,128 @@ export function ProductFactsFields({
     );
     onChange('storage_conditions', next);
   };
+  const Wrapper = grouped ? 'div' : 'details';
   return (
-    <details className="form-section group">
-      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 font-semibold focus-visible:outline-2 focus-visible:outline-amber-500 [&::-webkit-details-marker]:hidden">
-        <span>Карточка товара</span>
-        <span aria-hidden="true" className="text-2xl group-open:hidden">
-          +
-        </span>
-        <span aria-hidden="true" className="hidden text-2xl group-open:inline">
-          −
-        </span>
-      </summary>
-      <p className="field-hint mb-3">
-        Все поля необязательны. Клиент увидит только заполненные данные; значения КБЖУ указываются
-        на 100 г продукта.
-      </p>
-      <div className="product-facts-number-grid">
-        {numberField('weight_grams', 'Вес, г')}
-        {numberField('calories_kcal', 'Калорийность, ккал', '0.1')}
-        {numberField('protein_grams', 'Белки, г', '0.1')}
-        {numberField('fat_grams', 'Жиры, г', '0.1')}
-        {numberField('carbs_grams', 'Углеводы, г', '0.1')}
-      </div>
-      <section className="product-storage-editor" aria-labelledby={`${idPrefix}-storage-title`}>
-        <div className="product-storage-editor__heading">
-          <strong id={`${idPrefix}-storage-title`}>Срок и условия хранения (необязательно)</strong>
-          <p>
-            Незаполненные условия не публикуются. Заполните температуру, срок и единицу, чтобы
-            показать условие клиенту.
-          </p>
+    <Wrapper className={grouped ? 'product-facts-sections' : 'form-section group'}>
+      {!grouped && (
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 font-semibold focus-visible:outline-2 focus-visible:outline-amber-500 [&::-webkit-details-marker]:hidden">
+          <span>Карточка товара</span>
+          <span aria-hidden="true" className="text-2xl group-open:hidden">
+            +
+          </span>
+          <span aria-hidden="true" className="hidden text-2xl group-open:inline">
+            −
+          </span>
+        </summary>
+      )}
+      <FactsSection grouped={grouped} title="Вес и пищевая ценность">
+        <p className="field-hint mb-3">КБЖУ — на 100 г. Пустые поля не показываются клиенту.</p>
+        <div className="product-facts-number-grid">
+          {numberField('weight_grams', 'Вес, г')}
+          {numberField('calories_kcal', 'Калорийность, ккал', '0.1')}
+          {numberField('protein_grams', 'Белки, г', '0.1')}
+          {numberField('fat_grams', 'Жиры, г', '0.1')}
+          {numberField('carbs_grams', 'Углеводы, г', '0.1')}
         </div>
-        <div className="product-storage-editor__rows">
-          {storageRows.map((condition, index) => (
-            <div className="product-storage-row" key={`${idPrefix}-storage-${index}`}>
-              <strong className="product-storage-row__title">
-                {index === 0 ? 'Условие 1 (необязательно)' : 'Условие 2 (необязательно)'}
-              </strong>
-              <div className="product-storage-row__fields">
-                <div className="field-group">
-                  <label
-                    className="field-label"
-                    htmlFor={`${idPrefix}-storage-temperature-${index}`}
-                  >
-                    Температура
-                  </label>
-                  <input
-                    id={`${idPrefix}-storage-temperature-${index}`}
-                    type="text"
-                    value={condition.temperature}
-                    onChange={(event) =>
-                      updateStorageRow(index, { temperature: event.target.value })
-                    }
-                    className="input-classic"
-                    placeholder={index === 0 ? '-18 °C' : '4±2 °C'}
-                    maxLength={40}
-                  />
-                </div>
-                <div className="field-group">
-                  <label className="field-label" htmlFor={`${idPrefix}-storage-duration-${index}`}>
-                    Срок
-                  </label>
-                  <input
-                    id={`${idPrefix}-storage-duration-${index}`}
-                    type="number"
-                    min="1"
-                    max="10000"
-                    step="1"
-                    value={condition.duration_value ?? ''}
-                    onChange={(event) =>
-                      updateStorageRow(index, {
-                        duration_value:
-                          event.target.value === '' ? undefined : Number(event.target.value),
-                      })
-                    }
-                    className="input-classic"
-                    placeholder={index === 0 ? '90' : '72'}
-                  />
-                </div>
-                <div className="field-group">
-                  <span className="field-label">Единица срока</span>
-                  <SelectControl
-                    id={`${idPrefix}-storage-unit-${index}`}
-                    value={condition.duration_unit || ''}
-                    onChange={(duration_unit) =>
-                      updateStorageRow(index, {
-                        duration_unit: duration_unit as StorageDurationUnit,
-                      })
-                    }
-                    placeholder="Выберите"
-                    ariaLabel={`Единица срока для условия ${index + 1}`}
-                    options={[
-                      { value: 'hours', label: 'Часы' },
-                      { value: 'days', label: 'Дни' },
-                      { value: 'months', label: 'Месяцы' },
-                    ]}
-                  />
+      </FactsSection>
+      <FactsSection grouped={grouped} title="Хранение">
+        <section className="product-storage-editor" aria-labelledby={`${idPrefix}-storage-title`}>
+          <div className="product-storage-editor__heading">
+            <strong id={`${idPrefix}-storage-title`}>Срок и условия хранения</strong>
+            <p>Необязательно. Заполните температуру и срок, если хотите показать их клиенту.</p>
+          </div>
+          <div className="product-storage-editor__rows">
+            {storageRows.map((condition, index) => (
+              <div className="product-storage-row" key={`${idPrefix}-storage-${index}`}>
+                <strong className="product-storage-row__title">
+                  {index === 0 ? 'Условие 1' : 'Условие 2'}
+                </strong>
+                <div className="product-storage-row__fields">
+                  <div className="field-group">
+                    <label
+                      className="field-label"
+                      htmlFor={`${idPrefix}-storage-temperature-${index}`}
+                    >
+                      Температура
+                    </label>
+                    <input
+                      id={`${idPrefix}-storage-temperature-${index}`}
+                      type="text"
+                      value={condition.temperature}
+                      onChange={(event) =>
+                        updateStorageRow(index, { temperature: event.target.value })
+                      }
+                      className="input-classic"
+                      placeholder={index === 0 ? '-18 °C' : '4±2 °C'}
+                      maxLength={40}
+                    />
+                  </div>
+                  <div className="field-group">
+                    <label
+                      className="field-label"
+                      htmlFor={`${idPrefix}-storage-duration-${index}`}
+                    >
+                      Срок
+                    </label>
+                    <input
+                      id={`${idPrefix}-storage-duration-${index}`}
+                      type="number"
+                      min="1"
+                      max="10000"
+                      step="1"
+                      value={condition.duration_value ?? ''}
+                      onChange={(event) =>
+                        updateStorageRow(index, {
+                          duration_value:
+                            event.target.value === '' ? undefined : Number(event.target.value),
+                        })
+                      }
+                      className="input-classic"
+                      placeholder={index === 0 ? '90' : '72'}
+                    />
+                  </div>
+                  <div className="field-group">
+                    <span className="field-label">Единица срока</span>
+                    <SelectControl
+                      id={`${idPrefix}-storage-unit-${index}`}
+                      value={condition.duration_unit || ''}
+                      onChange={(duration_unit) =>
+                        updateStorageRow(index, {
+                          duration_unit: duration_unit as StorageDurationUnit,
+                        })
+                      }
+                      placeholder="Выберите"
+                      ariaLabel={`Единица срока для условия ${index + 1}`}
+                      options={[
+                        { value: 'hours', label: 'Часы' },
+                        { value: 'days', label: 'Дни' },
+                        { value: 'months', label: 'Месяцы' },
+                      ]}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </section>
-      <div className="mt-4 space-y-4">
+            ))}
+          </div>
+        </section>
+      </FactsSection>
+      <FactsSection grouped={grouped} title="Аллергены">
         {choiceField(
           'allergens',
           'Аллергены',
           'Отметьте вещества, которые входят в состав товара.',
           allergenOptions,
         )}
+      </FactsSection>
+      <FactsSection grouped={grouped} title="Маркировка">
         {choiceField(
           'dietary_tags',
           'Сертификаты и маркировка',
           'Выберите значки, которые клиент увидит в карточке товара.',
           productMarkOptions,
         )}
-      </div>
-    </details>
+      </FactsSection>
+    </Wrapper>
   );
 }
 

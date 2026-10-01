@@ -62,7 +62,7 @@ export default function ProductStickerPicker({
       onSelect(badge.id);
       setName('');
       setFile(undefined);
-      onMessage('Стикер добавлен. Сохраните оформление товара, чтобы применить его.');
+      onMessage('Стикер добавлен. Сохраните товар, чтобы применить его.');
     } catch (error) {
       onMessage(error instanceof Error ? error.message : 'Не удалось загрузить стикер');
     } finally {
@@ -73,13 +73,10 @@ export default function ProductStickerPicker({
   return (
     <section className="grid min-w-0 gap-3" aria-label="Стикер на фото">
       <h3 className="font-semibold">Стикер на фото</h3>
-      <p className="text-sm text-gray-600">
-        Выберите один стикер. Он появится на фото в каталоге и карточке товара.
-      </p>
-      <div className="flex flex-wrap items-stretch gap-3">
+      <div className="product-sticker-choices">
         <button
           type="button"
-          className="btn-outline min-h-11"
+          className={`product-sticker-choice ${!selectedId ? 'is-selected' : ''}`}
           aria-pressed={!selectedId}
           onClick={() => onSelect(null)}
         >
@@ -92,12 +89,16 @@ export default function ProductStickerPicker({
             aria-label={badge.label}
             aria-pressed={badge.id === selectedId}
             onClick={() => onSelect(badge.id)}
-            className={`grid w-36 justify-items-center gap-2 rounded-xl border-2 p-3 text-sm ${badge.id === selectedId ? 'border-amber-600 bg-amber-50' : 'border-gray-200 bg-white'}`}
+            className={`product-sticker-choice ${badge.id === selectedId ? 'is-selected' : ''}`}
           >
-            <ProductPhotoSticker badges={[badge]} size={88} />
+            <ProductPhotoSticker badges={[badge]} size={64} />
             <span>
               {badge.id === selectedId ? '✓ ' : ''}
-              {badge.label}
+              {badge.label === 'Менің таңдауым (круг)'
+                ? 'Круг'
+                : badge.label === 'Менің таңдауым (сердце)'
+                  ? 'Сердце'
+                  : badge.label}
             </span>
           </button>
         ))}
@@ -105,7 +106,7 @@ export default function ProductStickerPicker({
       {selected && (
         <figure className="grid gap-2">
           <div
-            className="relative aspect-square w-full max-w-64 overflow-hidden rounded-2xl bg-amber-50"
+            className="relative aspect-square w-full max-w-40 overflow-hidden rounded-2xl bg-amber-50"
             aria-label="Предпросмотр стикера на товаре"
           >
             {imageUrl && (
@@ -118,12 +119,10 @@ export default function ProductStickerPicker({
               />
             )}
             <div className="absolute left-2 top-2">
-              <ProductPhotoSticker badges={[selected]} size={64} />
+              <ProductPhotoSticker badges={[selected]} size={40} />
             </div>
           </div>
-          <figcaption className="text-sm text-gray-600">
-            Предпросмотр. Стикер не меняет исходное фото товара.
-          </figcaption>
+          <figcaption className="text-sm text-gray-600">Так стикер выглядит на товаре.</figcaption>
         </figure>
       )}
       <details className="rounded-xl border border-gray-200 p-3">
