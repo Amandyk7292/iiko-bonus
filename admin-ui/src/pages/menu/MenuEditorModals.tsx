@@ -109,7 +109,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
       <Modal
         open={editModalOpen}
         onClose={() => setEditModalOpen(false)}
-        title={`Редактировать: ${editingProduct?.name || ''}`}
+        title={`Редактировать: ${editForm.name.trim() || editingProduct?.name || ''}`}
       >
         <form onSubmit={handleSaveProductEdit} className="modal-body form-stack">
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">

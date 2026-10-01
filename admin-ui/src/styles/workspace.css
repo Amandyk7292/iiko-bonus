@@ -254,7 +254,7 @@
   .sagi-shell .orders-table:not(.data-table-compact) > tbody > tr > td > .order-cell-content {
     min-width: 0;
     max-width: 100%;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
   }
   .sagi-shell .orders-table:not(.data-table-compact) > tbody > tr > td.order-cell-stacked {
     grid-template-columns: minmax(0, 1fr);

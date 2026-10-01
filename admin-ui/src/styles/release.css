@@ -18,7 +18,7 @@
   align-items: center;
   gap: 5px;
   margin-top: 6px;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 .inventory-conflict-message {
   color: var(--sagi-danger, #a7352f);
@@ -185,7 +185,7 @@
 .courier-activity-list small {
   margin-top: 4px;
   color: var(--sagi-muted);
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 .security-grid {
   display: grid;

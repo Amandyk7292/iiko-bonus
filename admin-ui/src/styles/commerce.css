@@ -1284,7 +1284,7 @@
 .builder-option-card h4,
 .builder-option-card p {
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 .builder-option-card h4 {
   color: var(--sagi-cocoa);

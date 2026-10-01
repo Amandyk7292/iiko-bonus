@@ -227,7 +227,9 @@
   gap: 3px;
 }
 
-.contact-admin-form-preview strong,
+.contact-admin-form-preview strong {
+  overflow-wrap: normal;
+}
 .contact-admin-form-preview small {
   overflow-wrap: anywhere;
 }

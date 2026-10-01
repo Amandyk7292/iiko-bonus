@@ -902,7 +902,7 @@
 
 .taplink-preview-link-copy strong,
 .taplink-preview-link-copy small {
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 
 .taplink-preview-link-copy strong {
