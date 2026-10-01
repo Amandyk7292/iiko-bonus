@@ -291,6 +291,6 @@
 
   .contact-admin-action-copy span {
     white-space: normal;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
   }
 }

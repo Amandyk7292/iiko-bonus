@@ -8,7 +8,7 @@
   min-width: 0;
 }
 .date-input-trigger span {
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 .date-input-trigger svg {
   flex-shrink: 0;

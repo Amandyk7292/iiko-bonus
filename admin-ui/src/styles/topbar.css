@@ -15,7 +15,7 @@
 
 .topbar-workspace .sagi-page-title {
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 
 .topbar-workspace .sagi-page-subtitle {

@@ -1009,7 +1009,7 @@
     font-weight: 750;
     max-width: 220px;
     white-space: normal;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
   }
   .status-active {
     background: #ecfdf5;
@@ -1227,7 +1227,7 @@
     color: var(--sagi-cocoa);
     font-family: var(--font-heading);
     font-size: var(--type-title);
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
   }
   .modal-description {
     max-width: 72ch;

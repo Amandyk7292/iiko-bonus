@@ -152,7 +152,7 @@
   line-height: 1.5;
   margin: 2px 0 5px;
   font-weight: 650;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 .cashier-stock-status {
   color: #327151;

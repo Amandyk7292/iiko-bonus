@@ -69,9 +69,9 @@ describe('admin production invariants', () => {
       'grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));',
     );
     expect(commerce).toMatch(
-      /\.product-fact-choice\s*>\s*span:not\(\.product-fact-check\)\s*\{[^}]*overflow-wrap:\s*anywhere;/s,
+      /\.product-fact-choice\s*>\s*span:not\(\.product-fact-check\)\s*\{[^}]*overflow-wrap:\s*normal;/s,
     );
-    expect(index).toMatch(/\.modal-title\s*\{[^}]*overflow-wrap:\s*anywhere;/s);
+    expect(index).toMatch(/\.modal-title\s*\{[^}]*overflow-wrap:\s*normal;/s);
   });
 
   it('keeps Taplink block names readable beside full-size actions', () => {

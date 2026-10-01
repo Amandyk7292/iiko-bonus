@@ -177,7 +177,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
               }
             />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            <div className="menu-products-grid">
               {filteredProducts.slice(0, displayCount).map((p) => {
                 const override = productOverrides[p.id];
                 const isHidden = Boolean(override?.is_hidden);
@@ -289,22 +289,22 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                       </p>
 
                       {/* Кнопки действий */}
-                      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                      <div className="menu-product-actions mt-3">
                         <button
                           type="button"
                           onClick={() => openEditModal(p)}
-                          className="btn-outline compact-button flex-1 gap-1 text-[12px] text-amber-700"
+                          className="btn-outline compact-button gap-1 text-[12px] text-amber-700"
                         >
                           <Pencil aria-hidden="true" size={14} />
                           Изменить
                         </button>
-                        <ProductQrButton id={p.id} name={displayName} />
                         <PriceLabelButton
                           id={p.id}
                           name={displayName}
                           price={displayPrice}
                           details={{ ...override, description: p.description }}
                         />
+                        <ProductQrButton id={p.id} name={displayName} />
                         <button
                           type="button"
                           onClick={() => void openOptionsModal(p)}

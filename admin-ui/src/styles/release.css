@@ -95,7 +95,7 @@
 .courier-card-head h3,
 .courier-card-head p {
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 .courier-card-head p {
   color: var(--sagi-muted);

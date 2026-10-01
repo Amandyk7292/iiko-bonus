@@ -15,16 +15,62 @@
 .section-heading h2,
 .page-header h1,
 .field-label {
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
-:is(.btn-classic, .btn-outline, .btn-primary, .btn-secondary) {
+:is(
+  button,
+  [role='button'],
+  [role='option'],
+  .btn-classic,
+  .btn-outline,
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger
+),
+:is(
+    button,
+    [role='button'],
+    [role='option'],
+    .btn-classic,
+    .btn-outline,
+    .btn-primary,
+    .btn-secondary,
+    .btn-danger
+  )
+  :is(span, strong, small) {
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+:is(.btn-classic, .btn-outline, .btn-primary, .btn-secondary, .btn-danger) {
   white-space: normal;
-  overflow-wrap: anywhere;
+  min-width: min-content;
   text-align: center;
   line-height: 1.4;
   min-height: 48px;
   max-width: 100%;
   gap: 8px;
+}
+.menu-products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+}
+.menu-product-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(44px, 1fr));
+  align-items: center;
+  gap: 6px;
+}
+.menu-product-actions > :is(.btn-outline, .btn-classic) {
+  grid-column: span 2;
+  width: 100%;
+}
+.menu-product-actions > :is(.icon-button, span) {
+  justify-self: start;
+}
+.menu-product-actions > [role='alert'] {
+  grid-column: 1 / -1;
 }
 :is(.btn-classic, .btn-outline, .btn-primary, .btn-secondary) svg {
   flex-shrink: 0;

@@ -894,7 +894,7 @@
 .branch-picker-option strong,
 .branch-picker-option > span > span {
   display: block;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   font-size: var(--type-body-small);
   line-height: 1.5;
 }
@@ -1059,7 +1059,7 @@
   min-width: 0;
 }
 .fulfillment-type-choice > span {
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 .product-fact-choice-group {
   min-width: 0;
@@ -1131,7 +1131,7 @@
   font-size: var(--type-caption);
   font-weight: 750;
   line-height: 1.3;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 .product-fact-check {
   width: 24px;

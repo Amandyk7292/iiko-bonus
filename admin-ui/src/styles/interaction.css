@@ -175,7 +175,7 @@
   }
   .select-control-option > span {
     min-width: 0;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
   }
   .select-control-option > svg {
     flex: 0 0 auto;
@@ -447,7 +447,7 @@
 .card h2,
 .card h3,
 .card p {
-  overflow-wrap: break-word;
+  overflow-wrap: normal;
 }
 
 @media (min-width: 1024px) {

@@ -462,7 +462,7 @@
   min-width: 0;
   font-size: var(--type-body-small);
   font-weight: 700;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 
 .taplink-color-control {
