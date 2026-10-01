@@ -56,7 +56,6 @@ extension _CatalogDataController on _CatalogScreenState {
     if (_selectedBakeryId.isEmpty && previewProductId == null) {
       _updateCatalogState(() {
         _categories = const [_catalogAllCategoryKey];
-        _apiCategoryImages = const {};
         _allProducts = const [];
         _liveProducts.value = const {};
         _isLoading = false;
@@ -118,30 +117,18 @@ extension _CatalogDataController on _CatalogScreenState {
 
       final categoryNames = <String>[_catalogAllCategoryKey];
       final categoryMap = <String, String>{};
-      final categoryImages = <String, String>{};
       for (final c in categoriesRaw) {
         final id = (c['id'] ?? '').toString();
         final name = _catalogDisplayName(c['name'] ?? '');
-        final imageUrl = (c['imageUrl'] ?? '').toString();
         if (name.isNotEmpty) {
           categoryNames.add(name);
           categoryMap[id] = name;
-          if (imageUrl.isNotEmpty) categoryImages[name] = imageUrl;
         }
       }
 
       final products = <CatalogProduct>[];
       for (final p in productsRaw) {
         products.add(_catalogProduct(p, categoryMap));
-      }
-      for (final product in products) {
-        if (product.imageUrl.trim().isNotEmpty) {
-          categoryImages.putIfAbsent(product.category, () => product.imageUrl);
-          categoryImages.putIfAbsent(
-            _catalogAllCategoryKey,
-            () => product.imageUrl,
-          );
-        }
       }
 
       _lastLiveMenu = snapshot;
@@ -152,7 +139,6 @@ extension _CatalogDataController on _CatalogScreenState {
       _updateCatalogState(() {
         _categories = categoryNames;
         _menuProfileKey = _asString(json['iikoProfile']);
-        _apiCategoryImages = categoryImages;
         _allProducts = products;
         _isLoading = false;
         _usingCachedMenu = false;
@@ -414,30 +400,18 @@ extension _CatalogDataController on _CatalogScreenState {
       final productsRaw = json['products'] as List? ?? [];
       final categoryNames = <String>[_catalogAllCategoryKey];
       final categoryMap = <String, String>{};
-      final categoryImages = <String, String>{};
       for (final value in categoriesRaw) {
         final category = _asMap(value);
         final id = _asString(category['id']);
         final name = _catalogDisplayName(category['name']);
-        final image = _asString(category['imageUrl']);
         if (name.isEmpty) continue;
         categoryNames.add(name);
         categoryMap[id] = name;
-        if (image.isNotEmpty) categoryImages[name] = image;
       }
       final products = productsRaw
           .map((value) => _catalogProduct(value, categoryMap))
           .where((product) => product.id.isNotEmpty)
           .toList();
-      for (final product in products) {
-        if (product.imageUrl.trim().isNotEmpty) {
-          categoryImages.putIfAbsent(product.category, () => product.imageUrl);
-          categoryImages.putIfAbsent(
-            _catalogAllCategoryKey,
-            () => product.imageUrl,
-          );
-        }
-      }
       if (!_isCurrentMenuRequest(revision, endpoint) || products.isEmpty) {
         return false;
       }
@@ -447,7 +421,6 @@ extension _CatalogDataController on _CatalogScreenState {
       _updateCatalogState(() {
         _categories = categoryNames;
         _menuProfileKey = _asString(json['iikoProfile']);
-        _apiCategoryImages = categoryImages;
         _allProducts = products;
         _isLoading = false;
         _usingCachedMenu = true;

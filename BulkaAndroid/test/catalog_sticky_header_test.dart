@@ -84,7 +84,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('catalog search stays pinned while category cards scroll', (
+  testWidgets('search and categories stay pinned while products scroll', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -143,13 +143,19 @@ void main() {
     await tester.pumpAndSettle();
 
     final firstCategory = find.byKey(
-      const ValueKey('catalog-category-card-Категория 0'),
+      const ValueKey('catalog-product-image-product-0'),
     );
     final search = find.byKey(const ValueKey('catalog-sticky-search'));
     final scrollView = find.byType(CustomScrollView);
     expect(firstCategory, findsOneWidget);
     expect(search, findsOneWidget);
-    expect(find.byKey(const ValueKey('catalog-category-strip')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('catalog-category-strip')),
+      findsOneWidget,
+    );
+    final categoryY = tester
+        .getTopLeft(find.byKey(const ValueKey('catalog-category-strip')))
+        .dy;
 
     await tester.drag(scrollView, const Offset(0, -700));
     await tester.pumpAndSettle();
@@ -161,203 +167,148 @@ void main() {
 
     expect(secondSearchY, moreOrLessEquals(firstSearchY, epsilon: 0.5));
     expect(firstSearchY, lessThan(150));
+    expect(
+      tester
+          .getTopLeft(find.byKey(const ValueKey('catalog-category-strip')))
+          .dy,
+      closeTo(categoryY, 0.1),
+    );
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('catalog renders category cards and opens category products', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'products open immediately and categories navigate the same page',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    final client = MockClient((request) async {
-      if (request.url.path.endsWith('/api/guest/locations')) {
-        return selectedBakeryLocationsResponse();
-      }
-      final payload = request.url.path.endsWith('/api/guest/menu')
-          ? {
-              'success': true,
-              'categories': [
-                {'id': 'buns', 'name': 'Булочки', 'imageUrl': ''},
-                {'id': 'drinks', 'name': 'Напитки', 'imageUrl': ''},
-              ],
-              'products': [
-                {
-                  'id': 'bun-1',
-                  'categoryId': 'buns',
-                  'name': 'Плюшка',
-                  'price': 500,
-                  'imageUrl': '',
-                  'onlineOrderable': true,
-                },
-                {
-                  'id': 'bun-2',
-                  'categoryId': 'buns',
-                  'name': 'Слойка',
-                  'price': 600,
-                  'imageUrl': '',
-                  'onlineOrderable': false,
-                },
-                {
-                  'id': 'drink-1',
-                  'categoryId': 'drinks',
-                  'name': 'Капучино',
-                  'price': 900,
-                  'imageUrl': '',
-                  'onlineOrderable': false,
-                },
-              ],
-            }
-          : {'success': true};
-      return http.Response(
-        jsonEncode(payload),
-        200,
-        headers: {'content-type': 'application/json; charset=utf-8'},
-      );
-    });
-    addTearDown(client.close);
+      final client = MockClient((request) async {
+        if (request.url.path.endsWith('/api/guest/locations')) {
+          return selectedBakeryLocationsResponse();
+        }
+        final payload = request.url.path.endsWith('/api/guest/menu')
+            ? {
+                'success': true,
+                'categories': [
+                  {'id': 'buns', 'name': 'Булочки', 'imageUrl': ''},
+                  {'id': 'drinks', 'name': 'Напитки', 'imageUrl': ''},
+                ],
+                'products': [
+                  {
+                    'id': 'bun-1',
+                    'categoryId': 'buns',
+                    'name': 'Плюшка',
+                    'price': 500,
+                    'imageUrl': '',
+                    'onlineOrderable': true,
+                  },
+                  {
+                    'id': 'bun-2',
+                    'categoryId': 'buns',
+                    'name': 'Слойка',
+                    'price': 600,
+                    'imageUrl': '',
+                    'onlineOrderable': false,
+                  },
+                  {
+                    'id': 'drink-1',
+                    'categoryId': 'drinks',
+                    'name': 'Капучино',
+                    'price': 900,
+                    'imageUrl': '',
+                    'onlineOrderable': false,
+                  },
+                ],
+              }
+            : {'success': true};
+        return http.Response(
+          jsonEncode(payload),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+      addTearDown(client.close);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: buildBulkaTheme(),
-        home: ChangeNotifierProvider(
-          create: (_) => CartProvider(),
-          child: CatalogScreen(
-            api: BulkaApiClient(client: client),
-            hasSelectedOrderType: true,
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildBulkaTheme(),
+          home: ChangeNotifierProvider(
+            create: (_) => CartProvider(),
+            child: CatalogScreen(
+              api: BulkaApiClient(client: client),
+              hasSelectedOrderType: true,
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    final bunsCard = find.byKey(
-      const ValueKey('catalog-category-card-Булочки'),
-    );
-    final drinksCard = find.byKey(
-      const ValueKey('catalog-category-card-Напитки'),
-    );
-    expect(bunsCard, findsOneWidget);
-    expect(drinksCard, findsOneWidget);
-    expect(find.byKey(const ValueKey('catalog-results-filter')), findsNothing);
-    expect(find.byKey(const ValueKey('catalog-category-filter')), findsNothing);
-    expect(find.byTooltip('Фильтры'), findsNothing);
-    expect(
-      find.byKey(const ValueKey('catalog-category-fallback-Напитки')),
-      findsOneWidget,
-    );
-    final categoryTitle = tester.widget<Text>(
-      find.byKey(const ValueKey('catalog-category-title-Булочки')),
-    );
-    expect(categoryTitle.style?.fontFamily, 'Montserrat');
-    expect(find.text('1 товаров'), findsNothing);
-
-    final fallbackSurface = tester.widget<ColoredBox>(
-      find
-          .descendant(
-            of: find.byKey(const ValueKey('catalog-category-fallback-Напитки')),
-            matching: find.byType(ColoredBox),
-          )
-          .first,
-    );
-    expect(fallbackSurface.color, Colors.white);
-
-    final searchField = tester.widget<TextField>(
-      find.byKey(const ValueKey('catalog-sticky-search')),
-    );
-    expect(searchField.autofillHints, isEmpty);
-    expect(searchField.autocorrect, isFalse);
-    expect(searchField.enableSuggestions, isFalse);
-
-    await tester.enterText(
-      find.byKey(const ValueKey('catalog-sticky-search')),
-      'плю',
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Результаты поиска'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('catalog-results-filter')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('catalog-fulfillment-banner-pickup')),
-      findsNothing,
-    );
-    expect(find.byType(ActionChip), findsNothing);
-    expect(find.text('1 товаров'), findsNothing);
-    await tester.enterText(
-      find.byKey(const ValueKey('catalog-sticky-search')),
-      '',
-    );
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('catalog-category-grid')), findsOneWidget);
-    expect(find.byKey(const ValueKey('catalog-results-filter')), findsNothing);
-    final cardSize = tester.getSize(bunsCard);
-    expect(cardSize.width, moreOrLessEquals(cardSize.height));
-
-    await tester.ensureVisible(bunsCard);
-    await tester.tap(bunsCard);
-    await tester.pumpAndSettle();
-
-    final categoryPage = find.byKey(
-      const ValueKey('catalog-category-page-Булочки'),
-    );
-    expect(categoryPage, findsOneWidget);
-    expect(tester.widget<Scaffold>(categoryPage).backgroundColor, Colors.white);
-    final categoryAppBar = find.descendant(
-      of: categoryPage,
-      matching: find.byType(AppBar),
-    );
-    expect(tester.widget<AppBar>(categoryAppBar).backgroundColor, Colors.white);
-    expect(
-      find.byKey(const ValueKey('catalog-category-list-Булочки')),
-      findsOneWidget,
-    );
-    expect(find.text('Плюшка'), findsOneWidget);
-    final productImage = find.byKey(
-      const ValueKey('catalog-product-image-bun-1'),
-    );
-    expect(
-      find.ancestor(of: productImage, matching: find.byType(BulkaPressScale)),
-      findsNothing,
-    );
-    expect(
-      find.ancestor(of: productImage, matching: find.byType(RepaintBoundary)),
-      findsWidgets,
-    );
-    expect(find.text('Слойка'), findsOneWidget);
-    expect(find.text('Булочки'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('catalog-category-filter')),
-      findsOneWidget,
-    );
-    final productPrice = tester.widget<Text>(find.text('500 ₸'));
-    expect(productPrice.style?.fontFamily, 'Montserrat');
-    expect(productPrice.style?.fontWeight, FontWeight.w700);
-    expect(find.bySemanticsLabel('Добавить в избранное'), findsNWidgets(2));
-    await tester.tap(find.byKey(const ValueKey('catalog-favorite-bun-1')));
-    await tester.pump();
-    expect(find.bySemanticsLabel('Удалить из избранного'), findsOneWidget);
-    expect(find.text('Капучино'), findsNothing);
-
-    await tester.tap(find.byKey(const ValueKey('catalog-category-filter')));
-    await tester.pumpAndSettle();
-    expect(find.text('Сортировка'), findsOneWidget);
-    expect(find.text('Наличие'), findsNothing);
-    expect(find.text('Только в наличии'), findsNothing);
-    await tester.tap(find.text('Применить'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Плюшка'), findsOneWidget);
-    expect(find.text('Слойка'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('catalog-category-filter')),
-      findsOneWidget,
-    );
-  });
+      expect(find.byKey(const ValueKey('catalog-category-grid')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('catalog-category-strip')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('catalog-product-image-bun-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('catalog-results-filter')),
+        findsOneWidget,
+      );
+      final search = find.byKey(const ValueKey('catalog-sticky-search'));
+      final field = tester.widget<TextField>(search);
+      expect(field.autofillHints, isEmpty);
+      expect(field.autocorrect, isFalse);
+      expect(field.enableSuggestions, isFalse);
+      await tester.enterText(search, 'плю');
+      await tester.pumpAndSettle();
+      expect(find.text('Результаты поиска'), findsOneWidget);
+      expect(find.text('Слойка'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('catalog-fulfillment-banner-pickup')),
+        findsNothing,
+      );
+      await tester.enterText(search, '');
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('catalog-category-chip-Булочки')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('catalog-category-page-Булочки')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('catalog-products-list')),
+        findsOneWidget,
+      );
+      expect(find.text('Плюшка'), findsOneWidget);
+      expect(find.text('Слойка'), findsOneWidget);
+      final image = find.byKey(const ValueKey('catalog-product-image-bun-1'));
+      expect(
+        find.ancestor(of: image, matching: find.byType(RepaintBoundary)),
+        findsWidgets,
+      );
+      final price = tester.widget<Text>(find.text('500 ₸'));
+      expect(price.style?.fontFamily, 'Montserrat');
+      expect(price.style?.fontWeight, FontWeight.w700);
+      await tester.tap(find.byKey(const ValueKey('catalog-favorite-bun-1')));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('Удалить из избранного'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('catalog-results-filter')));
+      await tester.pumpAndSettle();
+      expect(find.text('Сортировка'), findsOneWidget);
+      expect(find.text('Наличие'), findsNothing);
+      await tester.tap(find.text('Применить'));
+      await tester.pumpAndSettle();
+      expect(find.text('Плюшка'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('adding without an order type opens the required prompt', (
     tester,
@@ -413,7 +364,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final categoryCard = find.byKey(
-      const ValueKey('catalog-category-card-Булочки'),
+      const ValueKey('catalog-category-chip-Булочки'),
     );
     await tester.ensureVisible(categoryCard);
     await tester.tap(categoryCard);
@@ -442,7 +393,7 @@ void main() {
     expect(homeRequests, 1);
   });
 
-  testWidgets('catalog shows category skeletons while the menu is loading', (
+  testWidgets('catalog shows placeholders while the menu is loading', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -496,10 +447,10 @@ void main() {
       findsNothing,
     );
     final loadedCardSize = tester.getSize(
-      find.byKey(const ValueKey('catalog-category-card-Булочки')),
+      find.byKey(const ValueKey('catalog-product-image-pickup-product')),
     );
     expect(loadingCardSize.width, closeTo(loadedCardSize.width, 0.01));
-    expect(loadingCardSize.height, closeTo(loadedCardSize.height, 0.01));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('fulfillment banner keeps a long bakery address visible', (
@@ -610,7 +561,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final categoryCard = find.byKey(
-      const ValueKey('catalog-category-card-Булочки'),
+      const ValueKey('catalog-category-chip-Булочки'),
     );
     await tester.ensureVisible(categoryCard);
     await tester.tap(categoryCard);
@@ -726,7 +677,7 @@ void main() {
     await tester.pumpWidget(catalog('delivery', 1));
     await tester.pumpAndSettle();
     final categoryCard = find.byKey(
-      const ValueKey('catalog-category-card-Булочки'),
+      const ValueKey('catalog-category-chip-Булочки'),
     );
     await tester.ensureVisible(categoryCard);
     await tester.tap(categoryCard);

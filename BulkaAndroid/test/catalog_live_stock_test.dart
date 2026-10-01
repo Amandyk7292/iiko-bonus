@@ -95,12 +95,18 @@ void main() {
           await tester.pump(const Duration(milliseconds: 100));
         }
         if (manualNavigation) {
-          await tester.tap(find.text('Булочки').first);
-          await tester.pump();
-          await tester.pump(const Duration(seconds: 1));
-          await tester.tap(find.text('Плюшка').first);
-          await tester.pump();
-          await tester.pump(const Duration(seconds: 1));
+          await tester.tap(
+            find.byKey(const ValueKey('catalog-category-chip-Булочки')),
+          );
+          for (var frame = 0; frame < 8; frame++) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+          await tester.tap(
+            find.byKey(const ValueKey('catalog-product-image-bun')),
+          );
+          for (var frame = 0; frame < 8; frame++) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
         }
         expect(find.byType(ProductDetailsScreen), findsOneWidget);
         final baseline = reads;
@@ -135,7 +141,7 @@ void main() {
             await tester.pump(const Duration(milliseconds: 100));
           }
           expect(
-            find.byKey(const ValueKey('catalog-category-page-Булочки')),
+            find.byKey(const ValueKey('catalog-products-list')),
             findsOneWidget,
           );
         }
@@ -210,7 +216,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(
-      find.byKey(const ValueKey('catalog-category-card-Булочки')),
+      find.byKey(const ValueKey('catalog-category-chip-Булочки')),
     );
     await tester.pumpAndSettle();
     expect(find.byType(CatalogStockBadge), findsNothing);

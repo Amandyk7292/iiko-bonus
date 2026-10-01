@@ -82,9 +82,6 @@ class _CatalogToolsHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.child,
   });
 
-  static const compactHeight = 68.0;
-  static const expandedHeight = 124.0;
-
   final Color backgroundColor;
   final double height;
   final Widget child;
@@ -118,37 +115,17 @@ class _CatalogToolsHeaderDelegate extends SliverPersistentHeaderDelegate {
   }
 }
 
-class _CatalogCategorySkeletonStrip extends StatelessWidget {
-  const _CatalogCategorySkeletonStrip();
-
-  @override
-  Widget build(BuildContext context) {
-    const widths = [92.0, 116.0, 104.0];
-    return ExcludeSemantics(
-      child: ListView.separated(
-        key: const ValueKey('catalog-category-skeleton-strip'),
-        scrollDirection: Axis.horizontal,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: widths.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) =>
-            _CatalogSkeletonBox(width: widths[index], height: 48, radius: 16),
-      ),
-    );
-  }
-}
-
 class _CatalogCategoryChip extends StatelessWidget {
   const _CatalogCategoryChip({
     super.key,
     required this.label,
-    required this.imageUrl,
+    required this.height,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
-  final String? imageUrl;
+  final double height;
   final bool selected;
   final VoidCallback onTap;
 
@@ -169,8 +146,8 @@ class _CatalogCategoryChip extends StatelessWidget {
             child: AnimatedContainer(
               duration: BulkaMotion.duration(context, BulkaMotion.fast),
               curve: BulkaMotion.standardCurve,
-              height: 48,
-              padding: const EdgeInsets.fromLTRB(6, 5, 14, 5),
+              height: height,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 color: selected ? _bulkaYellow : scheme.surface,
                 borderRadius: BorderRadius.circular(BulkaRadii.control),
@@ -178,106 +155,23 @@ class _CatalogCategoryChip extends StatelessWidget {
                   color: selected ? _bulkaYellow : colors.cardBorder,
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: colors.surfaceCream,
-                      shape: BoxShape.circle,
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: imageUrl == null || imageUrl!.isEmpty
-                        ? Icon(
-                            Icons.grid_view_rounded,
-                            size: 18,
-                            color: colors.brandBrown,
-                          )
-                        : _NetworkImage(
-                            url: imageUrl!,
-                            fit: BoxFit.cover,
-                            semanticLabel: label,
-                          ),
+              child: Center(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selected ? _textDark : scheme.onSurface,
+                    fontSize: BulkaTypeScale.bodySmall,
+                    fontFamily: _descriptionFont,
+                    height: 1.2,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: selected ? _textDark : scheme.onSurface,
-                      fontSize: BulkaTypeScale.bodySmall,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _CatalogCategoryFallback extends StatelessWidget {
-  const _CatalogCategoryFallback({
-    required this.category,
-    required this.assetPath,
-    super.key,
-  });
-
-  final String category;
-  final String? assetPath;
-
-  IconData get _icon {
-    final normalized = category.toLowerCase();
-    if (normalized.contains('напит') ||
-        normalized.contains('кофе') ||
-        normalized.contains('чай')) {
-      return Icons.local_cafe_rounded;
-    }
-    if (normalized.contains('торт') ||
-        normalized.contains('десерт') ||
-        normalized.contains('кондитер')) {
-      return Icons.cake_rounded;
-    }
-    if (normalized.contains('печень')) return Icons.cookie_rounded;
-    if (normalized.contains('блин') || normalized.contains('бауыр')) {
-      return Icons.breakfast_dining_rounded;
-    }
-    if (normalized.contains('хлеб') ||
-        normalized.contains('булоч') ||
-        normalized.contains('круас') ||
-        normalized.contains('выпеч')) {
-      return Icons.bakery_dining_rounded;
-    }
-    if (normalized.contains('кулинар') || normalized.contains('готов')) {
-      return Icons.lunch_dining_rounded;
-    }
-    return Icons.restaurant_menu_rounded;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final brown = context.bulkaColors.brandBrown;
-    final asset = assetPath;
-    if (asset != null) {
-      return Image.asset(
-        asset,
-        fit: BoxFit.cover,
-        alignment: asset.endsWith('pickup_banner.jpg')
-            ? Alignment.centerRight
-            : Alignment.center,
-        filterQuality: FilterQuality.medium,
-      );
-    }
-    return ColoredBox(
-      color: Colors.white,
-      child: Center(
-        child: Icon(_icon, size: 64, color: brown.withValues(alpha: 0.58)),
       ),
     );
   }
@@ -352,66 +246,74 @@ class _CatalogImageQuantityControl extends StatelessWidget {
           border: Border.all(color: Colors.white, width: 2),
           boxShadow: BulkaShadows.floatingAction,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Semantics(
-              button: true,
-              label: 'catalog_decrease_quantity'.tr,
-              child: ExcludeSemantics(
-                child: IconButton(
-                  onPressed: onDecrease,
-                  tooltip: 'catalog_decrease_quantity'.tr,
-                  style: IconButton.styleFrom(
-                    minimumSize: const Size(44, 48),
-                    foregroundColor: colors.brandBrown,
-                  ),
-                  icon: const Icon(Icons.remove_rounded, size: 22),
-                ),
-              ),
-            ),
-            SizedBox(
-              width: unit.isEmpty ? 28 : 66,
-              child: BulkaValueTransition(
-                value: quantity,
-                child: Text(
-                  '${productQuantityText(quantity)}${unit.isEmpty ? '' : ' $unit'}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: _headingFont,
-                    color: colors.brandBrown,
-                    fontSize: BulkaTypeScale.body,
-                    fontWeight: FontWeight.w700,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+        child: LayoutBuilder(
+          builder: (context, constraints) => Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Semantics(
+                button: true,
+                label: 'catalog_decrease_quantity'.tr,
+                child: ExcludeSemantics(
+                  child: IconButton(
+                    onPressed: onDecrease,
+                    tooltip: 'catalog_decrease_quantity'.tr,
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size(44, 48),
+                      foregroundColor: colors.brandBrown,
+                    ),
+                    icon: const Icon(Icons.remove_rounded, size: 22),
                   ),
                 ),
               ),
-            ),
-            Semantics(
-              button: true,
-              enabled: onIncrease != null,
-              label: onIncrease == null
-                  ? 'catalog_quantity_limit_reached'.trArgs({
-                      'count': CartProvider.maxItemQuantity,
-                    })
-                  : 'catalog_increase_quantity'.tr,
-              child: ExcludeSemantics(
-                child: IconButton(
-                  onPressed: onIncrease,
-                  tooltip: onIncrease == null
-                      ? 'catalog_quantity_limit_reached'.trArgs({
-                          'count': CartProvider.maxItemQuantity,
-                        })
-                      : 'catalog_increase_quantity'.tr,
-                  style: IconButton.styleFrom(
-                    minimumSize: const Size(44, 48),
-                    foregroundColor: colors.brandBrown,
+              SizedBox(
+                width: min(
+                  unit.isEmpty ? 28.0 : 66.0,
+                  max(20.0, constraints.maxWidth - 100),
+                ),
+                child: BulkaValueTransition(
+                  value: quantity,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '${productQuantityText(quantity)}${unit.isEmpty ? '' : ' $unit'}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: _headingFont,
+                        color: colors.brandBrown,
+                        fontSize: BulkaTypeScale.body,
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
                   ),
-                  icon: const Icon(Icons.add_rounded, size: 22),
                 ),
               ),
-            ),
-          ],
+              Semantics(
+                button: true,
+                enabled: onIncrease != null,
+                label: onIncrease == null
+                    ? 'catalog_quantity_limit_reached'.trArgs({
+                        'count': CartProvider.maxItemQuantity,
+                      })
+                    : 'catalog_increase_quantity'.tr,
+                child: ExcludeSemantics(
+                  child: IconButton(
+                    onPressed: onIncrease,
+                    tooltip: onIncrease == null
+                        ? 'catalog_quantity_limit_reached'.trArgs({
+                            'count': CartProvider.maxItemQuantity,
+                          })
+                        : 'catalog_increase_quantity'.tr,
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size(44, 48),
+                      foregroundColor: colors.brandBrown,
+                    ),
+                    icon: const Icon(Icons.add_rounded, size: 22),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

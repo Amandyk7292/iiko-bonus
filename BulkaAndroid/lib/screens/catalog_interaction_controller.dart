@@ -7,16 +7,6 @@ extension _CatalogInteractionController on _CatalogScreenState {
     _ => 'catalog_pickup_menu'.tr,
   };
 
-  String get _fulfillmentSourceLabel => _orderType == 'delivery'
-      ? 'catalog_delivery_address_label'.tr
-      : 'catalog_bakery_label'.tr;
-
-  String get _fulfillmentBannerAsset => switch (_orderType) {
-    'delivery' => 'assets/order/delivery_banner.jpg',
-    'preorder' => 'assets/order/preorder_banner.jpg',
-    _ => 'assets/order/pickup_banner.jpg',
-  };
-
   Future<BakeryLocation?> _resolveDeliveryBranch(
     DeliveryAddress address,
   ) async {
@@ -43,31 +33,9 @@ extension _CatalogInteractionController on _CatalogScreenState {
     return candidates.isEmpty ? null : candidates.first.branch;
   }
 
-  List<String> get _sortedCategories {
-    final grouped = <String, List<CatalogProduct>>{};
-    for (final category in _categories) {
-      if (category == _catalogAllCategoryKey) continue;
-      grouped.putIfAbsent(category, () => <CatalogProduct>[]);
-    }
-    for (final product in _allProducts) {
-      grouped
-          .putIfAbsent(product.category, () => <CatalogProduct>[])
-          .add(product);
-    }
-    final categories = catalogCategoriesAvailableFirst(
-      grouped.entries,
-    ).map((entry) => entry.key);
-    return [_catalogAllCategoryKey, ...categories];
-  }
-
   List<CatalogProduct> get _filteredProducts {
-    final categoryProducts = _allProducts.where(
-      (product) =>
-          _selectedCategory == _catalogAllCategoryKey ||
-          product.category == _selectedCategory,
-    );
     return _applyActiveProductFilters(
-      categoryProducts,
+      _allProducts,
       includeSearch: true,
       includeFavorites: true,
     );
@@ -188,7 +156,6 @@ extension _CatalogInteractionController on _CatalogScreenState {
     _searchController.clear();
     _updateCatalogState(() {
       _searchQuery = '';
-      _selectedCategory = _catalogAllCategoryKey;
       _sort = _CatalogSort.menu;
       _dietaryFilters = const {};
       _excludedAllergens = const {};
@@ -201,43 +168,26 @@ extension _CatalogInteractionController on _CatalogScreenState {
     _updateCatalogState(() {
       _openedCategory = null;
     });
+    _pendingCategoryScroll = _catalogAllCategoryKey;
+    _scheduleCatalogScrollSync();
     _pendingClientUri = Uri(path: '/catalog');
     publishClientRoute(_pendingClientUri!, replace: true);
     return true;
   }
 
-  void _openCategoryPage(String category) {
+  void _navigateToCatalogCategory(String category) {
     if (category.trim().isEmpty) return;
+    FocusScope.of(context).unfocus();
     BulkaMotion.selection();
     _updateCatalogState(() {
-      _openedCategory = category;
+      _openedCategory = category == _catalogAllCategoryKey ? null : category;
     });
-    _pendingClientUri = _CatalogScreenState._categoryClientUri(category);
+    _pendingCategoryScroll = category;
+    _scheduleCatalogScrollSync();
+    _pendingClientUri = _openedCategory == null
+        ? Uri(path: '/catalog')
+        : _CatalogScreenState._categoryClientUri(category);
     publishClientRoute(_pendingClientUri!);
-    unawaited(_warmProductImages(_allProducts));
-  }
-
-  List<MapEntry<String, List<CatalogProduct>>> get _categoryGroups {
-    final grouped = <String, List<CatalogProduct>>{};
-    for (final category in _categories) {
-      if (category == _catalogAllCategoryKey) continue;
-      grouped.putIfAbsent(category, () => <CatalogProduct>[]);
-    }
-    for (final product in _allProducts) {
-      grouped
-          .putIfAbsent(product.category, () => <CatalogProduct>[])
-          .add(product);
-    }
-    final entries = grouped.entries
-        .where((entry) => entry.value.isNotEmpty)
-        .map(
-          (entry) => MapEntry(
-            entry.key,
-            _stopListedLast(catalogProductsAlphabetically(entry.value)),
-          ),
-        )
-        .toList();
-    return catalogCategoriesAvailableFirst(entries);
   }
 
   Future<bool> _ensureOrderTypeSelected(CatalogProduct product) async {

@@ -228,7 +228,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         await tester.tap(
-          find.byKey(const ValueKey('catalog-category-card-Булочки')),
+          find.byKey(const ValueKey('catalog-category-chip-Булочки')),
         );
         await tester.pumpAndSettle();
         await tester.tap(
@@ -322,7 +322,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         await tester.tap(
-          find.byKey(const ValueKey('catalog-category-card-Булочки')),
+          find.byKey(const ValueKey('catalog-category-chip-Булочки')),
         );
         await tester.pumpAndSettle();
         if (available) {
@@ -399,7 +399,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(
-      find.byKey(const ValueKey('catalog-category-card-Булочки')),
+      find.byKey(const ValueKey('catalog-category-chip-Булочки')),
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Плюшка'));
@@ -454,20 +454,18 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(
-      find.byKey(const ValueKey('catalog-category-card-Булочки')),
+      find.byKey(const ValueKey('catalog-category-chip-Булочки')),
     );
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 65));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('catalog-category-back')), findsOneWidget);
+    expect(find.byKey(const ValueKey('catalog-products-list')), findsOneWidget);
     await tester.tap(find.text('Плюшка'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('product-close')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('catalog-category-back')));
-    await tester.pumpAndSettle();
     await tester.tap(
-      find.byKey(const ValueKey('catalog-category-card-Напитки')),
+      find.byKey(const ValueKey('catalog-category-chip-Напитки')),
     );
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 65));
@@ -524,7 +522,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(
-      find.byKey(const ValueKey('catalog-category-card-Булочки')),
+      find.byKey(const ValueKey('catalog-category-chip-Булочки')),
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Плюшка'));

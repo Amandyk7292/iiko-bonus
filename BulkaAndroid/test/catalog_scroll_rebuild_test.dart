@@ -20,87 +20,72 @@ void main() {
     });
   });
 
-  testWidgets('category entrance finishes once and does not replay on scroll', (
-    tester,
-  ) async {
-    await _pumpCategory(tester, settleEntrance: false);
-    final row = find.byKey(const ValueKey('catalog-row-enter-Булочки-0'));
-    Finder transform() =>
-        find.descendant(of: row, matching: find.byType(Transform)).first;
-    expect(
-      tester.widget<Transform>(transform()).transform.entry(1, 3),
-      closeTo(10, 0.1),
-    );
-    await tester.pump(const Duration(milliseconds: 80));
-    expect(
-      tester.widget<Transform>(transform()).transform.entry(1, 3),
-      inExclusiveRange(0, 10),
-    );
-    await tester.pumpAndSettle();
-    _categoryScrollPosition(tester).jumpTo(30);
-    await tester.pump();
-    expect(tester.widget<Transform>(transform()).transform.entry(1, 3), 0);
-  });
+  testWidgets(
+    'products are visible immediately without an entrance animation',
+    (tester) async {
+      await _pumpCategory(tester);
+      expect(_productImage(0), findsOneWidget);
+      expect(find.byKey(const ValueKey('catalog-category-grid')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('catalog-row-enter-Булочки-0')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('search waits for typing and clearing cancels queued results', (
     tester,
   ) async {
     await _pumpCategory(tester);
-    await tester.tap(find.byKey(const ValueKey('catalog-category-back')));
-    await tester.pumpAndSettle();
     final field = find.byKey(const ValueKey('catalog-sticky-search'));
-    await tester.enterText(field, 'Булочка 03');
+    await tester.enterText(field, 'Булочка 30');
     await tester.pump(const Duration(milliseconds: 100));
     expect(
-      find.byKey(const ValueKey('catalog-product-image-bun-3')),
+      find.byKey(const ValueKey('catalog-product-image-bun-30')),
       findsNothing,
     );
     await tester.pump(const Duration(milliseconds: 100));
     expect(
-      find.byKey(const ValueKey('catalog-product-image-bun-3')),
+      find.byKey(const ValueKey('catalog-product-image-bun-30')),
       findsOneWidget,
     );
-    await tester.enterText(field, 'Булочка 04');
+    await tester.enterText(field, 'Булочка 31');
     await tester.pump(const Duration(milliseconds: 100));
     expect(
-      find.byKey(const ValueKey('catalog-product-image-bun-3')),
+      find.byKey(const ValueKey('catalog-product-image-bun-30')),
       findsOneWidget,
     );
     await tester.enterText(field, '');
     await tester.pumpAndSettle();
     await tester.pump(const Duration(milliseconds: 250));
     expect(
-      find.byKey(const ValueKey('catalog-product-image-bun-4')),
+      find.byKey(const ValueKey('catalog-product-image-bun-31')),
       findsNothing,
     );
     expect(
-      find.byKey(const ValueKey('catalog-category-card-Булочки')),
+      find.byKey(const ValueKey('catalog-category-chip-Булочки')),
       findsOneWidget,
     );
   });
 
-  testWidgets(
-    'category back keeps both pages through a directional transition',
-    (tester) async {
-      await _pumpCategory(tester);
-      await tester.tap(find.byKey(const ValueKey('catalog-category-back')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 120));
-      final root = find.byKey(const ValueKey('catalog-root'));
-      expect(
-        find.byKey(const ValueKey('catalog-category-page-Булочки')),
-        findsOneWidget,
-      );
-      expect(tester.getTopLeft(root).dx, inExclusiveRange(-100, 0));
-      await tester.pumpAndSettle();
-      expect(tester.getTopLeft(root).dx, closeTo(0, 0.1));
-      expect(
-        find.byKey(const ValueKey('catalog-category-page-Булочки')),
-        findsNothing,
-      );
-      expect(tester.takeException(), isNull);
-    },
-  );
+  testWidgets('category navigation keeps the catalog on the same page', (
+    tester,
+  ) async {
+    await _pumpCategory(tester);
+    await tester.tap(
+      find.byKey(const ValueKey('catalog-category-chip-Булочки')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('catalog-root')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('catalog-category-page-Булочки')),
+      findsNothing,
+    );
+    expect(find.byKey(const ValueKey('catalog-category-back')), findsNothing);
+    expect(find.byKey(const ValueKey('catalog-sticky-search')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('category scrolling keeps existing product widgets', (
     tester,
@@ -196,18 +181,13 @@ double _imageTop(WidgetTester tester, int index) =>
     tester.getTopLeft(_productImage(index)).dy;
 
 ScrollPosition _categoryScrollPosition(WidgetTester tester) => tester
-    .state<ScrollableState>(
-      find.descendant(
-        of: find.byKey(const ValueKey('catalog-category-list-Булочки')),
-        matching: find.byType(Scrollable),
-      ),
+    .widget<CustomScrollView>(
+      find.byKey(const ValueKey('catalog-products-list')),
     )
+    .controller!
     .position;
 
-Future<CartProvider> _pumpCategory(
-  WidgetTester tester, {
-  bool settleEntrance = true,
-}) async {
+Future<CartProvider> _pumpCategory(WidgetTester tester) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -259,13 +239,5 @@ Future<CartProvider> _pumpCategory(
     ),
   );
   await tester.pumpAndSettle();
-  final category = find.byKey(const ValueKey('catalog-category-card-Булочки'));
-  await tester.ensureVisible(category);
-  await tester.tap(category);
-  if (settleEntrance) {
-    await tester.pumpAndSettle();
-  } else {
-    await tester.pump();
-  }
   return cart;
 }
