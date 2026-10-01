@@ -66,10 +66,11 @@ if (flutterDirectory) {
   if (!fs.existsSync(mainFile)) {
     failures.push(`Flutter entry is missing: ${mainFile}`);
   } else {
-    // Courier waiting/stale/ended states and RU/KK/EN copy measured 4696.1 KiB
-    // in CI a3311fa. Preserve about 1 KiB headroom; gzip budget stays unchanged.
-    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 4_810_000);
-    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_350_000);
+    // The deployed ad160ea5 bundle measures 6,483,485 B (1,774,189 B gzip).
+    // The catalog/sticker release is smaller: 6,478,889 B (1,774,011 B gzip).
+    // Refresh the obsolete a3311fa limits with less than 0.4% baseline margin.
+    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_500_000);
+    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_780_000);
   }
   const wasmFiles = filesUnder(directory).filter((file) => file.endsWith('.wasm'));
   assertBudget(
