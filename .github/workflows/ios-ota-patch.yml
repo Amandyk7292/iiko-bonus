@@ -105,9 +105,11 @@ jobs:
             # The portrait-sticker tree extends the same Dart-only catalog.
             # Sticker images are remote URLs; bundled assets, native files,
             # dependencies and the 206 remaining icon names are unchanged.
+            # The compact-sticker tree changes only Dart layout and tests.
+            # Heart and round images are served remotely, with no new glyphs.
             # Fail closed for any other app source tree.
             app_tree="$(git rev-parse HEAD:BulkaAndroid)"
-            if [[ "$RELEASE_VERSION" != "1.0.8+43" || ( "$app_tree" != "331e27c5be695c563afd994aa9d671baa6953383" && "$app_tree" != "d13fc91eea0b037729d30e3d546fa167ebcf3d04" && "$app_tree" != "8037529cf4445048576986bceb6c6e59b8a54d54" ) ]]; then
+            if [[ "$RELEASE_VERSION" != "1.0.8+43" || ( "$app_tree" != "331e27c5be695c563afd994aa9d671baa6953383" && "$app_tree" != "d13fc91eea0b037729d30e3d546fa167ebcf3d04" && "$app_tree" != "8037529cf4445048576986bceb6c6e59b8a54d54" && "$app_tree" != "262c4237d3af415211622c18c95d301e97d74f06" ) ]]; then
               echo "::error::Icon-removal exception requires the reviewed 1.0.8+43 app tree."
               exit 1
             fi
