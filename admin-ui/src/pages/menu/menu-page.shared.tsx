@@ -7,6 +7,7 @@ export type ProductBadge = {
   labelKk?: string;
   background: string;
   foreground: string;
+  imageUrl?: string;
 };
 
 export interface IikoProduct {

@@ -531,6 +531,15 @@ app.use(
     index: false,
   }),
 );
+app.use(
+  '/assets/product-stickers',
+  express.static(path.join(process.cwd(), 'public/assets/product-stickers'), {
+    maxAge: '1y',
+    immutable: true,
+    index: false,
+    fallthrough: false,
+  }),
+);
 // Explicit API, admin, wallet and legacy routes are registered above, so
 // only Flutter assets fall through to this static middleware.
 app.use(express.static(publicAppDirectory, { setHeaders: appStaticHeaders }));

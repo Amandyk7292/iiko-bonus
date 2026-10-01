@@ -217,6 +217,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
           <ProductBadges
             key={editingProduct?.id}
             productId={editingProduct?.id}
+            imageUrl={editForm.imageUrl || editingProduct?.imageLinks?.[0]}
             onSaved={() => void controller.fetchMenu(true)}
           />
 
@@ -885,6 +886,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
           <ProductBadges
             key={customForm.id || 'new'}
             productId={customForm.id}
+            imageUrl={customForm.image_url}
             onSaved={() => void controller.fetchMenu(true)}
           />
 

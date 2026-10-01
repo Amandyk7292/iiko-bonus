@@ -13,17 +13,57 @@ it('reuses an existing badge instead of creating a new one for each product', as
   render(<ProductBadges productId="product-two" />);
   const user = userEvent.setup();
   await user.click(await screen.findByRole('button', { name: 'Хит' }));
-  await user.click(screen.getByRole('button', { name: 'Сохранить метки товара' }));
+  await user.click(screen.getByRole('button', { name: 'Сохранить оформление товара' }));
   await waitFor(() =>
     expect(request).toHaveBeenCalledWith(
       '/menu/badges/assignment',
       expect.objectContaining({
         method: 'PUT',
-        body: JSON.stringify({ productId: 'product-two', badgeIds: ['shared'] }),
+        body: JSON.stringify({ productId: 'product-two', badgeIds: ['shared'], stickerId: null }),
       }),
     ),
   );
   expect(request.mock.calls.some((call) => call[1]?.method === 'POST')).toBe(false);
+});
+
+it('selects the portrait sticker without replacing existing text badges and can remove it', async () => {
+  const sticker = {
+    id: 'portrait',
+    label: 'Шамрадтың таңдауы',
+    imageUrl: 'https://example.com/sticker.png',
+    background: '#782b0e',
+    foreground: '#ffffff',
+  };
+  request.mockResolvedValue({
+    badges: [sticker, { id: 'hit', label: 'Хит', background: '#782b0e', foreground: '#ffffff' }],
+    selected: ['hit'],
+    stickerId: null,
+  });
+  render(<ProductBadges productId="bread" imageUrl="https://example.com/bread.jpg" />);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: 'Шамрадтың таңдауы' }));
+  expect(screen.getByLabelText('Предпросмотр стикера на товаре')).toBeVisible();
+  expect(screen.getByRole('button', { name: '✓ Хит' })).toHaveAttribute('aria-pressed', 'true');
+  await user.click(screen.getByRole('button', { name: 'Сохранить оформление товара' }));
+  await waitFor(() =>
+    expect(request).toHaveBeenCalledWith(
+      '/menu/badges/assignment',
+      expect.objectContaining({
+        body: JSON.stringify({ productId: 'bread', badgeIds: ['hit'], stickerId: 'portrait' }),
+      }),
+    ),
+  );
+  await user.click(screen.getByRole('button', { name: 'Без стикера' }));
+  await user.click(screen.getByRole('button', { name: 'Сохранить оформление товара' }));
+  await waitFor(() =>
+    expect(request).toHaveBeenCalledWith(
+      '/menu/badges/assignment',
+      expect.objectContaining({
+        body: JSON.stringify({ productId: 'bread', badgeIds: ['hit'], stickerId: null }),
+      }),
+    ),
+  );
+  expect(screen.queryByLabelText('Предпросмотр стикера на товаре')).not.toBeInTheDocument();
 });
 
 it('creates a shared badge with Russian and Kazakh names', async () => {
@@ -43,6 +83,44 @@ it('creates a shared badge with Russian and Kazakh names', async () => {
   const post = request.mock.calls.find((call) => call[1]?.method === 'POST');
   expect(JSON.parse(post![1].body)).toMatchObject({ label: 'Острое', labelKk: 'Ащы' });
   expect(await screen.findByRole('button', { name: 'Острое' })).toBeVisible();
+});
+
+it('uploads a transparent sticker to the shared catalog and selects it for this product', async () => {
+  URL.createObjectURL = vi.fn(() => 'blob:sticker-preview');
+  URL.revokeObjectURL = vi.fn();
+  request.mockImplementation(async (path, options) => {
+    if (path === '/menu/upload-image') return { imageUrl: 'https://example.com/uploaded.png' };
+    if (options?.method === 'POST')
+      return { badge: { id: 'uploaded', ...JSON.parse(options.body) } };
+    return { badges: [], selected: [] };
+  });
+  render(<ProductBadges productId="bread" />);
+  const user = userEvent.setup();
+  await waitFor(() => expect(screen.getByLabelText('Название стикера')).toBeEnabled());
+  await user.click(screen.getByText('Добавить свой стикер'));
+  await user.type(screen.getByLabelText('Название стикера'), 'Выбор пекаря');
+  await user.upload(
+    screen.getByLabelText('Изображение стикера'),
+    new File(['png'], 'sticker.png', { type: 'image/png' }),
+  );
+  await user.click(screen.getByRole('button', { name: 'Добавить стикер' }));
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Выбор пекаря' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    ),
+  );
+  const upload = request.mock.calls.find(([path]) => path === '/menu/upload-image');
+  expect(upload![1].body).toBeInstanceOf(FormData);
+  await user.click(screen.getByRole('button', { name: 'Сохранить оформление товара' }));
+  await waitFor(() =>
+    expect(request).toHaveBeenCalledWith(
+      '/menu/badges/assignment',
+      expect.objectContaining({
+        body: JSON.stringify({ productId: 'bread', badgeIds: [], stickerId: 'uploaded' }),
+      }),
+    ),
+  );
 });
 
 it('loads both names when editing and allows clearing the Kazakh translation', async () => {

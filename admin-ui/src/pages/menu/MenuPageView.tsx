@@ -30,6 +30,7 @@ import type { MenuPageController } from './use-menu-page-controller';
 import MenuEditorModals from './MenuEditorModals';
 import MenuCategoryMove from './MenuCategoryMove';
 import ProductBadgeChips from './ProductBadgeChips';
+import ProductPhotoSticker, { ProductStickerThumbnail } from './ProductPhotoSticker';
 
 export default function MenuPageView({ controller }: { controller: MenuPageController }) {
   const {
@@ -256,6 +257,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                         />
                       </label>
                       <div className="pointer-events-none absolute top-2 left-2 right-16 flex flex-col items-start gap-1">
+                        <ProductPhotoSticker badges={p.badges} size={64} />
                         <ProductBadgeChips badges={p.badges} />
                         {isHidden && (
                           <span className="px-2 py-0.5 bg-gray-800/70 text-white text-[10px] font-medium rounded-md">
@@ -523,18 +525,11 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
                         {cp.image_url && (
-                          <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0">
-                            {cp.image_url ? (
-                              <img
-                                src={cp.image_url}
-                                alt={cp.name}
-                                className="w-full h-full object-cover"
-                                width="160"
-                                height="120"
-                                loading="lazy"
-                              />
-                            ) : null}
-                          </div>
+                          <ProductStickerThumbnail
+                            imageUrl={cp.image_url}
+                            name={cp.name}
+                            badges={cp.badges}
+                          />
                         )}
                         <div>
                           <h3 className="font-semibold text-gray-900 text-sm">{cp.name}</h3>

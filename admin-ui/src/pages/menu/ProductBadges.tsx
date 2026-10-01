@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react';
 import { request } from '../../lib/api';
 import type { ProductBadge as Badge } from './menu-page.shared';
+import ProductStickerPicker from './ProductStickerPicker';
 export default function ProductBadges({
   productId,
+  imageUrl,
   onSaved,
 }: {
   productId?: string;
+  imageUrl?: string;
   onSaved?: () => void;
 }) {
   const [badges, setBadges] = useState<Badge[]>([]),
     [selected, setSelected] = useState<string[]>([]);
+  const [stickerId, setStickerId] = useState<string | null>(null);
   const [editing, setEditing] = useState<string>(),
     [label, setLabel] = useState(''),
     [labelKk, setLabelKk] = useState(''),
@@ -21,13 +25,15 @@ export default function ProductBadges({
   useEffect(() => {
     let active = true;
     setLoaded(false);
-    request<{ badges: Badge[]; selected: string[] }>(
+    setMessage('');
+    request<{ badges: Badge[]; selected: string[]; stickerId?: string | null }>(
       `/menu/badges${productId ? `?productId=${encodeURIComponent(productId)}` : ''}`,
     )
       .then((data) => {
         if (active) {
           setBadges(data.badges);
           setSelected(data.selected);
+          setStickerId(data.stickerId || null);
           setLoaded(true);
         }
       })
@@ -73,9 +79,9 @@ export default function ProductBadges({
       await request('/menu/badges/assignment', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId, badgeIds: selected }),
+        body: JSON.stringify({ productId, badgeIds: selected, stickerId }),
       });
-      setMessage('Метки товара сохранены');
+      setMessage('Оформление товара сохранено');
       onSaved?.();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Не удалось сохранить');
@@ -85,56 +91,68 @@ export default function ProductBadges({
   }
   return (
     <fieldset className="card p-4 grid gap-3" disabled={busy || !loaded}>
-      <legend>Метки на карточке товара</legend>
+      <legend>Стикер и метки товара</legend>
+      <ProductStickerPicker
+        badges={badges}
+        selectedId={stickerId}
+        imageUrl={imageUrl}
+        onSelect={setStickerId}
+        onCreated={(badge) => setBadges((current) => [...current, badge])}
+        onBusy={setBusy}
+        onMessage={setMessage}
+      />
+      <h3 className="font-semibold">Текстовые метки</h3>
       <p>
         До трёх меток. Созданные метки доступны для всех товаров. Изменение цвета или названия
         применяется везде.
       </p>
       <div className="flex flex-wrap gap-2">
-        {badges.map((b) => (
-          <span key={b.id} className="inline-flex gap-1 items-center">
-            <button
-              type="button"
-              aria-pressed={selected.includes(b.id)}
-              style={{
-                background: b.background,
-                color: b.foreground,
-                borderRadius: 12,
-                padding: '8px 12px',
-                border: selected.includes(b.id) ? '3px solid #111' : '3px solid transparent',
-              }}
-              onClick={() =>
-                setSelected((ids) =>
-                  ids.includes(b.id)
-                    ? ids.filter((id) => id !== b.id)
-                    : ids.length < 3
-                      ? [...ids, b.id]
-                      : ids,
-                )
-              }
-            >
-              {selected.includes(b.id) ? '✓ ' : ''}
-              {b.label}
-            </button>
-            <button
-              type="button"
-              aria-label={`Изменить метку ${b.label}`}
-              onClick={() => {
-                setEditing(b.id);
-                setLabel(b.label);
-                setLabelKk(b.labelKk || '');
-                setBackground(b.background);
-                setForeground(b.foreground);
-              }}
-            >
-              ✎
-            </button>
-          </span>
-        ))}
+        {badges
+          .filter((badge) => !badge.imageUrl)
+          .map((b) => (
+            <span key={b.id} className="inline-flex gap-1 items-center">
+              <button
+                type="button"
+                aria-pressed={selected.includes(b.id)}
+                style={{
+                  background: b.background,
+                  color: b.foreground,
+                  borderRadius: 12,
+                  padding: '8px 12px',
+                  border: selected.includes(b.id) ? '3px solid #111' : '3px solid transparent',
+                }}
+                onClick={() =>
+                  setSelected((ids) =>
+                    ids.includes(b.id)
+                      ? ids.filter((id) => id !== b.id)
+                      : ids.length < 3
+                        ? [...ids, b.id]
+                        : ids,
+                  )
+                }
+              >
+                {selected.includes(b.id) ? '✓ ' : ''}
+                {b.label}
+              </button>
+              <button
+                type="button"
+                aria-label={`Изменить метку ${b.label}`}
+                onClick={() => {
+                  setEditing(b.id);
+                  setLabel(b.label);
+                  setLabelKk(b.labelKk || '');
+                  setBackground(b.background);
+                  setForeground(b.foreground);
+                }}
+              >
+                ✎
+              </button>
+            </span>
+          ))}
       </div>
       {productId ? (
         <button type="button" className="btn-outline" onClick={() => void saveSelection()}>
-          Сохранить метки товара
+          Сохранить оформление товара
         </button>
       ) : (
         <p>Сначала сохраните товар, затем откройте его редактирование для выбора меток.</p>

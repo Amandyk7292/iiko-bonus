@@ -7,12 +7,13 @@ function badgeDto(row, language = 'ru') {
     labelKk,
     background: row.background,
     foreground: row.foreground,
+    ...(row.image_url ? { imageUrl: row.image_url } : {}),
   };
 }
 async function badgeCatalog(db = supabase) {
   const { data, error } = await db
     .from('product_badges')
-    .select('id,label,label_kk,background,foreground')
+    .select('id,label,label_kk,background,foreground,image_url')
     .order('label')
     .limit(300);
   if (error) throw error;
@@ -21,7 +22,7 @@ async function badgeCatalog(db = supabase) {
 async function publicBadgeMap(db = supabase, language = 'ru') {
   const [badges, assignments] = await Promise.all([
     badgeCatalog(db),
-    db.from('product_badge_assignments').select('product_id,badge_ids').limit(10000),
+    db.from('product_badge_assignments').select('product_id,badge_ids,sticker_id').limit(10000),
   ]);
   if (assignments.error) throw assignments.error;
   const byId = new Map(
@@ -33,7 +34,7 @@ async function publicBadgeMap(db = supabase, language = 'ru') {
   return new Map(
     (assignments.data || []).map((row) => [
       row.product_id,
-      row.badge_ids.map((id) => byId.get(id)).filter(Boolean),
+      [...(row.badge_ids || []), row.sticker_id].map((id) => byId.get(id)).filter(Boolean),
     ]),
   );
 }

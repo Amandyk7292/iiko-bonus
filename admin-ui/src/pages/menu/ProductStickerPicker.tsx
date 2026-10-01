@@ -1,0 +1,187 @@
+import { useEffect, useId, useState } from 'react';
+import { request } from '../../lib/api';
+import type { ProductBadge } from './menu-page.shared';
+import ProductPhotoSticker from './ProductPhotoSticker';
+
+export default function ProductStickerPicker({
+  badges,
+  selectedId,
+  imageUrl,
+  onSelect,
+  onCreated,
+  onBusy,
+  onMessage,
+}: {
+  badges: ProductBadge[];
+  selectedId: string | null;
+  imageUrl?: string;
+  onSelect: (id: string | null) => void;
+  onCreated: (badge: ProductBadge) => void;
+  onBusy: (busy: boolean) => void;
+  onMessage: (message: string) => void;
+}) {
+  const id = useId();
+  const [name, setName] = useState('');
+  const [file, setFile] = useState<File>();
+  const [preview, setPreview] = useState('');
+  const stickers = badges.filter((badge) => badge.imageUrl);
+  const selected = stickers.find((badge) => badge.id === selectedId);
+  useEffect(() => {
+    if (!file) {
+      setPreview('');
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  async function createSticker() {
+    if (!file || !name.trim()) return;
+    onBusy(true);
+    onMessage('Загружаем стикер…');
+    try {
+      const body = new FormData();
+      body.append('image', file);
+      const uploaded = await request<{ imageUrl: string }>('/menu/upload-image', {
+        method: 'POST',
+        body,
+      });
+      const { badge } = await request<{ badge: ProductBadge }>('/menu/badges', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: name.trim(),
+          labelKk: name.trim(),
+          imageUrl: uploaded.imageUrl,
+          background: '#782b0e',
+          foreground: '#ffffff',
+        }),
+      });
+      onCreated(badge);
+      onSelect(badge.id);
+      setName('');
+      setFile(undefined);
+      onMessage('Стикер добавлен. Сохраните оформление товара, чтобы применить его.');
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : 'Не удалось загрузить стикер');
+    } finally {
+      onBusy(false);
+    }
+  }
+
+  return (
+    <section className="grid min-w-0 gap-3" aria-label="Стикер на фото">
+      <h3 className="font-semibold">Стикер на фото</h3>
+      <p className="text-sm text-gray-600">
+        Выберите один стикер. Он появится на фото в каталоге и карточке товара.
+      </p>
+      <div className="flex flex-wrap items-stretch gap-3">
+        <button
+          type="button"
+          className="btn-outline min-h-11"
+          aria-pressed={!selectedId}
+          onClick={() => onSelect(null)}
+        >
+          Без стикера
+        </button>
+        {stickers.map((badge) => (
+          <button
+            key={badge.id}
+            type="button"
+            aria-label={badge.label}
+            aria-pressed={badge.id === selectedId}
+            onClick={() => onSelect(badge.id)}
+            className={`grid w-36 justify-items-center gap-2 rounded-xl border-2 p-3 text-sm ${badge.id === selectedId ? 'border-amber-600 bg-amber-50' : 'border-gray-200 bg-white'}`}
+          >
+            <ProductPhotoSticker badges={[badge]} size={88} />
+            <span>
+              {badge.id === selectedId ? '✓ ' : ''}
+              {badge.label}
+            </span>
+          </button>
+        ))}
+      </div>
+      {selected && (
+        <figure className="grid gap-2">
+          <div
+            className="relative aspect-square w-full max-w-64 overflow-hidden rounded-2xl bg-amber-50"
+            aria-label="Предпросмотр стикера на товаре"
+          >
+            {imageUrl && (
+              <img
+                src={imageUrl}
+                alt="Фото товара"
+                width="256"
+                height="256"
+                className="h-full w-full object-cover"
+              />
+            )}
+            <div className="absolute left-2 top-2">
+              <ProductPhotoSticker badges={[selected]} size={96} />
+            </div>
+          </div>
+          <figcaption className="text-sm text-gray-600">
+            Предпросмотр. Стикер не меняет исходное фото товара.
+          </figcaption>
+        </figure>
+      )}
+      <details className="rounded-xl border border-gray-200 p-3">
+        <summary className="cursor-pointer py-2 font-medium">Добавить свой стикер</summary>
+        <div className="grid gap-3 pt-3">
+          <label htmlFor={`${id}-name`}>Название стикера</label>
+          <input
+            id={`${id}-name`}
+            className="input-classic"
+            maxLength={24}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+          <label htmlFor={`${id}-file`}>Изображение стикера</label>
+          <input
+            key={file?.name || 'empty'}
+            id={`${id}-file`}
+            type="file"
+            accept="image/png,image/webp"
+            className="input-classic"
+            onChange={(event) => {
+              const candidate = event.target.files?.[0];
+              if (!candidate) return;
+              if (
+                !['image/png', 'image/webp'].includes(candidate.type) ||
+                candidate.size > 5 * 1024 * 1024
+              ) {
+                onMessage(
+                  'Выберите PNG или WebP до 5 МБ. Для аккуратного стикера нужен прозрачный фон.',
+                );
+                event.target.value = '';
+                return;
+              }
+              setFile(candidate);
+            }}
+          />
+          <p className="text-sm text-gray-600">
+            PNG или WebP с прозрачным фоном, до 5 МБ. Стикер будет доступен для всех товаров.
+          </p>
+          {preview && (
+            <img
+              src={preview}
+              alt="Предпросмотр нового стикера"
+              width="112"
+              height="112"
+              className="object-contain"
+            />
+          )}
+          <button
+            type="button"
+            className="btn-outline min-h-11"
+            disabled={!file || !name.trim()}
+            onClick={() => void createSticker()}
+          >
+            Добавить стикер
+          </button>
+        </div>
+      </details>
+    </section>
+  );
+}

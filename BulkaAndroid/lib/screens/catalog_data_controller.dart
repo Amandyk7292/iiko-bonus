@@ -343,7 +343,7 @@ extension _CatalogDataController on _CatalogScreenState {
       dietaryTags: _productStringList(product, 'dietaryTags'),
       badges: (product['badges'] is List ? product['badges'] as List : const [])
           .whereType<Map>()
-          .take(3)
+          .take(4)
           .map((b) => Map<String, dynamic>.from(b))
           .toList(),
       searchKeywords: _productStringList(product, 'searchKeywords'),
