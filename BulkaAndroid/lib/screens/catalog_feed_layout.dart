@@ -109,6 +109,10 @@ class _CatalogFeedLayout {
   double _cardHeight(CatalogProduct product) {
     final textWidth = cardWidth - 4;
     var height = cardWidth + 10 + 6;
+    if (product.badges.any(ProductPhotoSticker.isSticker)) {
+      final badgeHeight = _textBadgeHeight(product.badges);
+      if (badgeHeight > 0) height += badgeHeight + 6;
+    }
     height += _textHeight(
       '${formatPrice(product.price)} ₸',
       const TextStyle(
@@ -167,6 +171,34 @@ class _CatalogFeedLayout {
           );
     }
     return height.ceilToDouble() + 1;
+  }
+
+  double _textBadgeHeight(List<Map<String, dynamic>> badges) {
+    var rowsHeight = 0.0, rowWidth = 0.0, rowHeight = 0.0;
+    for (final badge
+        in badges.where((b) => !ProductPhotoSticker.isSticker(b)).take(3)) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: '${badge['label'] ?? ''}',
+          style: ProductBadgeChips.textStyle,
+        ),
+        textDirection: direction,
+        textScaler: textScaler,
+        maxLines: 1,
+        ellipsis: '…',
+      )..layout(maxWidth: max(1, cardWidth - 16));
+      final chipWidth = min(cardWidth, painter.width + 16);
+      final chipHeight = painter.height + 8;
+      painter.dispose();
+      if (rowWidth > 0 && rowWidth + 4 + chipWidth > cardWidth) {
+        rowsHeight += rowHeight + 4;
+        rowWidth = 0;
+        rowHeight = 0;
+      }
+      rowWidth += (rowWidth > 0 ? 4 : 0) + chipWidth;
+      rowHeight = max(rowHeight, chipHeight);
+    }
+    return rowsHeight + rowHeight;
   }
 }
 

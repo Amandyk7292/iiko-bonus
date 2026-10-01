@@ -13,6 +13,35 @@ import 'helpers/selected_bakery_locations.dart';
 
 void main() {
   testWidgets(
+    'portrait stays clear of favorite control and opens on product details',
+    (tester) async {
+      await _pumpFeed(
+        tester,
+        richProducts: true,
+        productsPerCategory: 4,
+        size: const Size(320, 720),
+      );
+      expect(find.byType(ProductPhotoSticker), findsWidgets);
+      expect(_image(0, 0), findsOneWidget);
+      final sticker = find
+          .byKey(const ValueKey('product-sticker-portrait'))
+          .first;
+      final favorite = find.byKey(const ValueKey('catalog-favorite-p-0-0'));
+      expect(
+        tester.getRect(sticker).overlaps(tester.getRect(favorite)),
+        isFalse,
+      );
+      await tester.tap(_image(0, 0));
+      await tester.pumpAndSettle();
+      final photo = find.byKey(const ValueKey('product-photo-area'));
+      expect(
+        find.descendant(of: photo, matching: find.byType(ProductPhotoSticker)),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
     'a far category jumps into the lazy feed and all returns to top',
     (tester) async {
       await _pumpFeed(tester);
@@ -238,6 +267,16 @@ Future<CartProvider> _pumpFeed(
                           'quantityStep': p.isEven ? 0.25 : 1,
                           'inStockCount': 10,
                           'weightGrams': 200 + p,
+                          'badges': [
+                            {
+                              'id': 'portrait',
+                              'label': 'Шамрадтың таңдауы',
+                              'imageUrl': 'https://example.com/sticker.png',
+                            },
+                            {'id': 'hit', 'label': 'Хит'},
+                            {'id': 'new', 'label': 'Новинка'},
+                            {'id': 'fresh', 'label': 'Свежая выпечка'},
+                          ],
                         },
                       },
                 ],

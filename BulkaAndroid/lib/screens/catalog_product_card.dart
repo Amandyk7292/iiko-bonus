@@ -6,6 +6,7 @@ extension _CatalogProductCard on _CatalogScreenState {
     final scheme = Theme.of(context).colorScheme;
     final favorite = _favoriteProductIds.contains(product.id);
     final unavailable = product.isStopListed;
+    final hasSticker = product.badges.any(ProductPhotoSticker.isSticker);
     return Semantics(
       container: true,
       explicitChildNodes: true,
@@ -85,7 +86,9 @@ extension _CatalogProductCard on _CatalogScreenState {
                   top: 8,
                   right: 56,
                   child: IgnorePointer(
-                    child: ProductBadgeChips(badges: product.badges),
+                    child: hasSticker
+                        ? ProductPhotoSticker(badges: product.badges)
+                        : ProductBadgeChips(badges: product.badges),
                   ),
                 ),
               Positioned(
@@ -173,6 +176,13 @@ extension _CatalogProductCard on _CatalogScreenState {
             ],
           ),
           const SizedBox(height: 10),
+          if (hasSticker &&
+              product.badges.any(
+                (badge) => !ProductPhotoSticker.isSticker(badge),
+              )) ...[
+            ProductBadgeChips(badges: product.badges),
+            const SizedBox(height: 6),
+          ],
           Material(
             color: Colors.transparent,
             child: InkWell(

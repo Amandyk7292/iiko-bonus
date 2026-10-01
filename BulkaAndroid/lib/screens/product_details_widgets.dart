@@ -26,6 +26,7 @@ class _ProductPhotoHeaderState extends State<_ProductPhotoHeader> {
       builder: (context, constraints) {
         final reservesPhotoSpace = product.imageUrl.trim().isNotEmpty;
         final hasPhoto = reservesPhotoSpace && !_failed;
+        final hasSticker = product.badges.any(ProductPhotoSticker.isSticker);
         final extent = (constraints.maxWidth * 1.16).clamp(360.0, 520.0);
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -68,10 +69,24 @@ class _ProductPhotoHeaderState extends State<_ProductPhotoHeader> {
                     ),
                   ),
                 ),
+              if (hasSticker)
+                Positioned(
+                  left: 16,
+                  top: 78,
+                  right: 144,
+                  child: ProductPhotoSticker(
+                    badges: product.badges,
+                    size: reservesPhotoSpace ? 120 : 80,
+                  ),
+                ),
               Padding(
                 padding: EdgeInsets.fromLTRB(
                   24,
-                  reservesPhotoSpace ? extent - 78 : 88,
+                  reservesPhotoSpace
+                      ? extent - 78
+                      : hasSticker
+                      ? 176
+                      : 88,
                   24,
                   20,
                 ),

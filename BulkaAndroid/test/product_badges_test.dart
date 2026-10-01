@@ -3,6 +3,88 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:bulka_bonus/main.dart';
 
 void main() {
+  testWidgets(
+    'photo sticker is not rendered as a text chip and preserves three text badges',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ProductBadgeChips(
+              badges: [
+                {
+                  'id': 'portrait',
+                  'label': 'Шамрадтың таңдауы',
+                  'imageUrl': 'https://example.com/sticker.png',
+                },
+                {'label': 'Хит'},
+                {'label': 'Новинка'},
+                {'label': 'Без сахара'},
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(find.text('Шамрадтың таңдауы'), findsNothing);
+      expect(find.text('Хит'), findsOneWidget);
+      expect(find.text('Новинка'), findsOneWidget);
+      expect(find.text('Без сахара'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'portrait sticker fits a narrow photo and has an accessible label',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 60,
+              child: ProductPhotoSticker(
+                badges: [
+                  {
+                    'id': 'portrait',
+                    'label': 'Шамрадтың таңдауы',
+                    'imageUrl': 'https://example.com/sticker.png',
+                  },
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(
+        tester.getSize(find.byKey(const ValueKey('product-sticker-portrait'))),
+        const Size(60, 60),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'missing or unsafe sticker leaves the product photo unobstructed',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ProductPhotoSticker(
+              badges: [
+                {
+                  'id': 'unsafe',
+                  'label': 'Invalid',
+                  'imageUrl': 'javascript:alert(1)',
+                },
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(
+        find.byKey(const ValueKey('product-sticker-unsafe')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('product badges display configured text and colors', (
     tester,
   ) async {
