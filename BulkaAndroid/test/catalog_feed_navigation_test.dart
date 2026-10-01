@@ -12,35 +12,81 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'helpers/selected_bakery_locations.dart';
 
 void main() {
-  testWidgets(
-    'portrait stays clear of favorite control and opens on product details',
-    (tester) async {
-      await _pumpFeed(
-        tester,
-        richProducts: true,
-        productsPerCategory: 4,
-        size: const Size(320, 720),
-      );
-      expect(find.byType(ProductPhotoSticker), findsWidgets);
-      expect(_image(0, 0), findsOneWidget);
-      final sticker = find
-          .byKey(const ValueKey('product-sticker-portrait'))
-          .first;
-      final favorite = find.byKey(const ValueKey('catalog-favorite-p-0-0'));
-      expect(
-        tester.getRect(sticker).overlaps(tester.getRect(favorite)),
-        isFalse,
-      );
-      await tester.tap(_image(0, 0));
-      await tester.pumpAndSettle();
-      final photo = find.byKey(const ValueKey('product-photo-area'));
-      expect(
-        find.descendant(of: photo, matching: find.byType(ProductPhotoSticker)),
-        findsOneWidget,
-      );
-      expect(tester.takeException(), isNull);
-    },
-  );
+  for (final scenario in [
+    (size: const Size(320, 720), scale: 1.0, photo: true),
+    (size: const Size(375, 812), scale: 2.0, photo: true),
+    (size: const Size(320, 720), scale: 2.0, photo: false),
+  ]) {
+    testWidgets(
+      'sticker clears product controls and title at ${scenario.size}, scale ${scenario.scale}, photo ${scenario.photo}',
+      (tester) async {
+        await _pumpFeed(
+          tester,
+          richProducts: true,
+          productsPerCategory: 4,
+          size: scenario.size,
+          textScale: scenario.scale,
+          productImages: scenario.photo,
+        );
+        await tester.ensureVisible(_image(0, 0));
+        await tester.pump();
+        expect(find.byType(ProductPhotoSticker), findsWidgets);
+        expect(_image(0, 0), findsOneWidget);
+        final sticker = find
+            .byKey(const ValueKey('product-sticker-portrait'))
+            .first;
+        final favorite = find.byKey(const ValueKey('catalog-favorite-p-0-0'));
+        expect(
+          tester.getRect(sticker).overlaps(tester.getRect(favorite)),
+          isFalse,
+        );
+        expect(
+          tester.getSize(sticker).width / tester.getSize(_image(0, 0)).width,
+          lessThan(0.4),
+          reason:
+              'endorsement leaves the product image visible in a two-column feed',
+        );
+        await tester.tap(_image(0, 0));
+        // Image loading can keep its progress indicator ticking. Measure the
+        // completed route layout without waiting for a real network download.
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        final photo = find.byKey(const ValueKey('product-photo-area'));
+        expect(
+          find.descendant(
+            of: photo,
+            matching: find.byType(ProductPhotoSticker),
+          ),
+          findsOneWidget,
+        );
+        final detailSticker = find.descendant(
+          of: photo,
+          matching: find.byKey(const ValueKey('product-sticker-portrait')),
+        );
+        final title = find.byKey(const ValueKey('product-photo-title'));
+        final stickerRect = tester.getRect(detailSticker);
+        final photoRect = tester.getRect(photo);
+        expect(stickerRect.width / photoRect.width, lessThan(0.25));
+        expect(stickerRect.left, greaterThanOrEqualTo(photoRect.left));
+        expect(stickerRect.right, lessThanOrEqualTo(photoRect.right));
+        expect(stickerRect.top, greaterThanOrEqualTo(photoRect.top + 88));
+        expect(
+          stickerRect.bottom,
+          lessThanOrEqualTo(tester.getRect(title).top - 12),
+        );
+        for (final control in [
+          'product-share',
+          'product-favorite',
+          'product-close',
+        ]) {
+          final controlRect = tester.getRect(find.byKey(ValueKey(control)));
+          expect(stickerRect.overlaps(controlRect), isFalse);
+          expect(stickerRect.top, greaterThanOrEqualTo(controlRect.bottom));
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets(
     'a far category jumps into the lazy feed and all returns to top',
     (tester) async {
@@ -227,6 +273,7 @@ Future<CartProvider> _pumpFeed(
   double textScale = 1,
   int productsPerCategory = 24,
   bool richProducts = false,
+  bool productImages = false,
   Uri? initialUri,
 }) async {
   tester.view.physicalSize = size;
@@ -260,7 +307,9 @@ Future<CartProvider> _pumpFeed(
                             'Товар ${c.toString().padLeft(2, '0')}-${p.toString().padLeft(2, '0')}'
                             '${richProducts ? ' со сливочным маслом и начинкой из ягод' : ''}',
                         'price': 500 + p,
-                        'imageUrl': '',
+                        'imageUrl': productImages
+                            ? 'https://example.com/product.png'
+                            : '',
                         'onlineOrderable': true,
                         if (richProducts) ...{
                           'unit': p.isEven ? 'кг' : 'шт.',
@@ -270,7 +319,7 @@ Future<CartProvider> _pumpFeed(
                           'badges': [
                             {
                               'id': 'portrait',
-                              'label': 'Шамрадтың таңдауы',
+                              'label': 'Менің таңдауым',
                               'imageUrl': 'https://example.com/sticker.png',
                             },
                             {'id': 'hit', 'label': 'Хит'},
