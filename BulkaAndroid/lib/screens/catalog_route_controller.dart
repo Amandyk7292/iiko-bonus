@@ -65,6 +65,8 @@ extension _CatalogRouteController on _CatalogScreenState {
       }
       if (_openedCategory != product.category) {
         _updateCatalogState(() => _openedCategory = product!.category);
+        _pendingCategoryScroll = product.category;
+        _scheduleCatalogScrollSync();
       }
       if (!_productRouteOpen) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -91,11 +93,15 @@ extension _CatalogRouteController on _CatalogScreenState {
       }
       if (category != null && _openedCategory != category) {
         _updateCatalogState(() => _openedCategory = category);
+        _pendingCategoryScroll = category;
+        _scheduleCatalogScrollSync();
       }
       return;
     }
     if (_openedCategory != null) {
       _updateCatalogState(() => _openedCategory = null);
+      _pendingCategoryScroll = _catalogAllCategoryKey;
+      _scheduleCatalogScrollSync();
     }
   }
 

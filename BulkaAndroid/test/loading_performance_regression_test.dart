@@ -149,7 +149,7 @@ void main() {
       );
       await frames(tester);
       expect(
-        find.byKey(const ValueKey('catalog-category-title-Выпечка')),
+        find.byKey(const ValueKey('catalog-section-Выпечка')),
         findsOneWidget,
       );
       expect(cart.totalAmount, 500);
@@ -205,7 +205,7 @@ void main() {
       );
       await frames(tester);
       await tester.tap(
-        find.byKey(const ValueKey('catalog-category-card-Выпечка')),
+        find.byKey(const ValueKey('catalog-category-chip-Выпечка')),
       );
       await tester.pumpAndSettle();
       final image = find.byKey(const ValueKey('catalog-product-image-bun'));

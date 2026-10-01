@@ -25,7 +25,7 @@ class CatalogScreen extends StatefulWidget {
 }
 
 class _CatalogScreenState extends State<CatalogScreen>
-    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+    with WidgetsBindingObserver {
   static const _menuRefreshInterval = Duration(seconds: 60);
   static const _menuRetryInterval = Duration(seconds: 15);
   bool _menuScopeReady = false;
@@ -34,8 +34,18 @@ class _CatalogScreenState extends State<CatalogScreen>
 
   final _searchController = TextEditingController();
   Timer? _searchDebounce;
-  late final AnimationController _categoryEntrance;
-  double _catalogViewportHeight = 0;
+  final _catalogScrollController = ScrollController();
+  final _categoryStripController = ScrollController();
+  final _catalogFeedKey = GlobalKey();
+  final _activeCatalogCategory = ValueNotifier(_catalogAllCategoryKey);
+  final _categoryChipKeys = <String, GlobalKey>{};
+  _CatalogFeedLayout? _catalogFeedLayout;
+  double _catalogHeaderExtent = 0;
+  String? _pendingCategoryScroll;
+  bool _catalogSyncScheduled = false;
+  int _catalogJumpRevision = 0;
+  bool _catalogIsJumping = false;
+  ({String category, double offset})? _catalogClampedSelection;
   final ValueNotifier<Map<String, CatalogProduct>> _liveProducts =
       ValueNotifier(const {});
   String _selectedBakery = '';
@@ -43,7 +53,6 @@ class _CatalogScreenState extends State<CatalogScreen>
   BakeryLocation? _selectedBakeryLocation;
   DeliveryAddress? _selectedDeliveryAddress;
   String _searchQuery = '';
-  String _selectedCategory = _catalogAllCategoryKey;
   _CatalogSort _sort = _CatalogSort.menu;
   Set<String> _dietaryFilters = const {};
   Set<String> _excludedAllergens = const {};
@@ -51,7 +60,6 @@ class _CatalogScreenState extends State<CatalogScreen>
   Set<String> _configurableProductIds = const {};
   Set<String> _resolvedProductOptionIds = const {};
   bool _favoritesOnly = false;
-  Map<String, String> _apiCategoryImages = {};
   String? _openedCategory;
   double _catalogContentExtent = 0;
   bool _orderTypeDialogOpen = false;
@@ -99,11 +107,7 @@ class _CatalogScreenState extends State<CatalogScreen>
   @override
   void initState() {
     super.initState();
-    _categoryEntrance = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-      value: 1,
-    );
+    _catalogScrollController.addListener(_syncCatalogActiveCategory);
     WidgetsBinding.instance.addObserver(this);
     appLanguageNotifier.addListener(_onLanguageChanged);
     _pendingClientUri = widget.initialClientUri;
@@ -162,7 +166,6 @@ class _CatalogScreenState extends State<CatalogScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (BulkaMotion.reduced(context)) _categoryEntrance.value = 1;
     final active = TickerMode.of(context);
     if (active && !_wasActive) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _refreshIfActive());
@@ -182,14 +185,23 @@ class _CatalogScreenState extends State<CatalogScreen>
       formatUiInteger(context, price);
 
   void _updateCatalogState(VoidCallback update) {
-    final previousCategory = _openedCategory;
+    final previous = (
+      _searchQuery,
+      _favoritesOnly,
+      _sort,
+      _dietaryFilters,
+      _excludedAllergens,
+    );
     setState(update);
-    if (_openedCategory != null && _openedCategory != previousCategory) {
-      if (BulkaMotion.reduced(context)) {
-        _categoryEntrance.value = 1;
-      } else {
-        _categoryEntrance.forward(from: 0);
-      }
+    if (previous !=
+        (
+          _searchQuery,
+          _favoritesOnly,
+          _sort,
+          _dietaryFilters,
+          _excludedAllergens,
+        )) {
+      _pendingCategoryScroll = _catalogAllCategoryKey;
     }
   }
 
@@ -228,11 +240,10 @@ class _CatalogScreenState extends State<CatalogScreen>
       _productOptionsRevision++;
       _resolvedProductOptionIds = const {};
       _configurableProductIds = const {};
-      _selectedCategory = _catalogAllCategoryKey;
       _openedCategory = null;
+      _pendingCategoryScroll = _catalogAllCategoryKey;
       _categories = const [_catalogAllCategoryKey];
       _allProducts = const [];
-      _apiCategoryImages = {};
       _isLoading = true;
       _usingCachedMenu = false;
       _loadError = null;
@@ -255,7 +266,9 @@ class _CatalogScreenState extends State<CatalogScreen>
     _menuLive.dispose();
     _branchLive.dispose();
     _searchDebounce?.cancel();
-    _categoryEntrance.dispose();
+    _catalogScrollController.dispose();
+    _categoryStripController.dispose();
+    _activeCatalogCategory.dispose();
     _searchController.dispose();
     _liveProducts.dispose();
     WidgetsBinding.instance.removeObserver(this);
@@ -275,7 +288,6 @@ class _CatalogScreenState extends State<CatalogScreen>
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      _catalogViewportHeight = constraints.maxHeight;
       _catalogContentExtent = max(0.0, constraints.maxWidth - 32);
       return _buildCatalogScreen(context, _catalogContentExtent);
     },

@@ -27,6 +27,7 @@ class CatalogStockBadge extends StatelessWidget {
         style: TextStyle(
           color: low ? const Color(0xFF855016) : const Color(0xFF28633E),
           fontSize: 12,
+          fontFamily: _descriptionFont,
           fontWeight: FontWeight.w600,
           height: 1.25,
           fontFeatures: const [FontFeature.tabularFigures()],

@@ -91,7 +91,7 @@ extension _CatalogProductCard on _CatalogScreenState {
               Positioned(
                 left: 0,
                 right: 7,
-                bottom: -20,
+                bottom: 8,
                 child: AnimatedSwitcher(
                   duration: BulkaMotion.duration(
                     context,
@@ -172,7 +172,7 @@ extension _CatalogProductCard on _CatalogScreenState {
               ),
             ],
           ),
-          const SizedBox(height: 25),
+          const SizedBox(height: 10),
           Material(
             color: Colors.transparent,
             child: InkWell(
@@ -186,10 +186,12 @@ extension _CatalogProductCard on _CatalogScreenState {
                     Text(
                       '${_CatalogScreenState._formatPrice(context, product.price)} ₸',
                       maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: _descriptionFont,
                         fontWeight: FontWeight.w700,
                         fontSize: BulkaTypeScale.titleSmall,
+                        height: 1.2,
                         color: unavailable
                             ? colors.mutedText
                             : colors.brandBrown,
@@ -204,6 +206,7 @@ extension _CatalogProductCard on _CatalogScreenState {
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: BulkaTypeScale.bodySmall,
+                        fontFamily: _descriptionFont,
                         color: unavailable
                             ? colors.mutedText
                             : scheme.onSurface,
@@ -228,6 +231,8 @@ extension _CatalogProductCard on _CatalogScreenState {
                         }),
                         style: TextStyle(
                           fontSize: BulkaTypeScale.caption,
+                          fontFamily: _descriptionFont,
+                          height: 1.25,
                           fontWeight: FontWeight.w600,
                           color: colors.mutedText,
                         ),

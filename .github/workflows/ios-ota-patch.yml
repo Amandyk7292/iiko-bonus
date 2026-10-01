@@ -97,9 +97,14 @@ jobs:
             # all remaining glyphs. The audit fixes preserve the 213 icon references
             # from stable patch 17. Referral links change Dart code only; native
             # files, assets, dependencies and all 213 icon names are unchanged.
-            # Flutter analyze and all 543 tests passed on Windows.
+            # The catalog tree changes Dart and tests only compared with stable
+            # patch 19 (ce6992c2). Native code, assets, dependencies and build
+            # configuration are identical. It removes seven category icons;
+            # all 206 remaining icon names are in the installed set of 213.
+            # Keep the installed MaterialIcons font, which has every glyph.
             # Fail closed for any other app source tree.
-            if [[ "$RELEASE_VERSION" != "1.0.8+43" || "$(git rev-parse HEAD:BulkaAndroid)" != "331e27c5be695c563afd994aa9d671baa6953383" ]]; then
+            app_tree="$(git rev-parse HEAD:BulkaAndroid)"
+            if [[ "$RELEASE_VERSION" != "1.0.8+43" || ( "$app_tree" != "331e27c5be695c563afd994aa9d671baa6953383" && "$app_tree" != "d13fc91eea0b037729d30e3d546fa167ebcf3d04" ) ]]; then
               echo "::error::Icon-removal exception requires the reviewed 1.0.8+43 app tree."
               exit 1
             fi

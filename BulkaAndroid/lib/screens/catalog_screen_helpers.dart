@@ -11,41 +11,6 @@ bool catalogProductOptionsRequireDetails(Map<String, dynamic> options) {
       groups.isNotEmpty;
 }
 
-String? _catalogCategoryFallbackAsset(String category) {
-  final normalized = normalizeCatalogSearch(category);
-  if (normalized.contains('блин') ||
-      normalized.contains('бауыр') ||
-      normalized.contains('құймақ') ||
-      normalized.contains('pancake') ||
-      normalized.contains('baursak')) {
-    return 'assets/categories/category_pancakes_baursak.webp';
-  }
-  if (normalized.contains('печень') || normalized.contains('cookie')) {
-    return 'assets/categories/category_cookies.webp';
-  }
-  if (normalized.contains('торт') ||
-      normalized.contains('cake') ||
-      normalized.contains('десерт') ||
-      normalized.contains('dessert') ||
-      normalized.contains('кондитер') ||
-      normalized.contains('кулич')) {
-    return 'assets/categories/category_cake.webp';
-  }
-  if (normalized.contains('хлеб') ||
-      normalized.contains('нан') ||
-      normalized.contains('булоч') ||
-      normalized.contains('тоқаш') ||
-      normalized.contains('круас') ||
-      normalized.contains('выпеч') ||
-      normalized.contains('bread') ||
-      normalized.contains('bun') ||
-      normalized.contains('pastry') ||
-      normalized.contains('bakery')) {
-    return 'assets/order/pickup_banner.jpg';
-  }
-  return null;
-}
-
 String _catalogDisplayName(dynamic value) {
   final text = value.toString().trim().replaceAll(RegExp(r'\s+'), ' ');
   if (text.isEmpty || text == text.toLowerCase()) return text;

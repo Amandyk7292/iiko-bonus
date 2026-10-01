@@ -120,7 +120,6 @@ extension _CatalogRouteBranch on _CatalogScreenState {
         _liveProducts.value = const {};
         _categories = const [_catalogAllCategoryKey];
         _openedCategory = null;
-        _apiCategoryImages = const {};
         _isLoading = true;
         _usingCachedMenu = false;
         _loadError = null;
