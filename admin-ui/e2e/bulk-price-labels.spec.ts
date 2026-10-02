@@ -3,7 +3,8 @@ import { createRequire } from 'node:module';
 const { PDFDocument, PDFDict, PDFName } = createRequire(import.meta.url)(
   'pdf-lib/dist/pdf-lib.js',
 ) as typeof import('pdf-lib');
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
 
 test('bulk PDF uses fresh stops and prices, eight per A4, shared saved preferences', async ({
   page,
@@ -101,9 +102,64 @@ test('bulk PDF uses fresh stops and prices, eight per A4, shared saved preferenc
     return page.node.Resources()!.lookup(PDFName.of('XObject'), PDFDict).keys().length;
   });
   expect(counts).toEqual([8, 1]);
+  await dialog.getByRole('radio', { name: 'CorelDRAW (SVG)' }).check();
+  await expect(
+    dialog.getByText('Листы SVG в ZIP. Откройте в CorelDRAW для редактирования.'),
+  ).toBeVisible();
+  const corelReady = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Скачать для CorelDRAW' }).click();
+  const corelDownload = await corelReady;
+  expect(corelDownload.suggestedFilename()).toMatch(/Актау.*-corel\.zip$/);
+  const corelPath = info.outputPath('bulk-labels-corel.zip');
+  await corelDownload.saveAs(corelPath);
+  // Python's independent ZIP reader checks CRC, directory offsets and UTF-8 contents.
+  const entries = JSON.parse(
+    execFileSync(
+      process.env.PYTHON || 'python',
+      [
+        '-c',
+        'import json,sys,zipfile\nwith zipfile.ZipFile(sys.argv[1]) as z:\n assert z.testzip() is None\n print(json.dumps([{"entryName":n,"source":z.read(n).decode("utf-8")} for n in z.namelist()]))',
+        corelPath,
+      ],
+      { encoding: 'utf8' },
+    ),
+  ) as { entryName: string; source: string }[];
+  expect(entries.map((entry) => entry.entryName)).toEqual([
+    'bulka-labels-001.svg',
+    'bulka-labels-002.svg',
+  ]);
+  for (const [index, entry] of entries.entries()) {
+    const source = entry.source;
+    await writeFile(info.outputPath(entry.entryName), source);
+    await info.attach(entry.entryName, { body: source, contentType: 'image/svg+xml' });
+    const sheet = await page.evaluate((svg) => {
+      const xml = new DOMParser().parseFromString(svg, 'image/svg+xml');
+      return {
+        errors: xml.querySelectorAll('parsererror').length,
+        width: xml.documentElement.getAttribute('width'),
+        height: xml.documentElement.getAttribute('height'),
+        labels: xml.querySelectorAll('g[id^="label-"]').length,
+        images: xml.querySelectorAll('image, foreignObject').length,
+        text: xml.documentElement.textContent,
+        color: xml.querySelector('g[font-family]')?.getAttribute('fill'),
+        qr: xml.querySelectorAll('svg[aria-label="QR-код товара"] path').length,
+      };
+    }, source);
+    expect(sheet.errors).toBe(0);
+    expect([sheet.width, sheet.height]).toEqual(['210mm', '297mm']);
+    expect(sheet.labels).toBe(index === 0 ? 8 : 1);
+    expect(sheet.images).toBe(0);
+    expect(sheet.qr).toBe(sheet.labels);
+    expect(sheet.text).toContain('750');
+    expect(sheet.color).toBe('#F5D400');
+    expect(sheet.text).not.toMatch(/Товар [01](?!\d)/);
+    if (index === 0) expect(sheet.text).toContain('Ашытқысыз көкөністі нан');
+  }
+  await expect(dialog.getByRole('status')).toContainText('Файл для CorelDRAW готов');
   await page.screenshot({ path: info.outputPath('bulk-editor.png'), fullPage: true });
   await dialog.getByRole('button', { name: /Закрыть/ }).click();
   await page.getByRole('button', { name: 'Общая печать ценников', exact: true }).click();
+  await expect(dialog.getByRole('radio', { name: 'CorelDRAW (SVG)' })).toBeChecked();
   await expect(dialog.getByRole('checkbox')).toBeChecked();
   await dialog.getByRole('button', { name: /Закрыть/ }).click();
   await page.getByRole('button', { name: 'Ценник: Товар 2', exact: true }).click();

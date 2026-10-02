@@ -36,21 +36,28 @@ if (adminDirectory) {
   const deferredPriceLabelPdf = javascript.filter((file) =>
     path.basename(file).startsWith('price-label-pdf-'),
   );
-  const coreJavascript = javascript.filter((file) => !deferredPriceLabelPdf.includes(file));
+  const deferredPriceLabelCorel = javascript.filter((file) =>
+    path.basename(file).startsWith('price-label-corel-'),
+  );
+  const coreJavascript = javascript.filter(
+    (file) => !deferredPriceLabelPdf.includes(file) && !deferredPriceLabelCorel.includes(file),
+  );
   const styles = assets.filter((file) => file.endsWith('.css'));
   const javascriptGzip = coreJavascript.map(gzipSize);
   const priceLabelPdfGzip = deferredPriceLabelPdf.map(gzipSize);
+  const priceLabelCorelGzip = deferredPriceLabelCorel.map(gzipSize);
   const styleGzip = styles.map(gzipSize);
   assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
     // Editable 24/7 schedules and separate shift reports measure 433,140 B
     // in total. Allow 1,360 B headroom; retain the largest-chunk/CSS limits.
-    // Deferred price-label PDF keeps its separate budget below.
+    // Exporters load only on download and keep their separate budgets below.
     434_500,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   assertBudget('Admin deferred price-label PDF gzip', Math.max(0, ...priceLabelPdfGzip), 185_000);
+  assertBudget('Admin deferred price-label Corel gzip', Math.max(0, ...priceLabelCorelGzip), 2_000);
   // Shared workspace styling measures 32,045 B at f031c12 (about 2% margin).
   assertBudget('Admin largest CSS gzip', Math.max(0, ...styleGzip), 33_000);
 }

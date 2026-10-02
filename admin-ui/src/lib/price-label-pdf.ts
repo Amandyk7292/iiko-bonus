@@ -1,13 +1,14 @@
 import { PDFDocument, PrintScaling, rgb } from 'pdf-lib';
 import { batchLabel, type LabelProduct } from './price-label-batch';
+import { LABELS_PER_SHEET, LABEL_SHEET, labelSheetPosition } from './price-label-sheet';
 const MM = 72 / 25.4;
 export function labelPosition(index: number) {
-  const slot = index % 8;
+  const { x, y } = labelSheetPosition(index);
   return {
-    x: (3.5 + (slot % 2) * 103) * MM,
-    y: (297 - 24 - Math.floor(slot / 2) * 63 - 60) * MM,
-    width: 100 * MM,
-    height: 60 * MM,
+    x: x * MM,
+    y: (LABEL_SHEET.height - y - LABEL_SHEET.labelHeight) * MM,
+    width: LABEL_SHEET.labelWidth * MM,
+    height: LABEL_SHEET.labelHeight * MM,
   };
 }
 async function labelPng(svg: string): Promise<Uint8Array> {
@@ -45,7 +46,8 @@ export async function generatePriceLabelsPdf(
   pdf.setTitle('Ценники Bulka');
   pdf.catalog.getOrCreateViewerPreferences().setPrintScaling(PrintScaling.None);
   for (const [index, product] of products.entries()) {
-    if (index % 8 === 0) pdf.addPage([210 * MM, 297 * MM]);
+    if (index % LABELS_PER_SHEET === 0)
+      pdf.addPage([LABEL_SHEET.width * MM, LABEL_SHEET.height * MM]);
     const label = batchLabel(product, background, includeQr, textColor);
     const image = await pdf.embedPng(await labelPng(label.svg));
     pdf.getPages().at(-1)!.drawImage(image, labelPosition(index));

@@ -15,7 +15,18 @@ import {
   type LabelProduct,
 } from '../lib/price-label-batch';
 import { loadPriceLabelSettings, savePriceLabelSettings } from '../lib/price-label-settings';
+import { LABELS_PER_SHEET } from '../lib/price-label-sheet';
 import './price-label.css';
+
+type ExportFormat = 'pdf' | 'corel';
+const FORMAT_KEY = 'bulka-price-label-export-format';
+function savedFormat(): ExportFormat {
+  try {
+    return localStorage.getItem(FORMAT_KEY) === 'corel' ? 'corel' : 'pdf';
+  } catch {
+    return 'pdf';
+  }
+}
 
 export default function BulkPriceLabels({
   profileKey,
@@ -72,6 +83,7 @@ function BulkPriceLabelsModal({
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [retry, setRetry] = useState(0);
+  const [format, setFormat] = useState<ExportFormat>(savedFormat);
   useEffect(() => {
     let live = true;
     setLoading(true);
@@ -105,7 +117,7 @@ function BulkPriceLabelsModal({
     if (products[0] && labelHex(background) && labelHex(textColor))
       preview = batchLabel(products[0], background, includeQr, textColor).svg;
   } catch {
-    /* Full validation runs before PDF generation. */
+    /* Full validation runs before exporting either format. */
   }
   const generate = async () => {
     const hex = labelHex(background);
@@ -134,25 +146,35 @@ function BulkPriceLabelsModal({
         throw new Error('iiko возвращает устаревшее меню. Обновите меню и повторите печать.');
       const current = labelProducts(menu);
       setProducts(current);
-      const { generatePriceLabelsPdf } = await import('../lib/price-label-pdf');
-      const result = await generatePriceLabelsPdf(current, hex, includeQr, textHex, setDone);
+      const generator =
+        format === 'pdf'
+          ? (await import('../lib/price-label-pdf')).generatePriceLabelsPdf
+          : (await import('../lib/price-label-corel')).generatePriceLabelsCorel;
+      const result = await generator(current, hex, includeQr, textHex, setDone);
       if (getAdminBranchScope() !== branchId)
         throw new Error('Город изменился во время генерации. Откройте печать заново.');
       const url = URL.createObjectURL(
-        new Blob([new Uint8Array(result.bytes)], { type: 'application/pdf' }),
+        new Blob([new Uint8Array(result.bytes)], {
+          type: format === 'pdf' ? 'application/pdf' : 'application/zip',
+        }),
       );
       const link = document.createElement('a');
       link.href = url;
-      link.download = `bulka-price-labels-${cityName.trim().replace(/[^\p{L}\p{N}-]+/gu, '-') || profileKey}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      link.download = `bulka-price-labels-${cityName.trim().replace(/[^\p{L}\p{N}-]+/gu, '-') || profileKey}-${new Date().toISOString().slice(0, 10)}${format === 'corel' ? '-corel.zip' : '.pdf'}`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+      try {
+        localStorage.setItem(FORMAT_KEY, format);
+      } catch {
+        /* Downloads work without browser storage. */
+      }
       setNotice(
-        `PDF готов · ${cityName}: ${current.length} ценников, ${Math.ceil(current.length / 8)} стр. Настройки сохранены для всех ценников города.`,
+        `${format === 'pdf' ? 'PDF готов' : 'Файл для CorelDRAW готов'} · ${cityName}: ${current.length} ценников, ${Math.ceil(current.length / LABELS_PER_SHEET)} стр.`,
       );
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Не удалось создать PDF.');
+      setError(reason instanceof Error ? reason.message : 'Не удалось подготовить ценники.');
     } finally {
       setBusy(false);
     }
@@ -172,19 +194,41 @@ function BulkPriceLabelsModal({
           disabled={loading || busy || !products.length}
           onClick={() => void generate()}
         >
-          {busy ? `Генерация ${done} / ${products.length}…` : 'Скачать PDF'}
+          {busy
+            ? `Подготовка ${done} / ${products.length}…`
+            : format === 'pdf'
+              ? 'Скачать PDF'
+              : 'Скачать для CorelDRAW'}
         </button>
       }
     >
       <div className="modal-body price-label-controls">
         <p className="price-label-hint">
-          Ценники города {cityName}: только его товары и цены iiko вне стоп-листа админки. Цены
-          другого города в PDF не добавляются. Скрытые товары и категории не печатаются. Поиск и
-          фильтр категорий не ограничивают общий PDF.
+          Ценники города {cityName}. Скрытые товары и товары в стоп-листе не печатаются.
         </p>
-        <p>
-          10 × 6 см · A4 · 2 колонки · 8 ценников на странице. Зазоры 3 мм. Печать в масштабе 100%.
-        </p>
+        <p>10 × 6 см · A4 · 8 ценников на странице · Печать в масштабе 100%.</p>
+        <fieldset className="price-label-format" disabled={loading || busy}>
+          <legend>Формат файла</legend>
+          <div className="price-label-format-options">
+            {(['pdf', 'corel'] as const).map((value) => (
+              <label key={value} className={format === value ? 'is-selected' : undefined}>
+                <input
+                  type="radio"
+                  name="bulk-label-format"
+                  value={value}
+                  checked={format === value}
+                  onChange={() => setFormat(value)}
+                />
+                {value === 'pdf' ? 'PDF' : 'CorelDRAW (SVG)'}
+              </label>
+            ))}
+          </div>
+          {format === 'corel' && (
+            <p className="price-label-hint">
+              Листы SVG в ZIP. Откройте в CorelDRAW для редактирования.
+            </p>
+          )}
+        </fieldset>
         {loading ? (
           <p role="status">Загрузка настроек и товаров…</p>
         ) : (
