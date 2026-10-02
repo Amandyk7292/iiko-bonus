@@ -733,6 +733,15 @@
     width: 100%;
   }
 }
+@media (max-width: 360px) {
+  .closing-table .closing-branch-col {
+    min-width: 136px;
+    width: 136px;
+  }
+  .closing-table .closing-report-kind {
+    left: 136px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .closing-skeleton {
     animation: none;
