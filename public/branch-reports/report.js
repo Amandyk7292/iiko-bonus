@@ -123,24 +123,14 @@
         uploadId = undefined;
         renderPhotos();
       });
-      const caption = document.createElement('figcaption');
-      caption.textContent =
-        'Снято в ' +
-        new Intl.DateTimeFormat('ru-KZ', {
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZone: 'Asia/Almaty',
-        }).format(new Date(photo.capturedAt));
-      figure.append(image, remove, caption);
+      figure.append(image, remove);
       element('previews').append(figure);
     });
     element('count').textContent = photos.length + ' / 10';
-    element('remaining').textContent =
-      photos.length === 10
-        ? 'Максимум 10 снимков'
-        : photos.length
-          ? 'Можно добавить ещё ' + (10 - photos.length)
-          : 'Добавьте хотя бы один';
+    if (!sending)
+      element('send').textContent = photos.length
+        ? 'Отправить ' + photos.length + ' фото'
+        : 'Отправить отчёт';
     element('take-photo').disabled = photos.length >= 10 || sending || captureBusy;
     element('send').disabled = !photos.length || sending || captureBusy;
     element('back').disabled = sending || captureBusy;
@@ -153,6 +143,7 @@
       return;
     }
     element('enable-camera').disabled = true;
+    element('enable-camera').textContent = 'Открываем…';
     try {
       const active = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -171,8 +162,7 @@
       await element('camera').play();
       element('enable-camera').hidden = true;
       element('take-photo').hidden = false;
-      element('camera-hint').textContent =
-        'Снимайте зал или рабочее место. Можно удалить неудачный снимок и переснять.';
+      element('camera-hint').hidden = true;
     } catch (caught) {
       stopCamera();
       error(
@@ -182,6 +172,7 @@
       );
     } finally {
       element('enable-camera').disabled = false;
+      element('enable-camera').textContent = 'Открыть камеру';
       renderPhotos();
     }
   }

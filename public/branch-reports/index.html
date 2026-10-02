@@ -16,31 +16,37 @@
           >Закрытие точки</span
         >
       </header>
-      <section id="loading" class="panel"><p role="status">Открываем вашу точку…</p></section>
+      <section id="loading" class="panel" aria-busy="true">
+        <p role="status">Загрузка…</p>
+        <div class="loading-shape" aria-hidden="true"></div>
+        <div class="loading-shape" aria-hidden="true"></div>
+      </section>
       <section id="intro" class="panel" hidden>
         <p id="city" class="eyebrow"></p>
         <h1 id="branch"></h1>
         <p class="date">Отчёт за <strong id="date"></strong></p>
-        <p class="hint">До 04:00 отчёт относится к предыдущему дню.</p>
         <div id="categories">
           <button class="report-kind" type="button" data-kind="hall">
-            <span class="kind-icon" aria-hidden="true">▦</span
+            <span class="kind-icon" aria-hidden="true"
+              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <path d="M9 3v18M15 3v18M3 9h18M3 15h18" /></svg></span
             ><span
               ><strong>Фотоотчёт зала</strong><small id="hall-status">Ещё не отправлен</small></span
             ><span aria-hidden="true">›</span>
           </button>
           <button class="report-kind" type="button" data-kind="baker">
-            <span class="kind-icon" aria-hidden="true">♨</span
+            <span class="kind-icon" aria-hidden="true"
+              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                <path
+                  d="M7 14H5a4 4 0 0 1 0-8 4 4 0 0 1 7-2 4 4 0 0 1 7 2 4 4 0 0 1 0 8h-2M7 11v10h10V11M7 17h10"
+                /></svg></span
             ><span
               ><strong>Фотоотчёт пекаря</strong
               ><small id="baker-status">Ещё не отправлен</small></span
             ><span aria-hidden="true">›</span>
           </button>
         </div>
-        <p class="hint retention">
-          До 10 свежих снимков на каждый пункт. Фото доступны 3 дня; отметка об отправке
-          сохраняется.
-        </p>
       </section>
       <section id="capture" class="panel" hidden>
         <button id="back" class="secondary" type="button">← К выбору отчёта</button>
@@ -48,20 +54,17 @@
         <p id="capture-date" class="date"></p>
         <div id="camera-area">
           <video id="camera" autoplay muted playsinline aria-label="Изображение с камеры"></video>
-          <p id="camera-hint" class="hint">
-            Разрешите доступ к камере, чтобы сделать свежие снимки.
-          </p>
+          <p id="camera-hint" class="hint">Разрешите доступ к камере.</p>
           <button id="enable-camera" type="button" class="primary">Открыть камеру</button>
           <button id="take-photo" type="button" class="primary" hidden>Сделать снимок</button>
         </div>
         <div class="counter-row">
           <h2>Снимки <span id="count">0 / 10</span></h2>
-          <span id="remaining" class="hint">Добавьте хотя бы один</span>
         </div>
         <div id="previews" aria-label="Снимки отчёта"></div>
         <div class="send-bar">
           <button id="send" type="button" class="primary" disabled>Отправить отчёт</button>
-          <p id="send-status" role="status" class="hint"></p>
+          <p id="send-status" role="status" class="sr-only"></p>
         </div>
       </section>
       <section id="success" class="panel success" hidden>

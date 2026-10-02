@@ -95,6 +95,15 @@ describe('Topbar city and branch scope', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
+  it('leaves photo-report city selection to the page filters', () => {
+    window.history.replaceState({}, '', '/admin/photo-reports');
+    render(topbar('aktau-1', vi.fn()));
+    expect(
+      screen.queryByRole('combobox', { name: 'Город для фильтрации данных' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Фотоотчёты точек' })).toBeVisible();
+  });
+
   it('asks for a city first and then shows only that city branches', () => {
     const onBranchChange = vi.fn();
     const view = render(topbar('', onBranchChange));
@@ -216,7 +225,9 @@ describe('Topbar city and branch scope', () => {
     expect(unauthorized).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: 'Выйти из системы' }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/admin/api/logout', expect.anything()));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/admin/api/logout', expect.anything()),
+    );
     expect(unregisterBeforeLogout).toHaveBeenCalledTimes(2);
     expect(unauthorized).toHaveBeenCalledTimes(1);
     window.removeEventListener('unauthorized', unauthorized);
@@ -233,7 +244,9 @@ describe('Topbar city and branch scope', () => {
 
     await user.click(screen.getByRole('button', { name: 'Выйти из системы' }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/admin/api/logout', expect.anything()));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/admin/api/logout', expect.anything()),
+    );
     expect(unregisterBeforeLogout).toHaveBeenCalledTimes(1);
     expect(unauthorized).toHaveBeenCalledTimes(1);
     window.removeEventListener('unauthorized', unauthorized);
