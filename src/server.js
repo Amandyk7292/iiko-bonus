@@ -71,6 +71,19 @@ if (!process.env.VERCEL) {
     intervalMs: 15_000,
     critical: true,
   });
+  registerWorker('branch-photo-retention', {
+    enabled: runWorkers,
+    intervalMs: 300000,
+    maxRunMs: 120000,
+  });
+  if (runWorkers) {
+    const cleanupBranchPhotos = () =>
+      runMonitoredWorker('branch-photo-retention', () =>
+        require('./services/branch-photo-storage.service').cleanupPhotos(),
+      );
+    setTimeout(cleanupBranchPhotos, 50000).unref?.();
+    setInterval(cleanupBranchPhotos, 300000).unref?.();
+  }
   if (runWorkers) {
     registerWorker('order-waiting-policy', { enabled: true, intervalMs: 15000, maxRunMs: 300000 });
     const checkWaiting = () =>

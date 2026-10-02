@@ -55,6 +55,10 @@ const registrationPolicy = {
   imgSrc: ["'self'", 'data:'],
 };
 const staticDocumentPolicies = new Map([
+  [
+    '/branch-reports',
+    { ...staticDocumentPolicy('public/branch-reports/index.html'), frameAncestors: ["'none'"] },
+  ],
   ['/guest', registrationPolicy],
   ['/wallet', registrationPolicy],
   ['/courier', staticDocumentPolicy('public/courier.html')],
@@ -70,6 +74,12 @@ const staticDocumentPolicies = new Map([
   ],
   ['/account-deletion', staticDocumentPolicy('public/legal/account-deletion.html')],
 ]);
+// The camera form aliases use the same restrictive document policy.
+staticDocumentPolicies.set('/branch-reports/', staticDocumentPolicies.get('/branch-reports'));
+staticDocumentPolicies.set(
+  '/branch-reports/index.html',
+  staticDocumentPolicies.get('/branch-reports'),
+);
 const priceGeneratorPolicy = {
   ...staticDocumentPolicy('public/pricegenerator/index.html'),
   styleSrc: ["'self'", "'unsafe-inline'"],

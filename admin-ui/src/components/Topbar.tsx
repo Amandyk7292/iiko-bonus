@@ -49,6 +49,7 @@ const routeKeys: Record<string, string> = {
   '/security': 'security',
   '/unavailable': 'unavailable',
   '/kitchen': 'kitchen',
+  '/photo-reports': 'photoReports',
   '/marketing': 'marketing',
   '/support': 'support',
   '/integrations': 'integrations',

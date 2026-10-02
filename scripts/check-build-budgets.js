@@ -44,10 +44,10 @@ if (adminDirectory) {
   assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
-    // The deployed ad160ea5 admin measures 422,786 B gzip. The shared sticker
-    // picker adds 1,338 B (424,124 B total); retain 1,376 B of headroom.
-    // The deferred PDF engine has its own budget below.
-    425_500,
+    // Closing-photo reports add a lazy 4,947 B route plus navigation/realtime
+    // wiring (430,636 B total at this release). Preserve largest-chunk/CSS
+    // limits and allow 1,364 B headroom. Deferred PDF has its own budget below.
+    432_000,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   assertBudget(

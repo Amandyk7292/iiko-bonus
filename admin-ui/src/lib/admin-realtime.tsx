@@ -49,6 +49,7 @@ const EVENT_TYPES = [
   'menu.updated',
   'inventory.updated',
   'locations.updated',
+  'photo-reports.updated',
   'review.updated',
   'support.created',
   'support.updated',

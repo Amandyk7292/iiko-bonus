@@ -31,6 +31,7 @@ const SettlementsPage = lazy(() => import('./pages/SettlementsPage'));
 const TransactionsPage = lazy(() => import('./pages/TransactionsPage'));
 const IikoPage = lazy(() => import('./pages/IikoPage'));
 const IikoDashboardPage = lazy(() => import('./pages/IikoDashboardPage'));
+const PhotoReportsPage = lazy(() => import('./pages/PhotoReportsPage'));
 const BroadcastPage = lazy(() => import('./pages/BroadcastPage'));
 const StoriesPage = lazy(() => import('./pages/StoriesPage'));
 const TaplinkPage = lazy(() => import('./pages/TaplinkPage'));
@@ -658,6 +659,10 @@ export default function App() {
                     }
                   />
                   <Route path="/kitchen" element={guard('/kitchen', <KitchenPage />)} />
+                  <Route
+                    path="/photo-reports"
+                    element={guard('/photo-reports', <PhotoReportsPage role={role} />)}
+                  />
                   <Route path="/marketing" element={guard('/marketing', <MarketingPage />)} />
                   <Route
                     path="/reviews"

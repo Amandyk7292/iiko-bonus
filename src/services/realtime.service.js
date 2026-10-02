@@ -29,6 +29,7 @@ const eventArea = (type) => {
       menu: 'menu',
       inventory: 'staff',
       locations: 'locations',
+      'photo-reports': 'photo-reports',
       review: 'reviews',
       support: 'support',
       whatsapp: 'whatsapp',
