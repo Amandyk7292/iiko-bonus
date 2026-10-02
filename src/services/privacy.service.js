@@ -14,6 +14,12 @@ const DIRECT_EXPORT_RELATIONS = Object.freeze([
     'id,branch_id,verified_at,expires_at,completed_at',
   ],
   ['transactions', 'transactions', 'customer_id'],
+  [
+    'walkingRewards',
+    'walking_daily_progress',
+    'customer_id',
+    'walking_date,steps,reward_amount,credited_at,measurement_end_at',
+  ],
   ['orders', 'kaspi_orders', 'customer_id'],
   ['paymentReceipts', 'payment_receipts', 'customer_id'],
   ['addresses', 'customer_addresses', 'customer_id'],

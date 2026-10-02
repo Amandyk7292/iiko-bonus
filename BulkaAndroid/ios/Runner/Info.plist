@@ -76,6 +76,8 @@
 		</array>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>Доступ к геолокации необходим для определения расстояния до ближайших пекарен Bulka, отображения их на карте и удобного выбора точки самовывоза.</string>
+        <key>NSMotionUsageDescription</key>
+        <string>Bulka считает шаги iPhone для награды: 10 000 шагов за день — 1 000 бонусов. Шаги, добавленные вручную, не учитываются.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Доступ к фотографиям нужен, чтобы прикрепить пример оформления торта или выпечки.</string>
 		<key>ITSAppUsesNonExemptEncryption</key>

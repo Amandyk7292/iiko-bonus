@@ -27,6 +27,8 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
   private var orderStatusChannel: FlutterMethodChannel?
   private var adminSessionChannel: FlutterMethodChannel?
   private var referralDeviceChannel: FlutterMethodChannel?
+  private var walkingRewardsChannel: FlutterMethodChannel?
+  private let walkingRewardsBridge = WalkingRewardsBridge()
   private var activityTokenTasks: [String: Task<Void, Never>] = [:]
 
   override func application(
@@ -35,6 +37,11 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
     if let controller = window?.rootViewController as? FlutterViewController {
+      let walkingChannel = FlutterMethodChannel(name: "com.bulka.bonus/walking_rewards", binaryMessenger: controller.binaryMessenger)
+      walkingChannel.setMethodCallHandler { [weak self] call, result in
+        self?.walkingRewardsBridge.handle(call, result: result)
+      }
+      walkingRewardsChannel = walkingChannel
       let deviceChannel = FlutterMethodChannel(
         name: "com.bulka.bonus/referral_device",
         binaryMessenger: controller.binaryMessenger

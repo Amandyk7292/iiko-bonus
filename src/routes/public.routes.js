@@ -161,6 +161,7 @@ router.post(
   (req, res) => acceptAnalyticsEvents(req, res),
 );
 router.use('/api/customer', publicApiRateLimit, customerAuthMiddleware);
+require('./customer/walking-rewards.routes').registerWalkingRewardRoutes(router);
 router.use('/api/courier', publicApiRateLimit);
 
 router.get(

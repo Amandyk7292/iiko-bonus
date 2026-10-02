@@ -454,6 +454,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               // Loyalty Status Progress Card
               _buildLoyaltyProgressCard(),
+              WalkingRewardsCard(
+                api: widget.api,
+                onReward: widget.onRefreshProfile,
+              ),
 
               const SizedBox(height: 20),
 

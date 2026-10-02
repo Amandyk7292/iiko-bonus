@@ -797,6 +797,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     final requestAccessToken = _api.accessToken;
     if (requestAccessToken == null) return;
     final requestMutationRevision = _profileMutationRevision;
+    unawaited(_api.autoSyncWalking());
     try {
       final profile = await _api.getProfile(phone);
       if (!mounted) return;
