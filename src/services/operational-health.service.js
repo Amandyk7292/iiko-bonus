@@ -15,13 +15,14 @@ const {
 const bootedAt = Date.now();
 const workers = new Map();
 const alertTimestamps = new Map();
-let latestBranchPosCoverage = {
+const EMPTY_BRANCH_POS_COVERAGE = Object.freeze({
   activeBranches: 0,
   configuredActiveBranches: 0,
   missingActiveBranches: 0,
   activeLegacyReservations: 0,
   readyForEnforcement: false,
-};
+});
+let latestBranchPosCoverage = { ...EMPTY_BRANCH_POS_COVERAGE };
 
 const sendOperationalAlert = async (worker, errorCode) => {
   const webhookUrl = String(process.env.OPS_ALERT_WEBHOOK_URL || '').trim();
@@ -135,54 +136,68 @@ const workerSnapshot = (now = Date.now()) =>
     return { ...worker, stale };
   });
 
-const withTimeout = async (promise, timeoutMs) => {
+const checkReadinessDependency = async (name, check, fallback, timeoutMs) => {
+  const controller = new AbortController();
   let timer;
   try {
-    return await Promise.race([
-      promise,
+    const result = await Promise.race([
+      Promise.resolve().then(() => check({ signal: controller.signal })),
       new Promise((_, reject) => {
         timer = setTimeout(() => {
           const error = new Error('Dependency check timed out');
           error.code = 'DEPENDENCY_TIMEOUT';
+          controller.abort(error);
           reject(error);
         }, timeoutMs);
-        timer.unref?.();
       }),
     ]);
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      throw new Error('Invalid readiness dependency snapshot');
+    }
+    if (name === 'database' && result.ok !== true) {
+      const error = new Error('Database readiness check failed');
+      error.code = 'DATABASE_UNAVAILABLE';
+      throw error;
+    }
+    return result;
+  } catch (error) {
+    const errorCode = controller.signal.aborted
+      ? 'DEPENDENCY_TIMEOUT'
+      : error?.code === 'DATABASE_UNAVAILABLE'
+        ? 'DATABASE_UNAVAILABLE'
+        : 'DEPENDENCY_UNAVAILABLE';
+    // A failed aggregate may still have sibling database reads in flight.
+    controller.abort(new Error('Readiness dependency check failed'));
+    logger.warn(
+      { event: 'readiness_dependency_failed', dependency: name, errorCode },
+      'Readiness dependency check failed',
+    );
+    return { ...fallback, errorCode };
   } finally {
     clearTimeout(timer);
   }
 };
 
-const checkDatabase = async () => {
+const checkDatabase = async ({ signal } = {}) => {
   if (process.env.NODE_ENV === 'test') {
     return { ok: true, skipped: true };
   }
-  try {
-    const result = await withTimeout(
-      Promise.resolve(supabase.from('customers').select('id').limit(1)),
-      Number(process.env.READINESS_TIMEOUT_MS || 3000),
-    );
-    return result.error
-      ? { ok: false, code: 'DATABASE_UNAVAILABLE' }
-      : { ok: true, skipped: false };
-  } catch {
-    return { ok: false, code: 'DATABASE_UNAVAILABLE' };
-  }
+  const result = await supabase.from('customers').select('id').limit(1).abortSignal(signal);
+  return result.error ? { ok: false, code: 'DATABASE_UNAVAILABLE' } : { ok: true, skipped: false };
 };
 
-const checkBranchPosCoverage = async () => {
+const checkBranchPosCoverage = async ({ signal } = {}) => {
   if (process.env.NODE_ENV === 'test') {
     return { ...latestBranchPosCoverage, skipped: true };
   }
-  return getBranchPosCoverage();
+  return getBranchPosCoverage({ signal });
 };
 
-const checkStaffOrderAlerts = async () => {
+const checkStaffOrderAlerts = async ({ signal } = {}) => {
   if (process.env.NODE_ENV === 'test') {
     return { ...staffOrderAlertHealthSnapshot(), queueAvailable: true, skipped: true };
   }
-  return refreshStaffOrderAlertHealth();
+  return refreshStaffOrderAlertHealth({ signal, throwOnError: true });
 };
 
 const readinessSnapshot = async ({
@@ -190,16 +205,41 @@ const readinessSnapshot = async ({
   branchPosCheck = checkBranchPosCoverage,
   staffOrderAlertCheck = checkStaffOrderAlerts,
   pushStatusCheck = getPushStatus,
+  timeoutMs = Number(process.env.READINESS_TIMEOUT_MS || 3000),
 } = {}) => {
-  const [database, branchPosCoverage, staffOrderAlerts] = await Promise.all([
-    databaseCheck(),
-    branchPosCheck(),
-    staffOrderAlertCheck(),
+  const [database, branchPosCoverage, staffOrderAlerts, pushStatus] = await Promise.all([
+    checkReadinessDependency('database', databaseCheck, { ok: false }, timeoutMs),
+    checkReadinessDependency(
+      'branchPosCredentials',
+      branchPosCheck,
+      EMPTY_BRANCH_POS_COVERAGE,
+      timeoutMs,
+    ),
+    checkReadinessDependency(
+      'staffOrderAlerts',
+      staffOrderAlertCheck,
+      {
+        receiverConfigured: staffOrderAlertHealthSnapshot().receiverConfigured,
+        receiverRequired: staffOrderAlertHealthSnapshot().receiverRequired,
+        queueAvailable: false,
+      },
+      timeoutMs,
+    ),
+    checkReadinessDependency(
+      'staffPush',
+      pushStatusCheck,
+      {
+        configured: false,
+        initialized: false,
+      },
+      timeoutMs,
+    ),
   ]);
-  latestBranchPosCoverage = { ...latestBranchPosCoverage, ...branchPosCoverage };
+  latestBranchPosCoverage = { ...EMPTY_BRANCH_POS_COVERAGE, ...branchPosCoverage };
   const branchPosMode = branchPosEnforcementMode();
   const branchPosOk =
-    branchPosMode !== 'required' || branchPosCoverage.readyForEnforcement === true;
+    !branchPosCoverage.errorCode &&
+    (branchPosMode !== 'required' || branchPosCoverage.readyForEnforcement === true);
   const alertQueueOk = staffOrderAlerts.queueAvailable === true;
   const alertReceiverOk =
     staffOrderAlerts.receiverRequired !== true ||
@@ -208,10 +248,10 @@ const readinessSnapshot = async ({
       Number(staffOrderAlerts.oldestPendingSeconds || 0) <= 300);
   const staffOrderAlertsOk = alertQueueOk && alertReceiverOk;
   const staffPushRequired = process.env.STAFF_PUSH_REQUIRED === 'true';
-  const pushStatus = pushStatusCheck();
   const staffPushOk =
-    !staffPushRequired ||
-    (process.env.RUN_BACKGROUND_WORKERS === 'true' && pushStatus.initialized === true);
+    !pushStatus.errorCode &&
+    (!staffPushRequired ||
+      (process.env.RUN_BACKGROUND_WORKERS === 'true' && pushStatus.initialized === true));
   const workerStates = workerSnapshot();
   const criticalWorkerFailed = workerStates.some(
     (worker) => worker.enabled && worker.critical && worker.stale,
@@ -224,7 +264,7 @@ const readinessSnapshot = async ({
   return {
     ok: database.ok && branchPosOk && staffOrderAlertsOk && staffPushOk && !criticalWorkerFailed,
     dependencies: {
-      database: { ok: database.ok },
+      database: { ok: database.ok, ...(database.errorCode && { errorCode: database.errorCode }) },
       branchPosCredentials: {
         ok: branchPosOk,
         mode: branchPosMode,
@@ -233,6 +273,7 @@ const readinessSnapshot = async ({
         missingActiveBranches: Number(branchPosCoverage.missingActiveBranches || 0),
         activeLegacyReservations: Number(branchPosCoverage.activeLegacyReservations || 0),
         readyForEnforcement: branchPosCoverage.readyForEnforcement === true,
+        ...(branchPosCoverage.errorCode && { errorCode: branchPosCoverage.errorCode }),
       },
       staffOrderAlerts: {
         ok: staffOrderAlertsOk,
@@ -250,6 +291,7 @@ const readinessSnapshot = async ({
         sent: Number(staffOrderAlerts.sent || 0),
         resolved: Number(staffOrderAlerts.resolved || 0),
         oldestPendingSeconds: Number(staffOrderAlerts.oldestPendingSeconds || 0),
+        ...(staffOrderAlerts.errorCode && { errorCode: staffOrderAlerts.errorCode }),
       },
       staffPush: {
         ok: staffPushOk,
@@ -257,6 +299,7 @@ const readinessSnapshot = async ({
         workersEnabled: process.env.RUN_BACKGROUND_WORKERS === 'true',
         firebaseConfigured: pushStatus.configured === true,
         firebaseInitialized: pushStatus.initialized === true,
+        ...(pushStatus.errorCode && { errorCode: pushStatus.errorCode }),
       },
     },
     workers: workerStates.map(

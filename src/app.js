@@ -177,6 +177,7 @@ const requireOperationalBearer = (req, res, next) => {
   return next();
 };
 app.get('/readyz', async (_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
   try {
     const readiness = await readinessSnapshot();
     return res
@@ -188,6 +189,7 @@ app.get('/readyz', async (_req, res, next) => {
   }
 });
 app.get('/internal/readiness', requireOperationalBearer, async (_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
   try {
     const readiness = await readinessSnapshot();
     return res

@@ -60,17 +60,21 @@ async function getBranchPosCredentialStatus(branchId) {
   };
 }
 
-async function getBranchPosCoverage({ db = supabase } = {}) {
+async function getBranchPosCoverage({ db = supabase, signal } = {}) {
+  const boundedQuery = (query) => (signal ? query.abortSignal(signal) : query);
   const countActiveLegacyReservations = async () => {
     const activeQuery = () =>
-      db
-        .from('loyalty_reservations')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'active')
-        .gt('expires_at', new Date().toISOString());
+      boundedQuery(
+        db
+          .from('loyalty_reservations')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'active')
+          .gt('expires_at', new Date().toISOString()),
+      );
 
     const indexedResult = await activeQuery().is('pos_branch_id', null);
     if (!indexedResult.error) return Number(indexedResult.count || 0);
+    signal?.throwIfAborted();
 
     // Deployment starts the new app before applying pending DDL. Fall back only
     // for that short pre-migration window; after DDL the indexed query above wins.
@@ -89,9 +93,9 @@ async function getBranchPosCoverage({ db = supabase } = {}) {
     { data: devices, error: deviceError },
     activeLegacyReservations,
   ] = await Promise.all([
-    db.from('bulka_locations').select('id').eq('active', true),
-    db.from('branch_pos_credentials').select('branch_id').eq('active', true),
-    db.from('pos_devices').select('branch_id').eq('active', true),
+    boundedQuery(db.from('bulka_locations').select('id').eq('active', true)),
+    boundedQuery(db.from('branch_pos_credentials').select('branch_id').eq('active', true)),
+    boundedQuery(db.from('pos_devices').select('branch_id').eq('active', true)),
     countActiveLegacyReservations(),
   ]);
   if (branchError) throw branchError;

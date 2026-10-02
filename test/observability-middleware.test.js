@@ -65,3 +65,22 @@ test('error guard strips Supabase/SDK secrets from 500 JSON and adds request ID'
     requestId: 'request-guard-1234',
   });
 });
+
+test('operational 503 exemption does not expose unrelated API errors', () => {
+  const req = {
+    id: 'request-unrelated-503',
+    path: '/api/example',
+    log: { error() {} },
+  };
+  const res = responseDouble();
+  res.statusCode = 503;
+  safeErrorResponseMiddleware(req, res, () => {});
+  res.json({
+    status: 'not_ready',
+    error: 'private SDK message',
+    dependencies: { secret: 'private' },
+  });
+  assert.equal(res.body.code, 'INTERNAL_ERROR');
+  assert.equal(res.body.dependencies, undefined);
+  assert.doesNotMatch(JSON.stringify(res.body), /private/);
+});

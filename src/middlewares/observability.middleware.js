@@ -27,6 +27,15 @@ const safeErrorResponseMiddleware = (req, res, next) => {
 
     const response = { ...body, requestId: body.requestId || req.id };
     if (res.statusCode >= 500) {
+      // Readiness is a bounded operational snapshot, not an application error.
+      // Its detailed route is bearer-protected; the public route sends only status.
+      if (
+        res.statusCode === 503 &&
+        body.status === 'not_ready' &&
+        ['/readyz', '/internal/readiness'].includes(req.path)
+      ) {
+        return originalJson(body);
+      }
       if (typeof body.error === 'string' && body.error) {
         req.log?.error(
           {

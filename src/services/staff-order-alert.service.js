@@ -219,18 +219,26 @@ function normalizeSnapshot(data, env = process.env) {
   };
 }
 
-async function refreshStaffOrderAlertHealth({ db = supabase, env = process.env } = {}) {
+async function refreshStaffOrderAlertHealth({
+  db = supabase,
+  env = process.env,
+  signal,
+  throwOnError = false,
+} = {}) {
   try {
-    const { data, error } = await db.rpc('staff_order_alert_snapshot');
+    const query = db.rpc('staff_order_alert_snapshot');
+    const { data, error } = await (signal ? query.abortSignal(signal) : query);
+    signal?.throwIfAborted();
     if (error) throw error;
     latestHealth = normalizeSnapshot(data, env);
-  } catch {
+  } catch (error) {
     latestHealth = {
       receiverConfigured: Boolean(receiverUrl(env)),
       receiverRequired: receiverRequired(env),
       queueAvailable: false,
       ...EMPTY_COUNTS,
     };
+    if (throwOnError) throw error;
   }
   return { ...latestHealth };
 }
