@@ -69,11 +69,11 @@ if (flutterDirectory) {
   if (!fs.existsSync(mainFile)) {
     failures.push(`Flutter entry is missing: ${mainFile}`);
   } else {
-    // The deployed ad160ea5 bundle measures 6,483,485 B (1,774,189 B gzip).
-    // The catalog/sticker release is smaller: 6,478,889 B (1,774,011 B gzip).
-    // Refresh the obsolete a3311fa limits with less than 0.4% baseline margin.
-    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_500_000);
-    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_780_000);
+    // Family accounts and automatic OTP support measure 6,560,407 B
+    // (1,794,052 B gzip): about 0.8% over the previous catalog release.
+    // Keep less than 0.4% headroom above this measured feature baseline.
+    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_580_000);
+    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_800_000);
   }
   const wasmFiles = filesUnder(directory).filter((file) => file.endsWith('.wasm'));
   assertBudget(
