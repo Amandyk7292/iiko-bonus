@@ -652,30 +652,3 @@ class _CheckoutField extends StatelessWidget {
     );
   }
 }
-
-class _CheckoutTotalRow extends StatelessWidget {
-  const _CheckoutTotalRow({
-    required this.label,
-    required this.value,
-    this.emphasized = false,
-  });
-
-  final String label;
-  final String value;
-  final bool emphasized;
-
-  @override
-  Widget build(BuildContext context) {
-    final style = TextStyle(
-      fontSize: emphasized ? 18 : 16,
-      fontWeight: emphasized ? FontWeight.w700 : FontWeight.w500,
-    );
-    return Row(
-      children: [
-        Expanded(child: Text(label, maxLines: 1, style: style)),
-        const SizedBox(width: 12),
-        Text(value, maxLines: 1, style: style),
-      ],
-    );
-  }
-}

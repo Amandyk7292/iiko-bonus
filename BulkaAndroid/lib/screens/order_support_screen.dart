@@ -182,6 +182,9 @@ class _OrderSupportScreenState extends State<OrderSupportScreen> {
                 children: [
                   DropdownButtonFormField<String>(
                     initialValue: _category,
+                    isExpanded: true,
+                    isDense: false,
+                    itemHeight: null,
                     decoration: InputDecoration(
                       labelText: 'support_category'.tr,
                       prefixIcon: const Icon(Icons.topic_outlined),
@@ -197,7 +200,10 @@ class _OrderSupportScreenState extends State<OrderSupportScreen> {
                             .map(
                               (value) => DropdownMenuItem(
                                 value: value,
-                                child: Text('support_category_$value'.tr),
+                                child: Text(
+                                  'support_category_$value'.tr,
+                                  softWrap: true,
+                                ),
                               ),
                             )
                             .toList(),
@@ -487,12 +493,15 @@ class _SupportRequestCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Text(
-                      'support_open_conversation'.tr,
-                      style: TextStyle(
-                        color: colors.brandGold,
-                        fontFamily: _headingFont,
-                        fontWeight: FontWeight.w700,
+                    Flexible(
+                      child: Text(
+                        'support_open_conversation'.tr,
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          color: colors.brandGold,
+                          fontFamily: _headingFont,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 4),

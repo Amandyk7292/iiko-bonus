@@ -478,6 +478,9 @@ class _StaffEditorState extends State<_StaffEditor> {
                     ),
                   ),
                   tilePadding: EdgeInsets.zero,
+                  childrenPadding: EdgeInsets.only(
+                    top: MediaQuery.textScalerOf(context).scale(12),
+                  ),
                   maintainState: true,
                   children: [
                     for (final field in widget.fields.where(

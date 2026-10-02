@@ -329,8 +329,7 @@ class _PrimaryButton extends StatelessWidget {
           Flexible(
             child: Text(
               text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
               style: const TextStyle(fontFamily: _headingFont),
             ),
           ),

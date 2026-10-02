@@ -182,7 +182,7 @@ class _FamilyFormScreenState extends State<FamilyFormScreen> {
     autocorrect: false,
     autofillHints: const [AutofillHints.newPassword],
     decoration: InputDecoration(
-      labelText: _familyText(_editing ? 'resetPassword' : 'password'),
+      labelText: _familyText('password'),
       helperText: _familyText('passwordHint'),
       helperMaxLines: 2,
       suffixIcon: IconButton(
@@ -313,6 +313,7 @@ class _FamilyFormScreenState extends State<FamilyFormScreen> {
                         controller: _phone,
                         decoration: InputDecoration(
                           labelText: _familyText('phone'),
+                          floatingLabelBehavior: FloatingLabelBehavior.always,
                           hintText: '+7 700 123 45 67',
                         ),
                         keyboardType: TextInputType.phone,
@@ -355,6 +356,9 @@ class _FamilyFormScreenState extends State<FamilyFormScreen> {
                     else
                       ExpansionTile(
                         tilePadding: EdgeInsets.zero,
+                        childrenPadding: EdgeInsets.only(
+                          top: MediaQuery.textScalerOf(context).scale(12),
+                        ),
                         title: Text(_familyText('payment')),
                         children: [_limitField(), const SizedBox(height: 16)],
                       ),
@@ -371,6 +375,9 @@ class _FamilyFormScreenState extends State<FamilyFormScreen> {
                       if (_child)
                         ExpansionTile(
                           tilePadding: EdgeInsets.zero,
+                          childrenPadding: EdgeInsets.only(
+                            top: MediaQuery.textScalerOf(context).scale(12),
+                          ),
                           title: Text(_familyText('resetPassword')),
                           children: [
                             _passwordField(),

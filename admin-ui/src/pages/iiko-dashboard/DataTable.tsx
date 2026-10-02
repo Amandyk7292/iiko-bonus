@@ -131,7 +131,12 @@ export default function DataTable({
                   style={onSelect ? { cursor: 'pointer' } : undefined}
                 >
                   {fields.map((field) => (
-                    <td key={field} data-label={report.columns[field].name} data-field={field}>
+                    <td
+                      key={field}
+                      className={typeof row[field] === 'number' ? undefined : 'id-table-text'}
+                      data-label={report.columns[field].name}
+                      data-field={field}
+                    >
                       <span className={typeof row[field] === 'number' ? 'id-number' : undefined}>
                         {typeof row[field] === 'number'
                           ? formatNumber(row[field] as number, {

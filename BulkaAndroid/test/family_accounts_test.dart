@@ -48,7 +48,6 @@ Widget _app(Widget home, {double scale = 1}) => MaterialApp(
 );
 
 Future<void> _loadCaptureFonts(WidgetTester tester) async {
-  if (!_captureUi) return;
   await tester.runAsync(() async {
     final regular = FontLoader('Montserrat')
       ..addFont(rootBundle.load('assets/fonts/Montserrat-Regular-subset.ttf'));
@@ -105,12 +104,161 @@ Future<void> _captureFamilyUi(
   });
 }
 
+void _expectLabelInsideClips(WidgetTester tester, Finder label, String reason) {
+  final box = tester.renderObject<RenderBox>(label);
+  var disclosureClips = 0;
+  RenderObject? parent = box.parent;
+  while (parent != null) {
+    if (parent is RenderClipRect && parent.clipBehavior != Clip.none) {
+      final painted = MatrixUtils.transformRect(
+        box.getTransformTo(parent),
+        Offset.zero & box.size,
+      );
+      expect(painted.top, greaterThanOrEqualTo(-0.5), reason: reason);
+      disclosureClips++;
+    }
+    parent = parent.parent;
+  }
+  expect(disclosureClips, greaterThan(0));
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() {
     appLanguageNotifier.value = 'ru';
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
+  });
+
+  testWidgets(
+    'expanded family fields keep floating labels inside disclosure clips',
+    (tester) async {
+      await _loadCaptureFonts(tester);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final api = BulkaApiClient(
+        client: MockClient((_) async => _json({'success': true})),
+      );
+      addTearDown(api.dispose);
+      for (final lang in ['ru', 'kk']) {
+        appLanguageNotifier.value = lang;
+        for (final scale in [1.0, 1.3, 2.0]) {
+          tester.view.physicalSize = const Size(320, 780);
+          final boundaryKey = GlobalKey();
+          await tester.pumpWidget(
+            _app(
+              RepaintBoundary(
+                key: boundaryKey,
+                child: FamilyFormScreen(
+                  key: ValueKey('invite-$lang-$scale'),
+                  api: api,
+                ),
+              ),
+              scale: scale,
+            ),
+          );
+          final payment = find.text(lang == 'ru' ? 'Оплата' : 'Төлем');
+          await tester.ensureVisible(payment);
+          await tester.tap(payment);
+          await tester.pumpAndSettle();
+          final label = find.descendant(
+            of: find.byType(InputDecorator),
+            matching: find.text(
+              lang == 'ru' ? 'Лимит в день, ₸' : 'Күндік лимит, ₸',
+            ),
+          );
+          await tester.ensureVisible(label);
+          await tester.pumpAndSettle();
+          _expectLabelInsideClips(
+            tester,
+            label,
+            '$lang at $scale: limit label',
+          );
+          final actionLabel = find.text(
+            lang == 'ru' ? 'Отправить приглашение' : 'Шақыру жіберу',
+          );
+          await tester.ensureVisible(actionLabel);
+          await tester.pumpAndSettle();
+          final paragraph = tester.renderObject<RenderParagraph>(actionLabel);
+          expect(paragraph.didExceedMaxLines, isFalse);
+          final button = find.ancestor(
+            of: actionLabel,
+            matching: find.byType(FilledButton),
+          );
+          final textRect = tester.getRect(actionLabel);
+          final buttonRect = tester.getRect(button);
+          expect(textRect.top, greaterThanOrEqualTo(buttonRect.top + 8));
+          expect(textRect.bottom, lessThanOrEqualTo(buttonRect.bottom - 8));
+          expect(tester.takeException(), isNull);
+          if (scale == 1.3) {
+            await _captureFamilyUi(
+              tester,
+              boundaryKey,
+              'family-expanded-invite-320-$lang.png',
+            );
+          }
+          await tester.pumpWidget(const SizedBox());
+        }
+      }
+    },
+  );
+
+  testWidgets('expanded password field keeps its focused label visible', (
+    tester,
+  ) async {
+    await _loadCaptureFonts(tester);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 780);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final api = BulkaApiClient(
+      client: MockClient((_) async => _json({'success': true})),
+    );
+    addTearDown(api.dispose);
+    for (final lang in ['ru', 'kk']) {
+      appLanguageNotifier.value = lang;
+      for (final scale in [1.0, 1.3, 2.0]) {
+        await tester.pumpWidget(
+          _app(
+            FamilyFormScreen(
+              key: ValueKey('manage-child-$lang-$scale'),
+              api: api,
+              member: {
+                'id': _childId,
+                'isChild': true,
+                'name': 'Алина',
+                'relation': 'child',
+                'login': 'child_demo',
+                'email': 'child@example.test',
+              },
+            ),
+            scale: scale,
+          ),
+        );
+        final disclosure = find.text(
+          lang == 'ru' ? 'Новый пароль ребёнка' : 'Баланың жаңа құпиясөзі',
+        );
+        await tester.ensureVisible(disclosure);
+        await tester.tap(disclosure);
+        await tester.pumpAndSettle();
+        final field = find.byType(TextFormField).last;
+        await tester.ensureVisible(field);
+        await tester.tap(field);
+        await tester.pumpAndSettle();
+        final label = find.descendant(
+          of: field,
+          matching: find.text(lang == 'ru' ? 'Пароль' : 'Құпиясөз'),
+        );
+        _expectLabelInsideClips(
+          tester,
+          label,
+          '$lang at $scale: password label',
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      }
+    }
   });
 
   test(

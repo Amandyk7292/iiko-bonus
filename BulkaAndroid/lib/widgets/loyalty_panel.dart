@@ -1,5 +1,42 @@
 part of '../main.dart';
 
+@visibleForTesting
+Widget buildLoyaltyHistoryButtonForTest({required VoidCallback onPressed}) =>
+    _LoyaltyHistoryButton(onPressed: onPressed);
+
+class _LoyaltyHistoryButton extends StatelessWidget {
+  const _LoyaltyHistoryButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => GradientButton(
+    key: const ValueKey('balance-history-button'),
+    foregroundColor: _bulkaBrown,
+    borderColor: Colors.transparent,
+    shadows: BulkaShadows.raisedCard,
+    onPressed: onPressed,
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.history, size: 20, color: _bulkaBrown),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            'balance_history_btn'.tr,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontFamily: _descriptionFont,
+              fontSize: BulkaTypeScale.title,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class _LoyaltyPanel extends StatelessWidget {
   const _LoyaltyPanel({
     required this.api,
@@ -123,37 +160,7 @@ class _LoyaltyPanel extends StatelessWidget {
                 const SizedBox(height: 20),
               ],
               _BonusExpiryNotice(api: api),
-              SizedBox(
-                width: double.infinity,
-                height: 58,
-                child: GradientButton(
-                  key: const ValueKey('balance-history-button'),
-                  foregroundColor: _bulkaBrown,
-                  borderColor: Colors.transparent,
-                  shadows: BulkaShadows.raisedCard,
-                  onPressed: onHistoryTap,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.history, size: 20, color: _bulkaBrown),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          'balance_history_btn'.tr,
-                          maxLines: 2,
-                          overflow: TextOverflow.fade,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontFamily: _descriptionFont,
-                            fontSize: BulkaTypeScale.title,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              _LoyaltyHistoryButton(onPressed: onHistoryTap),
             ],
           ),
         ),

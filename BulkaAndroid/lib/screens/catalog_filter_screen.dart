@@ -1,5 +1,97 @@
 part of '../main.dart';
 
+@visibleForTesting
+Widget buildCatalogFilterActionsForTest({
+  required VoidCallback onApply,
+  required VoidCallback onReset,
+}) => _CatalogFilterActions(onApply: onApply, onReset: onReset);
+
+class _CatalogFilterActions extends StatelessWidget {
+  const _CatalogFilterActions({required this.onApply, required this.onReset});
+
+  final VoidCallback onApply;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    const applyStyle = TextStyle(
+      fontFamily: _headingFont,
+      fontSize: BulkaTypeScale.body,
+      fontWeight: FontWeight.w700,
+      color: _textDark,
+    );
+    final resetStyle = TextStyle(
+      fontFamily: _headingFont,
+      fontSize: BulkaTypeScale.body,
+      fontWeight: FontWeight.w600,
+      color: colors.brandBrown,
+    );
+    final applyLabel = 'catalog_apply'.tr;
+    final resetLabel = 'catalog_reset'.tr;
+    final applyButton = ElevatedButton(
+      key: const ValueKey('catalog-filter-apply'),
+      onPressed: onApply,
+      style: ElevatedButton.styleFrom(
+        minimumSize: const Size(0, 50),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+        backgroundColor: _bulkaYellow,
+        foregroundColor: _textDark,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(BulkaRadii.card),
+        ),
+      ),
+      child: Text(applyLabel, textAlign: TextAlign.center, style: applyStyle),
+    );
+    final resetButton = OutlinedButton(
+      key: const ValueKey('catalog-filter-reset'),
+      onPressed: onReset,
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 50),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+        side: BorderSide(color: colors.brandBrown, width: 1.5),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(BulkaRadii.card),
+        ),
+      ),
+      child: Text(resetLabel, textAlign: TextAlign.center, style: resetStyle),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        double textWidth(String text, TextStyle style) {
+          final painter = TextPainter(
+            text: TextSpan(text: text, style: style),
+            textDirection: Directionality.of(context),
+            textScaler: MediaQuery.textScalerOf(context),
+          )..layout();
+          final width = painter.width;
+          painter.dispose();
+          return width;
+        }
+
+        final available = constraints.maxWidth - 12;
+        final stack =
+            textWidth(applyLabel, applyStyle) + 40 > available * .55 ||
+            textWidth(resetLabel, resetStyle) + 40 > available * .45;
+        if (stack) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [applyButton, const SizedBox(height: 10), resetButton],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(flex: 11, child: applyButton),
+            const SizedBox(width: 12),
+            Expanded(flex: 9, child: resetButton),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _CatalogFilterScreen extends StatefulWidget {
   const _CatalogFilterScreen({
     required this.initialSort,
@@ -335,67 +427,7 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 11,
-                    child: SizedBox(
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: _apply,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _bulkaYellow,
-                          foregroundColor: _textDark,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              BulkaRadii.card,
-                            ),
-                          ),
-                        ),
-                        child: Text(
-                          'catalog_apply'.tr,
-                          style: const TextStyle(
-                            fontFamily: _headingFont,
-                            fontSize: BulkaTypeScale.body,
-                            fontWeight: FontWeight.w700,
-                            color: _textDark,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 9,
-                    child: SizedBox(
-                      height: 50,
-                      child: OutlinedButton(
-                        onPressed: _reset,
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(
-                            color: colors.brandBrown,
-                            width: 1.5,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              BulkaRadii.card,
-                            ),
-                          ),
-                        ),
-                        child: Text(
-                          'catalog_reset'.tr,
-                          style: TextStyle(
-                            fontSize: BulkaTypeScale.body,
-                            fontWeight: FontWeight.w600,
-                            color: colors.brandBrown,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              child: _CatalogFilterActions(onApply: _apply, onReset: _reset),
             ),
           ],
         ),

@@ -9,7 +9,7 @@ extension FamilyApi on BulkaApiClient {
       await _post('/api/auth/family-child/login', {
         'login': login.trim(),
         'password': password,
-      }),
+      }, refreshOnUnauthorized: false),
     );
   }
 
@@ -79,6 +79,7 @@ extension FamilyApi on BulkaApiClient {
 String _familyError(Object error) {
   if (error is ApiException) {
     final key = const {
+      'INVALID_CREDENTIALS': 'invalidCredentials',
       'FAMILY_UNAVAILABLE': 'unavailable',
       'FAMILY_NOT_FOUND': 'notFound',
       'FAMILY_FORBIDDEN': 'ownerOnly',

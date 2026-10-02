@@ -178,6 +178,7 @@ part 'screens/orders_checkout_layout.dart';
 part 'screens/orders_checkout_bottom_bar.dart';
 part 'screens/orders_checkout_ordering_notice.dart';
 part 'screens/orders_checkout_widgets.dart';
+part 'widgets/checkout_total_row.dart';
 part 'screens/balance_history_screen.dart';
 part 'screens/balance_history_item.dart';
 part 'screens/customer_orders_screen.dart';

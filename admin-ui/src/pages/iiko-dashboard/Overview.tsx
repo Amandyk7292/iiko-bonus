@@ -94,8 +94,10 @@ export default function Overview({ data, cards }: { data: OverviewData; cards: s
                     : formatNumber(current, {
                         maximumFractionDigits: 1,
                         notation: Math.abs(current) >= 1000000 ? 'compact' : 'standard',
-                      })}
-                  {current !== null && item.money ? ' ₸' : ''}
+                      })
+                        .replace(/[\u00a0\u202f]/g, ' ')
+                        .replace(/,(?=\d{3}(?:[,.]|$))/g, ',\u200b')}
+                  {current !== null && item.money ? '\u00a0₸' : ''}
                 </strong>
                 {data.previous && (
                   <small className="id-metric-change">

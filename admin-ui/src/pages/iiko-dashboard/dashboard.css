@@ -157,9 +157,11 @@
 .id-metric strong {
   font-variant-numeric: tabular-nums;
   font-size: clamp(16px, 1.55vw, 24px);
-  white-space: nowrap;
+  max-width: 100%;
+  white-space: normal;
   font-weight: 600;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 .id-metric small {
   font-size: 12px;
@@ -205,7 +207,8 @@
 }
 .id-table td {
   max-width: 340px;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 .id-pagination {
   justify-content: flex-end;
@@ -398,6 +401,6 @@
   .id-table td {
     min-width: 130px;
     max-width: 280px;
-    overflow-wrap: break-word;
+    overflow-wrap: normal;
   }
 }

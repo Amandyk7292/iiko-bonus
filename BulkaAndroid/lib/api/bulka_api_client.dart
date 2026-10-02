@@ -216,7 +216,7 @@ class BulkaApiClient {
     final json = await _post('/api/auth/login', {
       'phone': phone,
       'password': password,
-    });
+    }, refreshOnUnauthorized: false);
     return ProfileResponse.fromJson(json);
   }
 
@@ -1928,6 +1928,7 @@ class BulkaApiClient {
     String path,
     Map<String, dynamic> body, {
     String? bearerToken,
+    bool refreshOnUnauthorized = true,
     Duration timeout = const Duration(seconds: 15),
   }) async {
     return _request(
@@ -1936,6 +1937,7 @@ class BulkaApiClient {
       body: body,
       bearerToken: bearerToken,
       allowRefresh: bearerToken == null,
+      refreshOnUnauthorized: refreshOnUnauthorized,
       timeout: timeout,
     );
   }
@@ -1967,6 +1969,7 @@ class BulkaApiClient {
     Map<String, dynamic>? body,
     String? bearerToken,
     bool allowRefresh = true,
+    bool refreshOnUnauthorized = true,
     Duration timeout = const Duration(seconds: 15),
   }) async {
     if (isFamilyChildSession &&
@@ -2004,8 +2007,11 @@ class BulkaApiClient {
         code: 'SESSION_IDENTITY_CHANGED',
       );
     }
+    // A public password-login 401 rejects credentials, not the current session.
+    // Disabling that refresh leaves all session revision guards active.
     if (response.statusCode == 401 &&
         allowRefresh &&
+        refreshOnUnauthorized &&
         bearerToken == null &&
         (_usesCookieSessionTransport || _refreshToken?.isNotEmpty == true)) {
       final refresh = requestAccessToken != _accessToken && isAuthenticated
