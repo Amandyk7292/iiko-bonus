@@ -26,9 +26,15 @@ pgTest('PG acceptance race keeps the first audit and cancels a claimed reminder'
   let orderId;
   let raceOrderId;
   let alertOrderId;
+  const policyOrderIds = [];
 
   t.after(async () => {
-    const orderIds = [orderId, raceOrderId, alertOrderId].filter(Boolean);
+    await Promise.allSettled([
+      setup.query('rollback'),
+      first.query('rollback'),
+      second.query('rollback'),
+    ]);
+    const orderIds = [orderId, raceOrderId, alertOrderId, ...policyOrderIds].filter(Boolean);
     if (orderIds.length) {
       await setup
         .query('delete from public.kaspi_orders where id = any($1::uuid[])', [orderIds])
@@ -91,7 +97,8 @@ pgTest('PG acceptance race keeps the first audit and cancels a claimed reminder'
   );
   orderId = inserted.rows[0].id;
   const requestedAt = await setup.query(
-    `select orders.staff_acceptance_requested_at, outbox.created_at,
+    `select orders.staff_acceptance_requested_at, orders.acceptance_watch_started_at,
+            outbox.created_at,
             reminder.id as reminder_id, reminder.source_outbox_id,
             reminder.due_at, reminder.expires_at,
             reminder.snapshotted_at
@@ -109,13 +116,14 @@ pgTest('PG acceptance race keeps the first audit and cancels a claimed reminder'
   );
   assert.equal(requestedAt.rows[0].snapshotted_at, null);
   assert.equal(
-    Date.parse(requestedAt.rows[0].due_at) - Date.parse(requestedAt.rows[0].created_at),
-    60 * 1000,
+    Date.parse(requestedAt.rows[0].due_at) -
+      Date.parse(requestedAt.rows[0].acceptance_watch_started_at),
+    3 * 60 * 1000,
   );
-  assert.ok(
+  assert.equal(
     Date.parse(requestedAt.rows[0].expires_at) -
-      Date.parse(requestedAt.rows[0].staff_acceptance_requested_at) <=
-      15 * 60 * 1000,
+      Date.parse(requestedAt.rows[0].acceptance_watch_started_at),
+    10 * 60 * 1000,
   );
 
   const beforeDue = await setup.query(
@@ -309,4 +317,96 @@ pgTest('PG acceptance race keeps the first audit and cancels a claimed reminder'
     [claimedAlert.alert_id, claimedAlert.lease_token],
   );
   assert.equal(alertValid.rows[0].valid, true);
+
+  // Freeze database now() so the exact 3/10-minute edges cannot drift while
+  // the assertions run. These preorders were paid an hour ago, but their
+  // preparation windows started recently: payment/outbox age is not the clock.
+  await setup.query('begin');
+  const policyOrders = new Map();
+  for (const [index, ageSeconds] of [179, 180, 599, 600].entries()) {
+    const insertedPolicy = await setup.query(
+      `insert into public.kaspi_orders(
+         order_number, operation_id, amount, phone, status, branch_id,
+         fulfillment_status, kitchen_status, fulfillment_type,
+         staff_acceptance_requested_at, scheduled_at, preparation_minutes
+       ) values (
+         $1, $2, 1000, '+70000000000', 'paid', $3, 'new', 'queued', 'preorder',
+         now() - interval '1 hour',
+         now() + interval '30 minutes' - make_interval(secs => $4), 30
+       ) returning id`,
+      [orderNumber + 3 + index, `${operation}-policy-${ageSeconds}`, branchId, ageSeconds],
+    );
+    const id = insertedPolicy.rows[0].id;
+    policyOrderIds.push(id);
+    policyOrders.set(ageSeconds, id);
+  }
+  const policyClocks = await setup.query(
+    `select orders.id,
+            extract(epoch from (now() - orders.acceptance_watch_started_at)) as age_seconds,
+            extract(epoch from (reminder.due_at - orders.acceptance_watch_started_at))
+              as reminder_delay_seconds,
+            extract(epoch from (reminder.expires_at - orders.acceptance_watch_started_at))
+              as reminder_expiry_seconds,
+            orders.staff_acceptance_requested_at < orders.acceptance_watch_started_at
+              as requested_before_watch,
+            outbox.created_at > orders.acceptance_watch_started_at as outbox_after_watch
+     from public.kaspi_orders orders
+     inner join public.staff_push_outbox outbox on outbox.order_id = orders.id
+     inner join public.staff_push_reminder_outbox reminder on reminder.order_id = orders.id
+     where orders.id = any($1::uuid[])`,
+    [policyOrderIds],
+  );
+  assert.equal(policyClocks.rowCount, 4);
+  for (const [ageSeconds, id] of policyOrders) {
+    const clock = policyClocks.rows.find((row) => row.id === id);
+    assert.equal(Number(clock.age_seconds), ageSeconds);
+    assert.equal(Number(clock.reminder_delay_seconds), 180);
+    assert.equal(Number(clock.reminder_expiry_seconds), 600);
+    assert.equal(clock.requested_before_watch, true);
+    assert.equal(clock.outbox_after_watch, true);
+  }
+  const notices = await setup.query('select * from public.claim_order_waiting_notices()');
+  for (const [ageSeconds, expectedStages] of [
+    [179, []],
+    [180, [3]],
+    [599, [3, 5]],
+    [600, []],
+  ]) {
+    assert.deepEqual(
+      notices.rows
+        .filter((row) => row.order_id === policyOrders.get(ageSeconds))
+        .map((row) => row.stage)
+        .sort(),
+      expectedStages,
+    );
+  }
+  const boundaryClaims = await setup.query(
+    'select * from public.claim_staff_push_reminder_deliveries(20)',
+  );
+  assert.deepEqual(
+    boundaryClaims.rows
+      .filter((row) => policyOrderIds.includes(row.order_id))
+      .map((row) => row.order_id)
+      .sort(),
+    [policyOrders.get(180), policyOrders.get(599)].sort(),
+  );
+  const boundaryStates = await setup.query(
+    `select order_id, status from public.staff_push_reminder_outbox
+     where order_id = any($1::uuid[])`,
+    [[policyOrders.get(179), policyOrders.get(600)]],
+  );
+  assert.equal(
+    boundaryStates.rows.find((row) => row.order_id === policyOrders.get(179)).status,
+    'queued',
+  );
+  assert.equal(
+    boundaryStates.rows.find((row) => row.order_id === policyOrders.get(600)).status,
+    'skipped',
+  );
+  const repeatedNotices = await setup.query('select * from public.claim_order_waiting_notices()');
+  assert.equal(
+    repeatedNotices.rows.some((row) => policyOrderIds.includes(row.order_id)),
+    false,
+  );
+  await setup.query('commit');
 });

@@ -10,7 +10,7 @@ const pgTest =
 const hash64 = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
 pgTest(
-  'PG16 staff push closes registration races, bounds age and rechecks acceptance',
+  'Native PostgreSQL staff push closes registration races, bounds age and rechecks acceptance',
   async (t) => {
     const setup = new Client({ connectionString });
     const orderTransaction = new Client({ connectionString });
@@ -45,6 +45,11 @@ pgTest(
     };
 
     t.after(async () => {
+      await Promise.allSettled([
+        setup.query('rollback'),
+        orderTransaction.query('rollback'),
+        registrationTransaction.query('rollback'),
+      ]);
       await setup
         .query('delete from public.kaspi_orders where operation_id like $1', [
           `staff-push-pg-${suffix}-%`,
@@ -134,7 +139,11 @@ pgTest(
       `select * from public.register_staff_push_device($1, $2, 'ios', $3)`,
       [sessionA, `token-race-${suffix}-0987654321`, `ipad.race.${suffix}`],
     );
-    assert.equal(registeredAgain.rowCount, 1, 'registration upsert remains executable on PG16');
+    assert.equal(
+      registeredAgain.rowCount,
+      1,
+      'registration upsert remains executable on native PG',
+    );
     await setup.query(
       `update public.staff_push_devices
        set last_seen_at = now() - interval '91 seconds'
@@ -179,7 +188,8 @@ pgTest(
       [cashierA],
     );
     await setup.query(
-      `update public.admin_sessions set expires_at = now() - interval '1 second'
+      `update public.admin_sessions
+       set created_at = now() - interval '1 hour', expires_at = now() - interval '1 second'
        where jti_hash = $1`,
       [sessionA],
     );
@@ -253,7 +263,8 @@ pgTest(
     // Payment snapshots only a fully current cashier enrollment. An active
     // row whose session/auth has expired is sanitized and never attached.
     await setup.query(
-      `update public.admin_sessions set expires_at = now() - interval '1 second'
+      `update public.admin_sessions
+       set created_at = now() - interval '1 hour', expires_at = now() - interval '1 second'
        where jti_hash = $1`,
       [sessionB],
     );
@@ -390,15 +401,46 @@ pgTest(
     );
     assert.deepEqual(repeatTerminal.rows[0], { count: 2, episode: 2 });
 
-    // SLA uses outbox.created_at, the durable paid-transition timestamp.
-    const sla119 = await insertPaidOrder(setup, 'sla119', branchB, 'new');
+    // The current policy escalates five minutes after the preparation watch
+    // starts. A preorder's earlier payment/request/outbox must not escalate it
+    // early. Frozen now() makes the 299/300-second boundary deterministic.
+    await setup.query('begin');
+    orderNumberOffset += 1;
+    const slaOrder = await setup.query(
+      `insert into public.kaspi_orders(
+         order_number, operation_id, amount, phone, status, branch_id,
+         fulfillment_status, kitchen_status, fulfillment_type,
+         staff_acceptance_requested_at, scheduled_at, preparation_minutes
+       ) values (
+         $1, $2, 1000, '+70000000000', 'paid', $3, 'new', 'queued', 'preorder',
+         now() - interval '1 hour', now() + interval '30 minutes' - interval '299 seconds', 30
+       ) returning id`,
+      [orderNumberStart + orderNumberOffset, operation('sla-five-minutes'), branchB],
+    );
+    const slaOrderId = slaOrder.rows[0].id;
     await setup.query(
       `update public.staff_push_outbox
-       set created_at = now() - interval '119 seconds',
-           expires_at = now() - interval '119 seconds' + interval '15 minutes'
+       set created_at = now() - interval '8 minutes',
+           expires_at = now() + interval '7 minutes'
        where order_id = $1`,
-      [sla119.rows[0].id],
+      [slaOrderId],
     );
+    const slaClocks = await setup.query(
+      `select
+         extract(epoch from (now() - orders.acceptance_watch_started_at)) as age_seconds,
+         orders.staff_acceptance_requested_at < orders.acceptance_watch_started_at
+           as requested_before_watch,
+         outbox.created_at < orders.acceptance_watch_started_at as outbox_before_watch
+       from public.kaspi_orders orders
+       inner join public.staff_push_outbox outbox on outbox.order_id = orders.id
+       where orders.id = $1`,
+      [slaOrderId],
+    );
+    assert.equal(Number(slaClocks.rows[0].age_seconds), 299);
+    assert.equal(slaClocks.rows[0].requested_before_watch, true);
+    assert.equal(slaClocks.rows[0].outbox_before_watch, true);
+    // The legacy parameter is kept for RPC compatibility; 120 seconds must
+    // not override the deployed fixed five-minute acceptance policy.
     await setup.query('select public.enqueue_due_staff_order_alerts(120)');
     assert.equal(
       Number(
@@ -406,18 +448,17 @@ pgTest(
           await setup.query(
             `select count(*) from public.staff_order_alerts
              where order_id = $1 and alert_type = 'order_unaccepted'`,
-            [sla119.rows[0].id],
+            [slaOrderId],
           )
         ).rows[0].count,
       ),
       0,
     );
     await setup.query(
-      `update public.staff_push_outbox
-       set created_at = now() - interval '120 seconds',
-           expires_at = now() - interval '120 seconds' + interval '15 minutes'
-       where order_id = $1`,
-      [sla119.rows[0].id],
+      `update public.kaspi_orders
+       set scheduled_at = now() + interval '30 minutes' - interval '300 seconds'
+       where id = $1`,
+      [slaOrderId],
     );
     await setup.query('select public.enqueue_due_staff_order_alerts(120)');
     assert.equal(
@@ -426,7 +467,29 @@ pgTest(
           await setup.query(
             `select count(*) from public.staff_order_alerts
              where order_id = $1 and alert_type = 'order_unaccepted'`,
-            [sla119.rows[0].id],
+            [slaOrderId],
+          )
+        ).rows[0].count,
+      ),
+      1,
+    );
+    const slaEvent = await setup.query(
+      `select alert.event_at = orders.acceptance_watch_started_at + interval '5 minutes'
+           as uses_watch_start
+       from public.staff_order_alerts alert
+       inner join public.kaspi_orders orders on orders.id = alert.order_id
+       where orders.id = $1 and alert.alert_type = 'order_unaccepted'`,
+      [slaOrderId],
+    );
+    assert.equal(slaEvent.rows[0].uses_watch_start, true);
+    await setup.query('select public.enqueue_due_staff_order_alerts(120)');
+    assert.equal(
+      Number(
+        (
+          await setup.query(
+            `select count(*) from public.staff_order_alerts
+             where order_id = $1 and alert_type = 'order_unaccepted'`,
+            [slaOrderId],
           )
         ).rows[0].count,
       ),
@@ -436,20 +499,21 @@ pgTest(
     const claimedAlert = await setup.query(
       `select * from public.claim_staff_order_alerts(50, 120)
        where order_id = $1 and alert_type = 'order_unaccepted'`,
-      [sla119.rows[0].id],
+      [slaOrderId],
     );
     assert.equal(claimedAlert.rowCount, 1);
     await setup.query(
       `update public.kaspi_orders
        set fulfillment_status = 'preparing', kitchen_status = 'preparing'
        where id = $1`,
-      [sla119.rows[0].id],
+      [slaOrderId],
     );
     const acceptedAlert = await setup.query(
       `select public.validate_staff_order_alert_claim($1, $2, 120) as valid`,
       [claimedAlert.rows[0].alert_id, claimedAlert.rows[0].lease_token],
     );
     assert.equal(acceptedAlert.rows[0].valid, false);
+    await setup.query('commit');
 
     // One open no-iPad alert exists per branch outage, regardless of how many
     // paid orders arrive. Restoring enrollment resolves it; losing the last
