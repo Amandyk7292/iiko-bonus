@@ -169,12 +169,15 @@ async function getCustomerInfo(req, res) {
     if (phoneDigits.length < 10 || phoneDigits.length > 15) {
       throw requestError('phone must contain 10-15 digits');
     }
-    const customer = await getOrCreateCustomerByPhone(
+    const foundCustomer = await getOrCreateCustomerByPhone(
       normalizedPhone,
       String(name || 'Новый Гость')
         .trim()
         .slice(0, 160),
     );
+    const [customer] = await require('../services/family.service').family.loyaltyCustomers([
+      foundCustomer,
+    ]);
     const settings = await getSettings();
     const loyaltyTiers = await getActiveLoyaltyTiers(settings);
 
@@ -190,7 +193,7 @@ async function getCustomerInfo(req, res) {
         totalSpent: customer.total_spent || 0,
         cashbackPercent: currentCashbackPercent,
         tier: tier,
-        maxDiscountPercent: settings.max_discount_percent,
+        maxDiscountPercent: customer.canSpendBonuses === false ? 0 : settings.max_discount_percent,
         balances: [{ walletId: 'bonus-wallet', name: 'Бонусы', balance: customer.balance }],
       },
     });
@@ -208,7 +211,8 @@ async function searchCustomersHandler(req, res) {
     if (query.length > 160) return res.status(400).json({ error: 'Query is too long' });
 
     await activatePendingBonusesSafe();
-    const customers = await searchCustomers(query);
+    const matches = await searchCustomers(query);
+    const customers = await require('../services/family.service').family.loyaltyCustomers(matches);
     const settings = await getSettings();
     const loyaltyTiers = await getActiveLoyaltyTiers(settings);
 
@@ -224,7 +228,7 @@ async function searchCustomersHandler(req, res) {
         totalSpent: customer.total_spent || 0,
         cashbackPercent: currentCashbackPercent,
         tier: tier,
-        maxDiscountPercent: settings.max_discount_percent,
+        maxDiscountPercent: customer.canSpendBonuses === false ? 0 : settings.max_discount_percent,
         balances: [{ walletId: 'bonus-wallet', name: 'Бонусы', balance: customer.balance }],
       };
     });
@@ -328,6 +332,7 @@ async function applyBonus(req, res) {
       },
       loyaltyAuthContext(req),
     );
+    if (reservation.skipped) return res.json(reservation);
     const result = await commitLoyalty(
       {
         customerId,

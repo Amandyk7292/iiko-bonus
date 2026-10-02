@@ -174,7 +174,9 @@ async function processDeliveryDispatch(orderId, dependencies = {}) {
       ? claim.is('courier_dispatch_status', null)
       : claim.eq('courier_dispatch_status', current.courier_dispatch_status);
   const { data: claimed, error: claimError } = await claim
-    .select('*,customers(name,phone),bulka_locations(id,name,city,address,latitude,longitude)')
+    .select(
+      '*,customers!kaspi_orders_customer_id_fkey(name,phone),bulka_locations(id,name,city,address,latitude,longitude)',
+    )
     .maybeSingle();
   if (claimError) throw claimError;
   if (!claimed) return { skipped: true, reason: 'already_processing' };

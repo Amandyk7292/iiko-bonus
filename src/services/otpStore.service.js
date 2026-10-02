@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const { consumeCustomerOtp } = require('./customer-otp.service');
 
 // Memory is only a local read-through cache. Supabase remains authoritative so
 // OTP verification is consistent across restarts and multiple processes.
@@ -50,11 +51,7 @@ const otpStore = {
   },
 
   async consume(phone, code) {
-    const { data, error } = await supabase.rpc('consume_whatsapp_otp', {
-      p_phone: String(phone || ''),
-      p_code: String(code || ''),
-    });
-    if (error) throw new Error(`OTP storage unavailable: ${error.message}`);
+    const data = await consumeCustomerOtp(phone, code);
     if (data?.status === 'success' || data?.status === 'expired') memoryStore.delete(phone);
     return data || { status: 'expired' };
   },

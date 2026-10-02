@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { supabase } = require('../config/supabase');
 const { normalizeKazakhstanPhone } = require('../utils/phone.util');
-const { buildWhatsAppContact } = require('../utils/whatsapp.util');
+const { startCustomerOtp } = require('./customer-otp.service');
 const { getCustomerByPhone } = require('./customer.service');
 
 const AUTH_PURPOSES = Object.freeze({
@@ -97,36 +97,9 @@ async function getCustomerCredential(customerId, { db = supabase } = {}) {
   return data || null;
 }
 
-async function saveWhatsAppAuthRequest(
-  { phone, requestToken, purpose, passwordHash = null },
-  { db = supabase } = {},
-) {
-  const expires = Date.now() + 10 * 60 * 1000;
-  await db.from('whatsapp_sessions').delete().lt('expires_at', new Date().toISOString());
-  const payload = {
-    phone,
-    purpose,
-    expires,
-    flowId: requestToken,
-    ...(passwordHash ? { passwordHash } : {}),
-  };
-  const { error } = await db.from('whatsapp_sessions').upsert({
-    id: `token_${requestToken}`,
-    data: payload,
-    expires_at: new Date(expires).toISOString(),
-  });
-  if (error) throw error;
-
-  const contact = buildWhatsAppContact(requestToken);
-  if (!contact.whatsappUrl) {
-    throw customerAuthError('WhatsApp confirmation is unavailable', 503, 'WHATSAPP_UNAVAILABLE');
-  }
-  return contact;
-}
-
 async function startCustomerRegistration(
-  { phone: rawPhone, password, requestToken: rawRequestToken },
-  { db = supabase, findCustomer = getCustomerByPhone } = {},
+  { phone: rawPhone, password, requestToken: rawRequestToken, automaticOtpSupported = false },
+  { db = supabase, findCustomer = getCustomerByPhone, requestOtp = startCustomerOtp } = {},
 ) {
   const phone = normalizeCustomerPhone(rawPhone);
   const requestToken = validateRequestToken(rawRequestToken);
@@ -147,12 +120,13 @@ async function startCustomerRegistration(
   }
 
   const passwordHash = await bcrypt.hash(validateNewPassword(password), bcryptRounds());
-  const contact = await saveWhatsAppAuthRequest(
+  const contact = await requestOtp(
     {
       phone,
       requestToken,
       purpose: AUTH_PURPOSES.registration,
       passwordHash,
+      automaticOtpSupported,
     },
     { db },
   );
@@ -160,19 +134,19 @@ async function startCustomerRegistration(
 }
 
 async function startCustomerPasswordReset(
-  { phone: rawPhone, requestToken: rawRequestToken },
-  { db = supabase, findCustomer = getCustomerByPhone } = {},
+  { phone: rawPhone, requestToken: rawRequestToken, automaticOtpSupported = false },
+  { db = supabase, findCustomer = getCustomerByPhone, requestOtp = startCustomerOtp } = {},
 ) {
   const phone = normalizeCustomerPhone(rawPhone);
   const requestToken = validateRequestToken(rawRequestToken);
   const customer = await findCustomer(phone);
   const credential = customer ? await getCustomerCredential(customer.id, { db }) : null;
 
-  // Keep the public response and WhatsApp confirmation flow identical for
+  // Keep the public response and confirmation flow identical for
   // existing and unknown numbers. Only someone who controls the phone can
   // complete the OTP step, where account eligibility is checked again.
-  const contact = await saveWhatsAppAuthRequest(
-    { phone, requestToken, purpose: AUTH_PURPOSES.passwordReset },
+  const contact = await requestOtp(
+    { phone, requestToken, purpose: AUTH_PURPOSES.passwordReset, automaticOtpSupported },
     { db },
   );
   return {

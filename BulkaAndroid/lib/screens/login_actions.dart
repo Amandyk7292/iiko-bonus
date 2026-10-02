@@ -39,7 +39,7 @@ extension _LoginScreenActions on _LoginScreenState {
     });
   }
 
-  Future<void> _startWhatsAppConfirmation() async {
+  Future<void> _startPhoneConfirmation() async {
     if (_phoneController.text.length != 10 || _loading) return;
     if (_flow == _CustomerAuthFlow.registration) {
       final passwordError = _passwordValidationError(confirm: true);
@@ -53,15 +53,6 @@ extension _LoginScreenActions on _LoginScreenState {
       _error = null;
     });
     final token = _newRequestToken();
-
-    // Bypass popup blockers on Web by opening the URL synchronously
-    // before the async API request. The backend uses the same token.
-    if (kIsWeb) {
-      final waUri = Uri.parse(
-        'https://wa.me/77008317499?text=%D0%BA%D0%BE%D0%B4%20$token',
-      );
-      launchUrl(waUri, mode: LaunchMode.externalApplication).ignore();
-    }
 
     final result = _flow == _CustomerAuthFlow.registration
         ? await widget.onStartRegistration(
@@ -80,12 +71,19 @@ extension _LoginScreenActions on _LoginScreenState {
         _otpDeliveryPhone = phoneHint;
         _otpDeliveryHasLink = false;
         _otpWhatsappUri = null;
+        _otpIsAutomatic = result.isAutomatic;
+        _otpChannel = result.channel == 'sms' ? 'sms' : 'whatsapp';
+        _otpCodeLength = result.codeLength == 6 ? 6 : 4;
       });
-      final rawUrl = result.whatsappUrl?.trim();
+      _scheduleOtpRetry(result.isAutomatic ? result.retryAfterSeconds : 0);
+      final rawUrl = result.isAutomatic ? null : result.whatsappUrl?.trim();
       final uri = rawUrl == null || rawUrl.isEmpty
           ? null
           : Uri.tryParse(rawUrl);
-      if (uri != null && uri.hasScheme && mounted) {
+      if (uri != null &&
+          uri.scheme == 'https' &&
+          uri.host == 'wa.me' &&
+          mounted) {
         _update(() {
           _otpDeliveryHasLink = true;
           _otpWhatsappUri = uri;
@@ -99,8 +97,20 @@ extension _LoginScreenActions on _LoginScreenState {
     }
   }
 
+  void _scheduleOtpRetry(int seconds) {
+    _otpRetryTimer?.cancel();
+    _update(() => _otpRetrySeconds = seconds.clamp(0, 86400));
+    if (_otpRetrySeconds == 0) return;
+    _otpRetryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || _otpRetrySeconds <= 1) timer.cancel();
+      if (mounted) {
+        _update(() => _otpRetrySeconds = max(0, _otpRetrySeconds - 1));
+      }
+    });
+  }
+
   Future<void> _verifyRegistration() async {
-    if (_otpController.text.length != 4 || _loading) return;
+    if (_otpController.text.length != _otpCodeLength || _loading) return;
     _update(() {
       _loading = true;
       _error = null;
@@ -111,6 +121,7 @@ extension _LoginScreenActions on _LoginScreenState {
     );
     if (!mounted) return;
     if (error == null) {
+      _otpRetryTimer?.cancel();
       _update(() {
         _loading = false;
         _error = null;
@@ -125,7 +136,7 @@ extension _LoginScreenActions on _LoginScreenState {
   }
 
   Future<void> _completePasswordReset() async {
-    if (_otpController.text.length != 4 || _loading) return;
+    if (_otpController.text.length != _otpCodeLength || _loading) return;
     final passwordError = _passwordValidationError(confirm: true);
     if (passwordError != null) {
       _update(() => _error = passwordError);
@@ -148,6 +159,7 @@ extension _LoginScreenActions on _LoginScreenState {
   }
 
   void _selectFlow(_CustomerAuthFlow flow) {
+    _otpRetryTimer?.cancel();
     _update(() {
       _flow = flow;
       _otpStep = false;
@@ -160,6 +172,9 @@ extension _LoginScreenActions on _LoginScreenState {
       _otpWhatsappUri = null;
       _otpDeliveryPhone = null;
       _otpDeliveryHasLink = false;
+      _otpIsAutomatic = false;
+      _otpCodeLength = 4;
+      _otpRetrySeconds = 0;
     });
   }
 

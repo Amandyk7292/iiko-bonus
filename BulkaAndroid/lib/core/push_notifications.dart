@@ -556,6 +556,7 @@ abstract final class PushNotifications {
   /// A completed/skipped onboarding screen is not an OS notification grant.
   /// Called after customer sign-in/restoration, never by the background retry.
   static Future<void> requestCustomerPermissionAfterSignIn(BulkaApiClient api) {
+    if (api.isFamilyChildSession) return Future<void>.value();
     if (kIsWeb || !api.isAuthenticated) return Future<void>.value();
     final running = _customerPermissionTask;
     if (running != null) return running;
@@ -623,6 +624,7 @@ abstract final class PushNotifications {
   }
 
   static Future<void> register(BulkaApiClient api) async {
+    if (api.isFamilyChildSession) return;
     final generation = _customerPushGeneration;
     // Startup and resume initialize Firebase asynchronously. Waiting here keeps
     // a fast restored customer session from losing its only registration try.
@@ -883,6 +885,7 @@ abstract final class PushNotifications {
     BulkaApiClient api, {
     String? customerIdentity,
   }) async {
+    if (api.isFamilyChildSession) return true;
     await deferCustomerUnregister(api, customerIdentity: customerIdentity);
     final prefs = await SharedPreferences.getInstance();
     final installationId = await _installationId();

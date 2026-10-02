@@ -22,7 +22,7 @@ async function listFrontOrders(branchId, { page = 1, peek = false, receipts = fa
     .select(
       peek
         ? 'id,order_number'
-        : 'id,order_number,phone,cart_items,amount,subtotal,discount_amount,delivery_fee,partially_refunded_amount,fulfillment_type,preorder_fulfillment_type,fulfillment_status,pos_receipt_due,scheduled_at,comment,delivery_address,customers(name,phone)',
+        : 'id,order_number,phone,cart_items,amount,subtotal,discount_amount,delivery_fee,partially_refunded_amount,fulfillment_type,preorder_fulfillment_type,fulfillment_status,pos_receipt_due,scheduled_at,comment,delivery_address,customers!kaspi_orders_customer_id_fkey(name,phone)',
       { count: 'exact' },
     )
     .eq('branch_id', branchId)

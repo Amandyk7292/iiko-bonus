@@ -34,10 +34,15 @@ const customerRegistrationStartBodySchema = z
     phone: phoneSchema,
     password: newPasswordSchema,
     token: requestTokenSchema,
+    otpDeliveryVersion: z.literal(2).optional(),
   })
   .strict();
 const customerPasswordResetStartBodySchema = z
-  .object({ phone: phoneSchema, token: requestTokenSchema })
+  .object({
+    phone: phoneSchema,
+    token: requestTokenSchema,
+    otpDeliveryVersion: z.literal(2).optional(),
+  })
   .strict();
 const customerPasswordResetCompleteBodySchema = z
   .object({
@@ -45,12 +50,16 @@ const customerPasswordResetCompleteBodySchema = z
     code: z
       .string()
       .trim()
-      .regex(/^\d{4}$/),
+      .regex(/^(?:\d{4}|\d{6})$/),
     password: newPasswordSchema,
   })
   .strict();
 const customerOtpRequestBodySchema = z
-  .object({ phone: phoneSchema, token: requestTokenSchema })
+  .object({
+    phone: phoneSchema,
+    token: requestTokenSchema,
+    otpDeliveryVersion: z.literal(2).optional(),
+  })
   .strict();
 const customerOtpVerifyBodySchema = z
   .object({
@@ -58,7 +67,7 @@ const customerOtpVerifyBodySchema = z
     code: z
       .string()
       .trim()
-      .regex(/^\d{4}$/),
+      .regex(/^(?:\d{4}|\d{6})$/),
   })
   .strict();
 const customerSessionBodySchema = z

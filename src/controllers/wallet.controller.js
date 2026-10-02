@@ -45,7 +45,12 @@ async function customerForToken(token) {
     .eq('phone', tokenData.phone)
     .maybeSingle();
   if (error) throw error;
-  return { expired: false, customer };
+  return {
+    expired: false,
+    customer: customer
+      ? await require('../services/family.service').family.profile(customer)
+      : null,
+  };
 }
 
 async function createToken(req, res) {
@@ -198,8 +203,9 @@ async function handleAppleWalletWebService(req, res) {
     return res.status(200).send();
   }
 
-  if (setApplePassCacheHeaders(req, res, customer)) return res.status(304).send();
-  const passBuffer = await buildApplePassBuffer(customer);
+  const loyaltyCustomer = await require('../services/family.service').family.profile(customer);
+  if (setApplePassCacheHeaders(req, res, loyaltyCustomer)) return res.status(304).send();
+  const passBuffer = await buildApplePassBuffer(loyaltyCustomer);
   res.set('Content-Type', 'application/vnd.apple.pkpass');
   return res.send(passBuffer);
 }
@@ -224,8 +230,12 @@ async function listAppleWalletRegistrations(req, res) {
     .select('id,updated_at,created_at')
     .in('id', customerIds);
   if (customerError) throw customerError;
+  const family = require('../services/family.service').family;
+  const loyaltyCustomers = await Promise.all(
+    (customers || []).map((customer) => family.profile(customer)),
+  );
   const updateTags = new Map(
-    (customers || []).map((customer) => [customer.id, customerUpdateTag(customer)]),
+    loyaltyCustomers.map((customer) => [customer.id, customerUpdateTag(customer)]),
   );
   const since = Number(req.query.passesUpdatedSince);
   const hasSince = Number.isFinite(since) && since >= 0;

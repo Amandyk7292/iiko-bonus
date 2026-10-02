@@ -1,11 +1,25 @@
 part of '../main.dart';
 
 class OtpRequestResult {
-  const OtpRequestResult({this.error, this.whatsappUrl, this.whatsappPhone});
+  const OtpRequestResult({
+    this.error,
+    this.whatsappUrl,
+    this.whatsappPhone,
+    this.deliveryMode,
+    this.channel,
+    this.codeLength = 4,
+    this.retryAfterSeconds = 0,
+  });
 
   final String? error;
   final String? whatsappUrl;
   final String? whatsappPhone;
+  final String? deliveryMode;
+  final String? channel;
+  final int codeLength;
+  final int retryAfterSeconds;
+
+  bool get isAutomatic => deliveryMode == 'automatic';
 
   bool get isSuccess => error == null;
 }
@@ -78,6 +92,9 @@ class Customer {
     this.avatarKey,
     this.avatarUrl,
     this.emailVerified = false,
+    this.isFamilyChild = false,
+    this.family,
+    this.personalBonusBalance,
   });
 
   final String id;
@@ -98,6 +115,9 @@ class Customer {
   final String? avatarKey;
   final String? avatarUrl;
   final bool emailVerified;
+  final bool isFamilyChild;
+  final Map<String, dynamic>? family;
+  final double? personalBonusBalance;
 
   factory Customer.fromJson(Map<String, dynamic> json) {
     final rawTier =
@@ -144,6 +164,11 @@ class Customer {
       avatarUrl: _nullableString(json['avatar_url'] ?? json['avatarUrl']),
       emailVerified:
           json['emailVerified'] == true || json['email_verified'] == true,
+      isFamilyChild: json['isFamilyChild'] == true,
+      family: json['family'] is Map ? _asMap(json['family']) : null,
+      personalBonusBalance: json['personal_bonus_balance'] == null
+          ? null
+          : _asDouble(json['personal_bonus_balance']),
     );
   }
 
@@ -166,6 +191,9 @@ class Customer {
     'avatar_key': avatarKey,
     'avatar_url': avatarUrl,
     'email_verified': emailVerified,
+    'isFamilyChild': isFamilyChild,
+    'family': family,
+    'personal_bonus_balance': personalBonusBalance,
   };
 
   Customer copyWith({
@@ -193,6 +221,9 @@ class Customer {
       avatarKey: avatarKey ?? this.avatarKey,
       avatarUrl: clearAvatarUrl ? null : avatarUrl ?? this.avatarUrl,
       emailVerified: emailVerified,
+      isFamilyChild: isFamilyChild,
+      family: family,
+      personalBonusBalance: personalBonusBalance,
     );
   }
 }
@@ -436,50 +467,4 @@ class BonusTransaction {
     'timestamp': timestamp,
     'items': items,
   };
-}
-
-class BonusExpiryBucket {
-  const BonusExpiryBucket({
-    required this.expiresAt,
-    required this.amount,
-    required this.daysRemaining,
-  });
-
-  final DateTime expiresAt;
-  final double amount;
-  final int daysRemaining;
-
-  factory BonusExpiryBucket.fromJson(Map<String, dynamic> json) {
-    return BonusExpiryBucket(
-      expiresAt:
-          DateTime.tryParse(_asString(json['expiresAt'])) ?? DateTime.now(),
-      amount: _asDouble(json['amount']),
-      daysRemaining: _asInt(json['daysRemaining']),
-    );
-  }
-}
-
-class BonusExpirySummary {
-  const BonusExpirySummary({
-    required this.currentBalance,
-    required this.totalExpiring,
-    required this.buckets,
-    this.nextExpiryAt,
-  });
-
-  final double currentBalance;
-  final double totalExpiring;
-  final DateTime? nextExpiryAt;
-  final List<BonusExpiryBucket> buckets;
-
-  factory BonusExpirySummary.fromJson(Map<String, dynamic> json) {
-    return BonusExpirySummary(
-      currentBalance: _asDouble(json['currentBalance']),
-      totalExpiring: _asDouble(json['totalExpiring']),
-      nextExpiryAt: DateTime.tryParse(_asString(json['nextExpiryAt'])),
-      buckets: (json['buckets'] as List? ?? const [])
-          .map((item) => BonusExpiryBucket.fromJson(_asMap(item)))
-          .toList(growable: false),
-    );
-  }
 }

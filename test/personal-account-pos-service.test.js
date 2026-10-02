@@ -21,6 +21,8 @@ const payload = {
 test('POS requires a signed QR shape and confirmation code; cannot submit a plain customer id', () => {
   assert.equal(startSchema.safeParse({ ...payload, customerCode: customer }).success, false);
   assert.equal(startSchema.safeParse(payload).success, true);
+  assert.equal(startSchema.safeParse({ ...payload, familyBonusBindingSupported: true }).success, true);
+  assert.equal(startSchema.safeParse({ ...payload, familyBonusBindingSupported: 'true' }).success, false);
   const action = {
     branchId: branch,
     orderId: order,
@@ -31,6 +33,7 @@ test('POS requires a signed QR shape and confirmation code; cannot submit a plai
   };
   assert.equal(actionSchema.safeParse(action).success, false);
   assert.equal(actionSchema.safeParse({ ...action, code: '123456' }).success, true);
+  assert.equal(actionSchema.safeParse({ ...action, code: '123456', familyBonusBindingSupported: true }).success, false);
   assert.equal(actionSchema.safeParse({ ...action, action: 'pay' }).success, false);
   assert.notEqual(
     codeHash(action.id, '123456', 'x'.repeat(32)),

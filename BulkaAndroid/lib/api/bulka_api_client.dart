@@ -22,6 +22,9 @@ String preferredWalletPath(Map<String, dynamic> json, TargetPlatform platform) {
 enum _SessionRefreshResult { refreshed, identityChanged, rejected, unavailable }
 
 String? _canonicalSessionPhone(String? value) {
+  if (value != null && RegExp(r'^family:[0-9a-fA-F-]{36}$').hasMatch(value)) {
+    return value.toLowerCase();
+  }
   final digits = value?.replaceAll(RegExp(r'\D'), '') ?? '';
   return digits.isEmpty ? null : digits;
 }
@@ -82,6 +85,7 @@ class BulkaApiClient {
   }
 
   bool get isAuthenticated => _accessToken?.isNotEmpty == true;
+  bool get isFamilyChildSession => _sessionPhone?.startsWith('family:') == true;
   bool get sessionRestoreUnavailable => _sessionRestoreUnavailable;
   String? get accessToken => _accessToken;
   String? get refreshToken => _refreshToken;
@@ -113,6 +117,7 @@ class BulkaApiClient {
     _startEventLoopIfAuthenticated();
     if (changed &&
         isAuthenticated &&
+        !isFamilyChildSession &&
         _referralDeviceAttemptedAccount != _referralAccount) {
       _referralDeviceAttemptedAccount = _referralAccount;
       unawaited(_rememberReferralDevice().catchError((_) {}));
@@ -152,21 +157,24 @@ class BulkaApiClient {
   }
 
   Future<ProfileResponse> getProfile(String phone) async {
-    final json = await _post('/api/guest/profile', {'phone': phone});
+    final json = isFamilyChildSession
+        ? await _get('/api/family-child/profile')
+        : await _post('/api/guest/profile', {'phone': phone});
     return ProfileResponse.fromJson(json);
   }
 
   Future<ProfileResponse> getProfileWithoutRefresh(String phone) async {
     final json = await _request(
-      'POST',
-      '/api/guest/profile',
-      body: {'phone': phone},
+      isFamilyChildSession ? 'GET' : 'POST',
+      isFamilyChildSession ? '/api/family-child/profile' : '/api/guest/profile',
+      body: isFamilyChildSession ? null : {'phone': phone},
       allowRefresh: false,
     );
     return ProfileResponse.fromJson(json);
   }
 
   Future<Tier?> getCustomerLoyalty() async {
+    if (isFamilyChildSession) return null;
     final json = await _get('/api/customer/loyalty');
     if (json['success'] == false) {
       throw ApiException(_messageFrom(json, 'error_network'.tr));
@@ -213,11 +221,20 @@ class BulkaApiClient {
   }
 
   OtpRequestResult _otpRequestResult(Map<String, dynamic> json) {
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_send_code'.tr));
+    }
     return OtpRequestResult(
       whatsappUrl: _nullableString(json['whatsappUrl'] ?? json['whatsapp_url']),
       whatsappPhone: _nullableString(
         json['whatsappPhone'] ?? json['whatsapp_phone'],
       ),
+      deliveryMode: _nullableString(json['deliveryMode']),
+      channel: _nullableString(json['channel']),
+      codeLength: json['codeLength'] == 6 ? 6 : 4,
+      retryAfterSeconds: json['retryAfterSeconds'] is num
+          ? (json['retryAfterSeconds'] as num).toInt().clamp(0, 86400)
+          : 0,
     );
   }
 
@@ -230,7 +247,8 @@ class BulkaApiClient {
       'phone': phone,
       'password': password,
       'token': token,
-    });
+      'otpDeliveryVersion': 2,
+    }, timeout: const Duration(seconds: 30));
     return _otpRequestResult(json);
   }
 
@@ -241,7 +259,8 @@ class BulkaApiClient {
     final json = await _post('/api/auth/password-reset/start', {
       'phone': phone,
       'token': token,
-    });
+      'otpDeliveryVersion': 2,
+    }, timeout: const Duration(seconds: 30));
     return _otpRequestResult(json);
   }
 
@@ -265,7 +284,8 @@ class BulkaApiClient {
     final json = await _post('/api/auth/request-otp', {
       'phone': phone,
       'token': token,
-    });
+      'otpDeliveryVersion': 2,
+    }, timeout: const Duration(seconds: 30));
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_send_code'.tr));
     }
@@ -427,6 +447,7 @@ class BulkaApiClient {
     required String platform,
     required String installationId,
   }) async {
+    if (isFamilyChildSession) return;
     final json = await _post('/api/customer/fcm-token', {
       'fcmToken': fcmToken,
       'language': AppLang.current,
@@ -442,6 +463,7 @@ class BulkaApiClient {
     required String installationId,
     String? fcmToken,
   }) async {
+    if (isFamilyChildSession) return;
     await _delete('/api/customer/fcm-token', {
       'installationId': installationId,
       if (fcmToken != null && fcmToken.isNotEmpty) 'fcmToken': fcmToken,
@@ -1414,6 +1436,7 @@ class BulkaApiClient {
   }
 
   Future<void> _rememberReferralDevice() async {
+    if (isFamilyChildSession) return;
     if (!isAuthenticated || _referralDeviceSyncedAccount == _referralAccount) {
       return;
     }
@@ -1650,6 +1673,7 @@ class BulkaApiClient {
   }
 
   Future<void> recordAnalyticsEvents(List<Map<String, dynamic>> events) async {
+    if (isFamilyChildSession) return;
     if (events.isEmpty) return;
     final body = {'events': events};
     if (isAuthenticated) {
@@ -1728,6 +1752,7 @@ class BulkaApiClient {
   }
 
   void _startEventLoopIfAuthenticated() {
+    if (isFamilyChildSession) return;
     if (_disposed || _eventController?.hasListener != true) {
       return;
     }
@@ -1827,7 +1852,9 @@ class BulkaApiClient {
 
   Future<void> _runEventLoop() async {
     try {
-      while (!_disposed && _eventController?.hasListener == true) {
+      while (!_disposed &&
+          !isFamilyChildSession &&
+          _eventController?.hasListener == true) {
         final generation = _eventGeneration;
         try {
           final path = _accessToken == null
@@ -1901,6 +1928,7 @@ class BulkaApiClient {
     String path,
     Map<String, dynamic> body, {
     String? bearerToken,
+    Duration timeout = const Duration(seconds: 15),
   }) async {
     return _request(
       'POST',
@@ -1908,6 +1936,7 @@ class BulkaApiClient {
       body: body,
       bearerToken: bearerToken,
       allowRefresh: bearerToken == null,
+      timeout: timeout,
     );
   }
 
@@ -1940,6 +1969,16 @@ class BulkaApiClient {
     bool allowRefresh = true,
     Duration timeout = const Duration(seconds: 15),
   }) async {
+    if (isFamilyChildSession &&
+        (path.startsWith('/api/customer/') ||
+            path.startsWith('/api/guest/') ||
+            path.startsWith('/api/wallet/'))) {
+      throw ApiException(
+        _familyText('childHelp'),
+        statusCode: 403,
+        code: 'FAMILY_CHILD_RESTRICTED',
+      );
+    }
     final requestRevision = _sessionRevision;
     final requestAccessToken = _accessToken;
     Future<http.Response> send() {

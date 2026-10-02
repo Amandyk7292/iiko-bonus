@@ -198,7 +198,7 @@ async function searchOrders(needle, customerIds, branchIds, limit) {
     let query = supabase
       .from('kaspi_orders')
       .select(
-        'id,order_number,status,fulfillment_status,branch_id,branch_name,customer_id,phone,amount,updated_at,customers(id,name,phone)',
+        'id,order_number,status,fulfillment_status,branch_id,branch_name,customer_id,phone,amount,updated_at,customers!kaspi_orders_customer_id_fkey(id,name,phone)',
       );
     if (branchIds.length) query = query.in('branch_id', branchIds);
     return query;
@@ -288,7 +288,9 @@ async function globalSearch(admin, query) {
 async function loadScopedOrder(id, branchIds) {
   let query = supabase
     .from('kaspi_orders')
-    .select('*,customers(id,name,phone,balance,total_spent,created_at,updated_at)')
+    .select(
+      '*,customers!kaspi_orders_customer_id_fkey(id,name,phone,balance,total_spent,created_at,updated_at)',
+    )
     .eq('id', id);
   if (branchIds.length) query = query.in('branch_id', branchIds);
   const { data, error } = await query.maybeSingle();

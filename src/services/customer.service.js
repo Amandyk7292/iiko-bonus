@@ -584,6 +584,25 @@ async function searchCustomers(query, { qrTime = Date.now() } = {}) {
   if (!query) return [];
   const trimQuery = query.trim();
 
+  if (trimQuery.startsWith('BULKA-FAMILY:')) {
+    const { family } = require('./family.service');
+    const { owner, member, proof } = await family.resolveQr(trimQuery);
+    return [
+      {
+        ...owner,
+        name: `${owner.name} · ${member.name}`,
+        balance: member.relation === 'child' ? 0 : owner.balance,
+        canSpendBonuses: member.relation !== 'child',
+        familyMember: {
+          id: member.id,
+          qrVersion: proof.authVersion,
+          expiresAt: proof.expiresAt,
+          purpose: proof.purpose,
+        },
+      },
+    ];
+  }
+
   // 1. Проверка динамического 5-минутного QR-кода приложения (TOTP)
   if (trimQuery.startsWith('BULKA-OTP-')) {
     const parts = trimQuery.split('-');

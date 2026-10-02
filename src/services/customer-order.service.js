@@ -452,7 +452,7 @@ async function listAdminOrders({
   let query = supabase
     .from('kaspi_orders')
     .select(
-      `${ORDER_FIELDS},customers(name,phone),delivery_proofs(id),couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS}`,
+      `${ORDER_FIELDS},customers!kaspi_orders_customer_id_fkey(name,phone),delivery_proofs(id),couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS}`,
       { count: 'exact' },
     );
 

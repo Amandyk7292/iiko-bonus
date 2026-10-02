@@ -16,6 +16,9 @@ const messages = {
   rate_limited: 'Повторный код можно запросить через минуту.',
   unauthorized: 'Оплата не подтверждена клиентом.',
   not_found: 'Запрос оплаты не найден.',
+  family_limit: 'Дневной лимит участника семьи исчерпан.',
+  family_blocked: 'Семейная оплата приостановлена. Обновите QR или обратитесь к владельцу семьи.',
+  family_client_update: 'Обновите модуль Bulka на кассе для семейной оплаты.',
 };
 const fail = (status) =>
   Object.assign(new Error(messages[status] || 'Операция оплаты недоступна.'), {
@@ -64,6 +67,34 @@ class PersonalAccountPosService {
     const customers = await this.lookup(payload.customerCode);
     if (customers.length !== 1 || customers[0].deleted_at) throw fail('unavailable');
     const customer = customers[0];
+    if (customer.familyMember) {
+      if (customer.familyMember.purpose !== 'payment') throw fail('unauthorized');
+      if (payload.familyBonusBindingSupported !== true) throw fail('family_client_update');
+      const { data, error } = await this.db.rpc('family_pos_start', {
+        p_id: crypto.randomUUID(),
+        p_request_id: payload.requestId,
+        p_member_id: customer.familyMember.id,
+        p_qr_version: customer.familyMember.qrVersion,
+        p_qr_expires_at: new Date(customer.familyMember.expiresAt).toISOString(),
+        p_branch_id: branchId,
+        p_order_id: payload.orderId,
+        p_amount_minor: Math.round(payload.amount * 100),
+        p_fingerprint: payload.fingerprint,
+        p_code_hash: crypto.randomBytes(32).toString('hex'),
+        p_notification_id: crypto.randomUUID(),
+      });
+      if (error) throw error;
+      const result = unwrap(data);
+      if (!['authorized', 'paid'].includes(result?.status))
+        throw fail(result?.status || 'unavailable');
+      return {
+        id: result.id,
+        status: result.status,
+        expiresAt: result.expiresAt,
+        amount: payload.amount,
+        familyBonusCustomerId: result.familyBonusCustomerId,
+      };
+    }
     const { data: branch, error: branchError } = await this.db
       .from('bulka_locations')
       .select('name')
@@ -144,8 +175,17 @@ class PersonalAccountPosService {
         {},
         { customerId: result.customerId, includeAdmins: false },
       );
+    if (result.familyBonusCustomerId && result.status === 'refunded')
+      require('./loyalty-sync.service').queueCustomerLoyaltySync(result.familyBonusCustomerId);
     await this.notify(result.notificationId).catch(() => {});
-    return { id: result.id, status: result.status, amount: payload.amount };
+    return {
+      id: result.id,
+      status: result.status,
+      amount: payload.amount,
+      ...(result.familyBonusCustomerId
+        ? { familyBonusCustomerId: result.familyBonusCustomerId }
+        : {}),
+    };
   }
 }
 module.exports = {

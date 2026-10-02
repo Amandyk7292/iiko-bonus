@@ -510,6 +510,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: Color(0xFFF3F3F3),
                     ),
                     _ProfileMenuItem(
+                      icon: Icons.family_restroom_outlined,
+                      title: _familyText('title'),
+                      onTap: () => _openPage(
+                        (_) => FamilyScreen(
+                          api: widget.api,
+                          onRefreshProfile: widget.onRefreshProfile,
+                        ),
+                      ),
+                    ),
+                    _ProfileMenuItem(
                       icon: Icons.support_agent_outlined,
                       title: 'support_title'.tr,
                       onTap: () => unawaited(openBulkaSupportWhatsApp(context)),

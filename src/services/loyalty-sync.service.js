@@ -12,13 +12,15 @@ async function syncCustomerLoyalty(customerId) {
   if (typeof supabase?.from !== 'function') {
     return { customer: null, providers: [], skipped: 'database-unavailable' };
   }
-  const { data: customer, error } = await supabase
+  const { data: storedCustomer, error } = await supabase
     .from('customers')
     .select('id,phone,name,balance,total_spent,updated_at')
     .eq('id', customerId)
     .maybeSingle();
   if (error) throw error;
-  if (!customer) return { customer: null, providers: [] };
+  if (!storedCustomer) return { customer: null, providers: [] };
+  const { family } = require('./family.service');
+  const customer = await family.profile(storedCustomer);
 
   realtime.publish(
     'loyalty.balance.updated',
@@ -43,6 +45,8 @@ async function syncCustomerLoyalty(customerId) {
     const provider = index === 0 ? 'Apple Wallet' : 'Google Wallet';
     console.error(`${provider} sync failed:`, result.reason?.message || String(result.reason));
   }
+  const familyCustomers = await family.relatedCustomerIds(customer.id);
+  for (const id of familyCustomers) queueCustomerLoyaltySync(id);
   return {
     customer,
     tier,

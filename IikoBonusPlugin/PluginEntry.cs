@@ -62,6 +62,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
             public string ReservationId { get; set; }
             public string PendingCustomerCode { get; set; }
             public string ScannedAtUtc { get; set; }
+            public string FamilyPaymentCustomerId { get; set; }
+            public bool FamilyPaymentCreatedAttachment { get; set; }
         }
 
         public static ConcurrentDictionary<Guid, OrderLoyaltyData> ActiveOrders =

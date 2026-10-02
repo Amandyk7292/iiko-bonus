@@ -5,6 +5,12 @@ async function customerAuthMiddleware(req, res, next) {
   let payload;
   try {
     payload = verifyToken(readBearerToken(req), 'bulka-mobile');
+    if (payload.role === 'family_child') {
+      return res.status(403).json({
+        error: 'Детскому аккаунту доступен только QR для кассы.',
+        code: 'FAMILY_CHILD_RESTRICTED',
+      });
+    }
     if (payload.role !== 'customer' || !payload.sub || !payload.phone)
       throw new Error('Invalid customer token');
   } catch (error) {

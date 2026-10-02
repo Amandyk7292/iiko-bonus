@@ -30,6 +30,10 @@ abstract final class HomeWidgetSync {
     required Customer customer,
     CustomerOrder? activeOrder,
   }) async {
+    if (customer.isFamilyChild) {
+      await clear();
+      return;
+    }
     if (!_supported) return;
     try {
       await initialize();

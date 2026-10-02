@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Resto.Front.Api;
 using Resto.Front.Api.Data.Orders;
+using Resto.Front.Api.Data.Payments;
 using Resto.Front.Api.IikoBonusPlugin;
 using Resto.Front.Api.UI;
 
@@ -85,7 +86,7 @@ internal static class Program
         PluginContext.Initialize(services,()=>{},Proxy.Make<ILog>(call=>null));
         http=new FakeHttp{Reply=request=>throw new Exception("Unexpected HTTP: "+request.RequestUri)};
         typeof(LoyaltyFlow).GetField("_httpClient",Static).SetValue(null,new HttpClient(http));
-        UnknownOrders();GiftAuthenticationRecovery();JournalRecovery();PreparePayments();ActiveJournalRecovery();
+        UnknownOrders();GiftAuthenticationRecovery();JournalRecovery();PreparePayments();ActiveJournalRecovery();FamilyPayments();
         Check(http.Calls>0,"network scenarios used intercepted production HttpClient");
         Console.WriteLine("PASS: "+assertions+" production-plugin reliability assertions; no actual HTTP/POS.");
         PluginContext.Uninitialize();
@@ -215,6 +216,149 @@ internal static class Program
             File.WriteAllText(file,"[]");type.GetMethod("RestoreActiveOrders").Invoke(null,new object[0]);
             Check((bool)persist.Invoke(null,new object[0]),name+" resumes after explicit journal repair without restart");
         }
+    }
+    private static bool PaymentRejected(Action operation)
+    {
+        try {operation();return false;}
+        catch(TargetInvocationException error) {return error.InnerException is Resto.Front.Api.Exceptions.PaymentActionFailedException;}
+    }
+    private static IOrder FamilyOrder(Guid id,OrderStatus status=default(OrderStatus)) =>
+        (IOrder)Proxy.Props(typeof(IOrder),new Dictionary<string,object>{{"Id",id},{"ResultSum",1000m},{"Status",status},{"CloseTime",DateTime.Now}});
+    private static void PersonalPaymentCapabilities(Type processor,Type requestType)
+    {
+        foreach(var family in new[]{true,false})
+        {
+            var request=Activator.CreateInstance(requestType,true);
+            Action<string,object> set=(name,value)=>requestType.GetProperty(name).SetValue(request,value);
+            Func<string,object> get=name=>requestType.GetProperty(name).GetValue(request);
+            var paymentId=Guid.NewGuid().ToString();var owner=Guid.NewGuid().ToString();
+            var customerCode=family ? "BULKA-FAMILY:test-payment-qr" : "CARD-test-customer";
+            set("branchId",Environment.GetEnvironmentVariable("IIKO_BRANCH_ID"));
+            set("orderId",Guid.NewGuid().ToString());set("amount",1000m);
+            set("fingerprint","test-cheque-fingerprint");set("requestId",Guid.NewGuid().ToString());
+            set("customerCode",customerCode);
+            http.Reply=message=>{
+                var body=message.Content.ReadAsStringAsync().Result;
+                Check(message.RequestUri.AbsolutePath.EndsWith("personal-account/start")&&
+                    body.Contains("\"familyBonusBindingSupported\":true")&&body.Contains(customerCode)&&
+                    body.Contains("\"amount\":1000")&&!body.Contains("familyBonusCustomerId"),
+                    family ? "family start announces owner-bonus binding before reservation" : "ordinary start preserves customer QR and amount with optional capability");
+                return Response(HttpStatusCode.OK,"{\"success\":true,\"payment\":{\"id\":\""+paymentId+"\",\"status\":\"authorized\",\"amount\":1000"+
+                    (family ? ",\"familyBonusCustomerId\":\""+owner+"\"" : "")+"}}");
+            };
+            Call(processor,"Send",request,"start");
+            Check(get("familyBonusBindingSupported")==null&&
+                (family ? (string)get("familyBonusCustomerId")==owner : get("familyBonusCustomerId")==null),
+                family ? "capability remains wire-only while captured owner is retained" : "ordinary payment stays independent from family loyalty binding");
+            set("id",paymentId);set("requestId",null);
+            http.Reply=message=>{
+                var body=message.Content.ReadAsStringAsync().Result;
+                Check(message.RequestUri.AbsolutePath.EndsWith("personal-account/action")&&body.Contains("\"action\":\"status\"")&&
+                    !body.Contains("familyBonusBindingSupported")&&!body.Contains("familyBonusCustomerId")&&!body.Contains("customerCode"),
+                    family ? "family status omits start-only capability and captured owner" : "ordinary status retains strict action schema");
+                return Response(HttpStatusCode.OK,"{\"success\":true,\"payment\":{\"id\":\""+paymentId+"\",\"status\":\"authorized\"}}");
+            };
+            Call(processor,"Send",request,"status");
+        }
+    }
+    private static void FamilyPayments()
+    {
+        var processor=Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.PersonalAccountPaymentProcessor");
+        var requestType=Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.PersonalPosRequest");
+        PersonalPaymentCapabilities(processor,requestType);
+        var id=Guid.NewGuid();var owner=Guid.NewGuid().ToString();var other=Guid.NewGuid().ToString();
+        var order=FamilyOrder(id);
+        var request=Activator.CreateInstance(requestType,true);
+        Action<string,object> set=(name,value)=>requestType.GetProperty(name).SetValue(request,value);
+        Func<string,object> get=name=>requestType.GetProperty(name).GetValue(request);
+        set("branchId",Environment.GetEnvironmentVariable("IIKO_BRANCH_ID"));set("orderId",id.ToString());
+        set("amount",1000m);set("id",Guid.NewGuid().ToString());set("fingerprint",Call(processor,"Fingerprint",order));
+        http.Reply=message=>{
+            var body=message.Content.ReadAsStringAsync().Result;
+            Check(!body.Contains("familyBonusCustomerId"),"captured family owner never becomes caller-controlled wire input");
+            return Response(HttpStatusCode.OK,"{\"success\":true,\"payment\":{\"id\":\""+get("id")+"\",\"status\":\"authorized\",\"amount\":1000,\"familyBonusCustomerId\":\""+owner+"\"}}");
+        };
+        Call(processor,"Send",request,"status");
+        Check((string)get("familyBonusCustomerId")==owner,"original payment status recovers captured owner for older context");
+        Call(typeof(LoyaltyFlow),"BindFamilyPaymentLoyalty",order,owner);
+        Call(typeof(LoyaltyFlow),"BindFamilyPaymentLoyalty",order,owner);
+        var bound=Read<Dictionary<Guid,PluginEntry.OrderLoyaltyData>>("BulkaBonusActiveOrders.json")[id];
+        Check(bound.CustomerId==owner&&bound.FamilyPaymentCustomerId==owner&&bound.MaxDiscountPercent==0&&bound.DiscountAmount==0,"idempotent payment binding persists owner as earn-only before debit");
+        PluginEntry.ActiveOrders.TryRemove(id,out _);LoyaltyFlow.RestoreActiveOrders();
+        Check(PluginEntry.ActiveOrders[id].FamilyPaymentCustomerId==owner,"family loyalty binding survives active journal restart");
+        PluginEntry.ActiveOrders.TryRemove(id,out _);
+        Call(typeof(LoyaltyFlow),"BindFamilyPaymentLoyalty",order,owner);
+        Check(PluginEntry.ActiveOrders[id].CustomerId==owner,"saved payment owner repairs lost active in-memory attachment");
+
+        var conflict=Guid.NewGuid();PluginEntry.ActiveOrders[conflict]=new PluginEntry.OrderLoyaltyData{CustomerId=other};
+        Check(PaymentRejected(()=>Call(typeof(LoyaltyFlow),"BindFamilyPaymentLoyalty",FamilyOrder(conflict),owner))&&PluginEntry.ActiveOrders[conflict].CustomerId==other,"different attached customer blocks family payment without replacement");
+        PluginEntry.ActiveOrders[conflict]=new PluginEntry.OrderLoyaltyData{CustomerId=owner,DiscountAmount=50};
+        Check(PaymentRejected(()=>Call(typeof(LoyaltyFlow),"BindFamilyPaymentLoyalty",FamilyOrder(conflict),owner)),"family payment rejects same-owner bonus write-off");
+        PluginEntry.ActiveOrders[conflict]=new PluginEntry.OrderLoyaltyData{CustomerId=owner,ReservationId=Guid.NewGuid().ToString()};
+        Check(PaymentRejected(()=>Call(typeof(LoyaltyFlow),"BindFamilyPaymentLoyalty",FamilyOrder(conflict),owner)),"family payment preserves and rejects preexisting bonus reservation");
+        PluginEntry.ActiveOrders[conflict]=new PluginEntry.OrderLoyaltyData{PendingCustomerCode="CARD-pending"};
+        Check(PaymentRejected(()=>Call(typeof(LoyaltyFlow),"BindFamilyPaymentLoyalty",FamilyOrder(conflict),owner)),"unresolved offline customer is not overwritten by family payment");
+        PluginEntry.ActiveOrders.TryRemove(conflict,out _);
+
+        var preserved=PluginEntry.ActiveOrders[id];
+        Check((bool)Call(typeof(LoyaltyFlow),"RejectFamilyPaymentChange",id,View)&&ReferenceEquals(preserved,PluginEntry.ActiveOrders[id]),"loyalty rescan cannot change owner or spend bonuses during family payment");
+        http.Reply=message=>Response(HttpStatusCode.OK,"{\"success\":true,\"payment\":{\"status\":\"authorized\",\"familyBonusCustomerId\":\""+other+"\"}}");
+        Check(PaymentRejected(()=>Call(processor,"Send",request,"status"))&&(string)get("familyBonusCustomerId")==owner,"mismatched retry response cannot replace persisted owner");
+        http.Reply=message=>Response(HttpStatusCode.OK,"{\"success\":true,\"payment\":{\"status\":\"authorized\"}}");
+        Call(processor,"Send",request,"status");
+        Check((string)get("familyBonusCustomerId")==owner,"response without family field never clears captured owner");
+        string custom=null,rollback=null;
+        var context=Proxy.Make<IPaymentDataContext>(call=>{
+            if(call.MethodName=="SetCustomData")custom=(string)call.Args[0];
+            if(call.MethodName=="SetRollbackData")rollback=(string)call.Args[0];
+            if(call.MethodName=="GetCustomData")return custom;
+            if(call.MethodName=="GetRollbackData")return rollback;
+            return null;
+        });
+        set("customerCode","BULKA-FAMILY:private-qr");set("code","123456");
+        Call(processor,"Save",context,request);
+        Check(custom.Contains(owner)&&!custom.Contains("private-qr")&&!custom.Contains("123456")&&custom==rollback,"payment context durably stores owner while removing ephemeral QR and confirmation code");
+        var restored=Call(processor,"Read",context,false);
+        Check((string)requestType.GetProperty("familyBonusCustomerId").GetValue(restored)==owner,"payment context reload retains immutable family owner");
+        PluginEntry.ActiveOrders.TryRemove(id,out _);
+        var item=(IPaymentItem)Proxy.Props(typeof(IPaymentItem),new Dictionary<string,object>{{"Id",Guid.NewGuid()}});
+        var transaction=Guid.NewGuid();var paidCalls=0;
+        PluginEntry.ActiveOrders[id]=new PluginEntry.OrderLoyaltyData{CustomerId=other};
+        var beforeConflictCalls=http.Calls;
+        Check(PaymentRejected(()=>Call(processor,"PayCore",1000m,order,item,transaction,context))&&http.Calls==beforeConflictCalls,"PayCore refuses changed customer before any wallet debit request");
+        PluginEntry.ActiveOrders.TryRemove(id,out _);
+        set("familyBonusCustomerId",null);Call(processor,"Save",context,request);
+        var recoveredStatusCalls=0;
+        http.Reply=message=>{
+            var body=message.Content.ReadAsStringAsync().Result;
+            if(body.Contains("\"status\""))
+            {
+                recoveredStatusCalls++;
+                return Response(HttpStatusCode.OK,"{\"success\":true,\"payment\":{\"status\":\"authorized\",\"familyBonusCustomerId\":\""+owner+"\"}}");
+            }
+            Check(!body.Contains("familyBonusCustomerId")&&!body.Contains("familyBonusBindingSupported")&&body.Contains("\"pay\""),"family payment sends strict pay request after context recovery");
+            Check(Read<Dictionary<Guid,PluginEntry.OrderLoyaltyData>>("BulkaBonusActiveOrders.json")[id].FamilyPaymentCustomerId==owner,"recovered loyalty owner is durable before wallet debit");
+            paidCalls++;
+            return Response(HttpStatusCode.OK,"{\"success\":true,\"payment\":{\"status\":\"paid\",\"familyBonusCustomerId\":\""+owner+"\"}}");
+        };
+        Call(processor,"PayCore",1000m,order,item,transaction,context);
+        Call(processor,"PayCore",1000m,order,item,transaction,context);
+        Check(paidCalls==2&&recoveredStatusCalls==1&&PluginEntry.ActiveOrders[id].CustomerId==owner,"older context recovers owner once and payment retry retains one loyalty attachment");
+        http.Reply=message=>Response(HttpStatusCode.ServiceUnavailable,"{\"error\":\"offline\"}");
+        Call(typeof(LoyaltyFlow),"OnOrderChanged",FamilyOrder(id,OrderStatus.Closed));
+        Call(typeof(LoyaltyFlow),"OnOrderChanged",FamilyOrder(id,OrderStatus.Closed));
+        var queued=Read<List<LoyaltyApplyQueueItem>>("BulkaBonusPendingApplies.json").Where(value=>value.orderId==id.ToString()).ToList();
+        Check(queued.Count==1&&queued[0].operation=="apply"&&queued[0].customerId==owner&&queued[0].discountAmount==0,"physical closure durably queues owner cashback once with no bonus spend");
+
+        var unpaid=Guid.NewGuid();Call(typeof(LoyaltyFlow),"BindFamilyPaymentLoyalty",FamilyOrder(unpaid),owner);
+        Call(typeof(LoyaltyFlow),"ReleaseFamilyPaymentLoyalty",unpaid,other);
+        Check(PluginEntry.ActiveOrders.ContainsKey(unpaid),"different cancelled payment cannot remove family binding");
+        Call(typeof(LoyaltyFlow),"ReleaseFamilyPaymentLoyalty",unpaid,owner);
+        Check(!PluginEntry.ActiveOrders.ContainsKey(unpaid)&&!Read<Dictionary<Guid,PluginEntry.OrderLoyaltyData>>("BulkaBonusActiveOrders.json").ContainsKey(unpaid),"confirmed unpaid cancellation releases family marker durably");
+        var explicitOrder=Guid.NewGuid();PluginEntry.ActiveOrders[explicitOrder]=new PluginEntry.OrderLoyaltyData{CustomerId=owner,CustomerName="Explicit owner",CashbackPercent=5};
+        Call(typeof(LoyaltyFlow),"BindFamilyPaymentLoyalty",FamilyOrder(explicitOrder),owner);
+        Call(typeof(LoyaltyFlow),"ReleaseFamilyPaymentLoyalty",explicitOrder,owner);
+        Check(PluginEntry.ActiveOrders[explicitOrder].CustomerId==owner&&PluginEntry.ActiveOrders[explicitOrder].FamilyPaymentCustomerId==null&&PluginEntry.ActiveOrders[explicitOrder].CustomerName=="Explicit owner","unpaid cancellation preserves separately scanned owner while releasing payment lock");
     }
     private static IOrder DiscountedOrder(Guid id,string name)
     {

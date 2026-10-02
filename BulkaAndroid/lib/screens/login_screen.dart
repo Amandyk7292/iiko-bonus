@@ -10,6 +10,7 @@ class LoginScreen extends StatefulWidget {
     required this.onStartPasswordReset,
     required this.onResetPassword,
     this.onRegister,
+    this.onChildLogin,
     this.onClose,
     this.onAdminLogin = loginAdminPortal,
     this.onOpenAdminPortal,
@@ -17,6 +18,7 @@ class LoginScreen extends StatefulWidget {
   });
 
   final Future<String?> Function(String phone, String password) onLogin;
+  final Future<String?> Function(String login, String password)? onChildLogin;
   final Future<OtpRequestResult> Function(
     String phone,
     String password,
@@ -61,6 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _registerStep = false;
   bool _loading = false;
   bool _adminLogin = false;
+  bool _childLogin = false;
   bool _passwordVisible = false;
   bool _confirmPasswordVisible = false;
   String? _error;
@@ -70,6 +73,11 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _otpDeliveryPhone;
   bool _otpDeliveryHasLink = false;
   Uri? _otpWhatsappUri;
+  bool _otpIsAutomatic = false;
+  String _otpChannel = 'whatsapp';
+  int _otpCodeLength = 4;
+  int _otpRetrySeconds = 0;
+  Timer? _otpRetryTimer;
 
   void _update(VoidCallback callback) {
     final previousError = _error;
@@ -98,6 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _otpRetryTimer?.cancel();
     _phoneController.dispose();
     _otpController.dispose();
     _passwordController.dispose();
@@ -110,6 +119,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_childLogin && widget.onChildLogin != null) {
+      return FamilyChildLoginScreen(
+        onLogin: widget.onChildLogin!,
+        onBack: () => setState(() => _childLogin = false),
+        onClose: widget.onClose,
+      );
+    }
     if (_registerStep) {
       return _buildRegistrationScreen(context);
     }
@@ -288,7 +304,6 @@ class _PrimaryButton extends StatelessWidget {
   final Color color;
   final Color textColor;
   final IconData? icon;
-  final String? iconAsset;
 
   const _PrimaryButton({
     required this.onPressed,
@@ -297,7 +312,6 @@ class _PrimaryButton extends StatelessWidget {
     this.color = _bulkaYellow,
     this.textColor = _textDark,
     this.icon,
-    this.iconAsset,
   });
 
   @override
@@ -308,15 +322,7 @@ class _PrimaryButton extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (iconAsset != null) ...[
-            Image.asset(
-              iconAsset!,
-              width: 22,
-              height: 22,
-              errorBuilder: (_, _, _) => const _WhatsAppVectorIcon(size: 22),
-            ),
-            const SizedBox(width: 10),
-          ] else if (icon != null) ...[
+          if (icon != null) ...[
             Icon(icon, size: 24, color: Colors.white),
             const SizedBox(width: 8),
           ],
@@ -332,71 +338,4 @@ class _PrimaryButton extends StatelessWidget {
       ),
     );
   }
-}
-
-class _WhatsAppVectorIcon extends StatelessWidget {
-  final double size;
-
-  const _WhatsAppVectorIcon({this.size = 22});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(size, size),
-      painter: _WhatsAppVectorPainter(),
-    );
-  }
-}
-
-class _WhatsAppVectorPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final double w = size.width;
-    final double h = size.height;
-
-    final Paint greenPaint = Paint()
-      ..color = const Color(0xFF25D366)
-      ..style = PaintingStyle.fill;
-
-    final Path bubblePath = Path();
-    bubblePath.addOval(
-      Rect.fromCircle(center: Offset(w * 0.52, h * 0.46), radius: w * 0.44),
-    );
-
-    final Path tailPath = Path()
-      ..moveTo(w * 0.22, h * 0.77)
-      ..lineTo(w * 0.08, h * 0.92)
-      ..lineTo(w * 0.28, h * 0.85)
-      ..close();
-
-    final Path fullBubble = Path.combine(
-      PathOperation.union,
-      bubblePath,
-      tailPath,
-    );
-    canvas.drawPath(fullBubble, greenPaint);
-
-    final Paint whitePaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.12
-      ..strokeCap = StrokeCap.round;
-
-    final Path handsetPath = Path()
-      ..moveTo(w * 0.35, h * 0.35)
-      ..quadraticBezierTo(w * 0.32, h * 0.45, w * 0.42, h * 0.55)
-      ..quadraticBezierTo(w * 0.52, h * 0.65, w * 0.63, h * 0.62);
-
-    canvas.drawPath(handsetPath, whitePaint);
-
-    final Paint whiteFill = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-
-    canvas.drawCircle(Offset(w * 0.35, h * 0.35), w * 0.08, whiteFill);
-    canvas.drawCircle(Offset(w * 0.63, h * 0.62), w * 0.08, whiteFill);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

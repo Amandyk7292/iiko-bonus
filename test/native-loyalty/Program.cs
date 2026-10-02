@@ -20,6 +20,8 @@ internal static class Program
         Check(!(bool)capture.Invoke(null, new object[] { code, now.AddMinutes(15) }), "already expired QR must be rejected locally");
         Check(!(bool)capture.Invoke(null, new object[] { "2101430000016", now }), "product EAN must not become loyalty identity");
         Check(!(bool)capture.Invoke(null, new object[] { "+77000000001", now }), "unverified phone must not be captured as QR");
+        Check(!(bool)capture.Invoke(null, new object[] { "BULKA-FAMILY:" + Guid.NewGuid() + ":1:l:1790935500:" + new string('a', 32), now }),
+            "family QR requires live membership checks and must not be captured offline");
         foreach (var operation in new[] { "apply", "commit", "offline-earn" })
             Check((bool)earn.Invoke(null, new object[] { operation }), "paid accrual must survive retry exhaustion");
 

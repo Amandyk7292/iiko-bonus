@@ -267,7 +267,7 @@ async function readOrder(orderId) {
   const { data, error } = await supabase
     .from('kaspi_orders')
     .select(
-      'id,order_number,status,refund_status,fulfillment_status,fulfillment_type,preorder_fulfillment_type,amount,phone,additional_phone,cart_items,comment,branch_id,branch_name,courier_id,delivery_status,delivery_address,delivery_latitude,delivery_longitude,customer_id,kitchen_status,courier_dispatch_status,courier_dispatch_provider,courier_dispatch_requested_at,customers(name,phone),bulka_locations(id,name,city,address,latitude,longitude)',
+      'id,order_number,status,refund_status,fulfillment_status,fulfillment_type,preorder_fulfillment_type,amount,phone,additional_phone,cart_items,comment,branch_id,branch_name,courier_id,delivery_status,delivery_address,delivery_latitude,delivery_longitude,customer_id,kitchen_status,courier_dispatch_status,courier_dispatch_provider,courier_dispatch_requested_at,customers!kaspi_orders_customer_id_fkey(name,phone),bulka_locations(id,name,city,address,latitude,longitude)',
     )
     .eq('id', orderId)
     .maybeSingle();

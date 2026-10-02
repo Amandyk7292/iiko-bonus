@@ -120,13 +120,14 @@ class OrderPaymentStateService {
 
   async reverseOrderLoyalty(order) {
     if (!order?.customer_id || order?.bonus_reversed_at) return order;
+    const bonusCustomerId = order.bonus_customer_id || order.customer_id;
     const { error: reverseError } = await supabase.rpc('reverse_loyalty_order', {
-      p_customer_id: order.customer_id,
+      p_customer_id: bonusCustomerId,
       p_order_id: `kaspi:${order.operation_id}`,
       p_real_money_paid: eligibleOrderAmount(order),
     });
     if (reverseError) throw new Error('Не удалось сторнировать кэшбэк: ' + reverseError.message);
-    queueCustomerLoyaltySync(order.customer_id);
+    queueCustomerLoyaltySync(bonusCustomerId);
 
     const { data, error } = await supabase
       .from('kaspi_orders')
@@ -219,12 +220,13 @@ class OrderPaymentStateService {
 
   async awardOrderBonus(order) {
     if (!order?.customer_id || order.bonus_awarded_at) return order;
+    const bonusCustomerId = order.bonus_customer_id || order.customer_id;
     const { getCustomerById, applyLoyaltyTransaction } = require('./customer.service');
     const { getSettings } = require('./settings.service');
     const { getActiveLoyaltyTiers } = require('./tier.service');
     const { getTierInfo } = require('../utils/tier.util');
     const [customer, settings] = await Promise.all([
-      getCustomerById(order.customer_id),
+      getCustomerById(bonusCustomerId),
       getSettings(),
     ]);
     if (!customer) throw new Error('Клиент оплаченного заказа не найден');
@@ -240,11 +242,11 @@ class OrderPaymentStateService {
       const { commitCheckoutBonus } = require('./checkout-bonus.service');
       const result = await commitCheckoutBonus(order, earnedBonus, activationDelayDays);
       if (result?.status !== 'committed') return null;
-      queueCustomerLoyaltySync(order.customer_id);
+      queueCustomerLoyaltySync(bonusCustomerId);
       return { ...order, earned_bonus: earnedBonus, bonus_awarded_at: new Date().toISOString() };
     }
     await applyLoyaltyTransaction({
-      customerId: order.customer_id,
+      customerId: bonusCustomerId,
       orderId: `kaspi:${order.operation_id}`,
       discountAmount: 0,
       earnedBonus,

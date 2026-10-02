@@ -60,7 +60,9 @@ test('automatic dispatch loads the branch and registered customer before route v
             data: {
               ...order,
               ...(columns.includes('bulka_locations(') && { bulka_locations: branch }),
-              ...(columns.includes('customers(') && { customers: customer }),
+              ...(columns.includes('customers!kaspi_orders_customer_id_fkey(') && {
+                customers: customer,
+              }),
             },
             error: null,
           };

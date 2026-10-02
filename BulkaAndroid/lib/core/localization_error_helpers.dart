@@ -27,6 +27,14 @@ String localizeErrorMessage(
       return 'auth_account_exists'.tr;
     case 'INVALID_PASSWORD':
       return 'auth_password_rules'.tr;
+    case 'OTP_RATE_LIMITED':
+      return 'otp_request_wait'.tr;
+    case 'OTP_INVALID_PHONE':
+      return 'otp_kz_phone_required'.tr;
+    case 'OTP_SEND_FAILED':
+    case 'OTP_PROVIDER_UNAVAILABLE':
+    case 'OTP_UNAVAILABLE':
+      return 'error_send_code'.tr;
     case 'ONLINE_ORDERING_DISABLED':
       return 'checkout_online_ordering_disabled'.tr;
     case 'SESSION_IDENTITY_CHANGED':

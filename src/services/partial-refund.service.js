@@ -279,12 +279,13 @@ async function previewPartialRefund(orderId, payload = {}) {
   if (receiptError)
     throw refundError(receiptError.message, 409, 'FRONT_REFUND_REQUIRES_RECONCILIATION');
   const originalOrderId = `kaspi:${order.operation_id}`;
+  const bonusCustomerId = order.bonus_customer_id || order.customer_id;
   const [transactionsResult, adjustmentsResult] = await Promise.all([
-    order.customer_id
+    bonusCustomerId
       ? supabase
           .from('transactions')
           .select('amount')
-          .eq('customer_id', order.customer_id)
+          .eq('customer_id', bonusCustomerId)
           .eq('order_id', originalOrderId)
           .eq('type', 'withdrawal')
       : Promise.resolve({ data: [], error: null }),
@@ -571,7 +572,7 @@ async function createPartialRefund(orderId, payload = {}, requestedBy = 'admin')
   let adjustment;
   try {
     adjustment = await applyRefundAdjustments(refund.id);
-    if (order.customer_id) queueCustomerLoyaltySync(order.customer_id);
+    if (order.customer_id) queueCustomerLoyaltySync(order.bonus_customer_id || order.customer_id);
   } catch (error) {
     console.error('Не удалось применить финансовый перерасчёт возврата:', error.message);
     throw refundError(
@@ -670,7 +671,7 @@ async function deferUnknownRefund(refund, decision = {}) {
 
 async function afterConfirmedRefund(refund, finalOrder, _adjustment, decision) {
   const order = refund.order;
-  if (order?.customer_id) queueCustomerLoyaltySync(order.customer_id);
+  if (order?.customer_id) queueCustomerLoyaltySync(order.bonus_customer_id || order.customer_id);
   await resumeSubstitutionAfterRefund(refund).catch((error) =>
     console.error('Не удалось завершить замену после сверки возврата:', error.message),
   );
@@ -803,7 +804,7 @@ async function reconcileUnknownPartialRefunds({ limit = 25 } = {}) {
     try {
       const order = await readOrder(refund.order_id);
       await applyRefundAdjustments(refund.id);
-      if (order.customer_id) queueCustomerLoyaltySync(order.customer_id);
+      if (order.customer_id) queueCustomerLoyaltySync(order.bonus_customer_id || order.customer_id);
       await resumeSubstitutionAfterRefund(refund).catch((resumeError) =>
         console.error('Не удалось завершить замену после финансовой сверки:', resumeError.message),
       );

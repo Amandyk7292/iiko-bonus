@@ -412,6 +412,75 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
         }
 
+        internal static void BindFamilyPaymentLoyalty(IOrder order,string customerId)
+        {
+            if(order==null || !Guid.TryParse(customerId,out var owner) || owner==Guid.Empty)
+                throw FamilyPaymentFailure("Не найден владелец семейной оплаты.");
+            customerId=owner.ToString();
+            lock(GetOrderOperationLock(order.Id.ToString()))
+            {
+                if(!_activeStateHealthy) {RestoreActiveOrders();if(!_activeStateHealthy)
+                    throw FamilyPaymentFailure("Журнал бонусов повреждён. Требуется восстановление перед оплатой.");}
+                PluginEntry.ActiveOrders.TryGetValue(order.Id,out var current);
+                if(current!=null && (!string.Equals(current.CustomerId,customerId,StringComparison.OrdinalIgnoreCase) ||
+                    !string.IsNullOrWhiteSpace(current.PendingCustomerCode) || current.DiscountAmount!=0 ||
+                    !string.IsNullOrWhiteSpace(current.ReservationId) ||
+                    (!string.IsNullOrWhiteSpace(current.FamilyPaymentCustomerId) &&
+                        !string.Equals(current.FamilyPaymentCustomerId,customerId,StringComparison.OrdinalIgnoreCase))))
+                    throw FamilyPaymentFailure("К чеку привязан другой клиент или списание бонусов. Отмените семейную оплату и проверьте привязку.");
+                lock(QueueLock)
+                {
+                    if(LoadQueueUnsafe().Any(item=>string.Equals(item.orderId,order.Id.ToString(),StringComparison.OrdinalIgnoreCase) &&
+                        NormalizeOperation(item.operation)!="cancel" &&
+                        (!string.Equals(item.customerId,customerId,StringComparison.OrdinalIgnoreCase) || item.discountAmount!=0)))
+                        throw FamilyPaymentFailure("Чек уже связан с другой операцией бонусов. Требуется сверка.");
+                }
+                var bound=new PluginEntry.OrderLoyaltyData {
+                    CustomerId=customerId,CustomerName=current?.CustomerName ?? "Семья Bulka",
+                    CustomerPhone=current?.CustomerPhone,CurrentBalance=0,CashbackPercent=current?.CashbackPercent ?? 0,
+                    MaxDiscountPercent=0,DiscountAmount=0,OrderFullSum=Math.Max(0m,order.ResultSum),
+                    PayableAmount=Math.Max(0m,order.ResultSum),FamilyPaymentCustomerId=customerId,
+                    FamilyPaymentCreatedAttachment=current==null ||
+                        (!string.IsNullOrWhiteSpace(current.FamilyPaymentCustomerId) && current.FamilyPaymentCreatedAttachment)
+                };
+                PluginEntry.ActiveOrders[order.Id]=bound;
+                if(PersistActiveOrders()) return;
+                if(current==null) PluginEntry.ActiveOrders.TryRemove(order.Id,out _);
+                else PluginEntry.ActiveOrders[order.Id]=current;
+                throw FamilyPaymentFailure("Не удалось сохранить начисление семейных бонусов. Повторите оплату после восстановления журнала.");
+            }
+        }
+
+        internal static void ReleaseFamilyPaymentLoyalty(Guid orderId,string customerId)
+        {
+            lock(GetOrderOperationLock(orderId.ToString()))
+            {
+                if(!PluginEntry.ActiveOrders.TryGetValue(orderId,out var current) ||
+                    !string.Equals(current.FamilyPaymentCustomerId,customerId,StringComparison.OrdinalIgnoreCase)) return;
+                // Called only after the server confirms cancellation of an unpaid intent.
+                if(current.FamilyPaymentCreatedAttachment) PluginEntry.ActiveOrders.TryRemove(orderId,out _);
+                else PluginEntry.ActiveOrders[orderId]=new PluginEntry.OrderLoyaltyData {
+                    CustomerId=current.CustomerId,CustomerName=current.CustomerName,CustomerPhone=current.CustomerPhone,
+                    CurrentBalance=current.CurrentBalance,CashbackPercent=current.CashbackPercent,MaxDiscountPercent=0,
+                    DiscountAmount=0,OrderFullSum=current.OrderFullSum,PayableAmount=current.PayableAmount
+                };
+                if(PersistActiveOrders()) return;
+                PluginEntry.ActiveOrders[orderId]=current;
+                throw FamilyPaymentFailure("Оплата отменена, но привязка бонусов ещё не удалена. Повторите удаление оплаты.");
+            }
+        }
+
+        private static Resto.Front.Api.Exceptions.PaymentActionFailedException FamilyPaymentFailure(string message)
+            =>new Resto.Front.Api.Exceptions.PaymentActionFailedException(message,true);
+
+        private static bool RejectFamilyPaymentChange(Guid orderId,IViewManager vm)
+        {
+            if(!PluginEntry.ActiveOrders.TryGetValue(orderId,out var current) ||
+                string.IsNullOrWhiteSpace(current.FamilyPaymentCustomerId)) return false;
+            vm.ShowErrorPopup("Бонусы этого чека начислятся владельцу семейной оплаты. Для смены клиента сначала удалите семейную оплату.","ОК");
+            return true;
+        }
+
         public static void StopBackgroundRetry()
         {
             try
@@ -825,6 +894,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 if (order == null) return;
                 if (PluginEntry.ActiveOrders.TryGetValue(order.Id, out var existingData))
                 {
+                    if(RejectFamilyPaymentChange(order.Id,vm)) return;
                     string title = "Управление лояльностью чека";
                     string menuInfo = "Привязан: " + (string.IsNullOrWhiteSpace(existingData.CustomerName) ? "Гость" : existingData.CustomerName) + " [" + existingData.CustomerPhone + "]\nСписано бонусов: " + existingData.DiscountAmount;
                     
@@ -989,7 +1059,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 return true;
             }
             var isLoyaltyCode = normalizedBarcode.StartsWith("BULKA-OTP-", StringComparison.OrdinalIgnoreCase) ||
-                                normalizedBarcode.StartsWith("CARD-", StringComparison.OrdinalIgnoreCase);
+                                normalizedBarcode.StartsWith("CARD-", StringComparison.OrdinalIgnoreCase) ||
+                                normalizedBarcode.StartsWith("BULKA-FAMILY:", StringComparison.Ordinal);
             if (isLoyaltyCode)
             {
                 try
@@ -1150,6 +1221,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             {
                 order = GetOpenLoyaltyOrder(order, os, vm);
                 if (order == null) return false;
+                if(RejectFamilyPaymentChange(order.Id,vm)) return false;
                 if (!PluginEntry.ActiveOrders.TryGetValue(order.Id, out var current) || !ReferenceEquals(current, expected))
                 {
                     vm.ShowErrorPopup("Привязка чека изменилась. Отсканируйте QR клиента ещё раз.", "ОК");
@@ -1214,13 +1286,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             if (string.IsNullOrWhiteSpace(query) ||
                 !(query.StartsWith("BULKA-OTP-", StringComparison.OrdinalIgnoreCase) ||
-                  query.StartsWith("CARD-", StringComparison.OrdinalIgnoreCase)))
+                  query.StartsWith("CARD-", StringComparison.OrdinalIgnoreCase) ||
+                  query.StartsWith("BULKA-FAMILY:", StringComparison.Ordinal)))
             { vm.ShowErrorPopup("Сканируйте QR клиента из приложения Bulka. Поиск по телефону отключён.", "ОК"); return; }
             try
             {
                 if (!EnsureApiConfiguration(vm)) return;
                 order = GetOpenLoyaltyOrder(order, os, vm);
                 if (order == null) return;
+                if(RejectFamilyPaymentChange(order.Id,vm)) return;
                 PluginEntry.ActiveOrders.TryGetValue(order.Id, out var previousCustomer);
 
                 var orphanDiscount = GetAppliedLoyaltyDiscountAmount(order, os);
@@ -1454,6 +1528,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     }
                 }
 
+                if(RejectFamilyPaymentChange(order.Id,vm)) return;
                 PluginEntry.ActiveOrders[order.Id] = new PluginEntry.OrderLoyaltyData
                 {
                     CustomerId = selectedCustomer.id,

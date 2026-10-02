@@ -76,6 +76,7 @@ const supabase = {
         'reserve_branch_loyalty_balance',
         'commit_branch_loyalty_reservation',
         'cancel_branch_loyalty_reservation',
+        'family_bonus_owner_at',
       ].includes(name),
     );
     try {
@@ -119,8 +120,8 @@ const functionSql = (source, name) => {
 
 test.before(async () => {
   await db.exec(`create role anon; create role authenticated; create role service_role;
-    create table customers(id uuid primary key, phone text, deleted_at timestamptz, balance numeric default 0,
-      total_spent numeric default 0, updated_at timestamptz default now());
+    create table customers(id uuid primary key, phone text, name text default 'Adult', deleted_at timestamptz, balance numeric default 0,
+      total_spent numeric default 0, created_at timestamptz default now(), updated_at timestamptz default now());
     create table transactions(id uuid primary key default gen_random_uuid(), customer_id uuid, order_id text,
       type text, amount numeric, order_total numeric, description text, items jsonb, branch_id uuid,
       available_at timestamptz, activated_at timestamptz, created_at timestamptz default now(), timestamp timestamptz default now());
@@ -137,6 +138,8 @@ test.before(async () => {
   const scoped = read('supabase/migrations/20260810110000_backend_rbac_financial_hardening.sql');
   await db.exec(scoped.slice(0, scoped.indexOf('alter table public.gift_cards')));
   await db.exec(read('supabase/migrations/20260910190000_loyalty_retry_after_cancel.sql'));
+  await db.exec(read('supabase/migrations/20261002170000_customer_family.sql'));
+  await db.exec(read('supabase/migrations/20261002172500_family_offline_bonus.sql'));
   await db.query('insert into customers(id,phone) values($1,$2)', [customerId, phone]);
   await db.query('insert into bulka_locations(id) values($1)', [branchId]);
 });
@@ -145,16 +148,16 @@ test.after(async () => {
   await db.close();
 });
 
-function receipt() {
+function receipt(capturedPhone = phone) {
   const scanned = new Date(Date.now() - 3 * 86400000);
   const window = Math.floor(scanned.getTime() / 300000);
   const hash = crypto
     .createHmac('sha256', process.env.BULKA_SECRET)
-    .update(`${phone}:${window}`)
+    .update(`${capturedPhone}:${window}`)
     .digest('hex')
     .slice(0, 16);
   return {
-    customerCode: `BULKA-OTP-${phone}-${window}-${hash}`,
+    customerCode: `BULKA-OTP-${capturedPhone}-${window}-${hash}`,
     scannedAtUtc: scanned.toISOString(),
     paidAtUtc: new Date(scanned.getTime() + 60000).toISOString(),
     orderId: crypto.randomUUID(),
@@ -221,6 +224,59 @@ test('offline accrual requires branch authentication and cannot carry a write-of
   assert.ok(route.stack.some((layer) => layer.handle.name === 'branchPosAuthMiddleware'));
 });
 
+test('offline replay asks the historical bonus mapper for the verified scan instant', async () => {
+  const body = receipt();
+  const parent = crypto.randomUUID();
+  let captured;
+  assert.equal(
+    await resolveOfflineLoyaltyCustomer(body, {
+      bonusOwnerAt: async (id, at) => {
+        captured = { id, at };
+        return parent;
+      },
+    }),
+    parent,
+  );
+  assert.deepEqual(captured, { id: customerId, at: body.scannedAtUtc });
+  await assert.rejects(
+    resolveOfflineLoyaltyCustomer(
+      { ...body, customerCode: 'BULKA-FAMILY:opaque' },
+      {
+        bonusOwnerAt: () =>
+          assert.fail('an online-only family QR must not reach the historical mapper'),
+      },
+    ),
+    /QR-код/,
+  );
+});
+
+test('default family mapping honors feature flag and fails instead of redirecting deleted historical owners', async () => {
+  const body = receipt();
+  const owner = crypto.randomUUID(),
+    group = crypto.randomUUID(),
+    member = crypto.randomUUID();
+  const joined = new Date(Date.parse(body.scannedAtUtc) - 86400000).toISOString();
+  const removed = new Date(Date.parse(body.scannedAtUtc) + 86400000).toISOString();
+  await db.query('insert into customers(id,phone) values($1,$2)', [owner, '77000000002']);
+  await db.query('insert into family_groups(id,owner_customer_id) values($1,$2)', [group, owner]);
+  await db.query(
+    "insert into family_members(id,group_id,customer_id,name,relation,status,created_at,updated_at) values($1,$2,$3,'Adult','wife','removed',$4,$5)",
+    [member, group, customerId, joined, removed],
+  );
+  const previous = process.env.CUSTOMER_FAMILY_ENABLED;
+  try {
+    process.env.CUSTOMER_FAMILY_ENABLED = 'false';
+    assert.equal(await resolveOfflineLoyaltyCustomer(body), customerId);
+    process.env.CUSTOMER_FAMILY_ENABLED = 'true';
+    assert.equal(await resolveOfflineLoyaltyCustomer(body), owner);
+    await db.query('update customers set deleted_at=now() where id=$1', [owner]);
+    await assert.rejects(resolveOfflineLoyaltyCustomer(body), (error) => error.statusCode === 404);
+  } finally {
+    if (previous === undefined) delete process.env.CUSTOMER_FAMILY_ENABLED;
+    else process.env.CUSTOMER_FAMILY_ENABLED = previous;
+  }
+});
+
 test('a paid offline receipt earns once after a lost response and repeated reconnects', async () => {
   const body = receipt();
   loseCommitAcknowledgement = true;
@@ -242,4 +298,60 @@ test('a paid offline receipt earns once after a lost response and repeated recon
   assert.equal(transactions.length, 1);
   assert.equal(transactions[0].type, 'deposit');
   assert.equal(Number(transactions[0].amount), 50);
+});
+
+test('a delayed family receipt credits its original owner once after leaving and losing the commit response', async () => {
+  const actor = crypto.randomUUID(),
+    owner = crypto.randomUUID(),
+    group = crypto.randomUUID(),
+    member = crypto.randomUUID();
+  const actorPhone = '77000000009';
+  const body = receipt(actorPhone);
+  const joined = new Date(Date.parse(body.scannedAtUtc) - 86400000).toISOString();
+  const removed = new Date(Date.parse(body.scannedAtUtc) + 86400000).toISOString();
+  await db.query('insert into customers(id,phone) values($1,$2),($3,$4)', [
+    actor,
+    actorPhone,
+    owner,
+    '77000000008',
+  ]);
+  await db.query('insert into family_groups(id,owner_customer_id) values($1,$2)', [group, owner]);
+  await db.query(
+    "insert into family_members(id,group_id,customer_id,name,relation,status,created_at,updated_at) values($1,$2,$3,'Adult','brother','removed',$4,$5)",
+    [member, group, actor, joined, removed],
+  );
+  const previous = process.env.CUSTOMER_FAMILY_ENABLED;
+  try {
+    process.env.CUSTOMER_FAMILY_ENABLED = 'true';
+    loseCommitAcknowledgement = true;
+    assert.equal((await send(body)).statusCode, 500);
+    for (let retry = 0; retry < 3; retry++) {
+      const result = await send(body);
+      assert.equal(result.statusCode, 200, JSON.stringify(result.body));
+      assert.equal(result.body.duplicate, true);
+    }
+    const ownerState = (
+      await db.query('select balance,total_spent from customers where id=$1', [owner])
+    ).rows[0];
+    assert.equal(Number(ownerState.balance), 50);
+    assert.equal(Number(ownerState.total_spent), 1000);
+    assert.equal(
+      Number(
+        (await db.query('select balance from customers where id=$1', [actor])).rows[0].balance,
+      ),
+      0,
+    );
+    assert.equal(
+      (
+        await db.query('select customer_id from transactions where customer_id in ($1,$2)', [
+          actor,
+          owner,
+        ])
+      ).rows.length,
+      1,
+    );
+  } finally {
+    if (previous === undefined) delete process.env.CUSTOMER_FAMILY_ENABLED;
+    else process.env.CUSTOMER_FAMILY_ENABLED = previous;
+  }
 });

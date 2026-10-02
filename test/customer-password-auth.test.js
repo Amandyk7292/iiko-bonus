@@ -239,10 +239,7 @@ test('legacy account can start recovery and registration grants are one-time', a
     { db: client },
   );
   assert.equal(
-    await consumeRegistrationCredentialGrant(
-      { phone: customer.phone, grantId },
-      { db: client },
-    ),
+    await consumeRegistrationCredentialGrant({ phone: customer.phone, grantId }, { db: client }),
     passwordHash,
   );
   await assert.rejects(
@@ -269,21 +266,11 @@ test('password recovery start does not reveal whether an account exists', async 
 test('password authentication migrations stay mirrored and revoke old refresh sessions', () => {
   const root = path.join(__dirname, '..');
   const migration = fs.readFileSync(
-    path.join(
-      root,
-      'supabase',
-      'migrations',
-      '20260722223000_customer_password_auth.sql',
-    ),
+    path.join(root, 'supabase', 'migrations', '20260722223000_customer_password_auth.sql'),
     'utf8',
   );
   const mirror = fs.readFileSync(
-    path.join(
-      root,
-      'supabase',
-      'migrations',
-      '20260722223000_customer_password_auth.sql',
-    ),
+    path.join(root, 'supabase', 'migrations', '20260722223000_customer_password_auth.sql'),
     'utf8',
   );
   assert.equal(migration, mirror);
@@ -291,4 +278,37 @@ test('password authentication migrations stay mirrored and revoke old refresh se
   assert.match(migration, /update public\.customer_refresh_tokens/i);
   assert.match(migration, /v_payload - 'code' - 'attempts'/i);
   assert.match(migration, /revoke all on table public\.customer_credentials/i);
+});
+
+test('registration and recovery pass purpose-bound credentials to automatic delivery', async () => {
+  const { tables, client } = fakeDatabase();
+  const sent = [];
+  const requestOtp = async (payload, options) => {
+    assert.equal(options.db, client);
+    sent.push(payload);
+    return { deliveryMode: 'automatic', channel: 'whatsapp', codeLength: 6, whatsappUrl: null };
+  };
+  const registration = await startCustomerRegistration(
+    {
+      phone: '+77001234567',
+      password: 'Register2026',
+      requestToken: 'RegisterToken2345',
+      automaticOtpSupported: true,
+    },
+    { db: client, findCustomer: async () => null, requestOtp },
+  );
+  assert.equal(registration.deliveryMode, 'automatic');
+  assert.equal(sent[0].purpose, AUTH_PURPOSES.registration);
+  assert.equal(sent[0].automaticOtpSupported, true);
+  assert.equal(await bcrypt.compare('Register2026', sent[0].passwordHash), true);
+  const reset = await startCustomerPasswordReset(
+    { phone: '+77001234567', requestToken: 'RecoveryToken2345', automaticOtpSupported: true },
+    { db: client, findCustomer: async () => null, requestOtp },
+  );
+  assert.equal(reset.deliveryMode, 'automatic');
+  assert.equal(sent[1].purpose, AUTH_PURPOSES.passwordReset);
+  assert.equal(sent[1].automaticOtpSupported, true);
+  assert.equal(sent[1].passwordHash, undefined);
+  assert.equal(reset.customer, null);
+  assert.equal(tables.whatsapp_sessions.size, 0, 'automatic delivery does not create bot requests');
 });

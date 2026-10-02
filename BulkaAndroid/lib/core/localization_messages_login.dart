@@ -299,6 +299,46 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'kk': 'Код WhatsApp арқылы жіберілді.',
     'en': 'Code sent via WhatsApp.',
   },
+  'code_sent_sms': {
+    'ru': 'Код отправлен по SMS.',
+    'kk': 'Код SMS арқылы жіберілді.',
+    'en': 'Code sent by SMS.',
+  },
+  'auth_automatic_verify_title': {
+    'ru': 'Введите код',
+    'kk': 'Кодты енгізіңіз',
+    'en': 'Enter the code',
+  },
+  'enter_code_digits': {
+    'ru': 'Введите {count} цифр из сообщения',
+    'kk': 'Хабарламадағы {count} санды енгізіңіз',
+    'en': 'Enter {count} digits from the message',
+  },
+  'otp_valid_five_minutes': {
+    'ru': 'Код действует 5 минут',
+    'kk': 'Код 5 минут жарамды',
+    'en': 'The code is valid for 5 minutes',
+  },
+  'otp_resend': {
+    'ru': 'Отправить код повторно',
+    'kk': 'Кодты қайта жіберу',
+    'en': 'Resend code',
+  },
+  'otp_resend_countdown': {
+    'ru': 'Отправить повторно через {seconds} с',
+    'kk': '{seconds} с кейін қайта жіберу',
+    'en': 'Resend in {seconds}s',
+  },
+  'otp_request_wait': {
+    'ru': 'Слишком частые запросы кода. Подождите и попробуйте позже.',
+    'kk': 'Код тым жиі сұралды. Біраз күтіп, кейінірек қайталаңыз.',
+    'en': 'Too many code requests. Please wait and try again later.',
+  },
+  'otp_kz_phone_required': {
+    'ru': 'Укажите номер телефона Казахстана.',
+    'kk': 'Қазақстанның телефон нөмірін енгізіңіз.',
+    'en': 'Enter a Kazakhstan phone number.',
+  },
   'code_for': {'ru': 'Код для ', 'kk': 'Код нөмірге: ', 'en': 'Code for '},
   'enter_4_digits': {
     'ru': 'Введите 4 цифры из сообщения',

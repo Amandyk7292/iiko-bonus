@@ -7,7 +7,7 @@ const { attachFrontRemainingOrders } = require('./front-remaining-order.service'
 const STAGES = ['new', 'preparing', 'ready', 'handed_over'];
 const PAGE_SIZE = 25;
 const fields =
-  'id,order_number,phone,cart_items,amount,partially_refunded_amount,delivery_fee,fulfillment_type,scheduled_at,comment,kitchen_status,fulfillment_status,pos_receipt_due,created_at,customers(name,phone),front_receipt_jobs(status,last_error),delivery_jobs(courier_name,courier_phone,courier_car_model,courier_car_number,updated_at)';
+  'id,order_number,phone,cart_items,amount,partially_refunded_amount,delivery_fee,fulfillment_type,scheduled_at,comment,kitchen_status,fulfillment_status,pos_receipt_due,created_at,customers!kaspi_orders_customer_id_fkey(name,phone),front_receipt_jobs(status,last_error),delivery_jobs(courier_name,courier_phone,courier_car_model,courier_car_number,updated_at)';
 
 function card(order) {
   const courier = [...(order.delivery_jobs || [])].sort((a, b) =>

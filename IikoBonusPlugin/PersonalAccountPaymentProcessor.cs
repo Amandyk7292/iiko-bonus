@@ -28,6 +28,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember(EmitDefaultValue=false)] public string action { get; set; }
         [DataMember(EmitDefaultValue=false)] public string code { get; set; }
         [DataMember(EmitDefaultValue=false)] public string transactionId { get; set; }
+        [DataMember(EmitDefaultValue=false)] public bool? familyBonusBindingSupported { get; set; }
+        // Local payment context only; never send this captured identity as input.
+        [DataMember(EmitDefaultValue=false)] public string familyBonusCustomerId { get; set; }
     }
     [DataContract]
     internal sealed class PersonalPosResult
@@ -35,6 +38,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember] public string id { get; set; }
         [DataMember] public string status { get; set; }
         [DataMember] public decimal amount { get; set; }
+        [DataMember(EmitDefaultValue=false)] public string familyBonusCustomerId { get; set; }
     }
     [DataContract]
     internal sealed class PersonalPosResponse
@@ -88,15 +92,31 @@ namespace Resto.Front.Api.IikoBonusPlugin
             request.action=action=="start" ? null : action;
             try
             {
-                var response=LoyaltyFlow.SendApiRequest(HttpMethod.Post,"personal-account/"+(action=="start" ? "start" : "action"),request);
+                var wire=new PersonalPosRequest {
+                    branchId=request.branchId,orderId=request.orderId,amount=request.amount,
+                    fingerprint=request.fingerprint,requestId=request.requestId,customerCode=request.customerCode,
+                    id=request.id,action=request.action,code=request.code,transactionId=request.transactionId,
+                    familyBonusBindingSupported=action=="start" ? true : (bool?)null
+                };
+                var response=LoyaltyFlow.SendApiRequest(HttpMethod.Post,"personal-account/"+(action=="start" ? "start" : "action"),wire);
                 var result=LoyaltyFlow.DeserializeJson<PersonalPosResponse>(response.Body);
                 if(!response.IsSuccessStatusCode || result==null || !result.success || result.payment==null)
                     throw Failure(result?.error ?? "Сервер не подтвердил оплату. Проверьте связь и повторите эту же операцию.");
+                CaptureFamilyBonusCustomer(request,result.payment);
                 return result.payment;
             }
             catch(PaymentActionFailedException) {throw;}
             catch(Exception) {throw Failure("Связь с Bulka потеряна. Результат неизвестен: повторите эту же оплату, не создавая новую.");}
             finally {request.code=null; request.customerCode=null; request.action=null;}
+        }
+        private static void CaptureFamilyBonusCustomer(PersonalPosRequest request,PersonalPosResult result)
+        {
+            if(string.IsNullOrWhiteSpace(result.familyBonusCustomerId)) return;
+            if(!Guid.TryParse(result.familyBonusCustomerId,out var owner) || owner==Guid.Empty ||
+                (!string.IsNullOrWhiteSpace(request.familyBonusCustomerId) &&
+                    !string.Equals(request.familyBonusCustomerId,owner.ToString(),StringComparison.OrdinalIgnoreCase)))
+                throw Failure("Владелец семейной оплаты изменился. Требуется сверка исходной операции.");
+            request.familyBonusCustomerId=owner.ToString();
         }
         internal static string CheckStatus(PersonalAccountLocalPayment payment)
         {
@@ -134,7 +154,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
             // requestId belongs only to start; action requests have a strict schema.
             request.requestId=null;
-            if(Send(request,"status").status=="authorized") {Save(context,request);return;}
+            var status=Send(request,"status").status;
+            Save(context,request);
+            if(!string.IsNullOrWhiteSpace(request.familyBonusCustomerId))
+                LoyaltyFlow.BindFamilyPaymentLoyalty(order,request.familyBonusCustomerId);
+            if(status=="authorized" || status=="paid") return;
             for(var attempt=0;attempt<5;attempt++)
             {
                 var input=vm.ShowInputDialog("Клиенту отправлен код в приложение. Сумма "+request.amount+" ₸. Введите 6 цифр из уведомления.",
@@ -159,6 +183,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 request.orderId!=order.Id.ToString() || request.fingerprint!=Fingerprint(order) ||
                 order.Payments.Any(p=>p.Id!=item.Id && p.Sum>0)) throw Failure("Оплатить можно только весь неизменённый чек. Запросите новый код.");
             request.requestId=null; request.transactionId=transaction.ToString(); Save(context,request);
+            if(string.IsNullOrWhiteSpace(request.familyBonusCustomerId))
+            {
+                // Older saved contexts learn the immutable owner from the original intent.
+                Send(request,"status");
+                Save(context,request);
+            }
+            // The captured identity survives restart and is checked again before debit.
+            if(!string.IsNullOrWhiteSpace(request.familyBonusCustomerId))
+                LoyaltyFlow.BindFamilyPaymentLoyalty(order,request.familyBonusCustomerId);
             PersonalAccountLocalLedger.Begin(request);
             try
             {
@@ -184,7 +217,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
         public void OnPaymentDeleting(IOrder order,IPaymentItem item,IUser cashier,IOperationService os,IReceiptPrinter printer,IViewManager vm,IPaymentDataContext context)
         {
             if(item.Status==PaymentStatus.Processed) throw Failure("Для оплаченного чека выполните возврат оплаты.");
-            var request=Read(context);if(request?.id==null) return;request.requestId=null;Send(request,"cancel");
+            var request=Read(context);if(request?.id==null) return;request.requestId=null;
+            var result=Send(request,"cancel");
+            if(result.status=="cancelled" && !string.IsNullOrWhiteSpace(request.familyBonusCustomerId))
+                LoyaltyFlow.ReleaseFamilyPaymentLoyalty(order.Id,request.familyBonusCustomerId);
             PersonalAccountLocalLedger.Remove(request.orderId);
         }
         private static void Refund(decimal sum,Guid? orderId,IPaymentDataContext context,Guid? transaction=null)

@@ -13,11 +13,12 @@ const startSchema = z
   .object({
     ...base,
     requestId: z.string().uuid(),
+    familyBonusBindingSupported: z.boolean().optional(),
     customerCode: z
       .string()
       .min(15)
       .max(200)
-      .regex(/^(BULKA-OTP-|CARD-)/),
+      .regex(/^(BULKA-OTP-|CARD-|BULKA-FAMILY:)/),
   })
   .strict();
 const actionSchema = z

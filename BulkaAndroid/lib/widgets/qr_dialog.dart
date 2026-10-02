@@ -22,6 +22,8 @@ class _QrDialogState extends State<QrDialog> with WidgetsBindingObserver {
   int? _loadedWindow;
   String? _token;
   bool _failed = false;
+  bool _loading = false;
+  int? _failedWindow;
   bool _brightnessOverridden = false;
 
   @override
@@ -93,17 +95,31 @@ class _QrDialogState extends State<QrDialog> with WidgetsBindingObserver {
     final window = now ~/ 300000;
     setState(() => _timeRemaining = 300 - ((now % 300000) ~/ 1000));
     if (_loadedWindow == window && _token != null) return;
+    if (_loadedWindow != window && _token != null) {
+      setState(() => _token = null);
+    }
+    if (_loading || _failedWindow == window) return;
+    _loading = true;
+    setState(() => _failed = false);
     try {
       final token = await widget.api.getQrToken(widget.customer.phone);
       if (!mounted) return;
+      if (DateTime.now().millisecondsSinceEpoch ~/ 300000 != window) return;
       setState(() {
         _token = token;
         _loadedWindow = window;
         _failed = false;
+        _failedWindow = null;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _failed = true);
+      setState(() {
+        _failed = true;
+        _token = null;
+        _failedWindow = window;
+      });
+    } finally {
+      _loading = false;
     }
   }
 
@@ -198,7 +214,11 @@ class _QrDialogState extends State<QrDialog> with WidgetsBindingObserver {
                                 ),
                               ),
                               TextButton(
-                                onPressed: _tick,
+                                onPressed: () {
+                                  _failedWindow = null;
+                                  _failed = false;
+                                  unawaited(_tick());
+                                },
                                 child: Text('retry_btn'.tr),
                               ),
                             ],

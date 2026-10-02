@@ -4,7 +4,7 @@ const router = express.Router();
 const { getSettings } = require('../services/settings.service');
 const { getActiveLoyaltyTiers } = require('../services/tier.service');
 const { getTierInfo } = require('../utils/tier.util');
-const { buildWhatsAppContact } = require('../utils/whatsapp.util');
+const { startCustomerOtp } = require('../services/customer-otp.service');
 const { getOrCreateCustomerByPhone, getCustomerByPhone } = require('../services/customer.service');
 const otpStore = require('../services/otpStore.service');
 const { supabase } = require('../config/supabase');
@@ -127,15 +127,17 @@ async function getCustomerTierSnapshot(customer) {
 }
 
 async function buildAuthenticatedCustomerPayload(customer, req, res) {
+  const sessionCustomer = customer;
+  customer = await require('../services/family.service').family.profile(customer);
   const [tierSnapshot, transactionResult, issuedSession] = await Promise.all([
     getCustomerTierSnapshot(customer),
     supabase
       .from('transactions')
       .select('*')
-      .eq('customer_id', customer.id)
+      .eq('customer_id', customer.family?.ownerCustomerId || customer.id)
       .order('timestamp', { ascending: false })
       .limit(20),
-    issueCustomerSession(customer, req),
+    issueCustomerSession(sessionCustomer, req),
   ]);
   const { tier, vipThreshold, isVip, cashbackPercent } = tierSnapshot;
   const transactions = transactionResult.data;
@@ -158,6 +160,9 @@ async function buildAuthenticatedCustomerPayload(customer, req, res) {
       balance: customer.balance,
       total_spent: customer.total_spent,
       created_at: customer.created_at,
+      ...(customer.family
+        ? { family: customer.family, personal_bonus_balance: customer.personal_bonus_balance }
+        : {}),
       isVip,
       cashbackPercent,
       vipThreshold,
@@ -169,11 +174,13 @@ async function buildAuthenticatedCustomerPayload(customer, req, res) {
 
 function sendCustomerAuthError(res, error) {
   const status = Number(error?.statusCode || 500);
-  if (status >= 400 && status < 500) {
+  if (error?.retryAfterSeconds) res.set('Retry-After', String(error.retryAfterSeconds));
+  if ((status >= 400 && status < 500) || (status === 503 && error?.code?.startsWith('OTP_'))) {
     return res.status(status).json({
       success: false,
       error: error.message,
       code: error.code || 'CUSTOMER_AUTH_ERROR',
+      ...(error.retryAfterSeconds ? { retryAfterSeconds: error.retryAfterSeconds } : {}),
     });
   }
   return sendApiError(res, error, { success: false });
@@ -231,6 +238,7 @@ router.post(
         phone: req.body?.phone,
         password: req.body?.password,
         requestToken: req.body?.token,
+        automaticOtpSupported: req.body?.otpDeliveryVersion === 2,
       });
       res.json({ success: true, ...result });
     } catch (error) {
@@ -248,11 +256,17 @@ router.post(
       const result = await startCustomerPasswordReset({
         phone: req.body?.phone,
         requestToken: req.body?.token,
+        automaticOtpSupported: req.body?.otpDeliveryVersion === 2,
       });
       res.json({
         success: true,
         whatsappPhone: result.whatsappPhone,
         whatsappUrl: result.whatsappUrl,
+        deliveryMode: result.deliveryMode,
+        channel: result.channel,
+        codeLength: result.codeLength,
+        expiresInSeconds: result.expiresInSeconds,
+        retryAfterSeconds: result.retryAfterSeconds,
       });
     } catch (error) {
       sendCustomerAuthError(res, error);
@@ -269,7 +283,7 @@ router.post(
       const phone = normalizeCustomerPhone(req.body?.phone);
       validateNewPassword(req.body?.password);
       const code = String(req.body?.code || '').trim();
-      if (!/^\d{4}$/.test(code)) {
+      if (!/^(?:\d{4}|\d{6})$/.test(code)) {
         return res.status(400).json({
           success: false,
           error: 'Invalid confirmation code',
@@ -310,37 +324,18 @@ router.post(
   validateRequest({ body: customerOtpRequestBodySchema }),
   async (req, res) => {
     try {
-      const { token } = req.body;
-      const phone = normalizePhone(req.body.phone);
-      if (!phone || phone.replace(/[^0-9]/g, '').length < 10)
-        return res.status(400).json({ error: 'Valid phone required' });
-
-      // Don't create customer here тАФ only create after OTP is verified
-
-      // If a token was provided, save it so the WhatsApp bot can map it to this phone number
-      if (!/^[A-Za-z0-9]{12,64}$/.test(String(token || ''))) {
-        return res.status(400).json({ error: 'Valid request token required' });
-      }
-      if (token) {
-        await supabase
-          .from('whatsapp_sessions')
-          .delete()
-          .lt('expires_at', new Date().toISOString());
-        const { error } = await supabase.from('whatsapp_sessions').upsert({
-          id: `token_${token}`,
-          data: JSON.stringify({ phone, expires: Date.now() + 10 * 60 * 1000 }),
-          expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-        });
-        if (error) throw error;
-      }
-
+      const result = await startCustomerOtp({
+        phone: req.body.phone,
+        requestToken: req.body.token,
+        automaticOtpSupported: req.body.otpDeliveryVersion === 2,
+      });
       res.json({
         success: true,
         viaTelegram: false,
-        ...buildWhatsAppContact(token),
+        ...result,
       });
     } catch (err) {
-      sendApiError(res, err, { success: false });
+      sendCustomerAuthError(res, err);
     }
   },
 );
@@ -351,7 +346,7 @@ router.post(
   validateRequest({ body: customerOtpVerifyBodySchema }),
   async (req, res) => {
     try {
-      const phone = normalizePhone(req.body.phone);
+      const phone = normalizeCustomerPhone(req.body.phone);
       const { code } = req.body;
       if (!phone || !code) return res.status(400).json({ error: 'Phone and code required' });
 
@@ -523,7 +518,9 @@ router.post(
           code: 'CUSTOMER_SESSION_REQUIRED',
         });
       }
-      const session = await rotateCustomerSession(rawToken, req);
+      const session = String(rawToken).startsWith('FCH-')
+        ? await require('../services/family-child-session.service').childSessions.refresh(rawToken)
+        : await rotateCustomerSession(rawToken, req);
       return res.json({ success: true, ...sendCustomerSession(req, res, session) });
     } catch (error) {
       return sendApiError(res, error, { success: false });
@@ -538,7 +535,11 @@ router.post(
   async (req, res) => {
     try {
       const rawToken = req.body?.refreshToken || readCustomerRefreshCookie(req);
-      await revokeCustomerSession(rawToken);
+      if (String(rawToken || '').startsWith('FCH-')) {
+        await require('../services/family-child-session.service').childSessions.logout(rawToken);
+      } else {
+        await revokeCustomerSession(rawToken);
+      }
       if (usesCustomerRefreshCookie(req)) clearCustomerSessionCookie(req, res);
       res.json({ success: true });
     } catch (error) {
@@ -654,7 +655,7 @@ router.post(
   async (req, res) => {
     try {
       const { fcmToken } = req.body;
-      const customer = await getCustomerById(req.customerAuth.id);
+      let customer = await getCustomerById(req.customerAuth.id);
       if (!customer) return res.status(404).json({ exists: false });
 
       if (fcmToken && customer.fcm_token !== fcmToken) {
@@ -662,12 +663,14 @@ router.post(
         customer.fcm_token = fcmToken;
       }
 
+      customer = await require('../services/family.service').family.profile(customer);
+
       const [tierSnapshot, transactionResult] = await Promise.all([
         getCustomerTierSnapshot(customer),
         supabase
           .from('transactions')
           .select('*')
-          .eq('customer_id', customer.id)
+          .eq('customer_id', customer.family?.ownerCustomerId || customer.id)
           .order('timestamp', { ascending: false })
           .limit(20),
       ]);
@@ -690,6 +693,9 @@ router.post(
           balance: customer.balance,
           total_spent: customer.total_spent,
           created_at: customer.created_at,
+          ...(customer.family
+            ? { family: customer.family, personal_bonus_balance: customer.personal_bonus_balance }
+            : {}),
           isVip,
           cashbackPercent,
           vipThreshold,
@@ -712,7 +718,11 @@ router.post(
     try {
       const customer = await getCustomerById(req.customerAuth.id);
       if (!customer) return res.status(404).json({ success: false, error: 'Customer not found' });
-      res.json({ success: true, ...buildDynamicQrToken(customer.phone) });
+      const familyQr = await require('../services/family.service').family.qrForCustomer(
+        customer.id,
+        'loyalty',
+      );
+      res.json({ success: true, ...(familyQr || buildDynamicQrToken(customer.phone)) });
     } catch (err) {
       sendApiError(res, err, { success: false });
     }

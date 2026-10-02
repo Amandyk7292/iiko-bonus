@@ -110,7 +110,8 @@ async function getCustomerLoyalty(req, res) {
     const language = normalizeLanguage(req.query?.lang || req.query?.language || 'ru');
     const settings = await getSettings();
     const tiers = await getActiveLoyaltyTiers(settings);
-    const tier = getTierInfo(customer.total_spent, tiers, settings);
+    const loyaltyCustomer = await require('../services/family.service').family.profile(customer);
+    const tier = getTierInfo(loyaltyCustomer.total_spent, tiers, settings);
     const localizedCurrent = toPublicTier(tier, language);
     const localizedNext = tier.nextTierInfo ? toPublicTier(tier.nextTierInfo, language) : null;
 

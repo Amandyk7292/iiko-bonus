@@ -186,6 +186,10 @@ const mapRpcError = (error, { branch = null } = {}) => {
       409,
     );
   }
+  if (message.includes('family loyalty claim conflict'))
+    return reservationError('Семейная оплата связана с другим клиентом или составом чека.', 409);
+  if (message.includes('family payment not paid'))
+    return reservationError('Семейная оплата ещё не завершена. Начисление будет повторено.', 503);
   if (message.includes('branch loyalty rolling limit exceeded')) {
     recordPosSafetyRejection('rolling', branch);
     return reservationError('Branch loyalty rolling safety limit exceeded', 429);
@@ -232,6 +236,18 @@ async function reserveLoyalty(
     }),
   });
   if (error) throw mapRpcError(error, { branch: normalizedOrder.branch });
+  if (data.status === 'family_refunded')
+    return {
+      success: true,
+      skipped: true,
+      reason: 'FAMILY_PURCHASE_REFUNDED',
+      orderId: normalizedOrder.original,
+      customerId: normalizedCustomerId,
+      newBalance: Number(data.balance || 0),
+      discountApplied: 0,
+      earnedBonus: 0,
+      duplicate: true,
+    };
   return {
     success: true,
     reservationId: data.reservation_id,
@@ -344,6 +360,9 @@ async function commitLoyalty(
     discountApplied: Number(data.discount_applied || 0),
     earnedBonus: Number(data.earned_bonus || 0),
     duplicate: Boolean(data.duplicate),
+    ...(data.status === 'family_refunded'
+      ? { skipped: true, reason: 'FAMILY_PURCHASE_REFUNDED' }
+      : {}),
   };
 }
 

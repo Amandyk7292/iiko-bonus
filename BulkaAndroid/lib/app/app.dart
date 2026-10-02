@@ -490,7 +490,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     }
     if (paymentReturnNotice != null &&
         prefs.getString('lastAppScreen') == 'checkout' &&
-        accessToken != null) {
+        accessToken != null &&
+        !_api.isFamilyChildSession) {
       await reconcileReturnedForteCheckout(api: _api, cart: cart, prefs: prefs);
     }
 
@@ -595,6 +596,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   Future<void> _openCustomerOrders({String? initialOrderId}) async {
+    if (_api.isFamilyChildSession) return;
     if (_staff.isCashier || _ordersRouteOpen || _savedPhone == null) return;
     final navigator = _navigatorKey.currentState;
     if (navigator == null) return;
@@ -634,6 +636,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   Future<void> _openPendingPushTarget() async {
+    if (_api.isFamilyChildSession) {
+      _pendingPushTarget = null;
+      return;
+    }
     final target = _pendingPushTarget;
     if (target == null) return;
     await _staffReady;
@@ -706,6 +712,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   Future<void> _refreshWidgetOrder() async {
+    if (_api.isFamilyChildSession) return;
     final customer = _customer;
     if (customer == null || !_api.isAuthenticated) {
       return;
@@ -975,6 +982,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       _customer = customer;
       _transactions = profile.transactions;
     });
+    if (customer.isFamilyChild) {
+      _widgetOrder = null;
+      await HomeWidgetSync.clear();
+      await OrderLiveStatus.sync(null);
+    }
     _startProfileRefresh(phone);
     unawaited(PushNotifications.requestCustomerPermissionAfterSignIn(_api));
     unawaited(_refreshWidgetOrder());
@@ -990,6 +1002,19 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       return _acceptAuthenticatedProfile(phone, profile);
     } catch (error) {
       return _userError(error, 'error_login');
+    }
+  }
+
+  Future<String?> _loginFamilyChild(String login, String password) async {
+    try {
+      final profile = await _api.loginFamilyChild(
+        login: login,
+        password: password,
+      );
+      if (profile.customer?.isFamilyChild != true) return 'error_login'.tr;
+      return _acceptAuthenticatedProfile(profile.customer!.phone, profile);
+    } catch (error) {
+      return _familyError(error);
     }
   }
 
@@ -1117,6 +1142,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   Future<Customer> _withLatestLoyalty(Customer customer) async {
+    if (customer.isFamilyChild) return customer;
     if (customer.tier != null && customer.tier!.allTiers.isNotEmpty) {
       return customer;
     }
@@ -1161,15 +1187,18 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
 
   Future<void> _forceLocalLogout() async {
     _refreshTimer?.cancel();
-    await PushNotifications.deferCustomerUnregister(
-      _api,
-      customerIdentity: _savedPhone,
-      invalidateInstallationToken: true,
-    );
+    if (!_api.isFamilyChildSession) {
+      await PushNotifications.deferCustomerUnregister(
+        _api,
+        customerIdentity: _savedPhone,
+        invalidateInstallationToken: true,
+      );
+    }
     await _clearSession();
   }
 
   Future<bool> _requireAuthentication({bool staffOnly = false}) async {
+    if (!staffOnly && _api.isFamilyChildSession) return false;
     if (_booting) await _startupReady.future;
     if (!mounted) return false;
     if (_savedPhone != null && _customer == null && _api.isAuthenticated) {
@@ -1204,6 +1233,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
           settings: const RouteSettings(name: 'authentication'),
           fullscreenDialog: true,
           builder: (routeContext) => LoginScreen(
+            onChildLogin: (login, password) async {
+              final result = await _loginFamilyChild(login, password);
+              if (result == null) finishAuthentication();
+              return result;
+            },
             onClose: () => Navigator.of(routeContext).pop(false),
             onAdminLogin: _staff.signIn,
             onOpenAdminPortal: (_) async {
@@ -1264,6 +1298,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
           _savedPhone != null &&
           _customer != null &&
           _api.isAuthenticated;
+      if (_api.isFamilyChildSession) {
+        if (mounted) navigator.popUntil((route) => route.isFirst);
+        return false;
+      }
       if (succeeded && !await _adoptGuestDeliveryAddresses()) return false;
       if (succeeded && _pendingPushTarget != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1572,6 +1610,18 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       );
     }
     final customer = _booting ? null : _customer;
+    if (_api.isFamilyChildSession || customer?.isFamilyChild == true) {
+      if (customer?.isFamilyChild != true) {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
+      return FamilyChildScreen(
+        key: ValueKey('app-stage-family-child:${customer!.id}'),
+        api: _api,
+        customer: customer,
+        onLogout: _logout,
+        onRefresh: _refreshProfileAfterMutation,
+      );
+    }
     return MainShell(
       key: const ValueKey('app-stage-main'),
       api: _api,

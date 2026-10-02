@@ -58,12 +58,14 @@ const getProfile = async (req, res) => {
   try {
     const customer = await getCustomerById(req.customerAuth.id);
     if (!customer) return res.status(404).json({ error: 'Клиент не найден' });
-    const safeCustomer = { ...customer };
+    const safeCustomer = await require('../services/family.service').family.profile({
+      ...customer,
+    });
     delete safeCustomer.fcm_token;
     delete safeCustomer.telegram_id;
     const settings = await getSettings();
     const tiers = await getActiveLoyaltyTiers(settings);
-    const tier = getTierInfo(customer.total_spent, tiers, settings);
+    const tier = getTierInfo(safeCustomer.total_spent, tiers, settings);
     safeCustomer.cashbackPercent = tier.percent;
     safeCustomer.tier = tier;
     res.json({
