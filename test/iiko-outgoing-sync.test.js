@@ -96,6 +96,117 @@ test('outgoing quantities aggregate once by branch and support fractional kg wit
   ]);
 });
 
+test('outgoing padded fractional zeroes preserve exact quantities and document identity', () => {
+  const document = invoice({ items: { item: { productId: product, amount: '2.0000' } } });
+  const canonical = invoice({ items: { item: { productId: product, amount: '2' } } });
+  assert.deepEqual(
+    normalizeDocuments(dataset([document]), server, mapping),
+    normalizeDocuments(dataset([canonical]), server, mapping),
+  );
+  const deduplicated = normalizeDocuments(dataset([document, canonical]), server, mapping);
+  assert.equal(deduplicated.length, 1);
+  assert.equal(deduplicated[0].items[0].quantity, 2);
+  assert.equal(document.items.item.amount, '2.0000');
+
+  const data = dataset([
+    invoice({
+      items: {
+        item: [
+          { productId: product, amount: '0.125000' },
+          { productId: product, amount: '0.2500' },
+        ],
+      },
+    }),
+  ]);
+  data.units[0].name = 'кг';
+  const [weighted] = normalizeDocuments(data, server, mapping);
+  assert.equal(weighted.items[0].quantity, 0.375);
+  assert.equal(weighted.items[0].unit, 'кг');
+  assert.throws(
+    () =>
+      normalizeDocuments(
+        dataset([document, invoice({ items: { item: { productId: product, amount: '3.0000' } } })]),
+        server,
+        mapping,
+      ),
+    { code: 'IIKO_OUTGOING_INVALID' },
+  );
+});
+
+test('outgoing zero padding never relaxes precision, positivity, format or quantity limits', () => {
+  for (const amount of [
+    '0.0005',
+    '0.0005000',
+    '1.1234000',
+    '0.0000',
+    '-1.0000',
+    '1e3',
+    '1.0000e3',
+    '100001.0000',
+    '1000000.0000',
+    '0000002.0000',
+    '2,0000',
+    '2.0000suffix',
+    '2.0000\n',
+    '2.0000\r\n',
+    '2.0000 ',
+    ' 2.0000',
+    '2.0000\t',
+  ]) {
+    assert.throws(
+      () =>
+        normalizeDocuments(
+          dataset([invoice({ items: { item: { productId: product, amount } } })]),
+          server,
+          mapping,
+        ),
+      { code: 'IIKO_OUTGOING_INVALID' },
+      amount,
+    );
+  }
+  assert.equal(
+    normalizeDocuments(
+      dataset([invoice({ items: { item: { productId: product, amount: '100000.0000' } } })]),
+      server,
+      mapping,
+    )[0].items[0].quantity,
+    100000,
+  );
+  assert.throws(
+    () =>
+      normalizeDocuments(
+        dataset([
+          invoice({
+            items: {
+              item: [
+                { productId: product, amount: '100000.0000' },
+                { productId: product, amount: '0.001000' },
+              ],
+            },
+          }),
+        ]),
+        server,
+        mapping,
+      ),
+    { code: 'IIKO_OUTGOING_INVALID' },
+  );
+});
+
+test('outgoing padded quantities retain explicit-unit conflict protection', () => {
+  const data = dataset([
+    invoice({
+      items: {
+        item: [
+          { productId: product, amount: '2.0000', amountUnit: id(8) },
+          { productId: product, amount: '1.0000' },
+        ],
+      },
+    }),
+  ]);
+  data.units.push({ id: id(8), name: 'кг' });
+  assert.throws(() => normalizeDocuments(data, server, mapping), { code: 'IIKO_OUTGOING_INVALID' });
+});
+
 test('outgoing XML singleton items and duplicate identical documents are handled once', () => {
   const document = invoice({ items: { item: { productId: product, amount: '3' } } });
   const result = normalizeDocuments(

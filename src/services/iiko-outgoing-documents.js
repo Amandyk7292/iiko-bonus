@@ -106,7 +106,9 @@ function normalizeDocuments(data, server, mapping) {
         if (!stores.has(storeId)) throw invalid();
         const branchId = departments.get(stores.get(storeId));
         if (!branchId) continue;
-        const amount = String(item.amount ?? '');
+        // Some iiko exports pad quantities with extra fractional zeroes. Remove
+        // only padding beyond our three-digit precision; never round a value.
+        const amount = String(item.amount ?? '').replace(/^(\d{1,6}\.\d{3})0+(?![\s\S])/, '$1');
         // amountUnit describes this invoice line; never silently relabel kg as
         // pieces using product.mainUnit. SQL checks units/steps for tracked stock,
         // while valid untracked ingredients (e.g. litres) remain harmless.
