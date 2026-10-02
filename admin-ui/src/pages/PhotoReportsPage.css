@@ -1,6 +1,7 @@
 .closing-reports {
   min-width: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   --closing-muted: #71695e;
   --closing-border: #e7e4dc;
