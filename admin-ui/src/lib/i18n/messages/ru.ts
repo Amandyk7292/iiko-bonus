@@ -2,8 +2,8 @@ import settlements from './settlements-ru';
 import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 const ru: Record<string, string> = {
+  'access.role.iikoDashboard': 'Только iiko Dashboard',
   ...settlements,
-
 
   ...dashboard.ru,
   ...referralReport.ru,

@@ -1110,6 +1110,7 @@ const accessUpdateBodySchema = z
   .object({
     displayName: nullableText(160).optional(),
     role: z.enum([
+      'iiko_dashboard',
       'franchisee',
       'owner',
       'branch_manager',

@@ -44,6 +44,7 @@ interface StaffDraft {
 }
 
 const roleLabelKeys: Record<string, string> = {
+  iiko_dashboard: 'access.role.iikoDashboard',
   franchisee: 'settlements.portal.role',
   owner: 'access.role.owner',
   branch_manager: 'access.role.branchManager',
@@ -73,7 +74,9 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
     Object.entries(roleLabelKeys).map(([role, key]) => [role, t(key)]),
   );
   const staffRoleLabels = Object.fromEntries(
-    Object.entries(roleLabels).filter(([role]) => !['owner', 'editor', 'cashier'].includes(role)),
+    Object.entries(roleLabels).filter(
+      ([role]) => !['owner', 'editor', 'cashier', 'iiko_dashboard'].includes(role),
+    ),
   );
   const environmentRoleLabels = Object.fromEntries(
     Object.entries(roleLabels).filter(([role]) => role !== 'cashier'),
@@ -393,12 +396,15 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
             const selfOwner =
               user?.username === profile.username && ['owner', 'admin'].includes(user.role);
             const phoneLogin = isPhoneProfile(profile.username);
-            const cashierProfile = profile.role === 'cashier' || profile.authMethod === 'password';
-            const availableRoles = cashierProfile
-              ? { cashier: roleLabels.cashier }
-              : phoneLogin
-                ? staffRoleLabels
-                : environmentRoleLabels;
+            const cashierProfile = profile.role === 'cashier';
+            const availableRoles =
+              profile.role === 'iiko_dashboard'
+                ? { iiko_dashboard: roleLabels.iiko_dashboard }
+                : cashierProfile
+                  ? { cashier: roleLabels.cashier }
+                  : phoneLogin
+                    ? staffRoleLabels
+                    : environmentRoleLabels;
             return (
               <article
                 className={`card access-card ${expandedProfile === profile.username ? 'is-expanded' : ''}`}

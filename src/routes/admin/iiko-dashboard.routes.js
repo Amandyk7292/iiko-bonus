@@ -32,8 +32,19 @@ function registerIikoDashboardRoutes(router, reporting = service) {
   const cashReportJobs = new ReportJobs();
   const productSalesJobs = new ReportJobs();
   const ownerOnly = (req, res, next) => {
-    if (!['owner', 'admin'].includes(req.admin?.role))
+    const restrictedPath = String(req.path).toLowerCase().replace(/\/+$/, '');
+    if (!['owner', 'admin', 'iiko_dashboard'].includes(req.admin?.role))
       return res.status(403).json({ code: 'FORBIDDEN', error: 'Недостаточно прав' });
+    if (
+      req.admin?.role === 'iiko_dashboard' &&
+      !['GET', 'HEAD'].includes(req.method) &&
+      (/\/servers(?:\/|$)/.test(restrictedPath) || restrictedPath.endsWith('/barters/person'))
+    ) {
+      return res.status(403).json({
+        code: 'IIKO_DASHBOARD_READ_ONLY',
+        error: 'Доступен только просмотр и выгрузка отчётов',
+      });
+    }
     res.set('Cache-Control', 'no-store');
     return next();
   };

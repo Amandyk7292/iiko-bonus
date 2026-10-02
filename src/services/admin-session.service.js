@@ -91,14 +91,18 @@ async function validateAdminSession(
     .eq('username', session.admin_subject)
     .maybeSingle();
   if (profileError) throw profileError;
-  if (!profile && session.role === 'cashier') return null;
+  if (!profile && ['cashier', 'iiko_dashboard'].includes(session.role)) return null;
   if (profile?.active === false) return null;
   const profileRole = String(profile?.role || session.role);
   const profileBranchIds = Array.isArray(profile?.branch_ids)
     ? profile.branch_ids.map(String)
     : session.branch_ids || [];
-  if (session.role === 'cashier') {
-    if (profileRole !== 'cashier' || profileBranchIds.length !== 1) return null;
+  if (['cashier', 'iiko_dashboard'].includes(session.role)) {
+    if (
+      profileRole !== session.role ||
+      (session.role === 'cashier' && profileBranchIds.length !== 1)
+    )
+      return null;
     const { data: credentials, error: credentialsError } = await db
       .from('admin_staff_credentials')
       .select('auth_version')
@@ -108,7 +112,7 @@ async function validateAdminSession(
     if (!credentials || Number(credentials.auth_version) !== Number(session.auth_version)) {
       return null;
     }
-  } else if (profileRole === 'cashier') {
+  } else if (['cashier', 'iiko_dashboard'].includes(profileRole)) {
     return null;
   }
   return {

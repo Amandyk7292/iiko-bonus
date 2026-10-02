@@ -283,7 +283,8 @@ export function AdminRealtimeProvider({
     role !== 'whatsapp_operator' &&
     role !== 'courier' &&
     role !== 'cashier' &&
-    role !== 'franchisee';
+    role !== 'franchisee' &&
+    role !== 'iiko_dashboard';
   const streamIdentity = identity?.username
     ? JSON.stringify([
         identity.username,
@@ -423,7 +424,7 @@ export function AdminRealtimeProvider({
   }, [branchId, refreshSummary]);
 
   useEffect(() => {
-    if (role === 'franchisee') return;
+    if (role === 'franchisee' || role === 'iiko_dashboard') return;
     const params = new URLSearchParams();
     const selection = parseAdminScopeSelection(branchId);
     if (selection.kind === 'branch') params.set('scopeBranchId', selection.branchId);

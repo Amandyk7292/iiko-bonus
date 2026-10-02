@@ -560,6 +560,7 @@ export default function App() {
             <Topbar
               operatorMode={isWhatsAppOperator}
               partnerMode={role === 'franchisee'}
+              dashboardMode={role === 'iiko_dashboard'}
               cashierMode={role === 'cashier'}
               embeddedStaffMode={embeddedStaffMode}
               scopeLocations={scopeLocations}
@@ -588,7 +589,10 @@ export default function App() {
                   <Route path="/iiko" element={guard('/iiko', <IikoPage />)} />
                   <Route
                     path="/iiko-dashboard"
-                    element={guard('/iiko-dashboard', <IikoDashboardPage />)}
+                    element={guard(
+                      '/iiko-dashboard',
+                      <IikoDashboardPage readOnly={role === 'iiko_dashboard'} />,
+                    )}
                   />
                   <Route path="/broadcast" element={guard('/broadcast', <BroadcastPage />)} />
                   <Route path="/contacts" element={guard('/contacts', <ContactCenterPage />)} />

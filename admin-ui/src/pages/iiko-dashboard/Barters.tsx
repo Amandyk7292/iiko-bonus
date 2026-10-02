@@ -26,10 +26,12 @@ export default function Barters({
   base,
   department,
   refresh,
+  readOnly = false,
 }: {
   base: Query;
   department: string;
   refresh: number;
+  readOnly?: boolean;
 }) {
   const { t, locale, formatNumber, formatDate } = useI18n();
   const text = (key: string) => barterText(locale, key);
@@ -129,7 +131,7 @@ export default function Barters({
     }
   };
   const saveName = async () => {
-    if (!check) return;
+    if (!check || readOnly) return;
     setSaving(true);
     setSaveError('');
     setSaved(false);
@@ -285,7 +287,7 @@ export default function Barters({
                 aria-describedby="barter-name-hint"
                 value={name}
                 maxLength={160}
-                disabled={saving}
+                disabled={saving || readOnly}
                 onChange={(event) => setName(event.target.value)}
                 list="barter-blogger-names"
               />
@@ -297,7 +299,11 @@ export default function Barters({
                   ))}
               </datalist>
               <p id="barter-name-hint">{text('nameHint')}</p>
-              <button type="submit" disabled={saving || name.trim() === check.Blogger}>
+              <button
+                type="submit"
+                hidden={readOnly}
+                disabled={saving || readOnly || name.trim() === check.Blogger}
+              >
                 {text(saving ? 'saving' : 'save')}
               </button>
               {saveError && <p role="alert">{t(saveError)}</p>}

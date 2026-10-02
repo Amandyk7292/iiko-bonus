@@ -24,6 +24,7 @@ const { authenticateCashier } = require('../services/admin-credential-auth.servi
 
 const ADMIN_ROLES = new Set([
   'franchisee',
+  'iiko_dashboard',
   'admin',
   'owner',
   'branch_manager',
@@ -50,6 +51,7 @@ const sessionOptionsForAdmin = (admin) =>
   admin?.role === 'cashier' ? CASHIER_SESSION_OPTIONS : DEFAULT_ADMIN_SESSION_OPTIONS;
 
 const ROLE_AREAS = {
+  iiko_dashboard: new Set(['session', 'scope', 'iiko-dashboard']),
   franchisee: new Set(['session', 'scope', 'transactions']),
   owner: new Set(['*']),
   admin: new Set(['*']),
@@ -403,7 +405,12 @@ const adminLoginHandler = async (req, res) => {
   const password = String(req.body?.password || '');
   if (!user) {
     try {
-      const cashier = await authenticateCashier(username, password);
+      const cashier =
+        (await authenticateCashier(username, password)) ||
+        (await require('../services/iiko-dashboard-access.service').authenticateDashboard(
+          username,
+          password,
+        ));
       if (!cashier) return res.status(401).json({ error: 'Invalid credentials' });
       return issueAdminSession(req, res, cashier);
     } catch (error) {
@@ -588,6 +595,18 @@ const cashierMutationAllowed = (req, area) => {
 
 const adminMutationRoleMiddleware = (req, res, next) => {
   const readOnly = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+  const restrictedPath = String(req.path).toLowerCase().replace(/\/+$/, '');
+  if (
+    req.admin.role === 'iiko_dashboard' &&
+    !readOnly &&
+    (restrictedPath.startsWith('/iiko-dashboard/servers') ||
+      restrictedPath === '/iiko-dashboard/barters/person')
+  ) {
+    return res.status(403).json({
+      error: 'Учётная запись доступна только для отчётов iiko',
+      code: 'IIKO_DASHBOARD_READ_ONLY',
+    });
+  }
   if (req.admin.role === 'franchisee') {
     const path = String(req.path || '').replace(/^\/+/, '');
     if (

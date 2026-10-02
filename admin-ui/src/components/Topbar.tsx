@@ -61,6 +61,7 @@ export default function Topbar({
   onMenuClick,
   operatorMode = false,
   partnerMode = false,
+  dashboardMode = false,
   cashierMode = false,
   embeddedStaffMode = false,
   scopeLocations = [],
@@ -70,6 +71,7 @@ export default function Topbar({
   onMenuClick?: () => void;
   operatorMode?: boolean;
   partnerMode?: boolean;
+  dashboardMode?: boolean;
   cashierMode?: boolean;
   embeddedStaffMode?: boolean;
   scopeLocations?: AdminScopeLocation[];
@@ -207,7 +209,7 @@ export default function Topbar({
         </div>
       </div>
       <div className="topbar-actions">
-        {!operatorMode && !cashierMode && !partnerMode && <AdminGlobalSearch />}
+        {!operatorMode && !cashierMode && !partnerMode && !dashboardMode && <AdminGlobalSearch />}
         {cashierMode && (
           <div className="cashier-staff-controls">
             <div className="cashier-branch realtime-status" aria-label={t('adminScope.branch')}>
@@ -248,7 +250,7 @@ export default function Topbar({
             />
           </div>
         )}
-        {!operatorMode && !cashierMode && !partnerMode && (
+        {!operatorMode && !cashierMode && !partnerMode && !dashboardMode && (
           <div className="topbar-notifications" ref={notificationsRef}>
             <button
               ref={notificationsButtonRef}

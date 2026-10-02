@@ -23,6 +23,7 @@ export function applyAdminScopeHeaders(
     !storedScope ||
     endpoint === '/session' ||
     endpoint === '/scope' ||
+    endpoint.startsWith('/iiko-dashboard') ||
     endpoint.startsWith('/login')
   ) {
     return;

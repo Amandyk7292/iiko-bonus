@@ -1,4 +1,5 @@
 export const ADMIN_ALLOWED_PATHS: Record<string, string[]> = {
+  iiko_dashboard: ['/iiko-dashboard'],
   franchisee: ['/settlements'],
   branch_manager: [
     '/operations',

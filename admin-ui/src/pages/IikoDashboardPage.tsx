@@ -110,12 +110,14 @@ export function preferredServer(servers: Server[], city: Server['city'], current
   );
 }
 
-export default function IikoDashboardPage() {
+export default function IikoDashboardPage({ readOnly = false }: { readOnly?: boolean }) {
   const { t, formatDate, locale } = useI18n();
   const initialUrlState = useRef(dashboardUrlState()).current;
   const [servers, setServers] = useState<Server[]>([]);
   const [serverId, setServerId] = useState(initialUrlState.serverId);
-  const [tab, setTab] = useState(initialUrlState.tab);
+  const [tab, setTab] = useState(
+    readOnly && initialUrlState.tab === 'settings' ? 'overview' : initialUrlState.tab,
+  );
   const [{ from, to }, setRange] = useState(() => ({
     from: initialUrlState.from,
     to: initialUrlState.to,
@@ -205,7 +207,7 @@ export default function IikoDashboardPage() {
     const restore = () => {
       const state = dashboardUrlState();
       restoringHistory.current = true;
-      setTab(state.tab);
+      setTab(readOnly && state.tab === 'settings' ? 'overview' : state.tab);
       setServerId(state.serverId);
       setRange({ from: state.from, to: state.to });
       setDepartment(state.department);
@@ -214,7 +216,7 @@ export default function IikoDashboardPage() {
     };
     window.addEventListener('popstate', restore);
     return () => window.removeEventListener('popstate', restore);
-  }, []);
+  }, [readOnly]);
   useEffect(() => {
     if (restoringHistory.current) {
       restoringHistory.current = false;
@@ -327,20 +329,22 @@ export default function IikoDashboardPage() {
   return (
     <div className="id-dashboard page-stack">
       <nav className="id-tabs" aria-label="iiko Dashboard">
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            aria-current={tab === item.id ? 'page' : undefined}
-            onClick={() => {
-              setTab(item.id);
-              setError('');
-            }}
-          >
-            <item.icon size={18} />
-            {t(`id.${item.id}`)}
-          </button>
-        ))}
+        {tabs
+          .filter((item) => !readOnly || item.id !== 'settings')
+          .map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              aria-current={tab === item.id ? 'page' : undefined}
+              onClick={() => {
+                setTab(item.id);
+                setError('');
+              }}
+            >
+              <item.icon size={18} />
+              {t(`id.${item.id}`)}
+            </button>
+          ))}
       </nav>
 
       <section className="card id-toolbar id-toolbar-compact">
@@ -588,9 +592,15 @@ export default function IikoDashboardPage() {
       )}
       {tab === 'balances' && <Balances serverId={serverId} date={to} refresh={refresh} />}
       {tab === 'barters' && (
-        <Barters key={serverId} base={base} department={department} refresh={refresh} />
+        <Barters
+          key={serverId}
+          base={base}
+          department={department}
+          refresh={refresh}
+          readOnly={readOnly}
+        />
       )}
-      {tab === 'settings' && (
+      {tab === 'settings' && !readOnly && (
         <Settings
           servers={servers}
           preferences={preferences}
