@@ -40,6 +40,57 @@ const activeRow = {
   sort_order: 1,
 };
 
+test('24/7 keeps the original schedule and validates editable shift boundaries', async () => {
+  const row = {
+    ...activeRow,
+    hours: { daily: { open: '09:00', close: '23:00' } },
+    round_the_clock: false,
+    photo_day_shift_start: '08:00:00',
+    photo_night_shift_start: '21:00:00',
+  };
+  let writes = 0;
+  const db = {
+    from() {
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        update(value) {
+          writes++;
+          Object.assign(row, value);
+          return this;
+        },
+        maybeSingle: async () => ({ data: { ...row } }),
+      };
+    },
+  };
+  await withLocationService(db, async (service) => {
+    const enabled = await service.updateBulkaLocation(row.id, { roundTheClock: true });
+    assert.deepEqual(enabled.hours, { daily: { open: '00:00', close: '24:00' } });
+    assert.deepEqual(enabled.regularHours, row.hours);
+    assert.equal(enabled.photoNightShiftStart, '21:00');
+    const changed = await service.updateBulkaLocation(row.id, {
+      photoDayShiftStart: '07:30',
+      photoNightShiftStart: '22:15',
+    });
+    assert.equal(changed.photoDayShiftStart, '07:30');
+    assert.equal(changed.photoNightShiftStart, '22:15');
+    for (const payload of [
+      { photoNightShiftStart: '06:00' },
+      { photoDayShiftStart: '22:15' },
+      { photoNightShiftStart: '24:00' },
+      { roundTheClock: 'yes' },
+    ])
+      await assert.rejects(service.updateBulkaLocation(row.id, payload));
+    assert.equal(writes, 2);
+    const disabled = await service.updateBulkaLocation(row.id, { roundTheClock: false });
+    assert.deepEqual(disabled.hours, { daily: { open: '09:00', close: '23:00' } });
+  });
+});
+
 test('branch name and full address can be edited independently of map coordinates', async () => {
   let updates;
   const database = {

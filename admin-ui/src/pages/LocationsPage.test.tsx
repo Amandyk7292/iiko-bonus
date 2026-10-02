@@ -1,4 +1,4 @@
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../lib/i18n';
@@ -95,6 +95,68 @@ it('keeps map collapsed, preserves the typed address when moving its marker and 
         latitude: 43.7,
         longitude: 51.2,
       }),
+    ),
+  );
+});
+
+it('enables 24/7 with editable shifts and keeps the normal opening hours', async () => {
+  const user = userEvent.setup();
+  render(
+    <BrowserRouter>
+      <I18nProvider>
+        <LocationsPage user={null} />
+      </I18nProvider>
+    </BrowserRouter>,
+  );
+  await user.click(await screen.findByRole('button', { name: 'Редактировать' }));
+  const dialog = within(screen.getByRole('dialog'));
+  await user.click(dialog.getByLabelText('Работает 24/7'));
+  expect(dialog.getByLabelText('Начало 1 смены')).toHaveValue('08:00');
+  expect(dialog.getByLabelText('Начало 2 смены')).toHaveValue('21:00');
+  fireEvent.change(dialog.getByLabelText('Начало 1 смены'), { target: { value: '07:30' } });
+  fireEvent.change(dialog.getByLabelText('Начало 2 смены'), { target: { value: '22:00' } });
+  await user.click(dialog.getByRole('button', { name: 'Сохранить' }));
+  await waitFor(() =>
+    expect(api.updateFulfillmentLocation).toHaveBeenCalledWith(
+      branch.id,
+      expect.objectContaining({
+        roundTheClock: true,
+        photoDayShiftStart: '07:30',
+        photoNightShiftStart: '22:00',
+        hours: branch.hours,
+      }),
+    ),
+  );
+});
+
+it('restores regular hours when 24/7 is switched off', async () => {
+  api.getFulfillmentLocations.mockResolvedValue({
+    locations: [
+      {
+        ...branch,
+        roundTheClock: true,
+        hours: { daily: { open: '00:00', close: '24:00' } },
+        regularHours: branch.hours,
+      },
+    ],
+  });
+  const user = userEvent.setup();
+  render(
+    <BrowserRouter>
+      <I18nProvider>
+        <LocationsPage user={null} />
+      </I18nProvider>
+    </BrowserRouter>,
+  );
+  await user.click(await screen.findByRole('button', { name: 'Редактировать' }));
+  const dialog = within(screen.getByRole('dialog'));
+  await user.click(dialog.getByLabelText('Работает 24/7'));
+  expect(dialog.getByLabelText('Закрытие')).toHaveValue('21:00');
+  await user.click(dialog.getByRole('button', { name: 'Сохранить' }));
+  await waitFor(() =>
+    expect(api.updateFulfillmentLocation).toHaveBeenCalledWith(
+      branch.id,
+      expect.objectContaining({ roundTheClock: false, hours: branch.hours }),
     ),
   );
 });

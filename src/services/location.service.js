@@ -1,5 +1,10 @@
 const { supabase } = require('../config/supabase');
 const { deliveryAvailability } = require('./delivery-availability.service');
+const {
+  effectiveHours,
+  clockMinutes: shiftMinutes,
+  shiftTimes,
+} = require('../utils/branch-schedule.util');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_CITY_POINT_DISTANCE_KM = 150;
@@ -87,7 +92,11 @@ const normalizeLocation = (row) => ({
   city: row.city,
   latitude: row.latitude == null ? null : Number(row.latitude),
   longitude: row.longitude == null ? null : Number(row.longitude),
-  hours: row.hours && typeof row.hours === 'object' ? row.hours : {},
+  hours: effectiveHours(row),
+  regularHours: row.hours && typeof row.hours === 'object' ? row.hours : {},
+  roundTheClock: row.round_the_clock === true,
+  photoDayShiftStart: shiftTimes(row).day,
+  photoNightShiftStart: shiftTimes(row).night,
   active: row.active !== false,
   pickupEnabled: row.pickup_enabled !== false,
   preorderEnabled: row.preorder_enabled !== false,
@@ -106,7 +115,7 @@ async function getBulkaLocations({
   let query = supabase
     .from('bulka_locations')
     .select(
-      'id,city_id,two_gis_id,name,city,address,latitude,longitude,hours,active,pickup_enabled,preorder_enabled,delivery_enabled,slot_minutes,pickup_slot_capacity,preorder_slot_capacity,delivery_slot_capacity,sort_order',
+      'id,city_id,two_gis_id,name,city,address,latitude,longitude,hours,round_the_clock,photo_day_shift_start,photo_night_shift_start,active,pickup_enabled,preorder_enabled,delivery_enabled,slot_minutes,pickup_slot_capacity,preorder_slot_capacity,delivery_slot_capacity,sort_order',
     );
   if (!includeInactive) query = query.eq('active', true);
   const { data, error } = await query.order('sort_order', { ascending: true }).order('name');
@@ -136,6 +145,13 @@ const normalizeBulkaCity = (row) => ({
   createdAt: row.created_at || null,
   updatedAt: row.updated_at || null,
 });
+
+function validatePhotoShifts(day, night) {
+  const start = shiftMinutes(day);
+  const end = shiftMinutes(night);
+  if (start === null || end === null || start >= end)
+    throw locationError('Начало дневной смены должно быть раньше начала ночной смены');
+}
 
 async function getBulkaCities({ includeInactive = false } = {}) {
   let query = supabase
@@ -205,6 +221,9 @@ async function createBulkaLocation(payload = {}) {
     throw locationError('Некорректное расписание филиала');
   }
   validateHours(hours);
+  const photoDayShiftStart = payload.photoDayShiftStart ?? '08:00';
+  const photoNightShiftStart = payload.photoNightShiftStart ?? '21:00';
+  validatePhotoShifts(photoDayShiftStart, photoNightShiftStart);
 
   const row = {
     city_id: city.id,
@@ -214,6 +233,9 @@ async function createBulkaLocation(payload = {}) {
     latitude,
     longitude,
     hours,
+    round_the_clock: booleanValue(payload.roundTheClock, false, 'roundTheClock'),
+    photo_day_shift_start: photoDayShiftStart,
+    photo_night_shift_start: photoNightShiftStart,
     active: booleanValue(payload.active, true, 'active'),
     pickup_enabled: booleanValue(payload.pickupEnabled, true, 'pickupEnabled'),
     preorder_enabled: booleanValue(payload.preorderEnabled, true, 'preorderEnabled'),
@@ -287,6 +309,7 @@ async function updateBulkaLocation(id, payload = {}) {
     pickupEnabled: 'pickup_enabled',
     preorderEnabled: 'preorder_enabled',
     deliveryEnabled: 'delivery_enabled',
+    roundTheClock: 'round_the_clock',
   })) {
     if (payload[apiKey] !== undefined) {
       if (typeof payload[apiKey] !== 'boolean') {
@@ -338,18 +361,24 @@ async function updateBulkaLocation(id, payload = {}) {
     validateHours(payload.hours);
     updates.hours = payload.hours;
   }
+  if (payload.photoDayShiftStart !== undefined)
+    updates.photo_day_shift_start = payload.photoDayShiftStart;
+  if (payload.photoNightShiftStart !== undefined)
+    updates.photo_night_shift_start = payload.photoNightShiftStart;
   if (Object.keys(updates).length === 0) {
     throw locationError('Нет настроек для обновления');
   }
 
   const { data: current, error: currentError } = await supabase
     .from('bulka_locations')
-    .select('delivery_enabled,latitude,longitude')
+    .select('delivery_enabled,latitude,longitude,photo_day_shift_start,photo_night_shift_start')
     .eq('id', id)
     .maybeSingle();
   if (currentError) throw currentError;
   if (!current) throw locationError('Филиал не найден', 404);
   const effective = { ...current, ...updates };
+  const shifts = shiftTimes(effective);
+  validatePhotoShifts(shifts.day, shifts.night);
   if (
     effective.delivery_enabled === true &&
     (effective.latitude == null ||

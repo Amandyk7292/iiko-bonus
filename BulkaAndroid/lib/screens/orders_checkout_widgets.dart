@@ -514,8 +514,6 @@ class _CheckoutTimeSheetState extends State<_CheckoutTimeSheet> {
                 builder: (context, index) {
                   final selected = index == _index;
                   final slot = widget.slots[index];
-                  final start = slot.startsAt.toLocal();
-                  final end = slot.endsAt.toLocal();
                   return AnimatedContainer(
                     duration: BulkaMotion.duration(context, BulkaMotion.fast),
                     alignment: Alignment.center,
@@ -527,7 +525,7 @@ class _CheckoutTimeSheetState extends State<_CheckoutTimeSheet> {
                       borderRadius: BorderRadius.circular(BulkaRadii.control),
                     ),
                     child: Text(
-                      '${formatUiTime(context, start)}–${formatUiTime(context, end)}',
+                      slot.label,
                       style: TextStyle(
                         color: selected
                             ? _textDark

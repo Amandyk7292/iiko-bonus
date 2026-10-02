@@ -1,5 +1,6 @@
 const { supabase } = require('../config/supabase');
 const { productScheduleBounds } = require('./product-options.service');
+const { effectiveHours } = require('../utils/branch-schedule.util');
 
 const slotError = (message, statusCode = 400) => Object.assign(new Error(message), { statusCode });
 
@@ -40,12 +41,11 @@ async function listAvailableSlots({
   if (!['pickup', 'delivery', 'preorder'].includes(orderType)) {
     throw slotError('Некорректный способ получения заказа');
   }
-  const safeDays = slotHorizonDays(orderType, days);
   const productBounds = await productScheduleBounds(productIds, now);
   const { data: location, error } = await supabase
     .from('bulka_locations')
     .select(
-      'id,hours,active,pickup_enabled,preorder_enabled,delivery_enabled,slot_minutes,pickup_slot_capacity,preorder_slot_capacity,delivery_slot_capacity',
+      'id,hours,round_the_clock,active,pickup_enabled,preorder_enabled,delivery_enabled,slot_minutes,pickup_slot_capacity,preorder_slot_capacity,delivery_slot_capacity',
     )
     .eq('id', branchId)
     .maybeSingle();
@@ -58,6 +58,9 @@ async function listAvailableSlots({
         ? location.delivery_enabled
         : location.pickup_enabled;
   if (!enabled) throw slotError('Этот способ получения в филиале временно недоступен');
+  const rollingDay = location.round_the_clock === true && orderType !== 'preorder';
+  const safeDays = rollingDay ? 2 : slotHorizonDays(orderType, days);
+  const hours = effectiveHours(location);
 
   const safeOffset = timezoneOffsetMinutes();
   const localNow = new Date(now.getTime() + safeOffset * 60000);
@@ -104,7 +107,7 @@ async function listAvailableSlots({
   for (let dayOffset = -1; dayOffset < safeDays; dayOffset += 1) {
     const localDayMs = startLocalDay + dayOffset * 86400000;
     const localDay = new Date(localDayMs);
-    const schedule = location.hours?.[dayKeys[localDay.getUTCDay()]] || location.hours?.daily;
+    const schedule = hours?.[dayKeys[localDay.getUTCDay()]] || hours?.daily;
     if (!schedule || schedule.closed === true) continue;
     const open = parseClock(schedule.open);
     let close = parseClock(schedule.close);
@@ -113,6 +116,7 @@ async function listAvailableSlots({
     const first = Math.ceil(open / interval) * interval;
     for (let minute = first; minute < close; minute += interval) {
       const instant = new Date(localDayMs + minute * 60000 - safeOffset * 60000);
+      if (rollingDay && instant.getTime() > now.getTime() + 86400000) continue;
       if (instant.getTime() < earliest || instant.getTime() > productBounds.latest) continue;
       const key = instant.toISOString();
       if (instant.getTime() < new Date(queryStart).getTime() || emitted.has(key)) continue;

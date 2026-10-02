@@ -640,6 +640,16 @@ const locationBodySchema = z
     preorderEnabled: z.boolean().optional(),
     deliveryEnabled: z.boolean().optional(),
 
+    roundTheClock: z.boolean().optional(),
+    photoDayShiftStart: z
+      .string()
+      .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
+      .optional(),
+    photoNightShiftStart: z
+      .string()
+      .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
+      .optional(),
+
     hours: hoursSchema.optional(),
     slotMinutes: z.coerce.number().int().min(15).max(240).optional(),
     pickupSlotCapacity: z.coerce.number().int().min(1).max(500).optional(),
@@ -656,6 +666,16 @@ const locationUpdateBodySchema = optionalPatch(
       pickupEnabled: z.boolean().optional(),
       preorderEnabled: z.boolean().optional(),
       deliveryEnabled: z.boolean().optional(),
+
+      roundTheClock: z.boolean().optional(),
+      photoDayShiftStart: z
+        .string()
+        .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
+        .optional(),
+      photoNightShiftStart: z
+        .string()
+        .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
+        .optional(),
 
       slotMinutes: z.coerce.number().int().min(15).max(240).optional(),
       pickupSlotCapacity: z.coerce.number().int().min(1).max(500).optional(),

@@ -1,4 +1,5 @@
 const ORDER_TYPES = new Set(['pickup', 'delivery', 'preorder']);
+const { effectiveHours, isRoundTheClock } = require('../utils/branch-schedule.util');
 
 const checkoutError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
@@ -73,7 +74,8 @@ const flattenBranches = (cities) =>
       preorderEnabled: point.preorderEnabled ?? point.preorder_enabled ?? true,
       deliveryEnabled: point.deliveryEnabled ?? point.delivery_enabled ?? false,
       slotMinutes: finiteNumber(point.slotMinutes ?? point.slot_minutes) || 60,
-      hours: point.hours && typeof point.hours === 'object' ? point.hours : {},
+      hours: effectiveHours(point),
+      roundTheClock: isRoundTheClock(point),
     })),
   );
 
@@ -214,6 +216,7 @@ const normalizeSchedule = (
   env = process.env,
   branchHours = {},
   slotMinutes = 60,
+  roundTheClock = false,
 ) => {
   const value = boundedText(raw, 64);
   if (!value) {
@@ -271,7 +274,9 @@ const normalizeSchedule = (
       todayHours?.close > 1440 &&
       localScheduled.getTime() >= midnight + 86400000 &&
       localScheduled.getTime() < midnight + todayHours.close * 60000;
-    if (!sameLocalDay && !overnightContinuation) {
+    if (roundTheClock && delta > 24 * 60 * 60000)
+      throw checkoutError('Выберите время в ближайшие 24 часа');
+    if (!sameLocalDay && !overnightContinuation && !roundTheClock) {
       throw checkoutError('Для самовывоза и доставки выберите время на сегодня');
     }
   }
@@ -343,6 +348,7 @@ function validateCheckout(payload, cities, options = {}) {
     env,
     branch.hours,
     branch.slotMinutes,
+    branch.roundTheClock,
   );
 
   return {

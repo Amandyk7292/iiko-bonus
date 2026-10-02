@@ -52,6 +52,82 @@ describe('branch closing report calendar', () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
+  it('separates both shifts, requires four reports and opens the selected shift', async () => {
+    const branch = {
+      ...a,
+      roundTheClock: true,
+      photoDayShiftStart: '08:00',
+      photoNightShiftStart: '21:00',
+    };
+    const reports = [
+      {
+        ...report,
+        shift: 'day',
+        photoCount: 2,
+        shiftStartsAt: date + 'T03:00:00Z',
+        shiftEndsAt: date + 'T16:00:00Z',
+      },
+      { ...report, id: 'baker-day', kind: 'baker', shift: 'day' },
+      {
+        ...report,
+        id: 'hall-night',
+        shift: 'night',
+        photoCount: 5,
+        shiftStartsAt: date + 'T16:00:00Z',
+        shiftEndsAt: date + 'T23:00:00Z',
+      },
+    ];
+    mocks.request.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.startsWith('/photo-reports/branches/')
+          ? { branch, date, reports }
+          : { businessDate: date, from: date, to: date, branches: [branch], reports },
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    const first = await screen.findByRole('button', {
+      name: /Актау · 19А · Зал · 1 смена.*2 фото/,
+    });
+    const second = screen.getByRole('button', { name: /Актау · 19А · Зал · 2 смена.*5 фото/ });
+    expect(first).toHaveClass('done');
+    expect(second).toHaveClass('done');
+    expect(screen.getByRole('button', { name: /Пекарь · 2 смена.*Не отправлен/ })).not.toHaveClass(
+      'done',
+    );
+    await user.click(second);
+    const dialog = within(screen.getByRole('dialog'));
+    expect(await dialog.findByText(/5 фото/)).toBeVisible();
+    await user.click(dialog.getByRole('button', { name: '1 смена' }));
+    expect(dialog.getByText(/2 фото/)).toBeVisible();
+    await user.click(dialog.getByRole('button', { name: 'Закрыть' }));
+    await user.click(
+      within(screen.getByRole('group', { name: 'Статус точек' })).getByRole('button', {
+        name: 'Готово',
+      }),
+    );
+    expect(screen.getByText('Точек с такими условиями нет')).toBeVisible();
+  });
+
+  it('keeps old daily reports accessible after a branch enables shifts', async () => {
+    const branch = { ...a, roundTheClock: true };
+    mocks.request.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.startsWith('/photo-reports/branches/')
+          ? { branch, date, reports: [report] }
+          : { businessDate: date, from: date, to: date, branches: [branch], reports: [report] },
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(
+      await screen.findByRole('button', { name: /Актау · 19А · Зал · .*Отправлен · 3 фото/ }),
+    );
+    const dialog = within(screen.getByRole('dialog'));
+    expect(await dialog.findByText(/3 фото/)).toBeVisible();
+    expect(dialog.getByRole('button', { name: 'За день' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('distinguishes hall and baker and preserves submission history after photos expire', async () => {
     const user = userEvent.setup();
     renderPage();

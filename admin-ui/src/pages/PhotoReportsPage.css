@@ -222,6 +222,30 @@
   gap: 10px;
   margin-top: 16px;
 }
+.closing-shift-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 13px;
+}
+.closing-shift-heading span {
+  color: var(--closing-muted);
+  white-space: nowrap;
+}
+.closing-shift-heading + .closing-day-actions {
+  margin-top: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.closing-shift-heading + .closing-day-actions .closing-report-button {
+  padding: 10px;
+  gap: 8px;
+  min-height: 64px;
+}
+.closing-shift-heading + .closing-day-actions .closing-report-button > svg:last-child {
+  display: none;
+}
 .closing-report-button {
   min-height: 72px;
   width: 100%;
@@ -335,8 +359,8 @@
   display: none;
 }
 .closing-table .closing-report-kind {
-  width: 60px;
-  min-width: 60px;
+  width: 88px;
+  min-width: 88px;
   text-align: left;
   position: sticky;
   left: 224px;
@@ -349,6 +373,7 @@
   font-size: 13px;
   color: #786e63;
   padding: 4px 8px;
+  white-space: nowrap;
 }
 .closing-cell {
   width: 100%;
@@ -713,8 +738,8 @@
   }
   .closing-table .closing-report-kind {
     left: 168px;
-    width: 56px;
-    min-width: 56px;
+    width: 80px;
+    min-width: 80px;
   }
   .closing-table .closing-branch-title strong {
     font-size: 12px;

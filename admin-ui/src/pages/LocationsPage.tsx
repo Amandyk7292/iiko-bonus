@@ -14,6 +14,10 @@ import {
   resolveLocationCityFilter,
 } from '../lib/location-city-filter';
 import { useSearchParams } from '../lib/router';
+import LocationScheduleFields, {
+  validPhotoShifts,
+  type LocationSchedule,
+} from './LocationScheduleFields';
 
 type Hours = Record<string, unknown> & { daily?: { open?: string; close?: string } };
 
@@ -27,6 +31,10 @@ type FulfillmentLocation = {
   latitude: number | null;
   longitude: number | null;
   hours?: Hours;
+  regularHours?: Hours;
+  roundTheClock?: boolean;
+  photoDayShiftStart?: string;
+  photoNightShiftStart?: string;
   active: boolean;
   pickupEnabled: boolean;
   preorderEnabled: boolean;
@@ -44,7 +52,7 @@ type CityDraft = {
   pointSelected: boolean;
 };
 
-type PointDraft = {
+type PointDraft = LocationSchedule & {
   cityId: string;
   name: string;
   address: string;
@@ -59,7 +67,7 @@ type PointDraft = {
   close: string;
 };
 
-type Draft = {
+type Draft = LocationSchedule & {
   name: string;
   address: string;
   active: boolean;
@@ -83,6 +91,9 @@ const emptyDraft: Draft = {
   longitude: '',
   open: '08:00',
   close: '21:00',
+  roundTheClock: false,
+  photoDayShiftStart: '08:00',
+  photoNightShiftStart: '21:00',
 };
 const emptyCityDraft = (): CityDraft => ({
   name: '',
@@ -103,6 +114,9 @@ const emptyPointDraft = (cityId = ''): PointDraft => ({
   deliveryEnabled: false,
   open: '08:00',
   close: '21:00',
+  roundTheClock: false,
+  photoDayShiftStart: '08:00',
+  photoNightShiftStart: '21:00',
 });
 
 const validClock = (value: string) => /^(?:(?:[01]\d|2[0-3]):[0-5]\d|24:00)$/.test(value);
@@ -165,7 +179,7 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
   );
 
   const openEditor = (location: FulfillmentLocation) => {
-    const daily = location.hours?.daily;
+    const daily = (location.regularHours ?? location.hours)?.daily;
     setEditing(location);
     setMapExpanded(false);
     setDraft({
@@ -179,6 +193,9 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
       longitude: location.longitude == null ? '' : String(location.longitude),
       open: daily?.open || '08:00',
       close: daily?.close || '21:00',
+      roundTheClock: location.roundTheClock === true,
+      photoDayShiftStart: location.photoDayShiftStart || '08:00',
+      photoNightShiftStart: location.photoNightShiftStart || '21:00',
     });
     setFormError('');
   };
@@ -316,7 +333,8 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
       !validClock(pointDraft.open) ||
       !validClock(pointDraft.close) ||
       pointDraft.open === pointDraft.close ||
-      pointDraft.open === '24:00'
+      pointDraft.open === '24:00' ||
+      !validPhotoShifts(pointDraft)
     ) {
       setPointError(t('locations.hoursInvalid'));
       return;
@@ -335,6 +353,9 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
         preorderEnabled: pointDraft.preorderEnabled,
         deliveryEnabled: pointDraft.deliveryEnabled,
         hours: { daily: { open: pointDraft.open, close: pointDraft.close } },
+        roundTheClock: pointDraft.roundTheClock,
+        photoDayShiftStart: pointDraft.photoDayShiftStart,
+        photoNightShiftStart: pointDraft.photoNightShiftStart,
         slotMinutes: 60,
         pickupSlotCapacity: 20,
         preorderSlotCapacity: 10,
@@ -379,7 +400,8 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
       !validClock(draft.open) ||
       !validClock(draft.close) ||
       draft.open === draft.close ||
-      draft.open === '24:00'
+      draft.open === '24:00' ||
+      !validPhotoShifts(draft)
     ) {
       setFormError(t('locations.hoursInvalid'));
       return;
@@ -396,7 +418,13 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
         deliveryEnabled: draft.deliveryEnabled,
         latitude,
         longitude,
-        hours: { ...(editing.hours ?? {}), daily: { open: draft.open, close: draft.close } },
+        hours: {
+          ...(editing.regularHours ?? editing.hours ?? {}),
+          daily: { open: draft.open, close: draft.close },
+        },
+        roundTheClock: draft.roundTheClock,
+        photoDayShiftStart: draft.photoDayShiftStart,
+        photoNightShiftStart: draft.photoNightShiftStart,
       });
       setLocations((current) =>
         current.map((item) => (item.id === editing.id ? result.location : item)),
@@ -603,8 +631,9 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
                         <td data-label={t('locations.hours')}>
                           <span className="inline-flex items-center gap-2">
                             <Clock3 aria-hidden="true" size={16} />
-                            {location.hours?.daily?.open || '—'}–
-                            {location.hours?.daily?.close || '—'}
+                            {location.roundTheClock
+                              ? '24/7'
+                              : `${location.hours?.daily?.open || '—'}–${location.hours?.daily?.close || '—'}`}
                           </span>
                         </td>
                         <td data-label={t('common.actions')}>
@@ -926,43 +955,11 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
               ))}
             </div>
           </fieldset>
-          <fieldset className="form-section">
-            <legend>{t('locations.hours')}</legend>
-            <div className="form-grid form-grid-2">
-              <div className="field-group">
-                <label className="field-label" htmlFor="new-point-open">
-                  {t('locations.opensAt')}
-                </label>
-                <input
-                  id="new-point-open"
-                  className="input-classic"
-                  inputMode="numeric"
-                  value={pointDraft.open}
-                  onChange={(event) =>
-                    setPointDraft((current) => ({ ...current, open: event.target.value }))
-                  }
-                  placeholder="08:00"
-                  required
-                />
-              </div>
-              <div className="field-group">
-                <label className="field-label" htmlFor="new-point-close">
-                  {t('locations.closesAt')}
-                </label>
-                <input
-                  id="new-point-close"
-                  className="input-classic"
-                  inputMode="numeric"
-                  value={pointDraft.close}
-                  onChange={(event) =>
-                    setPointDraft((current) => ({ ...current, close: event.target.value }))
-                  }
-                  placeholder="21:00"
-                  required
-                />
-              </div>
-            </div>
-          </fieldset>
+          <LocationScheduleFields
+            id="new-point"
+            value={pointDraft}
+            onChange={(change) => setPointDraft((current) => ({ ...current, ...change }))}
+          />
           <div className="modal-actions">
             <button
               type="button"
@@ -1132,43 +1129,11 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
               ))}
             </div>
           </fieldset>
-          <fieldset className="form-section">
-            <legend>{t('locations.hours')}</legend>
-            <div className="form-grid form-grid-2">
-              <div className="field-group">
-                <label className="field-label" htmlFor="location-open">
-                  {t('locations.opensAt')}
-                </label>
-                <input
-                  id="location-open"
-                  className="input-classic"
-                  inputMode="numeric"
-                  value={draft.open}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, open: event.target.value }))
-                  }
-                  placeholder="08:00"
-                  required
-                />
-              </div>
-              <div className="field-group">
-                <label className="field-label" htmlFor="location-close">
-                  {t('locations.closesAt')}
-                </label>
-                <input
-                  id="location-close"
-                  className="input-classic"
-                  inputMode="numeric"
-                  value={draft.close}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, close: event.target.value }))
-                  }
-                  placeholder="21:00"
-                  required
-                />
-              </div>
-            </div>
-          </fieldset>
+          <LocationScheduleFields
+            id="location"
+            value={draft}
+            onChange={(change) => setDraft((current) => ({ ...current, ...change }))}
+          />
           <div className="modal-actions">
             <button
               type="button"

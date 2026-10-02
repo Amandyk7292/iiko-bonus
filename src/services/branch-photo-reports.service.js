@@ -2,6 +2,18 @@ const crypto = require('node:crypto');
 const { supabase } = require('../config/supabase');
 const { encryptSecret, decryptSecret } = require('../utils/secret-envelope.util');
 const { branchScopeForAdmin } = require('../utils/admin-scope.util');
+const { photoPeriod, shiftTimes } = require('../utils/branch-schedule.util');
+const branchFields =
+  'id,name,city,active,round_the_clock,photo_day_shift_start,photo_night_shift_start';
+const branchDto = (b) => ({
+  id: b.id,
+  name: b.name,
+  city: b.city,
+  active: b.active,
+  roundTheClock: b.round_the_clock === true,
+  photoDayShiftStart: shiftTimes(b).day,
+  photoNightShiftStart: shiftTimes(b).night,
+});
 
 const PURPOSE = 'branch-closing-qr';
 const tokenHash = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
@@ -24,6 +36,9 @@ const reportDto = (r) => ({
   branchId: r.branch_id,
   date: r.business_date,
   kind: r.kind,
+  shift: r.shift || 'daily',
+  shiftStartsAt: r.shift_starts_at || null,
+  shiftEndsAt: r.shift_ends_at || null,
   branchName: r.branch_name,
   city: r.city,
   photoCount: r.photo_count,
@@ -38,7 +53,7 @@ async function calendar(admin, { end = businessDate(), days = 14 } = {}, { db = 
   const scope = branchScopeForAdmin(admin);
   let branchQuery = db
     .from('bulka_locations')
-    .select('id,name,city,active,sort_order')
+    .select(`${branchFields},sort_order`)
     .order('sort_order')
     .order('name');
   if (scope.length) branchQuery = branchQuery.in('id', scope);
@@ -64,9 +79,7 @@ async function calendar(admin, { end = businessDate(), days = 14 } = {}, { db = 
     to: end,
     retentionDays: 3,
     cutoffHour: 4,
-    branches: (branches || [])
-      .filter((b) => b.active || historicalIds.has(b.id))
-      .map((b) => ({ id: b.id, name: b.name, city: b.city, active: b.active })),
+    branches: (branches || []).filter((b) => b.active || historicalIds.has(b.id)).map(branchDto),
     reports: reports.map(reportDto),
   };
 }
@@ -74,7 +87,7 @@ async function calendar(admin, { end = businessDate(), days = 14 } = {}, { db = 
 async function details(admin, branchId, date, { db = supabase, now = new Date() } = {}) {
   assertScope(admin, branchId);
   const branch = await rows(
-    db.from('bulka_locations').select('id,name,city,active').eq('id', branchId).maybeSingle(),
+    db.from('bulka_locations').select(branchFields).eq('id', branchId).maybeSingle(),
   );
   if (!branch) throw fail('Точка не найдена', 404);
   const reports = await rows(
@@ -97,7 +110,7 @@ async function details(admin, branchId, date, { db = supabase, now = new Date() 
       )
     : [];
   return {
-    branch: { id: branch.id, name: branch.name, city: branch.city },
+    branch: branchDto(branch),
     date,
     reports: reports.map((r) => ({
       ...reportDto(r),
@@ -121,7 +134,7 @@ async function ensureQr(admin, branchId, { db = supabase, env = process.env } = 
     throw fail('QR выдаёт владелец или управляющий', 403);
   assertScope(admin, branchId);
   const branch = await rows(
-    db.from('bulka_locations').select('id,name,city,active').eq('id', branchId).maybeSingle(),
+    db.from('bulka_locations').select(branchFields).eq('id', branchId).maybeSingle(),
   );
   if (!branch || !branch.active) throw fail('Точка не активна', 409);
   let link = await rows(
@@ -172,11 +185,7 @@ async function resolveLink(token, { db = supabase } = {}) {
   const branch =
     link &&
     (await rows(
-      db
-        .from('bulka_locations')
-        .select('id,name,city,active')
-        .eq('id', link.branch_id)
-        .maybeSingle(),
+      db.from('bulka_locations').select(branchFields).eq('id', link.branch_id).maybeSingle(),
     ));
   if (!branch?.active)
     throw fail(
@@ -187,16 +196,25 @@ async function resolveLink(token, { db = supabase } = {}) {
   return { link, branch };
 }
 
-async function openSession(token, { db = supabase } = {}) {
+async function openSession(token, { db = supabase, shift, now = new Date() } = {}) {
   const { link, branch } = await resolveLink(token, { db });
+  if (
+    (shift && shift !== 'daily' && !branch.round_the_clock) ||
+    (shift === 'daily' && branch.round_the_clock)
+  )
+    throw fail('Обновите страницу и выберите смену');
   const sessionToken = crypto.randomBytes(32).toString('base64url');
-  const date = businessDate();
+  const period = photoPeriod(branch, shift, now);
+  const date = period.date;
   await rows(
     db.from('branch_closing_sessions').insert({
       token_hash: tokenHash(sessionToken),
       branch_id: branch.id,
       link_generation: link.generation,
       business_date: date,
+      shift: period.shift,
+      shift_starts_at: period.shiftStartsAt,
+      shift_ends_at: period.shiftEndsAt,
     }),
   );
   const reports = await rows(
@@ -204,12 +222,17 @@ async function openSession(token, { db = supabase } = {}) {
       .from('branch_closing_reports')
       .select('*')
       .eq('branch_id', branch.id)
-      .eq('business_date', date),
+      .eq('business_date', date)
+      .eq('shift', period.shift),
   );
   return {
     sessionToken,
     date,
-    branch: { id: branch.id, name: branch.name, city: branch.city },
+    branch: branchDto(branch),
+    ...period,
+    shifts: branch.round_the_clock
+      ? ['day', 'night'].map((kind) => photoPeriod(branch, kind, now))
+      : [],
     reports: reports.map(reportDto),
     maxPhotos: 10,
     retentionDays: 3,
@@ -217,24 +240,20 @@ async function openSession(token, { db = supabase } = {}) {
   };
 }
 
-async function resolveSession(token, { db = supabase } = {}) {
+async function resolveSession(token, { db = supabase, now = new Date() } = {}) {
   if (!/^[A-Za-z0-9_-]{43}$/.test(String(token || '')))
     throw fail('Отсканируйте QR точки заново', 401, 'PHOTO_REPORT_SESSION_EXPIRED');
   const session = await rows(
     db.from('branch_closing_sessions').select('*').eq('token_hash', tokenHash(token)).maybeSingle(),
   );
-  if (
-    !session ||
-    new Date(session.expires_at) <= new Date() ||
-    session.business_date !== businessDate()
-  )
+  if (!session || new Date(session.expires_at) <= now)
     throw fail(
       'Сеанс завершён. Отсканируйте QR точки заново.',
       401,
       'PHOTO_REPORT_SESSION_EXPIRED',
     );
   const [branch, link] = await Promise.all([
-    rows(db.from('bulka_locations').select('id,active').eq('id', session.branch_id).maybeSingle()),
+    rows(db.from('bulka_locations').select(branchFields).eq('id', session.branch_id).maybeSingle()),
     rows(
       db
         .from('branch_closing_links')
@@ -245,6 +264,15 @@ async function resolveSession(token, { db = supabase } = {}) {
   ]);
   if (!branch?.active || link?.generation !== session.link_generation)
     throw fail('QR точки больше не действует', 401, 'PHOTO_REPORT_LINK_INVALID');
+  const period = photoPeriod(branch, session.shift, now);
+  const sameInstant = (a, b) => (a && b ? Date.parse(a) === Date.parse(b) : !a && !b);
+  if (
+    period.shift !== (session.shift || 'daily') ||
+    period.date !== session.business_date ||
+    !sameInstant(period.shiftStartsAt, session.shift_starts_at) ||
+    !sameInstant(period.shiftEndsAt, session.shift_ends_at)
+  )
+    throw fail('Смена изменилась. Обновите страницу.', 401, 'PHOTO_REPORT_SESSION_EXPIRED');
   return session;
 }
 

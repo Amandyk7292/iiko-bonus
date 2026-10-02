@@ -2,8 +2,8 @@ const express = require('express');
 const path = require('node:path');
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
-const { validateRequest, emptyBodySchema } = require('../middlewares/validation.middleware');
-const { uploadBody } = require('../contracts/branch-photo-reports.contract');
+const { validateRequest } = require('../middlewares/validation.middleware');
+const { uploadBody, sessionBody } = require('../contracts/branch-photo-reports.contract');
 const { openSession, resolveSession, fail } = require('../services/branch-photo-reports.service');
 const { submitPhotos } = require('../services/branch-photo-upload.service');
 const realtime = require('../services/realtime.service');
@@ -58,10 +58,13 @@ router.use('/api/branch-reports', headers, requestLimit, (req, res, next) => {
 });
 router.post(
   '/api/branch-reports/session',
-  validateRequest({ body: emptyBodySchema }),
+  validateRequest({ body: sessionBody }),
   async (req, res, next) => {
     try {
-      res.json({ success: true, ...(await openSession(req.headers['x-bulka-report-token'])) });
+      res.json({
+        success: true,
+        ...(await openSession(req.headers['x-bulka-report-token'], { shift: req.body.shift })),
+      });
     } catch (error) {
       next(error);
     }

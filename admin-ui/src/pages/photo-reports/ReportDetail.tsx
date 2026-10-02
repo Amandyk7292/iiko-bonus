@@ -3,7 +3,15 @@ import { AlertCircle, Check, ChevronLeft, ChevronRight, RefreshCw } from 'lucide
 import Modal from '../../components/Modal';
 import PageState from '../../components/PageState';
 import { request } from '../../lib/api';
-import { kinds, type Detail, type Photo, type PhotoCopy, type Selection } from './model';
+import {
+  kinds,
+  branchShifts,
+  type Detail,
+  type Photo,
+  type PhotoCopy,
+  type Selection,
+  type Shift,
+} from './model';
 
 function PhotoViewer({
   photos,
@@ -111,10 +119,12 @@ function PhotoViewer({
 function DetailBody({
   selection,
   setKind,
+  setShift,
   copy,
 }: {
   selection: Selection;
   setKind: (kind: Selection['kind']) => void;
+  setShift: (shift: Shift) => void;
   copy: PhotoCopy;
 }) {
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -136,10 +146,39 @@ function DetailBody({
       });
     return () => controller.abort();
   }, [selection.branch.id, selection.date, revision]);
-  const report = detail?.reports.find((r) => r.kind === selection.kind);
+  const selectedShift = selection.shift ?? 'daily';
+  const shifts = [
+    ...new Set([
+      ...branchShifts(selection.branch),
+      ...(detail?.reports.map((r) => r.shift ?? 'daily') ?? []),
+      selectedShift,
+    ]),
+  ];
+  const report = detail?.reports.find(
+    (r) => r.kind === selection.kind && (r.shift ?? 'daily') === selectedShift,
+  );
   const photos = report?.photos?.filter((photo) => photo.available && photo.url) ?? [];
   return (
     <div className="closing-detail">
+      {shifts.length > 1 && (
+        <div
+          className="segmented-control closing-kind-tabs"
+          role="group"
+          aria-label={copy.text('Смена', 'Ауысым')}
+        >
+          {shifts.map((shift) => (
+            <button
+              type="button"
+              key={shift}
+              aria-pressed={selectedShift === shift}
+              className={selectedShift === shift ? 'is-active' : ''}
+              onClick={() => setShift(shift)}
+            >
+              {copy.shiftLabel(shift)}
+            </button>
+          ))}
+        </div>
+      )}
       <div
         className="segmented-control closing-kind-tabs"
         role="group"
@@ -181,6 +220,11 @@ function DetailBody({
               <span>
                 {copy.timeLabel(report.submittedAt)} · {report.photoCount} фото
               </span>
+              {report.shiftStartsAt && report.shiftEndsAt && (
+                <span>
+                  {copy.timeLabel(report.shiftStartsAt)} — {copy.timeLabel(report.shiftEndsAt)}
+                </span>
+              )}
             </div>
           </div>
           {photos.length ? (
@@ -217,7 +261,9 @@ export default function ReportDetail({
       onClose={() => onChange(null)}
       title={selection?.branch.name ?? ''}
       description={
-        selection ? `${selection.branch.city} · ${copy.dateLabel(selection.date, true)}` : ''
+        selection
+          ? `${selection.branch.city} · ${copy.dateLabel(selection.date, true)}${selection.shift && selection.shift !== 'daily' ? ` · ${copy.shiftLabel(selection.shift)}` : ''}`
+          : ''
       }
       size="lg"
     >
@@ -226,6 +272,7 @@ export default function ReportDetail({
           key={`${selection.branch.id}/${selection.date}`}
           selection={selection}
           setKind={(kind) => onChange({ ...selection, kind })}
+          setShift={(shift) => onChange({ ...selection, shift })}
           copy={copy}
         />
       )}

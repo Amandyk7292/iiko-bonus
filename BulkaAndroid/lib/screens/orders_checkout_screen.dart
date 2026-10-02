@@ -183,17 +183,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       offset,
     );
     final selectedType = orderType ?? _orderType;
-    if (selectedType != _OrderType.preorder) {
-      return _PickupSlot(
-        label: '${_clockLabel(local)}–${_clockLabel(end)}',
-        value: startsAt.toIso8601String(),
-        startsAt: local,
-        endsAt: end,
-        timezoneOffsetMinutes: offset,
-        serverNow: branchNow,
-        remaining: remaining,
-      );
-    }
     final today = DateTime(branchNow.year, branchNow.month, branchNow.day);
     final slotDay = DateTime(local.year, local.month, local.day);
     final dayOffset = slotDay.difference(today).inDays;
@@ -203,7 +192,8 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         ? 'checkout_tomorrow'.tr
         : formatUiDate(context, local);
     return _PickupSlot(
-      label: '$dayLabel, ${_clockLabel(local)}–${_clockLabel(end)}',
+      label:
+          '${selectedType == _OrderType.preorder || dayOffset != 0 ? '$dayLabel, ' : ''}${_clockLabel(local)}–${_clockLabel(end)}',
       value: startsAt.toIso8601String(),
       startsAt: local,
       endsAt: end,

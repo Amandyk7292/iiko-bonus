@@ -200,3 +200,52 @@ test('closing boundaries preserve lead time, disabled days and preorder 24-hour 
     location.hours.thu = { closed: true };
     assert.equal((await list()).slots.length, 0);
   }));
+
+test('24/7 pickup and delivery cross midnight with a rolling 24-hour horizon and capacity checks', async () =>
+  fixture(async ({ list, location, reservations }) => {
+    const now = new Date('2026-12-31T18:50:00Z'); // 23:50 in Kazakhstan.
+    assert.equal((await list({ now })).slots.length, 0);
+    location.round_the_clock = true;
+    const hours = { daily: { open: '00:00', close: '24:00' } };
+    for (const orderType of ['pickup', 'delivery']) {
+      const { slots } = await list({ now, orderType });
+      assert.equal(slots[0].startsAt, '2026-12-31T19:00:00.000Z');
+      assert.equal(slots.length, 24);
+      for (const slot of slots) {
+        assert.ok(Date.parse(slot.startsAt) - now.getTime() <= 86400000);
+        assert.equal(
+          normalizeSchedule(slot.startsAt, orderType, now, process.env, hours, 60, true),
+          slot.startsAt,
+        );
+      }
+      assert.throws(
+        () =>
+          normalizeSchedule(
+            '2027-01-02T00:00:00+05:00',
+            orderType,
+            now,
+            process.env,
+            hours,
+            60,
+            true,
+          ),
+        /24 часа/,
+      );
+      assert.throws(
+        () => normalizeSchedule(slots[0].startsAt, orderType, now, process.env, location.hours, 60),
+        /сегодня/,
+      );
+      reservations.push({ scheduled_at: slots[0].startsAt, status: 'committed' });
+      assert.equal((await list({ now, orderType })).slots[0].remaining, 1);
+      reservations.length = 0;
+    }
+    const afterMidnight = new Date('2026-12-31T19:10:00Z');
+    assert.equal(
+      (await list({ now: afterMidnight })).slots[0].startsAt,
+      '2026-12-31T20:00:00.000Z',
+    );
+    location.delivery_enabled = false;
+    await assert.rejects(list({ now, orderType: 'delivery' }), /временно недоступен/);
+    location.round_the_clock = false;
+    assert.equal((await list({ now })).slots.length, 0);
+  }));

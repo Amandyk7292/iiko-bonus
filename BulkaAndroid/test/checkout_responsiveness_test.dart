@@ -8,7 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _CheckoutApi extends BulkaApiClient {
   final events = StreamController<Map<String, dynamic>>.broadcast();
   final requests = <String?>[];
-  final scheduledAt = DateTime.utc(2026, 9, 12, 12);
+  DateTime scheduledAt = DateTime.utc(2026, 9, 12, 12);
+  DateTime? serverNow;
   Completer<Map<String, dynamic>>? pending;
   var directoryLoads = 0;
   int deliveryFee = 0;
@@ -70,7 +71,7 @@ class _CheckoutApi extends BulkaApiClient {
         endsAt: scheduledAt.add(Duration(minutes: slotDuration)),
         capacity: 10,
         remaining: 10,
-        serverTime: scheduledAt.subtract(const Duration(hours: 1)),
+        serverTime: serverNow ?? scheduledAt.subtract(const Duration(hours: 1)),
       ),
     ];
   }
@@ -104,13 +105,20 @@ final _apply = find.byKey(const ValueKey('checkout-apply-promo'));
 final _bonus = find.byKey(const ValueKey('checkout-use-bonuses'));
 final _submit = find.byKey(const ValueKey('checkout-submit'));
 
-Future<_CheckoutApi> _open(WidgetTester tester, {int deliveryFee = 0}) async {
+Future<_CheckoutApi> _open(
+  WidgetTester tester, {
+  int deliveryFee = 0,
+  DateTime? scheduledAt,
+  DateTime? serverNow,
+}) async {
   appLanguageNotifier.value = 'ru';
   tester.view.physicalSize = const Size(430, 1800);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   final api = _CheckoutApi()..deliveryFee = deliveryFee;
+  if (scheduledAt != null) api.scheduledAt = scheduledAt;
+  api.serverNow = serverNow;
   SharedPreferences.setMockInitialValues({
     'selected_order_type': 'pickup',
     'selected_bakery_location': 'Филиал',
@@ -154,6 +162,34 @@ Future<_CheckoutApi> _open(WidgetTester tester, {int deliveryFee = 0}) async {
 }
 
 void main() {
+  testWidgets(
+    'ordinary midnight slots show Tomorrow in checkout and the time picker',
+    (tester) async {
+      final scheduledAt = DateTime.utc(
+        2026,
+        12,
+        31,
+        19,
+      ); // 00:00 on January 1 in Kazakhstan.
+      final api = await _open(
+        tester,
+        scheduledAt: scheduledAt,
+        serverNow: DateTime.utc(2026, 12, 31, 18, 50),
+      );
+      expect(find.text('Завтра, 00:00–01:00'), findsOneWidget);
+      await tester.tap(find.text('Завтра, 00:00–01:00'));
+      await tester.pumpAndSettle();
+      expect(find.text('Завтра, 00:00–01:00'), findsNWidgets(2));
+      await tester.tap(find.text('continue_btn'.tr));
+      await tester.pumpAndSettle();
+      final prefs = await SharedPreferences.getInstance();
+      expect(
+        prefs.getString('checkout_scheduled_at_guest'),
+        api.scheduledAt.toIso8601String(),
+      );
+      expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
+    },
+  );
   testWidgets('cached time choices open before a slow refresh finishes', (
     tester,
   ) async {

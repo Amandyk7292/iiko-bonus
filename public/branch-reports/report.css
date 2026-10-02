@@ -52,6 +52,27 @@ h2 {
 .date {
   margin: 4px 0 22px;
 }
+.shift-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 16px 0;
+}
+.shift-picker button {
+  padding: 10px;
+  border: 1px solid transparent;
+}
+.shift-picker strong,
+.shift-picker small {
+  display: block;
+}
+.shift-picker small {
+  font-size: 13px;
+}
+.shift-picker button[aria-pressed='true'] {
+  background: #fff1c1;
+  border-color: #bb8724;
+}
 .hint {
   color: #786f63;
   font-size: 14px;

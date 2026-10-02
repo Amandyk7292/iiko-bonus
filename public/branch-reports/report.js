@@ -75,7 +75,7 @@
     }
     return body;
   }
-  async function load() {
+  async function load(shift) {
     show('loading');
     error();
     element('retry').hidden = true;
@@ -83,11 +83,22 @@
       context = await request('/session', {
         method: 'POST',
         headers: { 'X-Bulka-Report-Token': token },
-        body: '{}',
+        body: JSON.stringify(shift ? { shift } : {}),
       });
       element('branch').textContent = context.branch.name;
       element('city').textContent = context.branch.city;
       element('date').textContent = formatDate(context.date);
+      element('report-mode').textContent = context.branch.roundTheClock
+        ? 'Передача смены'
+        : 'Закрытие точки';
+      element('shifts').hidden = !context.branch.roundTheClock;
+      document.querySelectorAll('[data-shift]').forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.dataset.shift === context.shift));
+        const day = context.branch.photoDayShiftStart;
+        const night = context.branch.photoNightShiftStart;
+        button.querySelector('small').textContent =
+          button.dataset.shift === 'day' ? day + '–' + night : night + '–' + day;
+      });
       document.querySelectorAll('[data-kind]').forEach((button) => {
         const report = context.reports.find((r) => r.kind === button.dataset.kind);
         button.classList.toggle('done', Boolean(report));
@@ -242,7 +253,7 @@
     } catch (caught) {
       if (caught.code === 'PHOTO_REPORT_ALREADY_SUBMITTED') {
         clearPhotos();
-        await load();
+        await load(context.shift);
       } else {
         error(
           caught.message ||
@@ -265,7 +276,13 @@
       show('capture');
       element('capture-title').textContent =
         kind === 'hall' ? 'Фотоотчёт зала' : 'Фотоотчёт пекаря';
-      element('capture-date').textContent = context.branch.name + ' · ' + formatDate(context.date);
+      element('capture-date').textContent =
+        context.branch.name +
+        ' · ' +
+        formatDate(context.date) +
+        (context.shift === 'daily'
+          ? ''
+          : ' · ' + (context.shift === 'day' ? '1 смена' : '2 смена'));
       element('send-status').textContent = '';
       void openCamera();
     }),
@@ -285,8 +302,13 @@
     error();
     show('intro');
   });
-  element('next-report').addEventListener('click', load);
-  element('retry').addEventListener('click', load);
+  document.querySelectorAll('[data-shift]').forEach((button) =>
+    button.addEventListener('click', () => {
+      if (!sending && button.dataset.shift !== context?.shift) void load(button.dataset.shift);
+    }),
+  );
+  element('next-report').addEventListener('click', () => load(context?.shift));
+  element('retry').addEventListener('click', () => load(context?.shift));
   window.addEventListener('pagehide', stopCamera);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) stopCamera();

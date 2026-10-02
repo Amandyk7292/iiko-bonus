@@ -15,4 +15,5 @@ const uploadBody = z
     kind: z.enum(['hall', 'baker']),
   })
   .strict();
-module.exports = { branchParams, photoParams, calendarQuery, detailQuery, uploadBody };
+const sessionBody = z.object({ shift: z.enum(['daily', 'day', 'night']).optional() }).strict();
+module.exports = { branchParams, photoParams, calendarQuery, detailQuery, uploadBody, sessionBody };

@@ -7,6 +7,7 @@ import {
   datesBetween,
   kinds,
   reportKey,
+  requiredShifts,
   shiftDate,
   usePhotoCopy,
   type Branch,
@@ -33,7 +34,7 @@ export default function PhotoReportsPage({ role = 'viewer' }: { role?: string })
   const [qrBranch, setQrBranch] = useState<Branch | null>(null);
   const canIssueQr = ['owner', 'admin', 'branch_manager'].includes(role);
   const reports = useMemo(
-    () => new Map(data?.reports.map((r) => [reportKey(r.branchId, r.date, r.kind), r])),
+    () => new Map(data?.reports.map((r) => [reportKey(r.branchId, r.date, r.kind, r.shift), r])),
     [data],
   );
   const matchingBranches = (data?.branches ?? []).filter(
@@ -44,7 +45,9 @@ export default function PhotoReportsPage({ role = 'viewer' }: { role?: string })
         .includes(search.toLocaleLowerCase().trim()),
   );
   const hasReport = (branch: Branch, kind: 'hall' | 'baker') =>
-    reports.has(reportKey(branch.id, data?.to ?? end, kind));
+    requiredShifts(branch, reports, data?.to ?? end).every((shift) =>
+      reports.has(reportKey(branch.id, data?.to ?? end, kind, shift)),
+    );
   const countSubmitted = (branch: Branch) => kinds.filter((kind) => hasReport(branch, kind)).length;
   const branches = matchingBranches.filter(
     (branch) =>

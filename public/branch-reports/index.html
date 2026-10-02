@@ -13,6 +13,7 @@
     <main>
       <header class="brand">
         <img src="/admin/bulka_logo.png" alt="Bulka" width="118" height="44" /><span
+          id="report-mode"
           >Закрытие точки</span
         >
       </header>
@@ -24,6 +25,14 @@
       <section id="intro" class="panel" hidden>
         <p id="city" class="eyebrow"></p>
         <h1 id="branch"></h1>
+        <div id="shifts" class="shift-picker" role="group" aria-label="Смена" hidden>
+          <button type="button" class="secondary" data-shift="day">
+            <strong>1 смена</strong><small></small>
+          </button>
+          <button type="button" class="secondary" data-shift="night">
+            <strong>2 смена</strong><small></small>
+          </button>
+        </div>
         <p class="date">Отчёт за <strong id="date"></strong></p>
         <div id="categories">
           <button class="report-kind" type="button" data-kind="hall">
