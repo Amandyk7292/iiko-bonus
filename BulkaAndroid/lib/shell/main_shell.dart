@@ -168,7 +168,6 @@ class _MainShellState extends State<MainShell> {
     final currentUri = normalizedClientUri(clientRouteNotifier.value);
     final returnUri = currentUri.path == '/faq' ? _uriForTab(_tab) : currentUri;
     final route = BulkaPageRoute<void>(
-      settings: const RouteSettings(name: '/faq'),
       builder: (_) => FaqScreen(api: widget.api),
       reduceMotion: BulkaMotion.reduced(context),
     );

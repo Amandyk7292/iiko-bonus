@@ -5,6 +5,7 @@ import 'dart:ui' show Tristate;
 import 'package:bulka_bonus/core/cart_provider.dart';
 import 'package:bulka_bonus/main.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -408,6 +409,22 @@ void main() {
   testWidgets(
     'direct FAQ route opens for guest and follows external back/forward',
     (tester) async {
+      final engineRoutes = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.navigation,
+        (call) async {
+          if (call.method == 'routeInformationUpdated') {
+            engineRoutes.add((call.arguments as Map)['uri'] as String);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.navigation,
+          null,
+        ),
+      );
       clientRouteNotifier.value = Uri(path: '/faq');
       final api = _FaqShellApi(
         MockClient(
@@ -446,6 +463,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(FaqScreen), findsOneWidget);
       expect(authRequests, 0);
+      // Custom browser history owns /faq. A second engine route update would
+      // apply Flutter's default hash strategy and turn it into /faq#/faq.
+      expect(engineRoutes, isNot(contains('/faq')));
       applyExternalClientRoute(Uri(path: '/profile'));
       await tester.pumpAndSettle();
       expect(find.byType(FaqScreen), findsNothing);
@@ -456,6 +476,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(FaqScreen), findsNothing);
       expect(authRequests, 0);
+      expect(engineRoutes, isNot(contains('/faq')));
       expect(tester.takeException(), isNull);
     },
   );
