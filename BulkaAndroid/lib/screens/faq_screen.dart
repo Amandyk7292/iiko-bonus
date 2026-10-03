@@ -74,8 +74,11 @@ class _FaqScreenState extends State<FaqScreen> {
     return Scaffold(
       key: const ValueKey('faq-screen'),
       backgroundColor: colors.brandGold,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: colors.brandGold,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
         toolbarHeight: BulkaLayout.appBarHeight(context),
         title: Image.asset(
           'assets/brand/bulka_logo.png',
@@ -99,11 +102,10 @@ class _FaqScreenState extends State<FaqScreen> {
           image: DecorationImage(
             image: AssetImage('assets/brand/loyalty_background.jpg'),
             fit: BoxFit.cover,
-            opacity: 0.28,
+            alignment: Alignment.topCenter,
           ),
         ),
         child: SafeArea(
-          top: false,
           child: RefreshIndicator(
             color: colors.brandBrown,
             onRefresh: () => _load(refresh: true),
