@@ -173,7 +173,7 @@ class _StaffWorkspaceState extends State<StaffWorkspace> {
     if (_transactionsAllowed)
       'locations': staffText('Локации', 'Локациялар', 'Locations'),
     if (_kitchenAllowed) 'kitchen': staffText('Кухня', 'Асүй', 'Kitchen'),
-    if (_dashboardAllowed) 'dashboard': 'iiko Dashboard',
+    if (_dashboardAllowed) 'dashboard': 'Dashboard',
     if (_can('customers:read'))
       'customers': staffText('Клиенты', 'Клиенттер', 'Customers'),
   };

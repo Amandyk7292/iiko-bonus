@@ -2,7 +2,7 @@ import settlements from './settlements-kk';
 import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 const kk: Record<string, string> = {
-  'access.role.iikoDashboard': 'Тек iiko Dashboard',
+  'access.role.iikoDashboard': 'Тек Dashboard',
   ...settlements,
 
   ...dashboard.kk,

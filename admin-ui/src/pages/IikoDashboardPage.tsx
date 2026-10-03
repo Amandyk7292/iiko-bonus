@@ -16,6 +16,7 @@ import {
   PackagePlus,
   ClipboardCheck,
   ReceiptText,
+  Trophy,
 } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { isIikoRequestPending } from '../lib/iiko-request-policy';
@@ -46,6 +47,7 @@ import Invoices from './iiko-dashboard/Invoices';
 import Revision from './iiko-dashboard/Revision';
 import CashReport from './iiko-dashboard/CashReport';
 import ProductSales from './iiko-dashboard/ProductSales';
+import TopDishes from './iiko-dashboard/TopDishes';
 import './iiko-dashboard/dashboard.css';
 import './iiko-dashboard/workspace.css';
 
@@ -53,6 +55,7 @@ const preferenceKey = 'bulka-iiko-dashboard-v1';
 const tabs = [
   { id: 'overview', icon: ChartNoAxesCombined },
   { id: 'productSales', icon: PackageSearch },
+  { id: 'topDishes', icon: Trophy },
   { id: 'rankings', icon: BarChart3 },
   { id: 'reports', icon: Table2 },
   { id: 'writeoffs', icon: ClipboardMinus },
@@ -69,6 +72,7 @@ const tabIds = new Set(tabs.map((item) => item.id));
 const departmentTabs = new Set([
   'overview',
   'productSales',
+  'topDishes',
   'rankings',
   'reports',
   'writeoffs',
@@ -128,6 +132,7 @@ export default function IikoDashboardPage({ readOnly = false }: { readOnly?: boo
   const [supplier, setSupplier] = useState(initialUrlState.supplier);
   const [departments, setDepartments] = useState<string[]>([]);
   const usesDepartments = departmentTabs.has(tab);
+  const usesPoints = tab === 'productSales' || tab === 'topDishes';
   const [overview, setOverview] = useState<OverviewData>();
   const [exportQuery, setExportQuery] = useState<Query>();
   const [loading, setLoading] = useState(true);
@@ -328,7 +333,7 @@ export default function IikoDashboardPage({ readOnly = false }: { readOnly?: boo
   const fetchedAt = overview?.summary.fetchedAt;
   return (
     <div className="id-dashboard page-stack">
-      <nav className="id-tabs" aria-label="iiko Dashboard">
+      <nav className="id-tabs" aria-label={t('nav.iikoDashboard')}>
         {tabs
           .filter((item) => !readOnly || item.id !== 'settings')
           .map((item) => (
@@ -367,9 +372,9 @@ export default function IikoDashboardPage({ readOnly = false }: { readOnly?: boo
             </select>
           </label>
           <label>
-            <span>{t(tab === 'productSales' ? 'id.point' : 'id.department')}</span>
+            <span>{t(usesPoints ? 'id.point' : 'id.department')}</span>
             <select
-              aria-label={t(tab === 'productSales' ? 'id.point' : 'id.department')}
+              aria-label={t(usesPoints ? 'id.point' : 'id.department')}
               value={department}
               onChange={(event) => {
                 setDepartment(event.target.value);
@@ -377,7 +382,7 @@ export default function IikoDashboardPage({ readOnly = false }: { readOnly?: boo
               }}
               disabled={tab === 'balances' || tab === 'settings'}
             >
-              <option value="">{t(tab === 'productSales' ? 'id.allPoints' : 'id.all')}</option>
+              <option value="">{t(usesPoints ? 'id.allPoints' : 'id.all')}</option>
               {department && !visibleDepartments.includes(department) && (
                 <option value={department}>
                   {department} — {t('id.departmentUnavailable')}
@@ -503,6 +508,16 @@ export default function IikoDashboardPage({ readOnly = false }: { readOnly?: boo
       {tab === 'overview' && overview && <Overview data={overview} cards={preferences.cards} />}
       {tab === 'productSales' && (
         <ProductSales
+          serverId={serverId}
+          from={from}
+          to={to}
+          department={department}
+          configured={Boolean(selectedServer?.configured)}
+          refresh={refresh}
+        />
+      )}
+      {tab === 'topDishes' && (
+        <TopDishes
           serverId={serverId}
           from={from}
           to={to}

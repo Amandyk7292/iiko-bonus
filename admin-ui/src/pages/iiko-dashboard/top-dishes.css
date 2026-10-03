@@ -1,0 +1,201 @@
+.id-top-dishes {
+  min-width: 0;
+}
+.id-top-dishes-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.id-top-dishes-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 180px;
+}
+.id-top-dishes-title > div {
+  min-width: 0;
+}
+.id-top-dishes-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  background: var(--id-tint);
+  color: var(--id-accent);
+  flex: 0 0 auto;
+}
+.id-top-dishes .id-top-dishes-title h2 {
+  margin: 0 0 4px;
+}
+.id-top-dishes-title p,
+.id-top-dishes-heading time,
+.id-top-dishes-columns,
+.id-top-dishes-mobile-label {
+  margin: 0;
+  color: var(--id-muted);
+  font-size: 12px;
+}
+.id-top-dishes-heading time {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+}
+.id-top-dishes-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(110px, 0.25fr) minmax(130px, 0.25fr);
+  gap: 20px;
+  padding: 0 0 10px 46px;
+  border-bottom: 1px solid var(--id-line);
+}
+.id-top-dishes-columns span:not(:first-child) {
+  text-align: right;
+}
+.id-top-dishes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.id-top-dishes-list li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) minmax(110px, 0.25fr) minmax(130px, 0.25fr);
+  gap: 20px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--id-line);
+  font-size: 13px;
+}
+.id-top-dishes-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.id-top-dishes-rank {
+  display: grid;
+  place-items: center;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--id-tint);
+  color: var(--id-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.id-top-dishes-list li:first-child .id-top-dishes-rank {
+  background: var(--id-ink);
+  color: white;
+}
+.id-top-dishes-product {
+  min-width: 0;
+}
+.id-top-dishes-product strong {
+  display: block;
+  font-weight: 500;
+  overflow-wrap: normal;
+  word-break: normal;
+  overflow-x: auto;
+}
+.id-top-dishes-track {
+  margin-top: 8px;
+  height: 4px;
+  background: var(--id-tint);
+  border-radius: 4px;
+  overflow: hidden;
+  max-width: 240px;
+}
+.id-top-dishes-track span {
+  display: block;
+  height: 100%;
+  background: var(--id-accent);
+  border-radius: inherit;
+}
+.id-top-dishes-list li:first-child .id-top-dishes-track span {
+  background: var(--id-ink);
+}
+.id-top-dishes-quantity,
+.id-top-dishes-revenue {
+  min-width: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.id-top-dishes-value {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.id-top-dishes-quantity strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+.id-top-dishes-unit {
+  color: var(--id-muted);
+  font-size: 12px;
+}
+.id-top-dishes-mobile-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.id-top-dishes-status {
+  padding: 32px 12px;
+  margin: 0;
+  color: var(--id-muted);
+  text-align: center;
+  font-size: 13px;
+}
+.id-top-dishes-error {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 13px;
+}
+@media (max-width: 640px) {
+  .id-top-dishes-heading {
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .id-top-dishes-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+  .id-top-dishes-title {
+    gap: 9px;
+  }
+  .id-top-dishes-columns {
+    display: none;
+  }
+  .id-top-dishes-list li {
+    grid-template-columns: 26px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px 12px;
+    padding: 14px 0;
+  }
+  .id-top-dishes-product {
+    grid-column: 2/-1;
+  }
+  .id-top-dishes-quantity {
+    grid-column: 2;
+    text-align: left;
+  }
+  .id-top-dishes-mobile-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+  }
+}

@@ -224,7 +224,7 @@ const registerAccessAdminRoutes = (router) => {
         if (existing?.role === 'iiko_dashboard' && role !== 'iiko_dashboard') {
           return res.status(409).json({
             success: false,
-            error: 'Тип учётной записи iiko Dashboard нельзя изменить',
+            error: 'Тип учётной записи Dashboard нельзя изменить',
             code: 'ACCESS_AUTH_METHOD_IMMUTABLE',
           });
         }

@@ -39,10 +39,10 @@ const visiblePaths = () =>
     .map((link) => new URL((link as HTMLAnchorElement).href).pathname.replace(/^\/admin/, ''));
 
 describe('Sidebar role navigation', () => {
-  it('dashboard account sees only iiko Dashboard', () => {
+  it('dashboard account sees only Dashboard', () => {
     renderSidebar('iiko_dashboard');
     expect(visiblePaths()).toEqual(['/iiko-dashboard']);
-    expect(screen.getByRole('link', { name: /iiko Dashboard/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Dashboard$/ })).toBeInTheDocument();
   });
   beforeEach(() => {
     localStorage.setItem('adminLocale', 'ru');
