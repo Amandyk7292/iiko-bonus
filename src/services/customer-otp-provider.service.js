@@ -1,18 +1,35 @@
+const { setTimeout: delay } = require('node:timers/promises');
 const { otpError } = require('../utils/customer-otp.util');
 
 const UNAVAILABLE = 'Подтверждение номера временно недоступно. Попробуйте позже.';
 
-function customerOtpProvider(env = process.env) {
-  const provider = String(env.CUSTOMER_OTP_PROVIDER || 'legacy_whatsapp').trim();
-  if (!['legacy_whatsapp', 'whatsapp_cloud', 'ycloud_whatsapp', 'mobizon_sms'].includes(provider)) {
+function customerOtpProvider(env = process.env, purpose = 'customer_login') {
+  const registrationProvider =
+    purpose === 'customer_registration'
+      ? String(env.CUSTOMER_REGISTRATION_OTP_PROVIDER || '').trim()
+      : '';
+  const provider =
+    registrationProvider || String(env.CUSTOMER_OTP_PROVIDER || 'legacy_whatsapp').trim();
+  const allowed = ['legacy_whatsapp', 'whatsapp_cloud', 'ycloud_whatsapp', 'mobizon_sms'];
+  // AutoCall is approved for registration only; a global setting must not
+  // accidentally change paid delivery for login or password recovery.
+  if (registrationProvider) allowed.push('autocall_sms');
+  if (!allowed.includes(provider)) {
     throw otpError(UNAVAILABLE, 503, 'OTP_PROVIDER_UNAVAILABLE');
   }
   return provider;
 }
 
-function otpProviderConfig(env = process.env) {
-  const provider = customerOtpProvider(env);
+function otpProviderConfig(env = process.env, purpose = 'customer_login') {
+  const provider = customerOtpProvider(env, purpose);
   if (provider === 'legacy_whatsapp') return { provider };
+  if (provider === 'autocall_sms') {
+    const token = String(env.AUTOCALL_API_TOKEN || '').trim();
+    if (!token || /\s/.test(token)) {
+      throw otpError(UNAVAILABLE, 503, 'OTP_PROVIDER_UNAVAILABLE');
+    }
+    return { provider, token };
+  }
   if (provider === 'ycloud_whatsapp') {
     const apiKey = String(env.YCLOUD_API_KEY || '').trim();
     const sender = String(env.YCLOUD_WHATSAPP_SENDER || '').trim();
@@ -72,7 +89,14 @@ function authenticationTemplate(config, code) {
   };
 }
 
-async function sendAutomaticOtp({ phone, code, config }, { fetchImpl = globalThis.fetch } = {}) {
+async function sendAutomaticOtp(
+  { phone, code, config },
+  {
+    fetchImpl = globalThis.fetch,
+    waitImpl = (ms, signal) => delay(ms, undefined, { signal }),
+    now = new Date(),
+  } = {},
+) {
   if (!/^\+7[67]\d{9}$/.test(phone) || !/^\d{6}$/.test(code)) {
     throw otpError('Укажите номер телефона Казахстана.', 400, 'OTP_INVALID_PHONE');
   }
@@ -82,6 +106,7 @@ async function sendAutomaticOtp({ phone, code, config }, { fetchImpl = globalThi
     signal: AbortSignal.timeout(15000),
   };
   let url;
+  let autocallText;
   if (config.provider === 'whatsapp_cloud') {
     url = `https://graph.facebook.com/${config.version}/${config.phoneId}/messages`;
     options.headers = {
@@ -114,14 +139,91 @@ async function sendAutomaticOtp({ phone, code, config }, { fetchImpl = globalThi
       from: config.sender,
       text: `Bulka: код ${code}. Срок — 5 минут. Никому не сообщайте код.`,
     }).toString();
+  } else if (config.provider === 'autocall_sms') {
+    url = 'https://autocall.kz/api/v1/bulks';
+    autocallText = `Bulka: код ${code}. Действует 5 минут. Никому не сообщайте.`;
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Almaty',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hourCycle: 'h23',
+      })
+        .formatToParts(now)
+        .map(({ type, value }) => [type, value]),
+    );
+    options.headers = {
+      Authorization: `Bearer ${config.token}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    };
+    options.body = JSON.stringify({
+      name: 'Verification code',
+      text: autocallText,
+      list_id: [{ number: phone }],
+      date_from: `${parts.year}-${parts.month}-${parts.day}`,
+      time_from: `${parts.hour}:${parts.minute}:${parts.second}`,
+    });
   } else {
     throw otpError(UNAVAILABLE, 503, 'OTP_PROVIDER_UNAVAILABLE');
   }
 
   // Never attach provider responses, request bodies or credentials to errors/logs.
   try {
-    const response = await fetchImpl(url, options);
-    const body = await response.json();
+    let response = await fetchImpl(url, options);
+    let body = await response.json();
+    if (config.provider === 'autocall_sms') {
+      const campaignId = body?.id;
+      let expectedHttpStatus = 201;
+      for (let attempt = 0; ; attempt += 1) {
+        options.signal.throwIfAborted();
+        if (
+          !response.ok ||
+          response.status !== expectedHttpStatus ||
+          !Number.isSafeInteger(body?.id) ||
+          body.id < 1 ||
+          body.id !== campaignId ||
+          body.segments !== 1 ||
+          body.recipients !== 1 ||
+          body.error
+        ) {
+          throw new Error('Provider rejected message');
+        }
+        if (body.status !== 'generating' || attempt === 5) break;
+        // Creating a campaign can be asynchronous. Read its state briefly;
+        // never resubmit the paid POST, and keep the original 15-second limit.
+        await waitImpl(500, options.signal);
+        options.signal.throwIfAborted();
+        response = await fetchImpl(`${url}/${campaignId}`, {
+          method: 'GET',
+          redirect: options.redirect,
+          signal: options.signal,
+          headers: options.headers,
+        });
+        body = await response.json();
+        expectedHttpStatus = 200;
+      }
+      // A created, running one-recipient campaign is acceptance, not delivery.
+      // A completed campaign needs explicit delivery proof for this exact SMS.
+      const messages = body?.messages?.data;
+      const message = Array.isArray(messages) && messages.length === 1 ? messages[0] : null;
+      const completedAndDelivered =
+        body?.status === 'completed' &&
+        body.text === autocallText &&
+        Number.isSafeInteger(message?.id) &&
+        message.id > 0 &&
+        message.bulk_id === body.id &&
+        message.number === phone &&
+        message.status === 'delivered';
+      if (body.status !== 'running' && !completedAndDelivered) {
+        throw new Error('Provider rejected message');
+      }
+      return { messageId: String(body.id) };
+    }
     const messageId =
       config.provider === 'whatsapp_cloud'
         ? body?.messages?.[0]?.id

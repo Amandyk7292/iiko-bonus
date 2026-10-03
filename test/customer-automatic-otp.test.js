@@ -28,6 +28,11 @@ const ycloudEnv = {
   YCLOUD_WHATSAPP_SENDER: '+77008317499',
   WHATSAPP_AUTH_TEMPLATE_NAME: 'bulka_verification',
 };
+const autocallEnv = {
+  ...ycloudEnv,
+  CUSTOMER_REGISTRATION_OTP_PROVIDER: 'autocall_sms',
+  AUTOCALL_API_TOKEN: 'autocall-test-only-placeholder',
+};
 const phone = '+77001234567';
 const request = {
   phone,
@@ -86,20 +91,24 @@ test('old clients retain four-digit bot confirmation while automatic delivery is
       };
     },
   };
-  const result = await startCustomerOtp(
-    { ...request, automaticOtpSupported: undefined },
-    {
-      db: legacyDb,
-      env,
-      sendOtp: async () => assert.fail('An old client must not receive an unusable six-digit code'),
-    },
-  );
-  assert.equal(result.deliveryMode, 'manual');
-  assert.equal(result.codeLength, 4);
-  assert.match(result.whatsappUrl, /^https:\/\/wa\.me\//);
-  assert.equal(session.id, `token_${request.requestToken}`);
-  assert.equal(session.data.purpose, request.purpose);
-  assert.equal(session.data.passwordHash, request.passwordHash);
+  for (const deliveryEnv of [env, autocallEnv]) {
+    const result = await startCustomerOtp(
+      { ...request, automaticOtpSupported: undefined },
+      {
+        db: legacyDb,
+        env: deliveryEnv,
+        sendOtp: async () =>
+          assert.fail('An old client must not receive an unusable six-digit code'),
+      },
+    );
+    assert.equal(result.deliveryMode, 'manual');
+    assert.equal(result.channel, 'whatsapp');
+    assert.equal(result.codeLength, 4);
+    assert.match(result.whatsappUrl, /^https:\/\/wa\.me\//);
+    assert.equal(session.id, `token_${request.requestToken}`);
+    assert.equal(session.data.purpose, request.purpose);
+    assert.equal(session.data.passwordHash, request.passwordHash);
+  }
   assert.equal((await pg.query('select * from customer_otp_send_limits')).rows.length, 0);
 });
 
@@ -167,6 +176,396 @@ test('Mobizon uses a registered sender and keeps the API key out of URLs', async
     },
   );
   assert.equal(result.messageId, 'sms-1');
+});
+
+test('AutoCall sends one short registration SMS using a Bearer token outside the URL and payload', async () => {
+  const config = otpProviderConfig(autocallEnv, 'customer_registration');
+  const result = await sendAutomaticOtp(
+    { phone, code: '123456', config },
+    {
+      now: new Date('2026-10-03T17:45:40Z'),
+      fetchImpl: async (url, options) => {
+        assert.equal(url, 'https://autocall.kz/api/v1/bulks');
+        assert.equal(new URL(url).search, '');
+        assert.equal(options.method, 'POST');
+        assert.equal(options.redirect, 'error');
+        assert.equal(options.headers.Authorization, `Bearer ${config.token}`);
+        assert.equal(options.headers.Accept, 'application/json');
+        assert.equal(options.headers['Content-Type'], 'application/json');
+        const body = JSON.parse(options.body);
+        assert.deepEqual(body, {
+          name: 'Verification code',
+          text: 'Bulka: код 123456. Действует 5 минут. Никому не сообщайте.',
+          list_id: [{ number: phone }],
+          date_from: '2026-10-03',
+          time_from: '22:45:40',
+        });
+        assert.ok(body.text.length <= 70, 'OTP fits one Cyrillic SMS segment');
+        assert.equal(options.body.includes(config.token), false);
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ id: 12345, status: 'running', segments: 1, recipients: 1 }),
+        };
+      },
+    },
+  );
+  assert.deepEqual(result, { messageId: '12345' });
+});
+
+test('AutoCall schedules immediate SMS using one Kazakhstan date/time snapshot across midnight', async () => {
+  const config = otpProviderConfig(autocallEnv, 'customer_registration');
+  for (const [timestamp, date, time] of [
+    ['2026-10-03T18:59:59Z', '2026-10-03', '23:59:59'],
+    ['2026-10-03T19:00:00Z', '2026-10-04', '00:00:00'],
+  ]) {
+    await sendAutomaticOtp(
+      { phone, code: '123456', config },
+      {
+        now: new Date(timestamp),
+        fetchImpl: async (_url, options) => {
+          const body = JSON.parse(options.body);
+          assert.equal(body.date_from, date);
+          assert.equal(body.time_from, time);
+          return {
+            ok: true,
+            status: 201,
+            json: async () => ({ id: 12345, status: 'running', segments: 1, recipients: 1 }),
+          };
+        },
+      },
+    );
+  }
+});
+
+test('AutoCall polls a newly generating campaign with GET until running or exact confirmed delivery', async () => {
+  const config = otpProviderConfig(autocallEnv, 'customer_registration');
+  const generated = { id: 12345, status: 'generating', segments: 1, recipients: 1 };
+  const completed = {
+    ...generated,
+    status: 'completed',
+    text: 'Bulka: код 123456. Действует 5 минут. Никому не сообщайте.',
+    messages: {
+      data: [{ id: 98765, bulk_id: 12345, number: phone, status: 'delivered' }],
+    },
+  };
+  for (const updates of [[generated, { ...generated, status: 'running' }], [completed]]) {
+    const calls = [];
+    const waits = [];
+    let originalSignal;
+    const result = await sendAutomaticOtp(
+      { phone, code: '123456', config },
+      {
+        fetchImpl: async (url, options) => {
+          calls.push(options.method);
+          if (calls.length === 1) {
+            assert.equal(options.method, 'POST');
+            assert.equal(url, 'https://autocall.kz/api/v1/bulks');
+            originalSignal = options.signal;
+            return { ok: true, status: 201, json: async () => generated };
+          }
+          assert.equal(url, 'https://autocall.kz/api/v1/bulks/12345');
+          assert.equal(options.method, 'GET');
+          assert.equal(options.body, undefined);
+          assert.equal(options.redirect, 'error');
+          assert.equal(options.signal, originalSignal);
+          assert.equal(options.headers.Authorization, `Bearer ${config.token}`);
+          return { ok: true, status: 200, json: async () => updates[calls.length - 2] };
+        },
+        waitImpl: async (ms, signal) => {
+          assert.equal(ms, 500);
+          assert.equal(signal, originalSignal);
+          waits.push(ms);
+        },
+      },
+    );
+    assert.deepEqual(result, { messageId: '12345' });
+    assert.deepEqual(calls, ['POST', ...updates.map(() => 'GET')]);
+    assert.equal(waits.length, updates.length);
+  }
+});
+
+test('AutoCall stops after five generating reads and never repeats the paid POST', async () => {
+  const config = otpProviderConfig(autocallEnv, 'customer_registration');
+  let posts = 0;
+  let reads = 0;
+  let waits = 0;
+  await assert.rejects(
+    sendAutomaticOtp(
+      { phone, code: '123456', config },
+      {
+        fetchImpl: async (_url, options) => {
+          if (options.method === 'POST') posts += 1;
+          else reads += 1;
+          return {
+            ok: true,
+            status: options.method === 'POST' ? 201 : 200,
+            json: async () => ({ id: 12345, status: 'generating', segments: 1, recipients: 1 }),
+          };
+        },
+        waitImpl: async () => {
+          waits += 1;
+        },
+      },
+    ),
+    { code: 'OTP_SEND_FAILED' },
+  );
+  assert.equal(posts, 1);
+  assert.equal(reads, 5);
+  assert.equal(waits, 5);
+});
+
+test('AutoCall generating reads reject changed IDs, pending states, errors and malformed responses immediately', async () => {
+  const config = otpProviderConfig(autocallEnv, 'customer_registration');
+  const generated = { id: 12345, status: 'generating', segments: 1, recipients: 1 };
+  const sensitive = `123456 ${phone} ${config.token}`;
+  const updates = [
+    { ok: true, status: 201, body: { ...generated, status: 'running' } },
+    { ok: false, status: 403, body: { error: sensitive } },
+    { ok: true, status: 200, body: null },
+    ...[
+      { id: 99999, status: 'running' },
+      { status: 'moderation' },
+      { status: 'awaiting' },
+      { status: 'denied' },
+      { status: 'unexpected' },
+      { segments: 2 },
+      { recipients: 2 },
+    ].map((override) => ({ ok: true, status: 200, body: { ...generated, ...override } })),
+  ];
+  for (const update of updates) {
+    const methods = [];
+    await assert.rejects(
+      sendAutomaticOtp(
+        { phone, code: '123456', config },
+        {
+          fetchImpl: async (_url, options) => {
+            methods.push(options.method);
+            return methods.length === 1
+              ? { ok: true, status: 201, json: async () => generated }
+              : { ok: update.ok, status: update.status, json: async () => update.body };
+          },
+          waitImpl: async () => {},
+        },
+      ),
+      (error) => {
+        assert.equal(error.code, 'OTP_SEND_FAILED');
+        for (const value of ['123456', phone, config.token]) {
+          assert.equal(
+            `${error.message} ${error.stack} ${JSON.stringify(error)}`.includes(value),
+            false,
+          );
+        }
+        return true;
+      },
+    );
+    assert.deepEqual(methods, ['POST', 'GET']);
+  }
+});
+
+test('AutoCall rejects unaccepted statuses, malformed responses and failures without leaking details', async () => {
+  const config = otpProviderConfig(autocallEnv, 'customer_registration');
+  const accepted = { id: 12345, status: 'running', segments: 1, recipients: 1 };
+  const sensitive = `123456 ${config.token} ${phone}`;
+  const responses = [
+    { ok: false, status: 401, body: { error: sensitive } },
+    { ok: true, status: 200, body: accepted },
+    ...[
+      { id: 0 },
+      { id: '12345' },
+      { id: { sensitive } },
+      { status: 'moderation' },
+      { status: 'awaiting' },
+      { status: 'denied' },
+      { status: 'completed' },
+      { status: 'failed' },
+      { status: 'unexpected' },
+      { segments: 2 },
+      { recipients: 2 },
+      { error: sensitive },
+    ].map((override) => ({ ok: true, status: 201, body: { ...accepted, ...override } })),
+    { ok: true, status: 201, body: null },
+  ];
+  const fetches = [
+    ...responses.map(({ ok, status, body }) => async () => ({
+      ok,
+      status,
+      json: async () => body,
+    })),
+    async () => {
+      throw new Error(sensitive);
+    },
+    async () => ({
+      ok: true,
+      status: 201,
+      json: async () => {
+        throw new Error(sensitive);
+      },
+    }),
+  ];
+  for (const fetchImpl of fetches) {
+    await assert.rejects(
+      sendAutomaticOtp({ phone, code: '123456', config }, { fetchImpl }),
+      (error) => {
+        assert.equal(error.code, 'OTP_SEND_FAILED');
+        assert.equal(error.statusCode, 503);
+        for (const value of ['123456', config.token, phone]) {
+          assert.equal(
+            `${error.message} ${error.stack} ${JSON.stringify(error)}`.includes(value),
+            false,
+          );
+        }
+        return true;
+      },
+    );
+  }
+});
+
+test('AutoCall accepts a completed campaign only with proof of delivery of the exact SMS to its recipient', async () => {
+  const config = otpProviderConfig(autocallEnv, 'customer_registration');
+  const delivered = { id: 98765, bulk_id: 12345, number: phone, status: 'delivered' };
+  const completed = {
+    id: 12345,
+    status: 'completed',
+    segments: 1,
+    recipients: 1,
+    text: 'Bulka: код 123456. Действует 5 минут. Никому не сообщайте.',
+    messages: { data: [delivered] },
+  };
+  const send = (body) =>
+    sendAutomaticOtp(
+      { phone, code: '123456', config },
+      { fetchImpl: async () => ({ ok: true, status: 201, json: async () => body }) },
+    );
+  assert.deepEqual(await send(completed), { messageId: '12345' });
+  for (const body of [
+    { ...completed, text: 'Bulka: код 654321. Действует 5 минут. Никому не сообщайте.' },
+    { ...completed, messages: undefined },
+    { ...completed, messages: { data: [] } },
+    { ...completed, messages: { data: [delivered, delivered] } },
+    ...[
+      { status: 'failed' },
+      { status: 'pending' },
+      { status: 'sent' },
+      { number: '+77001234568' },
+      { bulk_id: 99999 },
+      { id: 0 },
+    ].map((override) => ({
+      ...completed,
+      messages: { data: [{ ...delivered, ...override }] },
+    })),
+  ]) {
+    await assert.rejects(send(body), { code: 'OTP_SEND_FAILED' });
+  }
+});
+
+test('registration override uses AutoCall SMS while login and recovery retain the configured WhatsApp provider', async () => {
+  for (const [purpose, recipient, expectedProvider, expectedChannel] of [
+    ['customer_registration', phone, 'autocall_sms', 'sms'],
+    ['customer_login', '+77001234568', 'ycloud_whatsapp', 'whatsapp'],
+    ['customer_password_reset', '+77001234569', 'ycloud_whatsapp', 'whatsapp'],
+  ]) {
+    let code;
+    const result = await startCustomerOtp(
+      { ...request, purpose, phone: recipient },
+      {
+        db,
+        env: autocallEnv,
+        sendOtp: async (message) => {
+          assert.equal(message.config.provider, expectedProvider);
+          code = message.code;
+          return { messageId: 'purpose-accepted' };
+        },
+      },
+    );
+    assert.equal(result.channel, expectedChannel);
+    assert.equal(result.deliveryMode, 'automatic');
+    assert.equal(result.codeLength, 6);
+    assert.equal(result.expiresInSeconds, 300);
+    const verified = await consumeCustomerOtp(recipient, code, { db, env: autocallEnv });
+    assert.equal(verified.status, 'success');
+    assert.equal(verified.payload.purpose, purpose);
+  }
+});
+
+test('AutoCall configuration is registration-only and invalid registration secrets do not affect login or reserve quota', async () => {
+  for (const purpose of ['customer_login', 'customer_password_reset', 'customer_registration']) {
+    assert.throws(
+      () =>
+        otpProviderConfig(
+          { CUSTOMER_OTP_PROVIDER: 'autocall_sms', AUTOCALL_API_TOKEN: 'test' },
+          purpose,
+        ),
+      { code: 'OTP_PROVIDER_UNAVAILABLE' },
+    );
+  }
+  for (const token of ['', '   ', 'bad token', 'bad\ntoken']) {
+    const invalidEnv = { ...autocallEnv, AUTOCALL_API_TOKEN: token };
+    assert.equal(otpProviderConfig(invalidEnv, 'customer_login').provider, 'ycloud_whatsapp');
+    assert.equal(
+      otpProviderConfig(invalidEnv, 'customer_password_reset').provider,
+      'ycloud_whatsapp',
+    );
+    await assert.rejects(
+      startCustomerOtp(request, {
+        db,
+        env: invalidEnv,
+        sendOtp: async () => assert.fail('Invalid config must fail before sending'),
+      }),
+      { code: 'OTP_PROVIDER_UNAVAILABLE' },
+    );
+  }
+  for (const purpose of ['customer_login', 'customer_password_reset']) {
+    assert.deepEqual(
+      otpProviderConfig({ ...autocallEnv, CUSTOMER_OTP_PROVIDER: 'legacy_whatsapp' }, purpose),
+      { provider: 'legacy_whatsapp' },
+    );
+  }
+  assert.equal((await pg.query('select * from customer_otp_send_limits')).rows.length, 0);
+  assert.equal(
+    otpProviderConfig(
+      { ...ycloudEnv, CUSTOMER_REGISTRATION_OTP_PROVIDER: '   ' },
+      'customer_registration',
+    ).provider,
+    'ycloud_whatsapp',
+  );
+});
+
+test('an AutoCall campaign awaiting moderation does not activate the registration code', async () => {
+  let code;
+  const methods = [];
+  await assert.rejects(
+    startCustomerOtp(request, {
+      db,
+      env: autocallEnv,
+      sendOtp: async (message) => {
+        code = message.code;
+        return sendAutomaticOtp(message, {
+          fetchImpl: async (_url, options) => {
+            methods.push(options.method);
+            return {
+              ok: true,
+              status: options.method === 'POST' ? 201 : 200,
+              json: async () => ({
+                id: 12345,
+                status: options.method === 'POST' ? 'generating' : 'moderation',
+                segments: 1,
+                recipients: 1,
+              }),
+            };
+          },
+          waitImpl: async () => {},
+        });
+      },
+    }),
+    { code: 'OTP_SEND_FAILED' },
+  );
+  assert.deepEqual(methods, ['POST', 'GET']);
+  assert.equal((await pg.query('select * from whatsapp_sessions')).rows.length, 0);
+  assert.equal((await consumeCustomerOtp(phone, code, { db, env: autocallEnv })).status, 'expired');
+  await assert.rejects(startCustomerOtp(request, { db, env: autocallEnv }), {
+    code: 'OTP_RATE_LIMITED',
+  });
 });
 
 test('YCloud submits the OTP synchronously with E.164 phones and matching code button', async () => {

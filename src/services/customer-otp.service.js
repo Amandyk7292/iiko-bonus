@@ -30,7 +30,9 @@ async function startCustomerOtp(
   // Older clients can only enter four digits and still open the bot.
   // Keep their confirmation flow usable during a gradual client rollout.
   const config =
-    automaticOtpSupported === true ? otpProviderConfig(env) : { provider: 'legacy_whatsapp' };
+    automaticOtpSupported === true
+      ? otpProviderConfig(env, purpose)
+      : { provider: 'legacy_whatsapp' };
   const payload = {
     phone,
     purpose,
@@ -97,7 +99,7 @@ async function startCustomerOtp(
   }
   return {
     deliveryMode: 'automatic',
-    channel: config.provider === 'mobizon_sms' ? 'sms' : 'whatsapp',
+    channel: ['mobizon_sms', 'autocall_sms'].includes(config.provider) ? 'sms' : 'whatsapp',
     codeLength: 6,
     expiresInSeconds: 300,
     retryAfterSeconds: 60,
