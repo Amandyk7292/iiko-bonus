@@ -18,11 +18,10 @@ export default function ReferralSettings({
   value: ReferralPolicy;
   onChange: (value: ReferralPolicy) => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   return (
     <fieldset className="form-section">
       <legend>{t('bonus.referralTitle')}</legend>
-      <p className="field-hint">{t('bonus.referralHint')}</p>
       <label className="switch-row">
         <input
           type="checkbox"
@@ -52,8 +51,12 @@ export default function ReferralSettings({
           </div>
         ))}
       </div>
-      <p className="field-hint">{t('bonus.referralLimitsHint')}</p>
-      <p className="field-hint">{t('bonus.referralDeviceReview')}</p>
+      <details className="bonus-details">
+        <summary>{locale === 'kk' ? 'Бағдарлама шарттары' : 'Условия программы'}</summary>
+        <p className="field-hint">{t('bonus.referralHint')}</p>
+        <p className="field-hint">{t('bonus.referralLimitsHint')}</p>
+        <p className="field-hint">{t('bonus.referralDeviceReview')}</p>
+      </details>
     </fieldset>
   );
 }

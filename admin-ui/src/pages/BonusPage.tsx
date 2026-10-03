@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { ArrowRight, LoaderCircle, Save } from 'lucide-react';
-import { Link } from '../lib/router';
+import { ArrowRight, Gift, LoaderCircle, Monitor, Save, Settings2, Users } from 'lucide-react';
+import { Link, useLocation, useNavigate } from '../lib/router';
 import PageState from '../components/PageState';
 import { useFeedback } from '../components/Feedback';
 import { api } from '../lib/api';
@@ -8,6 +8,15 @@ import { useI18n } from '../lib/i18n';
 import ReferralSettings, { type ReferralPolicy } from './ReferralSettings';
 import ReferralReport from './ReferralReport';
 import CashierSignupRace from './CashierSignupRace';
+import '../styles/bonus-page.css';
+
+const tabs = ['cashiers', 'referrals', 'registers', 'settings'] as const;
+type BonusTab = (typeof tabs)[number];
+const labels = {
+  ru: { cashiers: 'Кассиры', referrals: 'Приглашения', registers: 'Кассы', settings: 'Настройки', tabs: 'Разделы бонусов', rules: 'Правила бонусов', unsaved: 'Есть несохранённые изменения', tiers: 'Уровни кэшбэка' },
+  kk: { cashiers: 'Кассирлер', referrals: 'Шақырулар', registers: 'Кассалар', settings: 'Баптаулар', tabs: 'Бонус бөлімдері', rules: 'Бонус ережелері', unsaved: 'Сақталмаған өзгерістер бар', tiers: 'Кэшбэк деңгейлері' },
+};
+const tabIcons = { cashiers: Users, referrals: Gift, registers: Monitor, settings: Settings2 };
 
 interface BonusSettings {
   bonus_referral: ReferralPolicy;
@@ -17,14 +26,25 @@ interface BonusSettings {
   [key: string]: unknown;
 }
 
-export default function BonusPage() {
-  const { t } = useI18n();
+export default function BonusPage({ scope = '' }: { scope?: string }) {
+  const { t, locale } = useI18n();
+  const text = labels[locale === 'kk' ? 'kk' : 'ru'];
   const { toast } = useFeedback();
   const [settings, setSettings] = useState<BonusSettings | null>(null);
   const [savedSettings, setSavedSettings] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const selected = new URLSearchParams(location.search).get('tab');
+  const tab: BonusTab = tabs.includes(selected as BonusTab) ? selected as BonusTab : 'cashiers';
+  const [visited, setVisited] = useState<BonusTab[]>([tab]);
+  const selectTab = (next: BonusTab) => {
+    setVisited((current) => current.includes(next) ? current : [...current, next]);
+    navigate(`${location.pathname}${next === 'cashiers' ? '' : `?tab=${next}`}`, { replace: true });
+  };
+  useEffect(() => { setVisited((current) => current.includes(tab) ? current : [...current, tab]); }, [tab]);
 
   const fetchSettings = useCallback(async () => {
     setLoading(true);
@@ -53,11 +73,11 @@ export default function BonusPage() {
       setSettings(loaded);
       setSavedSettings(JSON.stringify(loaded));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : t('common.loadError'));
+      setError(caught instanceof Error ? caught.message : '');
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     void fetchSettings();
@@ -79,24 +99,36 @@ export default function BonusPage() {
     }
   };
 
-  if (loading) return <PageState type="loading" />;
-  if (!settings) return <PageState type="error" description={error} onRetry={fetchSettings} />;
-
   return (
-    <div className="page-stack page-narrow">
-      <form className="card settings-form" onSubmit={save}>
+    <div className="page-stack page-narrow bonus-page">
+      <div className="bonus-tabs" role="tablist" aria-label={text.tabs}>
+        {tabs.map((key, index) => {
+          const Icon = tabIcons[key];
+          return <button key={key} type="button" role="tab" id={`bonus-tab-${key}`} aria-controls={`bonus-panel-${key}`} aria-selected={tab === key} tabIndex={tab === key ? 0 : -1} onClick={() => selectTab(key)} onKeyDown={(event) => {
+            const next = event.key === 'ArrowRight' ? tabs[(index + 1) % tabs.length] : event.key === 'ArrowLeft' ? tabs[(index + tabs.length - 1) % tabs.length] : event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[tabs.length - 1] : null;
+            if (next) { event.preventDefault(); selectTab(next); document.getElementById(`bonus-tab-${next}`)?.focus(); }
+          }}>
+            <Icon size={18} aria-hidden="true" /><span>{text[key]}</span>
+            {key === 'settings' && settings && JSON.stringify(settings) !== savedSettings && <span className="bonus-unsaved-dot" aria-label={text.unsaved} />}
+          </button>;
+        })}
+      </div>
+      <div role="tabpanel" id="bonus-panel-cashiers" aria-labelledby="bonus-tab-cashiers" hidden={tab !== 'cashiers'}><CashierSignupRace /></div>
+      <div role="tabpanel" id="bonus-panel-referrals" aria-labelledby="bonus-tab-referrals" hidden={tab !== 'referrals'}>{visited.includes('referrals') && <ReferralReport scope={scope} />}</div>
+      <div role="tabpanel" id="bonus-panel-registers" aria-labelledby="bonus-tab-registers" hidden={tab !== 'registers'}>{visited.includes('registers') && <ReferralReport view="health" scope={scope} />}</div>
+      <div role="tabpanel" id="bonus-panel-settings" aria-labelledby="bonus-tab-settings" hidden={tab !== 'settings'}>
+      {loading ? <PageState type="loading" /> : !settings ? <PageState type="error" description={error || t('common.loadError')} onRetry={fetchSettings} /> : <form className="card settings-form bonus-settings" onSubmit={save}>
         {JSON.stringify(settings) !== savedSettings && (
           <p className="inline-alert" role="status">
-            {t('bonus.unsaved')}
+            {text.unsaved}
           </p>
         )}
         <div className="section-heading">
           <div>
-            <h2>{t('bonus.heading')}</h2>
-            <p>{t('page.bonus.subtitle')}</p>
+            <h2>{text.rules}</h2>
           </div>
           <Link to="/tiers" className="btn-outline px-4 inline-flex items-center gap-2">
-            {t('page.tiers.title')} <ArrowRight aria-hidden="true" size={17} />
+            {text.tiers} <ArrowRight aria-hidden="true" size={17} />
           </Link>
         </div>
         {error && (
@@ -148,7 +180,6 @@ export default function BonusPage() {
               className="input-classic"
               required
             />
-            <p className="field-hint">{t('bonus.maxDiscountHint')}</p>
           </div>
         </div>
 
@@ -251,9 +282,8 @@ export default function BonusPage() {
             {saving ? t('common.saving') : t('common.save')}
           </button>
         </div>
-      </form>
-      <CashierSignupRace />
-      <ReferralReport />
+      </form>}
+      </div>
     </div>
   );
 }

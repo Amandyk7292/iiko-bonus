@@ -577,7 +577,7 @@ export default function App() {
                     }
               }
             />
-            <div className="sagi-page" key={selectedBranchId || 'all-branches'}>
+            <div className="sagi-page" key={location.pathname === '/bonus' ? 'bonus' : selectedBranchId || 'all-branches'}>
               <Suspense fallback={<PageState type="loading" />}>
                 <Routes>
                   <Route path="/" element={<Navigate to={firstPath} replace />} />
@@ -631,7 +631,7 @@ export default function App() {
                       <TaplinkPage canPublish={['admin', 'owner'].includes(role)} />,
                     )}
                   />
-                  <Route path="/bonus" element={guard('/bonus', <BonusPage />)} />
+                  <Route path="/bonus" element={guard('/bonus', <BonusPage scope={selectedBranchId} />)} />
                   <Route path="/tiers" element={guard('/tiers', <LoyaltyTiersPage />)} />
                   <Route path="/faq" element={guard('/faq', <FaqPage />)} />
                   <Route

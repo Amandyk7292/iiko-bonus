@@ -50,10 +50,11 @@ if (adminDirectory) {
   assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
-    // The lazy editable FAQ measures 439,006 B in total.
-    // Allow 1,994 B headroom; retain the largest-chunk/CSS limits.
+    // The bonus tabs, compact reports and cashier directory measure 443,321 B
+    // in total (+3,306 B over c3541b56). Allow 1,679 B headroom;
+    // retain the largest-chunk/CSS limits.
     // Exporters load only on download and keep their separate budgets below.
-    441_000,
+    445_000,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   assertBudget('Admin deferred price-label PDF gzip', Math.max(0, ...priceLabelPdfGzip), 185_000);

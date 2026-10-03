@@ -93,6 +93,19 @@ describe('Topbar city and branch scope', () => {
     window.history.replaceState({}, '', '/admin/operations');
   });
 
+  it.each(['', '?tab=settings', '?tab=cashiers'])('hides duplicate scope controls on global bonus tabs %s', (query) => {
+    window.history.replaceState({}, '', `/admin/bonus${query}`);
+    render(topbar('aktau-1', vi.fn()));
+    expect(document.querySelector('.topbar-scope-selectors')).not.toBeInTheDocument();
+  });
+
+  it.each(['referrals', 'registers'])('retains city and point scope on bonus %s', (tab) => {
+    window.history.replaceState({}, '', `/admin/bonus?tab=${tab}`);
+    render(topbar('aktau-1', vi.fn()));
+    expect(document.querySelector('.topbar-scope-selectors')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'ЖК Дукат' })).toBeInTheDocument();
+  });
+
   afterEach(() => vi.unstubAllGlobals());
 
   it('leaves photo-report city selection to the page filters', () => {

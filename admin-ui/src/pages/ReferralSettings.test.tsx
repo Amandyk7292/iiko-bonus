@@ -8,6 +8,7 @@ import { BrowserRouter } from '../lib/router';
 
 it('loads and saves both referral rewards through the existing settings API', async () => {
   localStorage.setItem('adminLocale', 'ru');
+  window.history.replaceState({}, '', '/bonus');
   const get = vi.spyOn(api, 'getSettings').mockResolvedValue({
     bonus_referral: {
       enabled: true,
@@ -27,11 +28,16 @@ it('loads and saves both referral rewards through the existing settings API', as
         </FeedbackProvider>
       </I18nProvider>,
     );
+    fireEvent.click(screen.getByRole('tab', { name: 'Настройки' }));
     const inviter = await screen.findByLabelText('Пригласившему, ₸ бонусами');
     expect(inviter).toHaveValue(1000);
     expect(screen.getByLabelText('Новому клиенту, ₸ бонусами')).toHaveValue(500);
     expect(screen.queryByText('Приглашений в день на клиента')).not.toBeInTheDocument();
-    expect(screen.getByText(/Приглашения и реферальные награды — без/)).toBeInTheDocument();
+    const terms = screen.getByText('Условия программы').closest('details');
+    expect(terms).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByText('Условия программы'));
+    expect(terms).toHaveAttribute('open');
+    expect(screen.getByText(/Приглашения и реферальные награды — без/)).toBeVisible();
     fireEvent.change(inviter, { target: { value: '1500' } });
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     expect(save).toHaveBeenCalledWith(

@@ -97,7 +97,8 @@ export default function Topbar({
   const staffPushRef = useRef<StaffPushControlHandle>(null);
   const page = routeKeys[location.pathname] ?? 'operations';
   const usesCityScope = location.pathname === '/menu';
-  const usesBranchScope = !['/taplink', '/faq', '/iiko-dashboard', '/photo-reports'].includes(
+  const bonusTab = new URLSearchParams(location.search).get('tab');
+  const usesBranchScope = (location.pathname !== '/bonus' || ['referrals', 'registers'].includes(bonusTab || '')) && !['/taplink', '/faq', '/iiko-dashboard', '/photo-reports'].includes(
     location.pathname,
   );
   const cityScopes = getAdminCityScopes(scopeLocations);
