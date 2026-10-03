@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../lib/i18n';
 import CashierCatalogPage from './CashierCatalogPage';
+import type { CashierProduct } from '../lib/cashier-catalog';
 
 const mocks = vi.hoisted(() => ({
   load: vi.fn(),
@@ -36,7 +37,7 @@ const product = {
   revision: 1,
   blockedBy: null,
 };
-let current = { ...product };
+let current: CashierProduct = { ...product };
 beforeEach(() => {
   vi.clearAllMocks();
   current = { ...product };
@@ -66,7 +67,7 @@ it('does not save quantity or stop changes when the cashier cancels confirmation
   await waitFor(() =>
     expect(mocks.confirm).toHaveBeenLastCalledWith({
       title: 'Сохранить изменения?',
-      body: 'Плюшка\nОстаток: 5 → 7',
+      body: 'Плюшка\nОстаток: 5 шт → 7 шт',
       confirmLabel: 'Сохранить',
     }),
   );
@@ -131,7 +132,7 @@ it('saves only the changed field and updates the stop switch after confirmation'
   expect(screen.getByRole('switch', { name: 'Стоп-лист: Плюшка' })).toBeDisabled();
   await user.click(screen.getByRole('button', { name: 'Сохранить' }));
   await waitFor(() =>
-    expect(mocks.save).toHaveBeenCalledWith('bun', { expectedRevision: 1, sourceQuantity: 7 }),
+    expect(mocks.save).toHaveBeenCalledWith('bun', { expectedRevision: 1, sourceQuantity: 7, unit: 'шт' }),
   );
   await waitFor(() => expect(screen.getByRole('switch')).toBeEnabled());
   await user.click(screen.getByRole('switch'));
@@ -167,4 +168,66 @@ it('keeps the product visible on save failure and filters the stop list', async 
     within(screen.getByLabelText('Фильтр товаров')).getByRole('button', { name: /Стоп-лист/ }),
   );
   expect(await screen.findByText('В стоп-листе нет товаров')).toBeVisible();
+});
+
+it.each(['1.25', '1,25'])('saves catalog kilograms entered as %s without offering a unit picker', async (value) => {
+  current = { ...product, unit: 'кг', quantityStep: 0.001, sourceQuantity: 2.5, availableQuantity: 2, reserved: 0.5 };
+  mount();
+  const user = userEvent.setup();
+  const input = await screen.findByRole('textbox', { name: 'Остаток: Плюшка' });
+  expect(input).toHaveAttribute('inputmode', 'decimal');
+  expect(screen.getByText('На точке, кг')).toBeVisible();
+  expect(screen.getByText('Доступно: 2 кг')).toBeVisible();
+  expect(screen.getByText('В заказах: 0.5 кг')).toBeVisible();
+  expect(screen.getAllByRole('combobox')).toHaveLength(1);
+  await user.clear(input);
+  await user.type(input, value);
+  await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+  await waitFor(() => expect(mocks.confirm).toHaveBeenCalledWith({
+    title: 'Сохранить изменения?',
+    body: 'Плюшка\nОстаток: 2.5 кг → 1.25 кг',
+    confirmLabel: 'Сохранить',
+  }));
+  await waitFor(() => expect(mocks.save).toHaveBeenCalledWith('bun', {
+    expectedRevision: 1,
+    sourceQuantity: 1.25,
+    unit: 'кг',
+  }));
+});
+
+it('rejects fractional pieces and kilogram precision beyond three decimal places', async () => {
+  mount();
+  const user = userEvent.setup();
+  const input = await screen.findByRole('textbox', { name: 'Остаток: Плюшка' });
+  expect(input).toHaveAttribute('inputmode', 'numeric');
+  await user.clear(input);
+  await user.type(input, '1.25');
+  expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+  expect(screen.getByText('Целое число от 0 до 100 000')).toBeVisible();
+  expect(mocks.save).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'Сбросить: Плюшка' }));
+  current = { ...current, unit: 'кг' };
+  act(() => mocks.refresh());
+  await screen.findByText('На точке, кг');
+  await user.clear(input);
+  await user.type(input, '1,2345');
+  expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+  expect(mocks.save).not.toHaveBeenCalled();
+});
+
+it('holds the entered unit when the administrator changes the catalog unit mid-edit', async () => {
+  mount();
+  const user = userEvent.setup();
+  const input = await screen.findByRole('textbox', { name: 'Остаток: Плюшка' });
+  await user.clear(input);
+  await user.type(input, '7');
+  current = { ...current, unit: 'кг' };
+  act(() => mocks.refresh());
+  await screen.findByText(/Остаток изменился/);
+  expect(screen.getByText('На точке, шт')).toBeVisible();
+  expect(input).toHaveValue('7');
+  expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: 'Сбросить: Плюшка' }));
+  expect(screen.getByText('На точке, кг')).toBeVisible();
+  expect(mocks.save).not.toHaveBeenCalled();
 });

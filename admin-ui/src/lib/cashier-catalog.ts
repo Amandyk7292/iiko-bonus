@@ -13,6 +13,8 @@ export interface CashierProduct {
   stockSource?: 'iiko' | 'manual';
   isIikoProduct?: boolean;
   frontQuantity?: number | null;
+  unit?: 'шт' | 'кг';
+  quantityStep?: number;
 }
 export interface CashierCatalog {
   branchId: string;
@@ -25,6 +27,7 @@ export interface CashierStockChange {
   sourceQuantity?: number;
   manualStop?: boolean;
   useIiko?: true;
+  unit?: 'шт' | 'кг';
 }
 export const isCashierProductStopped = (p: CashierProduct) =>
   p.manualStop || !!p.blockedBy || p.availableQuantity === 0;

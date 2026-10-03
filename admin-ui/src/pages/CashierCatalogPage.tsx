@@ -8,6 +8,7 @@ import {
   isCashierProductStopped,
   type CashierCatalog,
   type CashierProduct,
+  type CashierStockChange,
 } from '../lib/cashier-catalog';
 import '../styles/cashier-catalog.css';
 
@@ -23,12 +24,19 @@ function StockRow({
   const { toast, confirm } = useFeedback();
   const [draft, setDraft] = useState<string | null>(null);
   const [baseRevision, setBaseRevision] = useState(product.revision);
+  const unit = product.unit === 'кг' ? 'кг' : 'шт';
+  const [baseUnit, setBaseUnit] = useState<'шт' | 'кг'>(unit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [imageFailed, setImageFailed] = useState(false);
-  const stale = draft !== null && baseRevision !== product.revision;
+  const stale =
+    draft !== null && (baseRevision !== product.revision || baseUnit !== unit);
+  const editingUnit = draft === null ? unit : baseUnit;
   const quantity = draft ?? product.sourceQuantity?.toString() ?? '';
-  const valid = /^\d+$/.test(quantity) && Number(quantity) <= 100000;
+  const numericQuantity = Number(quantity.replace(',', '.'));
+  const valid =
+    (editingUnit === 'кг' ? /^\d+(?:[.,]\d{1,3})?$/ : /^\d+$/).test(quantity) &&
+    numericQuantity <= 100000;
   const stopped = isCashierProductStopped(product);
   const blocked =
     product.blockedBy === 'iiko'
@@ -36,14 +44,15 @@ function StockRow({
       : product.blockedBy
         ? 'Отключён администратором'
         : '';
-  async function save(changes: { sourceQuantity?: number; manualStop?: boolean; useIiko?: true }) {
+  async function save(changes: Omit<CashierStockChange, 'expectedRevision'>) {
+    if (saving) return;
     setSaving(true);
     setError('');
     try {
       const detail = changes.useIiko
-        ? `Использовать остаток iikoFront: ${product.frontQuantity ?? 'не ограничен'}`
+        ? `Использовать остаток iikoFront: ${product.frontQuantity == null ? 'не ограничен' : `${product.frontQuantity} ${unit}`}`
         : changes.sourceQuantity !== undefined
-          ? `Остаток: ${product.sourceQuantity ?? 'не указан'} → ${changes.sourceQuantity}`
+          ? `Остаток: ${product.sourceQuantity ?? 'не указан'} ${unit} → ${changes.sourceQuantity} ${editingUnit}`
           : changes.manualStop
             ? 'Добавить в стоп-лист'
             : 'Снять со стоп-листа';
@@ -104,7 +113,7 @@ function StockRow({
                   ? 'Нет в наличии'
                   : product.availableQuantity == null
                     ? 'Остаток не указан'
-                    : `Доступно: ${product.availableQuantity}`)}
+                    : `Доступно: ${product.availableQuantity} ${unit}`)}
           </span>
           {product.stockSource === 'manual' && (
             <span className="cashier-manual-source">Вручную</span>
@@ -112,21 +121,24 @@ function StockRow({
         </div>
       </div>
       <div className="cashier-stock-editor">
-        <label htmlFor={`stock-${product.id}`}>На точке, шт.</label>
+        <label htmlFor={`stock-${product.id}`}>На точке, {editingUnit}</label>
         <div className="cashier-quantity-line">
           <input
             id={`stock-${product.id}`}
             className="input-classic"
-            inputMode="numeric"
+            inputMode={editingUnit === 'кг' ? 'decimal' : 'numeric'}
             type="text"
             aria-label={`Остаток: ${product.name}`}
-            title="На точке, шт."
+            title={`На точке, ${editingUnit}`}
             aria-invalid={draft !== null && !valid}
             value={quantity}
             placeholder="Не указан"
             disabled={saving || !!blocked}
             onChange={(event) => {
-              if (draft === null) setBaseRevision(product.revision);
+              if (draft === null) {
+                setBaseRevision(product.revision);
+                setBaseUnit(unit);
+              }
               setDraft(event.target.value);
               setError('');
             }}
@@ -137,7 +149,7 @@ function StockRow({
                 type="button"
                 className="btn-classic"
                 disabled={saving || !valid || stale}
-                onClick={() => void save({ sourceQuantity: Number(quantity) })}
+                onClick={() => void save({ sourceQuantity: numericQuantity, unit: editingUnit })}
               >
                 {saving ? 'Сохраняем…' : 'Сохранить'}
               </button>
@@ -156,7 +168,7 @@ function StockRow({
             </>
           )}
         </div>
-        <span className="cashier-reserved">В заказах: {product.reserved}</span>
+        <span className="cashier-reserved">В заказах: {product.reserved} {unit}</span>
         {product.stockSource === 'manual' && product.isIikoProduct && frontConnected && (
           <button
             type="button"
@@ -173,7 +185,11 @@ function StockRow({
           </p>
         )}
         {draft !== null && !valid && (
-          <p className="cashier-field-error">Целое число от 0 до 100 000</p>
+          <p className="cashier-field-error">
+            {editingUnit === 'кг'
+              ? 'От 0 до 100 000 кг, не более 3 знаков после запятой'
+              : 'Целое число от 0 до 100 000'}
+          </p>
         )}
         {error && (
           <p className="cashier-field-error" role="alert">

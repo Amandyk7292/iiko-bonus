@@ -2,7 +2,9 @@
 param(
     [Parameter(Mandatory = $true)][string]$PayloadDirectory,
     [string]$SiteUrl = 'http://127.0.0.1:58333/?desktop=1',
-    [ValidateSet('x86', 'x64')][string[]]$Architectures = @('x86', 'x64')
+    [ValidateSet('x86', 'x64')][string[]]$Architectures = @('x86', 'x64'),
+    [ValidateRange(0, 60000)][int]$VirtualTimeBudget = 10000,
+    [switch]$DisableGpu
 )
 $ErrorActionPreference = 'Stop'
 $site = $null
@@ -11,6 +13,7 @@ if (-not [Uri]::TryCreate($SiteUrl, [UriKind]::Absolute, [ref]$site) -or
     throw 'The render smoke test requires an explicit local, read-only preview URL.'
 }
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
+Invoke-WebRequest -Method Head -Uri $SiteUrl -TimeoutSec 5 -UseBasicParsing | Out-Null
 $testRoot = Join-Path $repositoryRoot ('outputs\windows-runtime-render-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 $results = @()
@@ -22,8 +25,10 @@ foreach ($architecture in $Architectures) {
     $profile = Join-Path $architectureDirectory 'temporary-profile'
     $screenshot = Join-Path $architectureDirectory 'login-desktop.png'
     $arguments = @('--headless', '--no-first-run', '--no-default-browser-check', '--hide-scrollbars',
-        '--window-size=1440,900', '--timeout=20000', '--virtual-time-budget=10000',
+        '--window-size=1440,900', '--timeout=20000',
         ('--user-data-dir="' + $profile + '"'), ('--screenshot="' + $screenshot + '"'), $SiteUrl)
+    if ($VirtualTimeBudget -gt 0) { $arguments = @("--virtual-time-budget=$VirtualTimeBudget") + $arguments }
+    if ($DisableGpu) { $arguments = @('--disable-gpu') + $arguments }
     $process = Start-Process -FilePath $browser -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $architectureDirectory 'stdout.log') -RedirectStandardError (Join-Path $architectureDirectory 'stderr.log')
     if (-not $process.WaitForExit(55000)) {
         # Stop only this test's own browser and descendants, preserving diagnostics.
@@ -40,6 +45,8 @@ foreach ($architecture in $Architectures) {
         architecture = $architecture; browserVersion = (Get-Item -LiteralPath $browser).VersionInfo.FileVersion
         processExitCode = $process.ExitCode; screenshot = $screenshot; screenshotBytes = (Get-Item -LiteralPath $screenshot).Length
         isolatedEmptyTestProfile = $true; browserSandboxDisabled = $false; tlsChecksDisabled = $false
+        gpuDisabledForDiagnostics = [bool]$DisableGpu
+        virtualTimeBudget = $VirtualTimeBudget
         visualReviewRequired = $true; testedOnWindows7Hardware = $false
     }
 }
