@@ -40,6 +40,9 @@ test.before(async () => {
   );
   await db.exec(readFileSync('supabase/migrations/20260927140000_branch_signup_race.sql', 'utf8'));
   await db.exec(readFileSync('supabase/migrations/20261003230000_cashier_signup_race.sql', 'utf8'));
+  await db.exec(
+    readFileSync('supabase/migrations/20261003232000_cashier_directory_guarded_update.sql', 'utf8'),
+  );
   await sync([cashierA, cashierB]);
 });
 test.after(() => db.close());
@@ -81,6 +84,48 @@ test('directory refresh preserves QR tokens; archived cashiers disappear from th
   await sync([cashierA, cashierB]);
   await assert.rejects(sync(null), /Invalid cashier directory/);
   assert.equal((await ranking()).length, 2);
+});
+test('forward migration guards the refresh UPDATE and never rewrites omitted inactive employees', async () => {
+  const definition = (
+    await db.query(
+      "select pg_get_functiondef('public.sync_cashier_signup_directory(jsonb)'::regprocedure) definition",
+    )
+  ).rows[0].definition;
+  assert.match(
+    definition,
+    /update public\.cashier_signup_directory set is_active = false where is_active;/i,
+  );
+  await sync([cashierA]);
+  const archivedBefore = (
+    await db.query("select * from cashier_signup_directory where employee_id='11'")
+  ).rows[0];
+  await db.exec(`
+    create function reject_inactive_directory_rewrite() returns trigger language plpgsql as $$
+    begin raise exception 'Already-inactive identity was rewritten'; end; $$;
+    create trigger reject_inactive_directory_rewrite before update on cashier_signup_directory
+      for each row when (old.is_active = false and new.is_active = false)
+      execute function reject_inactive_directory_rewrite();
+  `);
+  try {
+    const refreshed = await sync([{ ...cashierA, inviteToken: 'e'.repeat(64) }]);
+    assert.equal(refreshed.items.length, 1);
+    assert.equal(refreshed.items[0].invite_token, tokenA);
+    assert.deepEqual(
+      (await db.query("select * from cashier_signup_directory where employee_id='11'")).rows[0],
+      archivedBefore,
+    );
+    // Restoring an active identity still reuses its permanent QR token.
+    assert.equal(
+      (await sync([cashierA, cashierB])).items.find((item) => item.employee_id === '11')
+        .invite_token,
+      tokenB,
+    );
+  } finally {
+    await db.exec(
+      'drop trigger reject_inactive_directory_rewrite on cashier_signup_directory; drop function reject_inactive_directory_rewrite();',
+    );
+    await sync([cashierA, cashierB]);
+  }
 });
 test('an active cashier without a point can accrue salary without inventing a customer branch', async () => {
   const unassigned = {
