@@ -12,6 +12,7 @@ const { getIikoClientForCity } = require('../services/iiko-city-profile.service'
 const { getStories } = require('../services/story.service');
 const path = require('path');
 const { signRegistrationToken } = require('../services/auth.service');
+const { cashierSignup } = require('../services/cashier-signup.service');
 const {
   issueCustomerSession,
   revokeCustomerSession,
@@ -40,8 +41,7 @@ const { sendApiError } = require('../utils/http.util');
 const {
   AUTH_PURPOSES,
   authenticateCustomerPassword,
-  consumeRegistrationCredentialGrant,
-  createCustomerCredential,
+  ensureRegistrationCredential,
   createRegistrationCredentialGrant,
   getCustomerCredential,
   isEstablishedCustomer,
@@ -175,7 +175,11 @@ async function buildAuthenticatedCustomerPayload(customer, req, res) {
 function sendCustomerAuthError(res, error) {
   const status = Number(error?.statusCode || 500);
   if (error?.retryAfterSeconds) res.set('Retry-After', String(error.retryAfterSeconds));
-  if ((status >= 400 && status < 500) || (status === 503 && error?.code?.startsWith('OTP_'))) {
+  if (
+    (status >= 400 && status < 500) ||
+    (status === 503 &&
+      (error?.code?.startsWith('OTP_') || error?.code === 'STAFF_DIRECTORY_UNAVAILABLE'))
+  ) {
     return res.status(status).json({
       success: false,
       error: error.message,
@@ -451,6 +455,7 @@ router.post(
       if (isEstablishedCustomer(existingCustomer)) {
         return res.status(409).json({ success: false, error: 'Customer is already registered' });
       }
+      if (req.body.cashierInviteToken) await cashierSignup.resolve(req.body.cashierInviteToken);
       // Keep incomplete registrations retryable if consent/referral storage fails.
       let customer = existingCustomer || (await getOrCreateCustomerByPhone(phone, 'Новый Гость'));
       if (!customer)
@@ -477,12 +482,19 @@ router.post(
           referralEligibility.reason = 'shared_device';
         }
       }
+      // Recheck the external archive immediately before committing registration.
+      // Nothing from the client can claim an employee is active or set a reward.
+      const cashierSnapshot = req.body.cashierInviteToken
+        ? await cashierSignup.resolve(req.body.cashierInviteToken)
+        : undefined;
+      // Credential insert and grant consumption are atomic. A verified retry
+      // keeps an already-created password after a transient profile failure.
       if (req.registrationAuth.credentialGrantId) {
-        const passwordHash = await consumeRegistrationCredentialGrant({
+        await ensureRegistrationCredential({
+          customerId: customer.id,
           phone,
           grantId: req.registrationAuth.credentialGrantId,
         });
-        await createCustomerCredential({ customerId: customer.id, passwordHash });
       }
 
       const updateData = { name: fullName };
@@ -491,7 +503,10 @@ router.post(
       if (safeGender) updateData.gender = safeGender;
       if (safeBirthdate) updateData.birth_date = safeBirthdate;
 
-      await require('../services/branch-signup.service').finishRegistration(customer, updateData);
+      await require('../services/branch-signup.service').finishRegistration(customer, updateData, {
+        cashierInviteToken: req.body.cashierInviteToken,
+        cashierSnapshot,
+      });
       Object.assign(customer, updateData);
 
       res.json({

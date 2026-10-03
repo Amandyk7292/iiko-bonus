@@ -384,7 +384,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   Future<void> _captureInitialReferral() async {
     try {
       final link = await _appLinks.getInitialLink();
-      if (link != null) await PendingReferral.capture(link);
+      if (link != null) {
+        await PendingReferral.capture(link);
+        await PendingCashierInvite.capture(link);
+      }
     } catch (_) {
       // Link lookup must never block startup or a restored staff session.
     }
@@ -401,6 +404,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('app_theme_mode');
     await PendingReferral.capture(currentClientUri());
+    await PendingCashierInvite.capture(currentClientUri());
     await SessionStore.clearLegacyCustomerData(prefs);
     await AddressRepository.removePersistedGuestAddresses(prefs);
     var phone = prefs.getString('phone');
@@ -526,6 +530,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         await SessionStore.clearCustomerData(prefs);
         await SessionStore.clear();
       }
+    }
+    if (accessToken != null && phone != null) {
+      await PendingCashierInvite.clear();
     }
     if (paymentReturnNotice != null &&
         prefs.getString('lastAppScreen') == 'checkout' &&
@@ -1013,6 +1020,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       return 'error_session_missing'.tr;
     }
     await PendingReferral.set('');
+    await PendingCashierInvite.clear();
     _accessToken = token;
     _refreshToken = refreshToken;
     _api.setSession(
@@ -1135,6 +1143,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     String? gender,
     String? birthdate,
     String? email,
+    String? cashierInviteToken,
   }) async {
     try {
       final profile = await _api.registerCustomer(
@@ -1144,6 +1153,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         gender: gender,
         birthdate: birthdate,
         email: email,
+        cashierInviteToken: cashierInviteToken,
         registrationToken: _registrationToken ?? '',
       );
       _registrationToken = null;
@@ -1270,6 +1280,14 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     if (navigator == null) return false;
     _loginRouteOpen = true;
     var staffAuthenticated = false;
+    final clientUri = clientRouteNotifier.value;
+    final cashierRegistration =
+        !staffOnly &&
+        _savedPhone == null &&
+        clientUri.path == '/cashier-register' &&
+        clientUri.queryParametersAll['cashier']?.length == 1 &&
+        PendingCashierInvite.validToken(clientUri.queryParameters['cashier']) !=
+            null;
 
     void finishAuthentication() {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1283,9 +1301,12 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     try {
       final authenticated = await navigator.push<bool>(
         MaterialPageRoute(
-          settings: const RouteSettings(name: 'authentication'),
+          settings: cashierRegistration
+              ? null
+              : const RouteSettings(name: 'authentication'),
           fullscreenDialog: true,
           builder: (routeContext) => LoginScreen(
+            startRegistration: cashierRegistration,
             onChildLogin: (login, password) async {
               final result = await _loginFamilyChild(login, password);
               if (result == null) finishAuthentication();
@@ -1304,6 +1325,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
             },
             onStartRegistration: _startPasswordRegistration,
             onVerifyRegistration: _verifyPasswordRegistration,
+            onLookupCashierInvite: _api.getCashierInvite,
             onStartPasswordReset: _startPasswordReset,
             onResetPassword: (phone, code, password) async {
               final result = await _completePasswordReset(
@@ -1322,6 +1344,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
                   gender,
                   birthdate,
                   email,
+                  cashierInviteToken,
                 }) async {
                   final result = await _registerCustomer(
                     phone: phone,
@@ -1330,6 +1353,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
                     gender: gender,
                     birthdate: birthdate,
                     email: email,
+                    cashierInviteToken: cashierInviteToken,
                   );
                   if (result == null) finishAuthentication();
                   return result;
@@ -1408,7 +1432,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   void _handleIncomingLink(Uri uri) {
-    if (_api.accessToken == null) unawaited(PendingReferral.capture(uri));
+    if (_api.accessToken == null) {
+      unawaited(PendingReferral.capture(uri));
+      unawaited(PendingCashierInvite.capture(uri));
+    }
     if (_staff.isCashier) {
       if (uri.path == '/admin/kitchen' || uri.host == 'kitchen') {
         unawaited(_openStaffPortal(kitchen: true));
@@ -1454,7 +1481,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       'cart' => 2,
       'locations' => 3,
       'promos' => 0,
-      'profile' => 4,
+      'profile' || 'cashier-register' => 4,
       _ => null,
     };
     if (tab == null) return;
@@ -1594,6 +1621,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       prefs.remove('lastMainTab'),
     ]);
     await SessionStore.clear();
+    await PendingCashierInvite.clear();
     await HomeWidgetSync.clear();
     await OrderLiveStatus.clear(order: _widgetOrder);
     _api.setSession();

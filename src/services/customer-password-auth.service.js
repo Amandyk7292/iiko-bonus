@@ -258,6 +258,32 @@ async function createCustomerCredential({ customerId, passwordHash }, { db = sup
   return Number(data?.auth_version || 1);
 }
 
+async function ensureRegistrationCredential(
+  { customerId, phone: rawPhone, grantId },
+  { db = supabase } = {},
+) {
+  const phone = normalizeCustomerPhone(rawPhone);
+  const token = String(grantId || '');
+  if (!customerId || !/^[A-Za-z0-9_-]{40,80}$/.test(token)) {
+    throw customerAuthError('Registration credential is invalid or expired', 401, 'INVALID_GRANT');
+  }
+  const { data, error } = await db.rpc('create_customer_credential_from_registration_grant', {
+    p_customer_id: customerId,
+    p_phone: phone,
+    p_grant_key: registrationGrantStorageId(token),
+  });
+  if (error?.code === '22023') {
+    throw customerAuthError('Registration credential is invalid or expired', 401, 'INVALID_GRANT');
+  }
+  if (error?.code === '23505') {
+    throw customerAuthError('Customer account already exists', 409, 'ACCOUNT_EXISTS');
+  }
+  if (error) throw error;
+  if (!Number.isInteger(data) || data < 1)
+    throw new Error('Invalid registration credential result');
+  return data;
+}
+
 async function resetCustomerPassword({ customerId, password }, { db = supabase } = {}) {
   const passwordHash = await bcrypt.hash(validateNewPassword(password), bcryptRounds());
   const { data, error } = await db.rpc('set_customer_password', {
@@ -273,6 +299,7 @@ module.exports = {
   authenticateCustomerPassword,
   consumeRegistrationCredentialGrant,
   createCustomerCredential,
+  ensureRegistrationCredential,
   createRegistrationCredentialGrant,
   getCustomerCredential,
   isEstablishedCustomer,

@@ -8,6 +8,12 @@ const {
 
 const DIRECT_EXPORT_RELATIONS = Object.freeze([
   [
+    'cashierInvitations',
+    'cashier_signup_rewards',
+    'customer_id',
+    'id,employee_id,employee_name,branch_name,city,amount,completed_at',
+  ],
+  [
     'branchInvitations',
     'branch_signup_claims',
     'customer_id',

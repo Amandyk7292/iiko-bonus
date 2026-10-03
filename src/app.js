@@ -557,6 +557,7 @@ app.get(
     '/cart',
     '/promos',
     '/faq',
+    '/cashier-register',
     '/locations',
     '/profile',
   ],

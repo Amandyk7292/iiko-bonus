@@ -1,6 +1,46 @@
 part of '../main.dart';
 
 const Map<String, Map<String, String>> _loginTranslations = {
+  'cashier_helped_me': {
+    'ru': 'Мне помог сотрудник',
+    'kk': 'Маған қызметкер көмектесті',
+    'en': 'A staff member helped me',
+  },
+  'cashier_qr_scan': {
+    'ru': 'Сканировать QR сотрудника',
+    'kk': 'Қызметкердің QR кодын сканерлеу',
+    'en': 'Scan staff QR',
+  },
+  'cashier_qr_photo': {
+    'ru': 'Выбрать фото QR',
+    'kk': 'QR фотосын таңдау',
+    'en': 'Choose a QR photo',
+  },
+  'cashier_qr_checking': {
+    'ru': 'Проверяем QR…',
+    'kk': 'QR тексерілуде…',
+    'en': 'Checking QR…',
+  },
+  'cashier_qr_remove': {
+    'ru': 'Убрать сотрудника',
+    'kk': 'Қызметкерді алып тастау',
+    'en': 'Remove staff member',
+  },
+  'cashier_qr_invalid': {
+    'ru': 'QR не распознан. Сфотографируйте QR сотрудника ещё раз.',
+    'kk': 'QR танылмады. Қызметкердің QR кодын қайта түсіріңіз.',
+    'en': 'QR not recognised. Take another photo of the staff QR.',
+  },
+  'cashier_qr_unavailable': {
+    'ru': 'QR сотрудника недоступен. Попробуйте снова или уберите его.',
+    'kk': 'Қызметкердің QR коды қолжетімсіз. Қайталаңыз немесе алып тастаңыз.',
+    'en': 'Staff QR unavailable. Try again or remove it.',
+  },
+  'cashier_qr_camera_error': {
+    'ru': 'Не удалось открыть камеру. Разрешите доступ в настройках.',
+    'kk': 'Камера ашылмады. Параметрлерде рұқсат беріңіз.',
+    'en': 'Could not open the camera. Allow camera access in settings.',
+  },
   // Login screen
   'login_brand_title': {
     'ru': 'Добро пожаловать',

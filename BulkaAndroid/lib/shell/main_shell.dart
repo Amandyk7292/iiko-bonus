@@ -62,7 +62,7 @@ class _MainShellState extends State<MainShell> {
       'catalog' || 'p' => 1,
       'cart' => 2,
       'locations' => 3,
-      'profile' => 4,
+      'profile' || 'cashier-register' => 4,
       _ => null,
     };
   }
@@ -93,7 +93,8 @@ class _MainShellState extends State<MainShell> {
       _catalogKey.currentState?.applyClientUri(clientRouteNotifier.value);
       if (mounted) {
         if (clientRouteNotifier.value.path == '/promos' ||
-            clientRouteNotifier.value.path == '/faq') {
+            clientRouteNotifier.value.path == '/faq' ||
+            clientRouteNotifier.value.path == '/cashier-register') {
           _onClientRouteChanged();
         }
         // Staff devices can be intentionally signed out of the customer
@@ -144,6 +145,15 @@ class _MainShellState extends State<MainShell> {
     if (routedTab != null && routedTab != _tab) {
       setState(() => _tab = routedTab);
       widget.onTabChanged?.call(routedTab);
+    }
+    if (uri.path == '/cashier-register' &&
+        PendingCashierInvite.validToken(uri.queryParameters['cashier']) !=
+            null &&
+        uri.queryParametersAll['cashier']?.length == 1 &&
+        widget.customer == null &&
+        !widget.api.isAuthenticated &&
+        widget.staff?.isAuthenticated != true) {
+      unawaited(_requireAuth());
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && clientRouteNotifier.value == uri) {

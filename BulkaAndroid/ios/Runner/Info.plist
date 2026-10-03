@@ -80,6 +80,8 @@
         <string>Bulka считает шаги iPhone для награды: 10 000 шагов за день — 1 000 бонусов. Шаги, добавленные вручную, не учитываются.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Доступ к фотографиям нужен, чтобы прикрепить пример оформления торта или выпечки.</string>
+		<key>NSCameraUsageDescription</key>
+		<string>Камера нужна для считывания QR сотрудника при регистрации в Bulka.</string>
 		<key>ITSAppUsesNonExemptEncryption</key>
 		<false/>
 		<key>CFBundleURLTypes</key>

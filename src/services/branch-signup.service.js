@@ -20,7 +20,16 @@ async function claimBranch(phone, branch, { db = supabase } = {}) {
   if (error) throw error;
   return data;
 }
-async function finishRegistration(customer, profile, { db = supabase } = {}) {
+async function finishRegistration(
+  customer,
+  profile,
+  { db = supabase, cashierInviteToken, cashierSnapshot } = {},
+) {
+  if (cashierInviteToken) {
+    return require('./cashier-signup.service')
+      .createCashierSignup({ db })
+      .finish(customer, profile, cashierInviteToken, phoneKey(customer.phone), cashierSnapshot);
+  }
   const { data, error } = await db.rpc('finish_customer_registration', {
     p_customer_id: customer.id,
     p_phone_key: phoneKey(customer.phone),

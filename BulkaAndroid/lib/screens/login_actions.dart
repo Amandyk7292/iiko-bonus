@@ -164,6 +164,8 @@ extension _LoginScreenActions on _LoginScreenState {
       _flow = flow;
       _otpStep = false;
       _registerStep = false;
+      _cashierInviteToken = null;
+      _cashierInviteChecking = false;
       _loading = false;
       _error = null;
       _otpController.clear();
@@ -179,6 +181,7 @@ extension _LoginScreenActions on _LoginScreenState {
   }
 
   Future<void> _submitRegister() async {
+    if (_loading || _cashierInviteChecking) return;
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       _update(() => _error = 'reg_err_name'.tr);
@@ -209,6 +212,7 @@ extension _LoginScreenActions on _LoginScreenState {
         gender: _selectedGender,
         birthdate: _birthdateForApi,
         email: email.isEmpty ? null : email,
+        cashierInviteToken: _cashierInviteToken,
       );
     } else {
       error = 'registration_unavailable'.tr;

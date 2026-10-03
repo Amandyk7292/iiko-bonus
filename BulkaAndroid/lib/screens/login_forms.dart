@@ -20,6 +20,7 @@ extension _LoginScreenForms on _LoginScreenState {
             onPressed: () {
               _update(() {
                 _registerStep = false;
+                _cashierInviteChecking = false;
                 _error = null;
               });
             },
@@ -148,6 +149,16 @@ extension _LoginScreenForms on _LoginScreenState {
                 _buildReadOnlyPhoneField(),
                 const SizedBox(height: 12),
                 const _ReferralRegistrationField(),
+                const SizedBox(height: 12),
+                _CashierRegistrationField(
+                  enabled: !_loading,
+                  onLookup: widget.onLookupCashierInvite,
+                  onScan: widget.onScanCashierInvite,
+                  onChanged: (token) => _cashierInviteToken = token,
+                  onBusyChanged: (busy) {
+                    if (mounted) _update(() => _cashierInviteChecking = busy);
+                  },
+                ),
                 const SizedBox(height: 20),
                 CheckboxListTile(
                   value: _termsAccepted,
@@ -222,7 +233,9 @@ extension _LoginScreenForms on _LoginScreenState {
                 ],
                 const SizedBox(height: 28),
                 ElevatedButton(
-                  onPressed: _loading ? null : _submitRegister,
+                  onPressed: _loading || _cashierInviteChecking
+                      ? null
+                      : _submitRegister,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFDEC588),
                     foregroundColor: const Color(0xFF6D3317),

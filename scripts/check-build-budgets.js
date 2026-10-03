@@ -69,11 +69,18 @@ if (flutterDirectory) {
   if (!fs.existsSync(mainFile)) {
     failures.push(`Flutter entry is missing: ${mainFile}`);
   } else {
-    // The public FAQ/card link measures 6,649,759 B raw and 1,816,088 B gzip.
-    // Keep 2,241 B raw / 1,912 B gzip headroom; all asset limits stay enforced.
-    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_652_000);
-    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_818_000);
+    // The optional cashier signup/QR flow measures 6,677,016 B raw and
+    // 1,822,147 B gzip after finalization. Keep 2,984 B / 1,853 B headroom. Its QR decoder is
+    // deferred until scanning and has a separate total budget below.
+    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_680_000);
+    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_824_000);
   }
+  const deferredChunks = filesUnder(directory).filter((file) => /\.part\.js$/.test(file));
+  // One locally decoded QR chunk measures 56,453 B raw / 19,842 B gzip.
+  assertBudget('Flutter deferred JavaScript total',
+    deferredChunks.reduce((sum, file) => sum + fs.statSync(file).size, 0), 58_000);
+  assertBudget('Flutter deferred JavaScript total gzip',
+    deferredChunks.reduce((sum, file) => sum + gzipSize(file), 0), 21_000);
   const wasmFiles = filesUnder(directory).filter((file) => file.endsWith('.wasm'));
   assertBudget(
     'Flutter largest WebAssembly asset',

@@ -1285,6 +1285,7 @@ void main() {
                   gender,
                   birthdate,
                   email,
+                  cashierInviteToken,
                 }) async => null,
           ),
         ),

@@ -1,0 +1,193 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const sharp = require('sharp');
+const { createCashierSignup, invitationUrl } = require('../src/services/cashier-signup.service');
+const { cashierInviteQr } = require('../src/services/cashier-invite-qr.service');
+const { publicError } = require('../src/utils/app-error.util');
+const { customerRegistrationBodySchema } = require('../src/contracts/backend-safety.contract');
+const {
+  cashierDirectoryQuerySchema,
+  cashierInviteParamsSchema,
+} = require('../src/contracts/cashier-signup.contract');
+const token = 'a'.repeat(64);
+const employee = {
+  id: '123',
+  name: 'Алия Кассир',
+  pointId: '4',
+  branchName: 'ЖК Жасыл дала',
+  city: 'Актау',
+  branchId: null,
+  isActive: true,
+};
+function fixture() {
+  const rows = new Map();
+  const calls = [];
+  let source = employee;
+  const directory = {
+    listCashiers: async () => [employee],
+    findCashier: async () => {
+      if (source instanceof Error) throw source;
+      return source;
+    },
+  };
+  const db = {
+    from() {
+      return {
+        select() {
+          return this;
+        },
+        eq(_field, value) {
+          this.token = value;
+          return this;
+        },
+        async maybeSingle() {
+          return {
+            data: [...rows.values()].find((row) => row.invite_token === this.token) || null,
+          };
+        },
+      };
+    },
+    async rpc(name, args) {
+      calls.push({ name, args });
+      if (name === 'sync_cashier_signup_directory') {
+        for (const item of args.p_cashiers) {
+          rows.set(item.id, {
+            employee_id: item.id,
+            name: item.name,
+            city: item.city,
+            branch_name: item.branchName,
+            invite_token: rows.get(item.id)?.invite_token || item.inviteToken,
+          });
+        }
+        return { data: { items: [...rows.values()] } };
+      }
+      if (name === 'cashier_signup_ranking') {
+        return {
+          data: {
+            items: [
+              {
+                id: '123',
+                name: employee.name,
+                city: employee.city,
+                branchName: employee.branchName,
+                completed: 2,
+                rewardAmount: 600,
+                rank: 1,
+                isArchived: false,
+                inviteToken: rows.get('123').invite_token,
+              },
+            ],
+          },
+        };
+      }
+      return { data: { cashierCounted: true, cashierRewardAmount: 300 } };
+    },
+  };
+  return {
+    calls,
+    rows,
+    db,
+    directory,
+    setSource: (value) => {
+      source = value;
+    },
+  };
+}
+test('public directory filters cities/FIO and preserves opaque employee tokens across refresh', async () => {
+  const f = fixture();
+  const service = createCashierSignup(f);
+  const first = await service.list();
+  const again = await service.list({ city: 'Актау', search: 'АЛИЯ' });
+  assert.deepEqual(first, again);
+  assert.match(first.items[0].inviteToken, /^[a-f0-9]{64}$/);
+  assert.equal(first.items[0].url, invitationUrl(first.items[0].inviteToken));
+  const link = new URL(first.items[0].url);
+  assert.equal(link.pathname, '/cashier-register');
+  assert.equal(link.searchParams.get('cashier'), first.items[0].inviteToken);
+  assert.deepEqual(first.cities, ['Актау']);
+  assert.equal((await service.list({ city: 'Астана' })).items.length, 0);
+  assert.equal((await service.list({ search: 'Неизвестный' })).items.length, 0);
+  assert.deepEqual(
+    Object.keys(first.items[0]).sort(),
+    ['id', 'name', 'branchName', 'city', 'inviteToken', 'url'].sort(),
+  );
+});
+test('fresh archive/read failure blocks salary accrual before the completion RPC', async () => {
+  const f = fixture();
+  const service = createCashierSignup(f);
+  const actualToken = (await service.list()).items[0].inviteToken;
+  assert.equal((await service.invitation(actualToken)).cashier.name, employee.name);
+  for (const source of [null, { ...employee, isActive: false }, { ...employee, id: '456' }]) {
+    f.setSource(source);
+    await assert.rejects(
+      service.finish({ id: 'customer' }, { name: 'Client' }, actualToken, 'k'.repeat(64)),
+      { code: 'CASHIER_INVITE_UNAVAILABLE' },
+    );
+  }
+  f.setSource(
+    publicError(503, 'STAFF_DIRECTORY_UNAVAILABLE', 'Список сотрудников временно недоступен.'),
+  );
+  await assert.rejects(service.invitation(actualToken), { code: 'STAFF_DIRECTORY_UNAVAILABLE' });
+  assert.equal(
+    f.calls.filter((call) => call.name === 'finish_customer_registration_with_cashier').length,
+    0,
+  );
+  f.setSource(employee);
+  await service.finish({ id: 'customer' }, { name: 'Client' }, actualToken, 'f'.repeat(64));
+  const call = f.calls.at(-1);
+  assert.equal(call.args.p_cashier.id, '123');
+  assert.equal(call.args.p_cashier.amount, undefined);
+  assert.equal(call.args.p_phone, undefined);
+});
+test('ranking applies authorized dates/scope and sums actual accrued ledger amounts', async () => {
+  const f = fixture();
+  const result = await createCashierSignup(f).ranking({
+    from: '2026-10-01',
+    to: '2026-10-03',
+    branches: ['allowed'],
+  });
+  assert.equal(f.calls.at(-1).args.p_from, '2026-10-01T00:00:00+05:00');
+  assert.equal(f.calls.at(-1).args.p_to, '2026-10-03T19:00:00.000Z');
+  assert.deepEqual(f.calls.at(-1).args.p_branches, ['allowed']);
+  assert.deepEqual(result.totals, { completed: 2, rewardAmount: 600 });
+});
+test('strict registration contract rejects forged employee identity/reward and malformed invite tokens', () => {
+  const input = {
+    name: 'Client',
+    acceptedLegal: true,
+    legalConsent: {
+      offerVersion: '2026-10-03',
+      privacyVersion: '2026-10-03',
+      locale: 'ru',
+      channel: 'web',
+    },
+    cashierInviteToken: token,
+  };
+  assert.equal(customerRegistrationBodySchema.parse(input).cashierInviteToken, token);
+  for (const extra of [
+    { employeeId: '123' },
+    { cashierRewardAmount: 900 },
+    { cashierInviteToken: '123' },
+    { cashierInviteToken: 'https://example.test' },
+  ]) {
+    assert.equal(customerRegistrationBodySchema.safeParse({ ...input, ...extra }).success, false);
+  }
+  assert.equal(cashierInviteParamsSchema.safeParse({ token: 'a'.repeat(65) }).success, false);
+  assert.equal(cashierDirectoryQuerySchema.safeParse({ city: ['Актау', 'Астана'] }).success, false);
+});
+test('downloadable QR includes the brand badge and native PNG dimensions', async () => {
+  const bytes = await cashierInviteQr(invitationUrl(token));
+  const metadata = await sharp(bytes).metadata();
+  assert.equal(metadata.width, 900);
+  assert.equal(metadata.height, 900);
+  assert.equal(metadata.format, 'png');
+  const center = await sharp(bytes)
+    .extract({ left: 380, top: 380, width: 140, height: 140 })
+    .removeAlpha()
+    .raw()
+    .toBuffer();
+  assert.ok(
+    [...center].some((value) => value > 0 && value < 255),
+    'brand artwork has colored pixels',
+  );
+});

@@ -14,6 +14,9 @@ class LoginScreen extends StatefulWidget {
     this.onClose,
     this.onAdminLogin = loginAdminPortal,
     this.onOpenAdminPortal,
+    this.onLookupCashierInvite,
+    this.onScanCashierInvite,
+    this.startRegistration = false,
     super.key,
   });
 
@@ -38,12 +41,17 @@ class LoginScreen extends StatefulWidget {
     String? gender,
     String? birthdate,
     String? email,
+    String? cashierInviteToken,
   })?
   onRegister;
   final VoidCallback? onClose;
   final Future<void> Function(String username, String password, String code)
   onAdminLogin;
   final Future<void> Function(BuildContext context)? onOpenAdminPortal;
+  final Future<CashierInviteDetails> Function(String token)?
+  onLookupCashierInvite;
+  final Future<String?> Function()? onScanCashierInvite;
+  final bool startRegistration;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -69,6 +77,8 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
   String? _selectedGender;
   String? _birthdate;
+  String? _cashierInviteToken;
+  bool _cashierInviteChecking = false;
   bool _termsAccepted = false;
   String? _otpDeliveryPhone;
   bool _otpDeliveryHasLink = false;
@@ -78,6 +88,12 @@ class _LoginScreenState extends State<LoginScreen> {
   int _otpCodeLength = 4;
   int _otpRetrySeconds = 0;
   Timer? _otpRetryTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.startRegistration) _flow = _CustomerAuthFlow.registration;
+  }
 
   void _update(VoidCallback callback) {
     final previousError = _error;

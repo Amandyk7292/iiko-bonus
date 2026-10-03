@@ -386,6 +386,7 @@ registerPaymentIntegrationAdminRoutes(router);
 registerPosHealthAdminRoutes(router);
 require('./admin/referral.routes').registerReferralAdminRoutes(router);
 require('./admin/branch-signup.routes').registerBranchSignupAdminRoutes(router);
+require('./admin/cashier-signup.routes').registerCashierSignupAdminRoutes(router);
 require('./admin/franchise.routes').registerFranchiseRoutes(router);
 registerOrderSubstitutionAdminRoutes(router, { assertOrderAccess });
 require('./admin/delivery-resolution.routes').registerDeliveryResolutionAdminRoutes(router, {

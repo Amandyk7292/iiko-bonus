@@ -150,6 +150,44 @@ test('release scripts finalize and verify the public Flutter bundle', () => {
   assert.doesNotMatch(remoteDeploy, /curl -fsS 'http:\/\/127\.0\.0\.1:\d+\/app\/'/);
 });
 
+test('deferred Flutter chunks have release-specific URLs so an old cache cannot replace QR code', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'bulka-flutter-deferred-'));
+  t.after(() => fs.rmSync(directory, { force: true, recursive: true }));
+  const sourceName = 'main.dart.js_1.part.js';
+  const browserCache = new Map();
+  const buildRelease = (version, content) => {
+    fs.writeFileSync(path.join(directory, 'index.html'), '__BULKA_RELEASE_VERSION__');
+    fs.writeFileSync(path.join(directory, 'main.dart.js'), `deferredPartUris:["${sourceName}"]`);
+    fs.writeFileSync(path.join(directory, sourceName), content);
+    return finalizeFlutterWebBuild({ directory, version });
+  };
+  const first = buildRelease('release-20261003-a', 'decode-first-qr');
+  const firstChunk = first.deferredChunks[0];
+  browserCache.set(firstChunk.file, fs.readFileSync(path.join(directory, firstChunk.file), 'utf8'));
+  assert.match(firstChunk.file, /^main\.dart\.js_1\.release-20261003-a-[a-f0-9]{16}\.part\.js$/);
+  assert.equal(fs.existsSync(path.join(directory, sourceName)), false);
+  const second = buildRelease('release-20261003-b', 'decode-second-qr');
+  const secondChunk = second.deferredChunks[0];
+  assert.notEqual(firstChunk.file, secondChunk.file);
+  assert.equal(browserCache.has(secondChunk.file), false);
+  assert.equal(fs.existsSync(path.join(directory, firstChunk.file)), false);
+  const currentMain = fs.readFileSync(path.join(directory, 'main.dart.js'), 'utf8');
+  assert.ok(currentMain.includes(secondChunk.file));
+  assert.equal(currentMain.includes(sourceName), false);
+  assert.equal(fs.readFileSync(path.join(directory, secondChunk.file), 'utf8'), 'decode-second-qr');
+  assert.equal(secondChunk.sha256, sha256File(path.join(directory, secondChunk.file)));
+  assert.equal(second.mainSha256, sha256File(path.join(directory, 'main.dart.js')));
+});
+
+test('finalization refuses an incomplete deferred build before rewriting its shell', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'bulka-flutter-missing-chunk-'));
+  t.after(() => fs.rmSync(directory, { force: true, recursive: true }));
+  fs.writeFileSync(path.join(directory, 'index.html'), '__BULKA_RELEASE_VERSION__');
+  fs.writeFileSync(path.join(directory, 'main.dart.js'), 'deferredPartUris:["main.dart.js_1.part.js"]');
+  assert.throws(() => finalizeFlutterWebBuild({ directory, version: 'release-20261003' }), /deferred chunk is missing/);
+  assert.equal(fs.readFileSync(path.join(directory, 'index.html'), 'utf8'), '__BULKA_RELEASE_VERSION__');
+});
+
 test('Flutter CI installs the static QA server before browser tests', () => {
   const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'ci.yml'), 'utf8');
   const installIndex = workflow.indexOf('name: Install QA server dependencies');

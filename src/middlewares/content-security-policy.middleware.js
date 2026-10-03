@@ -68,6 +68,8 @@ const staticDocumentPolicies = new Map([
   ['/pricegenerator/', staticDocumentPolicy('public/pricegenerator/index.html')],
   ['/applink', staticDocumentPolicy('public/applink/index.html')],
   ['/applink/', staticDocumentPolicy('public/applink/index.html')],
+  ['/cashier-qr', staticDocumentPolicy('public/cashier-qr/index.html')],
+  ['/cashier-qr/', staticDocumentPolicy('public/cashier-qr/index.html')],
   [
     '/docs/iiko-plugin-installation.html',
     staticDocumentPolicy('public/docs/iiko-plugin-installation.html'),

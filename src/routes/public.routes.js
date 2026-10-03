@@ -153,6 +153,7 @@ router.use('/api/public', publicApiRateLimit);
 router.get('/api/public/events', (req, res) => realtime.openStream(req, res, { public: true }));
 registerTaplinkPublicRoutes(router);
 require('./public/branch-signup.routes').registerBranchSignupRoutes(router);
+require('./public/cashier-signup.routes').registerCashierSignupPublicRoutes(router);
 registerBoughtTogetherRoutes(router);
 require('./public/faq.routes').registerFaqPublicRoutes(router);
 require('./public/image.routes').registerPublicImageRoutes(router);

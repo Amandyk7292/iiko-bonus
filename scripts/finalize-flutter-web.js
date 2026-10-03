@@ -28,6 +28,45 @@ const resolveReleaseVersion = (explicitVersion) => {
   return candidate;
 };
 
+const versionDeferredChunks = (buildDirectory, mainBundlePath, version) => {
+  const originalMain = fs.readFileSync(mainBundlePath, 'utf8');
+  const names = [...new Set(originalMain.match(/main\.dart\.js_\d+\.part\.js/g) || [])];
+  const chunks = names.map((name) => {
+    const sourcePath = path.join(buildDirectory, name);
+    if (!fs.existsSync(sourcePath)) {
+      throw new Error(`Required Flutter deferred chunk is missing: ${sourcePath}`);
+    }
+    const content = fs.readFileSync(sourcePath, 'utf8');
+    const fingerprint = crypto.createHash('sha256').update(content).digest('hex').slice(0, 16);
+    // The release also changes the URL when another deferred chunk it refers
+    // to changes. This keeps immutable browser caches safe across releases.
+    const file = name.replace('.part.js', `.${version}-${fingerprint}.part.js`);
+    return { name, file, content };
+  });
+  const replaceNames = (content) => chunks.reduce(
+    (result, chunk) => result.replaceAll(chunk.name, chunk.file), content,
+  );
+  for (const chunk of chunks) {
+    const targetPath = path.join(buildDirectory, chunk.file);
+    fs.writeFileSync(targetPath, replaceNames(chunk.content), 'utf8');
+    fs.unlinkSync(path.join(buildDirectory, chunk.name));
+  }
+  if (chunks.length) fs.writeFileSync(mainBundlePath, replaceNames(originalMain), 'utf8');
+  // Flutter can reuse an output directory. Remove only obsolete generated
+  // chunk names so repeated normal builds do not package/cache stale decoders.
+  const currentNames = new Set(chunks.map(({ file }) => file));
+  for (const entry of fs.readdirSync(buildDirectory)) {
+    if (/^main\.dart\.js_\d+\.[A-Za-z0-9][A-Za-z0-9._-]{5,63}-[a-f0-9]{16}\.part\.js$/.test(entry)
+        && !currentNames.has(entry)) {
+      fs.unlinkSync(path.join(buildDirectory, entry));
+    }
+  }
+  return chunks.map(({ file }) => ({
+    file,
+    sha256: sha256File(path.join(buildDirectory, file)),
+  }));
+};
+
 const finalizeFlutterWebBuild = ({ directory, version }) => {
   const buildDirectory = path.resolve(directory);
   const indexPath = path.join(buildDirectory, 'index.html');
@@ -53,6 +92,8 @@ const finalizeFlutterWebBuild = ({ directory, version }) => {
     throw new Error(`Flutter index does not contain ${releasePlaceholder}`);
   }
 
+  const deferredChunks = versionDeferredChunks(buildDirectory, mainBundlePath, resolvedVersion);
+
   fs.writeFileSync(indexPath, index.replaceAll(releasePlaceholder, resolvedVersion), 'utf8');
   fs.copyFileSync(workerSourcePath, workerOutputPath);
   // Compress once during the build, rather than on every cold client request.
@@ -66,6 +107,7 @@ const finalizeFlutterWebBuild = ({ directory, version }) => {
     schemaVersion: 1,
     version: resolvedVersion,
     mainSha256: sha256File(mainBundlePath),
+    deferredChunks,
   };
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   return manifest;

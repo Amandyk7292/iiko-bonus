@@ -1,5 +1,6 @@
 const { z } = require('../middlewares/validation.middleware');
 const { stableReferralDeviceSchema } = require('./referral-device.contract');
+const { cashierInviteTokenSchema } = require('./cashier-signup.contract');
 
 const nullableShortText = (maximum) => z.string().trim().max(maximum).nullable().optional();
 const uuidSchema = z.string().trim().uuid();
@@ -48,6 +49,7 @@ const customerRegistrationBodySchema = z
       .trim()
       .regex(/^BULKA-[A-Za-z0-9]{8}$/)
       .optional(),
+    cashierInviteToken: cashierInviteTokenSchema.optional(),
     acceptedLegal: z.literal(true),
     legalConsent: legalConsentSchema,
   })

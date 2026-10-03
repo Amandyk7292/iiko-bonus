@@ -30,6 +30,8 @@ String localizeErrorMessage(
       return 'auth_password_setup_required'.tr;
     case 'ACCOUNT_EXISTS':
       return 'auth_account_exists'.tr;
+    case 'CASHIER_INVITE_UNAVAILABLE':
+      return 'cashier_qr_unavailable'.tr;
     case 'INVALID_PASSWORD':
       return 'auth_password_rules'.tr;
     case 'OTP_RATE_LIMITED':

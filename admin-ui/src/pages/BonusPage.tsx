@@ -7,7 +7,7 @@ import { api } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import ReferralSettings, { type ReferralPolicy } from './ReferralSettings';
 import ReferralReport from './ReferralReport';
-import BranchSignupRace from './BranchSignupRace';
+import CashierSignupRace from './CashierSignupRace';
 
 interface BonusSettings {
   bonus_referral: ReferralPolicy;
@@ -252,7 +252,7 @@ export default function BonusPage() {
           </button>
         </div>
       </form>
-      <BranchSignupRace />
+      <CashierSignupRace />
       <ReferralReport />
     </div>
   );

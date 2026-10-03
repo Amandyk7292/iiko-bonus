@@ -318,11 +318,19 @@ class BulkaApiClient {
     String? gender,
     String? birthdate,
     String? email,
+    String? cashierInviteToken,
     required String registrationToken,
   }) async {
+    final normalizedCashierToken = PendingCashierInvite.validToken(
+      cashierInviteToken,
+    );
+    if (cashierInviteToken != null && normalizedCashierToken == null) {
+      throw ApiException('cashier_qr_invalid'.tr);
+    }
     final referralCode = await PendingReferral.read();
     final referralDevice = await ReferralDeviceIdentity.read();
     final json = await _post('/api/auth/register', {
+      'cashierInviteToken': ?normalizedCashierToken,
       if (referralCode != null && referralCode.isNotEmpty)
         'referralCode': referralCode,
       'installationId': await PushNotifications.installationId(),
@@ -349,7 +357,30 @@ class BulkaApiClient {
       );
     }
     await PendingReferral.set('');
+    await PendingCashierInvite.clear();
     return response;
+  }
+
+  Future<CashierInviteDetails> getCashierInvite(String token) async {
+    final normalized = PendingCashierInvite.validToken(token);
+    if (normalized == null) throw ApiException('cashier_qr_invalid'.tr);
+    final json = await _get('/api/public/cashier-invites/$normalized');
+    final cashier = _asMap(json['cashier']);
+    final returnedToken = PendingCashierInvite.validToken(
+      _asString(json['inviteToken']),
+    );
+    final name = _asString(cashier['name']).trim();
+    if (json['success'] != true ||
+        returnedToken != normalized ||
+        name.isEmpty) {
+      throw ApiException('cashier_qr_unavailable'.tr);
+    }
+    return CashierInviteDetails(
+      token: normalized,
+      name: name,
+      branchName: _asString(cashier['branchName']),
+      city: _asString(cashier['city']),
+    );
   }
 
   Future<void> updateProfile({
