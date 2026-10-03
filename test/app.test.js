@@ -687,6 +687,7 @@ test('client deep links return the Flutter application shell', async (t) => {
     '/p/kvQ4dbkmQGODEYsOicaiQg',
     '/cart',
     '/promos',
+    '/faq',
     '/profile',
   ]) {
     const response = await fetch(`http://127.0.0.1:${server.address().port}${route}`);

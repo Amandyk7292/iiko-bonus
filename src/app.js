@@ -556,6 +556,7 @@ app.get(
     '/p/*',
     '/cart',
     '/promos',
+    '/faq',
     '/locations',
     '/profile',
   ],
