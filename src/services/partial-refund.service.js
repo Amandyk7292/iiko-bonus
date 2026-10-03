@@ -222,15 +222,20 @@ function buildRefundPreview(order, calculated, financials = {}) {
       Number(order.discount_amount || 0) -
       Number(order.bonus_spent || 0),
   );
-  const ratio = eligiblePaid > 0 ? Math.min(1, totalAfter / eligiblePaid) : 0;
-  const targetEarned =
-    totalAfter >= Number(order.amount || 0)
-      ? Number(order.earned_bonus || 0)
-      : roundMoney(Number(order.earned_bonus || 0) * ratio);
-  const targetSpent =
-    totalAfter >= Number(order.amount || 0)
-      ? Number(financials.originalSpent || 0)
-      : roundMoney(Number(financials.originalSpent || 0) * ratio);
+  const deliveryAfter =
+    Number(financials.priorDeliveryFeeRefunded || 0) +
+    calculated.records
+      .filter((item) => item.line_key === '__delivery_fee__')
+      .reduce((sum, item) => sum + Number(item.refund_amount || 0), 0);
+  const goodsAfter = Math.max(0, totalAfter - deliveryAfter);
+  const fullyRefunded = goodsAfter > 0 && totalAfter >= Number(order.amount || 0);
+  const ratio = eligiblePaid > 0 ? Math.min(1, goodsAfter / eligiblePaid) : 0;
+  const targetEarned = fullyRefunded
+    ? Number(order.earned_bonus || 0)
+    : roundMoney(Number(order.earned_bonus || 0) * ratio);
+  const targetSpent = fullyRefunded
+    ? Number(financials.originalSpent || 0)
+    : roundMoney(Number(financials.originalSpent || 0) * ratio);
   return {
     amount: Number(calculated.amount),
     remainingAfter: Math.max(0, Number(order.amount || 0) - totalAfter),
@@ -300,6 +305,7 @@ async function previewPartialRefund(orderId, payload = {}) {
     (rows || []).reduce((total, row) => total + Number(row?.[field] || 0), 0);
   return buildRefundPreview(order, calculated, {
     originalSpent: sum(transactionsResult.data, 'amount'),
+    priorDeliveryFeeRefunded: alreadyRefunded.amounts.get('__delivery_fee__') || 0,
     priorSpentRestored: sum(adjustmentsResult.data, 'spent_bonus_restored'),
     priorEarnedReversed: sum(adjustmentsResult.data, 'earned_bonus_reversed'),
   });
@@ -412,7 +418,12 @@ async function notifyRefund(order, amount) {
   }
 }
 
-async function createPartialRefund(orderId, payload = {}, requestedBy = 'admin') {
+async function createPartialRefund(
+  orderId,
+  payload = {},
+  requestedBy = 'admin',
+  calculate = calculateRefund,
+) {
   const idempotencyKey = String(payload.idempotencyKey || crypto.randomUUID());
   if (!/^[0-9a-f-]{36}$/i.test(idempotencyKey)) throw refundError('Некорректный ключ операции');
   const { data: duplicate, error: duplicateError } = await supabase
@@ -443,7 +454,8 @@ async function createPartialRefund(orderId, payload = {}, requestedBy = 'admin')
   }
   await assertExternalDeliveryCancelled(order.id);
   const alreadyRefunded = await successfulRefundedQuantities(order.id);
-  const calculated = calculateRefund(order, payload.items, alreadyRefunded);
+  const calculated = calculate(order, payload.items, alreadyRefunded);
+  if (calculated.skip === true) return { status: 'succeeded', amount: 0, duplicate: true };
   const processorToken = crypto.randomUUID();
   const reason =
     String(payload.reason || '')

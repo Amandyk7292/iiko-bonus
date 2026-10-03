@@ -212,6 +212,25 @@ export interface AdminOrder {
   acceptanceStartedAt?: string | null;
   courierSearchStartedAt?: string | null;
   courierAssignedAt?: string | null;
+  deliveryResolution?: {
+    id: string;
+    status:
+      | 'pending'
+      | 'pickup_cancelling'
+      | 'cancel_cancelling'
+      | 'pickup_pending_approval'
+      | 'pickup_accepting'
+      | 'pickup_rejecting'
+      | 'cancel_refunding'
+      | 'pickup_accepted'
+      | 'pickup_rejected'
+      | 'cancelled'
+      | 'delivery_resumed';
+    reason: 'courier_not_found';
+    requestedAt: string;
+    pickupTime?: string | null;
+    reviewedAt?: string | null;
+  } | null;
   kitchenStatus?: string;
   courierDispatchStatus?: string | null;
   posReceiptDue?: boolean;

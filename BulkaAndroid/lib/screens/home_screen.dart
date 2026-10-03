@@ -389,12 +389,14 @@ class _HomeActiveOrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
-    final eta = order.etaMinAt != null && order.etaMaxAt != null
+    final eta = order.hasDeliveryResolutionInProgress
+        ? ''
+        : order.etaMinAt != null && order.etaMaxAt != null
         ? '${formatUiTime(context, order.etaMinAt!.toLocal())}–${formatUiTime(context, order.etaMaxAt!.toLocal())}'
         : order.promisedReadyAt != null
         ? formatUiTime(context, order.promisedReadyAt!.toLocal())
         : '';
-    final status = 'order_status_${order.orderStatus}'.tr;
+    final status = customerOrderStatusLabel(order);
     return Semantics(
       button: true,
       label: 'home_active_order_semantics'.trArgs({

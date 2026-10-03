@@ -386,6 +386,9 @@ require('./admin/referral.routes').registerReferralAdminRoutes(router);
 require('./admin/branch-signup.routes').registerBranchSignupAdminRoutes(router);
 require('./admin/franchise.routes').registerFranchiseRoutes(router);
 registerOrderSubstitutionAdminRoutes(router, { assertOrderAccess });
+require('./admin/delivery-resolution.routes').registerDeliveryResolutionAdminRoutes(router, {
+  assertOrderAccess,
+});
 registerBackendSafetyAdminRoutes(router, { assertOrderAccess });
 registerBusinessFoundationAdminRoutes(router, { assertOrderAccess });
 router.get('/admin/api/whatsapp/status', async (req, res) => {

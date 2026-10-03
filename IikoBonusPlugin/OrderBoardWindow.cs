@@ -247,6 +247,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 counts[i].Text = column.Total.ToString();
                 // Rebuild only changed columns and retain their scroll position.
                 var signature = string.Join("|", column.Orders.Select(o => o.Id + o.Number + o.Phone + o.Customer + o.Comment + o.ScheduledAt + o.Amount + o.PosReceiptDue + o.AutomaticReceipt + o.ReceiptError + o.CourierName + o.CourierPhone + o.CourierVehicle +
+                    o.OrderType + o.DeliveryResolution?.Id + o.DeliveryResolution?.Status + o.DeliveryResolution?.PickupTime +
                     string.Join(";", (o.Items ?? new List<InboxItem>()).Select(item => item.Name + item.Quantity + item.Unit)))) + column.Page + ":" + column.Total + ":" + connected + ":" +
                     (column.Orders.Any(o => o.Id == confirmation) ? confirmation + confirmAction : "") + ":" + string.Join(",", column.Orders.Where(o => pending.Contains(o.Id)).Select(o => o.Id));
                 if (rendered[i] == signature) continue;
@@ -267,6 +268,17 @@ namespace Resto.Front.Api.IikoBonusPlugin
             var body = new StackPanel();
             body.Children.Add(Text("№" + order.Number, 30, bold: true));
             body.Children.Add(Text(order.TypeLabel, 15, Accent[stage], true));
+            if (order.DeliveryResolution?.Replacement == true)
+            {
+                body.Children.Add(Text("Замена доставки", 17, "#8B5C24", true));
+                body.Children.Add(Text(order.DeliveryResolution.NeedsApproval ? "Клиент выбрал самовывоз" :
+                    order.DeliveryResolution.Status == "pickup_accepted" ? "Самовывоз подтверждён" :
+                    order.DeliveryResolution.Status == "pickup_rejected" ? "Самовывоз отклонён" :
+                    order.DeliveryResolution.Status == "pickup_accepting" ? "Проверяем возврат стоимости доставки" :
+                    order.DeliveryResolution.Status == "pickup_rejecting" ? "Самовывоз отклонён. Возврат проверяется" : "Самовывоз запрошен", 15, "#8B5C24"));
+                if (DateTimeOffset.TryParse(order.DeliveryResolution.PickupTime, out var pickup))
+                    body.Children.Add(Text("Получение: " + pickup.ToLocalTime().ToString("dd.MM · HH:mm"), 16, "#69451E", true));
+            }
             if (DateTimeOffset.TryParse(order.ScheduledAt, out var scheduled))
                 body.Children.Add(Text("К " + scheduled.ToLocalTime().ToString("dd.MM · HH:mm"), 16, "#69451E", true));
             if (!string.IsNullOrWhiteSpace(order.Customer)) body.Children.Add(Text(order.Customer, 16));
@@ -295,6 +307,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 actions.Children.Add(Button(confirmAction == "reject" ? "Да, отклонить" : "Да, заказ выдан", () => Submit(order, confirmAction), true));
                 actions.Children.Add(Button("Назад", () => { confirmation = null; Render(); }));
             }
+            else if (order.DeliveryResolution?.NeedsApproval == true)
+            {
+                actions.Children.Add(Button("Принять самовывоз", () => Submit(order, "accept"), true));
+                actions.Children.Add(Button("Отклонить самовывоз", () => Confirm(order, "reject")));
+            }
+            else if (order.DeliveryResolution?.Unresolved == true)
+                actions.Children.Add(Text(order.DeliveryResolution.Status == "pending" ? "Ожидаем решение клиента" : "Действие обрабатывается", 16, "#8B5C24"));
             else if (stage == 0)
             {
                 actions.Children.Add(Button("Принять заказ", () => Submit(order, "accept"), true));
@@ -307,7 +326,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 actions.Children.Add(Text(!order.PosReceiptDue ? "Чек оформлен в iikoFront" :
                     string.IsNullOrWhiteSpace(order.ReceiptError) ? "Чек передаётся в кассу" : "Чек ожидает: " + order.ReceiptError,
                     14, order.PosReceiptDue ? "#8B5C24" : "#267147"));
-            if (canImport && stage > 0 && order.PosReceiptDue && !order.AutomaticReceipt)
+            if (canImport && stage > 0 && order.PosReceiptDue && !order.AutomaticReceipt && order.DeliveryResolution?.Unresolved != true)
                 actions.Children.Add(Button("Оформить чек", () => { used = true; SelectedReceiptNumber = order.Number; Close(); }));
             body.Children.Add(actions);
             var card = new Border { Padding = new Thickness(12), Margin = new Thickness(0, 0, 0, 10), BorderThickness = new Thickness(stage == 0 ? 2 : 1),

@@ -3,11 +3,12 @@ const { supabase } = require('../config/supabase');
 const { updateKitchenStatus } = require('./kitchen.service');
 const { decideFrontOrder } = require('./front-order-inbox.service');
 const { attachFrontRemainingOrders } = require('./front-remaining-order.service');
+const { deliveryResolution } = require('../utils/delivery-resolution.util');
 
 const STAGES = ['new', 'preparing', 'ready', 'handed_over'];
 const PAGE_SIZE = 25;
 const fields =
-  'id,order_number,phone,cart_items,amount,partially_refunded_amount,delivery_fee,fulfillment_type,scheduled_at,comment,kitchen_status,fulfillment_status,pos_receipt_due,created_at,customers!kaspi_orders_customer_id_fkey(name,phone),front_receipt_jobs(status,last_error),delivery_jobs(courier_name,courier_phone,courier_car_model,courier_car_number,updated_at)';
+  'id,order_number,phone,cart_items,amount,partially_refunded_amount,delivery_fee,fulfillment_type,scheduled_at,delivery_resolution,comment,kitchen_status,fulfillment_status,pos_receipt_due,created_at,customers!kaspi_orders_customer_id_fkey(name,phone),front_receipt_jobs(status,last_error),delivery_jobs(courier_name,courier_phone,courier_car_model,courier_car_number,updated_at)';
 
 function card(order) {
   const courier = [...(order.delivery_jobs || [])].sort((a, b) =>
@@ -27,6 +28,7 @@ function card(order) {
     })),
     orderType: order.fulfillment_type,
     scheduledAt: order.scheduled_at,
+    deliveryResolution: deliveryResolution(order),
     createdAt: order.created_at,
     amount: Number(order.amount),
     deliveryFee: Number(order.delivery_fee || 0),
@@ -52,7 +54,9 @@ async function listFrontBoard(branchId, pages = {}) {
         .select(fields, { count: 'exact' })
         .eq('branch_id', branchId)
         .eq('status', 'paid')
-        .or('refund_status.is.null,refund_status.in.(partial,failed)');
+        .or(
+          'refund_status.is.null,refund_status.in.(partial,failed),and(delivery_resolution->>status.in.(pickup_accepting,pickup_rejecting,cancel_refunding),refund_status.in.(processing,unknown))',
+        );
       if (search) query = query.eq('order_number', Number(search));
       if (stage === 'handed_over' && search) {
         query = query.or('kitchen_status.eq.handed_over,fulfillment_status.eq.completed');
@@ -65,8 +69,15 @@ async function listFrontBoard(branchId, pages = {}) {
             'and(pos_receipt_due.eq.true,or(kitchen_status.eq.handed_over,fulfillment_status.eq.completed))',
           ].join(','),
         );
+      } else if (stage === 'new') {
+        query = query.or(
+          'fulfillment_status.eq.new,delivery_resolution->>status.in.(pickup_pending_approval,pickup_accepting,pickup_rejecting)',
+        );
       } else {
         query = query.eq('fulfillment_status', stage).neq('kitchen_status', 'handed_over');
+        query = query.or(
+          'delivery_resolution.is.null,delivery_resolution->>status.not.in.(pickup_pending_approval,pickup_accepting,pickup_rejecting)',
+        );
       }
       const { data, count, error } = await query
         .order('created_at', { ascending: stage !== 'handed_over' })

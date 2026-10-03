@@ -17,11 +17,16 @@ import {
   WifiOff,
 } from 'lucide-react';
 import Modal from '../components/Modal';
+import DeliveryResolutionNotice, {
+  hasUnresolvedDelivery,
+  needsPickupApproval,
+} from '../components/DeliveryResolutionNotice';
 import PageState from '../components/PageState';
 import { useFeedback } from '../components/Feedback';
 import { api } from '../lib/api';
 import { useAdminRealtime, useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
+import { canReviewDeliveryResolution } from '../lib/admin-permissions';
 
 const columns = [
   {
@@ -67,10 +72,19 @@ const elapsedMinutes = (value?: string | null) => {
   return Number.isFinite(minutes) ? Math.max(0, minutes) : null;
 };
 
-const acceptanceRequestedAt = (order: any) => order.acceptanceRequestedAt || order.createdAt;
+const acceptanceRequestedAt = (order: any) =>
+  needsPickupApproval(order)
+    ? order.deliveryResolution.requestedAt
+    : order.acceptanceRequestedAt || order.createdAt;
+const displayKitchenStatus = (order: any) =>
+  ['pickup_pending_approval', 'pickup_accepting', 'pickup_rejecting'].includes(
+    order.deliveryResolution?.status,
+  )
+    ? 'queued'
+    : order.kitchenStatus;
 
 const kitchenElapsedFrom = (order: any) =>
-  order.kitchenStatus === 'queued'
+  displayKitchenStatus(order) === 'queued'
     ? acceptanceRequestedAt(order)
     : order.kitchenStartedAt || order.createdAt;
 
@@ -120,7 +134,8 @@ const shouldApplyKitchenMutation = (current: any, incoming: any, hasNewerLoad: b
   return !hasNewerLoad;
 };
 
-export default function KitchenPage() {
+export default function KitchenPage({ role = 'owner' }: { role?: string }) {
+  const resolutionReviewsAllowed = canReviewDeliveryResolution(role);
   const { formatDate, t, locale } = useI18n();
   const columnTitle = (status: string) => {
     const labels =
@@ -265,7 +280,11 @@ export default function KitchenPage() {
   const unacceptedOrders = useMemo(
     () =>
       orders
-        .filter((order) => order.kitchenStatus === 'queued')
+        .filter(
+          (order) =>
+            needsPickupApproval(order) ||
+            (order.kitchenStatus === 'queued' && !hasUnresolvedDelivery(order)),
+        )
         .sort(
           (left, right) =>
             new Date(acceptanceRequestedAt(left) || 0).getTime() -
@@ -361,6 +380,7 @@ export default function KitchenPage() {
   };
 
   const update = (order: any, next: string) => {
+    if (hasUnresolvedDelivery(order)) return;
     if (isSaving(order.id)) return;
     if (next === 'preparing') {
       setPreparationOrder(order);
@@ -379,6 +399,31 @@ export default function KitchenPage() {
     setPreparationOrder(null);
     if (!(await persistUpdate(order, 'preparing', minutes))) {
       setPreparationOrder(order);
+    }
+  };
+
+  const reviewDelivery = async (order: any, action: 'accept' | 'reject') => {
+    if (!resolutionReviewsAllowed || !needsPickupApproval(order) || isSaving(order.id))
+      return false;
+    setOrderSaving(order.id, true);
+    try {
+      const result = await api.reviewDeliveryResolution(
+        order.id,
+        action,
+        order.deliveryResolution.id,
+      );
+      loadBarrierRef.current += 1;
+      setOrders((current) =>
+        current.map((item) => (item.id === order.id ? { ...item, ...result.order } : item)),
+      );
+      await load(true);
+      return true;
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : t('kitchen.statusError'), 'error');
+      await load(true);
+      return false;
+    } finally {
+      setOrderSaving(order.id, false);
     }
   };
 
@@ -408,7 +453,9 @@ export default function KitchenPage() {
           <BellRing className="mt-1" aria-hidden="true" size={32} />
           <div className="min-w-0">
             <h2 className="m-0 text-xl leading-tight" id="kitchen-acceptance-alert-title">
-              {t('kitchen.alarmTitle', { count: unacceptedOrders.length })}
+              {needsPickupApproval(oldestUnacceptedOrder)
+                ? `${t('orders.deliveryReplacement')}: ${unacceptedOrders.length}`
+                : t('kitchen.alarmTitle', { count: unacceptedOrders.length })}
             </h2>
             <p className="m-0 mt-1 text-base font-bold tabular" aria-live="off">
               {t('kitchen.alarmOldest', {
@@ -419,7 +466,9 @@ export default function KitchenPage() {
             <small className="mt-1 block text-sm leading-relaxed">
               {isSaving(oldestUnacceptedOrder.id)
                 ? t('kitchen.alarmSaving')
-                : t('kitchen.alarmHint')}
+                : needsPickupApproval(oldestUnacceptedOrder)
+                  ? t('orders.deliveryResolution.pickup_pending_approval')
+                  : t('kitchen.alarmHint')}
             </small>
             {(connectionStatus === 'offline' || connectionStatus === 'reconnecting') && (
               <span
@@ -432,19 +481,21 @@ export default function KitchenPage() {
             )}
           </div>
           <div className="kitchen-acceptance-alert-actions grid gap-2">
-            <button
-              className="btn-outline kitchen-acceptance-primary min-h-12 w-full gap-2 px-5 text-base"
-              type="button"
-              disabled={isSaving(oldestUnacceptedOrder.id)}
-              onClick={() => update(oldestUnacceptedOrder, 'preparing')}
-            >
-              {isSaving(oldestUnacceptedOrder.id) ? (
-                <LoaderCircle aria-hidden="true" className="spin" size={20} />
-              ) : (
-                <PackageCheck aria-hidden="true" size={20} />
-              )}
-              {t('kitchen.actionStart')}
-            </button>
+            {!needsPickupApproval(oldestUnacceptedOrder) && (
+              <button
+                className="btn-outline kitchen-acceptance-primary min-h-12 w-full gap-2 px-5 text-base"
+                type="button"
+                disabled={isSaving(oldestUnacceptedOrder.id)}
+                onClick={() => update(oldestUnacceptedOrder, 'preparing')}
+              >
+                {isSaving(oldestUnacceptedOrder.id) ? (
+                  <LoaderCircle aria-hidden="true" className="spin" size={20} />
+                ) : (
+                  <PackageCheck aria-hidden="true" size={20} />
+                )}
+                {t('kitchen.actionStart')}
+              </button>
+            )}
             {(!soundEnabled || !soundReady) && (
               <button
                 className="btn-outline kitchen-acceptance-sound min-h-12 w-full gap-2 px-5"
@@ -512,7 +563,7 @@ export default function KitchenPage() {
           >
             {columnTitle(column.status)}{' '}
             <strong>
-              {orders.filter((order) => order.kitchenStatus === column.status).length}
+              {orders.filter((order) => displayKitchenStatus(order) === column.status).length}
             </strong>
           </button>
         ))}
@@ -520,7 +571,9 @@ export default function KitchenPage() {
       <section className="kitchen-board" data-active-column={activeColumn}>
         {columns.map((column) => {
           const ColumnIcon = column.icon;
-          const columnOrders = orders.filter((order) => order.kitchenStatus === column.status);
+          const columnOrders = orders.filter(
+            (order) => displayKitchenStatus(order) === column.status,
+          );
           return (
             <div
               className={`kitchen-column kitchen-${column.status}`}
@@ -587,6 +640,15 @@ export default function KitchenPage() {
                           <span>{t(delivery ? 'locations.delivery' : 'locations.pickup')}</span>
                         </div>
                         <p>{order.branch || t('kitchen.branch')}</p>
+                        <DeliveryResolutionNotice
+                          order={order}
+                          saving={isSaving(order.id)}
+                          onReview={
+                            resolutionReviewsAllowed
+                              ? (action) => reviewDelivery(order, action)
+                              : undefined
+                          }
+                        />
                         <ul>
                           {(order.items || []).map((item: any, index: number) => (
                             <li key={`${item.lineKey || item.id || index}`}>
@@ -615,7 +677,7 @@ export default function KitchenPage() {
                             </small>
                           </div>
                         )}
-                        {order.acceptedAt && (
+                        {order.acceptedAt && !needsPickupApproval(order) && (
                           <div
                             className="inline-alert inline-alert-success mt-3 flex items-start gap-2"
                             role="status"
@@ -638,7 +700,7 @@ export default function KitchenPage() {
                             </span>
                           </div>
                         )}
-                        {delivery && (
+                        {delivery && !hasUnresolvedDelivery(order) && (
                           <div
                             className={`inline-alert items-start mt-3 ${
                               dispatchStatus === 'failed'
@@ -750,7 +812,7 @@ export default function KitchenPage() {
                             t('kitchen.noPromisedTime')
                           )}
                         </div>
-                        {column.next && (
+                        {column.next && !hasUnresolvedDelivery(order) && (
                           <button
                             className="btn-classic w-full min-h-12 gap-2 text-base"
                             type="button"

@@ -1014,12 +1014,12 @@ async function updateOrderFromJob(job, info) {
   const { data: current, error: readError } = await supabase
     .from('kaspi_orders')
     .select(
-      'id,order_number,customer_id,branch_id,fulfillment_status,delivery_status,courier_id,courier_assigned_at,handed_to_courier_at,out_for_delivery_at,delivered_at',
+      'id,order_number,customer_id,branch_id,fulfillment_type,fulfillment_status,delivery_status,courier_id,courier_assigned_at,handed_to_courier_at,out_for_delivery_at,delivered_at',
     )
     .eq('id', job.order_id)
     .maybeSingle();
   if (readError) throw readError;
-  if (!current) return;
+  if (!current || current.fulfillment_type === 'pickup') return;
   const now = new Date().toISOString();
   const internal = job.internal_status || mapYandexStatus(job.provider_status);
   if (current.courier_id) {

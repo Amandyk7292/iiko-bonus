@@ -45,3 +45,36 @@ test('deferred tablet receipt is permitted once; cancelled, refunded and mismatc
   ])
     assert.throws(() => receiptDraft({ ...order, ...changes }));
 });
+test('unresolved replacement cannot print; accepted draft retains replacement badge and requested time', () => {
+  const order = {
+    status: 'paid',
+    fulfillment_status: 'ready',
+    subtotal: 35,
+    cart_items: [{ iikoProductId: randomUUID(), price: 35, quantity: 1 }],
+  };
+  const resolution = {
+    id: randomUUID(),
+    reason: 'courier_not_found',
+    pickupTime: '2026-10-03T14:00:00Z',
+  };
+  for (const status of [
+    'pending',
+    'pickup_cancelling',
+    'cancel_cancelling',
+    'pickup_pending_approval',
+    'pickup_accepting',
+    'pickup_rejecting',
+    'cancel_refunding',
+  ])
+    assert.throws(
+      () => receiptDraft({ ...order, delivery_resolution: { ...resolution, status } }),
+      (e) => e.statusCode === 409,
+    );
+  const result = receiptDraft({
+    ...order,
+    scheduled_at: resolution.pickupTime,
+    delivery_resolution: { ...resolution, status: 'pickup_accepted' },
+  });
+  assert.equal(result.deliveryResolution.status, 'pickup_accepted');
+  assert.equal(result.scheduledAt, resolution.pickupTime);
+});

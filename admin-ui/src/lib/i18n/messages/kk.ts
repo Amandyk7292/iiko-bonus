@@ -1,4 +1,5 @@
 import settlements from './settlements-kk';
+import deliveryResolution from '../delivery-resolution';
 import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 const kk: Record<string, string> = {
@@ -1447,6 +1448,7 @@ const kk: Record<string, string> = {
   'tiers.background.bronze': 'Қола',
   'tiers.background.silver': 'Күміс',
   'tiers.background.platinum': 'Платина',
+  ...deliveryResolution.kk,
 };
 
 export default kk;

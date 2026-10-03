@@ -5,6 +5,10 @@ import PageState from '../components/PageState';
 import Modal from '../components/Modal';
 import SelectControl from '../components/SelectControl';
 import OrderAmounts from '../components/OrderAmounts';
+import DeliveryResolutionNotice, {
+  hasUnresolvedDelivery,
+  needsPickupApproval,
+} from '../components/DeliveryResolutionNotice';
 import DeliveryAvailabilityNotice from '../components/DeliveryAvailabilityNotice';
 import DeliveryBudget from '../components/DeliveryBudget';
 import { useFeedback } from '../components/Feedback';
@@ -12,6 +16,7 @@ import { api, type AdminOrder, type DeliveryProof } from '../lib/api';
 import {
   availableOrderStatuses,
   canMutateOrders,
+  canReviewDeliveryResolution,
   canCancelOrders,
   ORDER_STATUSES,
 } from '../lib/admin-permissions';
@@ -46,6 +51,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const { t, formatDate, formatNumber } = useI18n();
   const { toast } = useFeedback();
   const orderMutationsAllowed = canMutateOrders(role);
+  const resolutionReviewsAllowed = canReviewDeliveryResolution(role);
   const refundsAllowed = canCancelOrders(role);
   const [params, setParams] = useSearchParams();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
@@ -203,6 +209,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   };
 
   const changeStatus = (order: AdminOrder, status: string) => {
+    if (hasUnresolvedDelivery(order)) return;
     if (
       (!orderMutationsAllowed && !(status === 'cancelled' && refundsAllowed)) ||
       status === order.orderStatus ||
@@ -226,6 +233,34 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
     if (await persistStatus(cancellationOrder, 'cancelled', normalizedCancellationReason)) {
       setCancellationOrder(null);
       setCancellationReason('');
+    }
+  };
+
+  const reviewDelivery = async (order: AdminOrder, action: 'accept' | 'reject') => {
+    if (!resolutionReviewsAllowed || !needsPickupApproval(order) || isSaving(order.id))
+      return false;
+    setOrderSaving(order.id, true);
+    try {
+      const result = await api.reviewDeliveryResolution(
+        order.id,
+        action,
+        order.deliveryResolution!.id,
+      );
+      loadGeneration.current += 1;
+      foregroundLoadPending.current = false;
+      setLoading(false);
+      setOrders((current) =>
+        current.map((item) =>
+          item.id === order.id ? mergeMutationResult(item, result.order) : item,
+        ),
+      );
+      return true;
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : t('orders.statusError'), 'error');
+      void load(true);
+      return false;
+    } finally {
+      setOrderSaving(order.id, false);
     }
   };
 
@@ -385,6 +420,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                         {order.paymentStatus === 'paid' &&
                           ['accepted', 'preparing', 'ready'].includes(order.orderStatus) &&
                           order.courierSearchStartedAt &&
+                          !hasUnresolvedDelivery(order) &&
                           !order.courierAssignedAt &&
                           ['unassigned', 'cancelled'].includes(
                             order.deliveryStatus || 'unassigned',
@@ -445,6 +481,15 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                           </small>
                         )}
                         <strong>{order.branch || '—'}</strong>
+                        <DeliveryResolutionNotice
+                          order={order}
+                          saving={isSaving(order.id)}
+                          onReview={
+                            resolutionReviewsAllowed
+                              ? (action) => reviewDelivery(order, action)
+                              : undefined
+                          }
+                        />
                         <small className="table-secondary">
                           {order.items
                             .map(
@@ -494,6 +539,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                               </a>
                             )}
                             {orderMutationsAllowed &&
+                              !hasUnresolvedDelivery(order) &&
                               order.paymentStatus === 'paid' &&
                               !['completed', 'cancelled'].includes(order.orderStatus) && (
                                 <button
@@ -554,6 +600,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                               onChange={(value) => void changeStatus(order, value)}
                               disabled={
                                 isSaving(order.id) ||
+                                hasUnresolvedDelivery(order) ||
                                 ['completed', 'cancelled'].includes(order.orderStatus)
                               }
                               options={ORDER_STATUSES.map((value) => ({

@@ -37,12 +37,15 @@ async function listAvailableSlots({
   days = 7,
   productIds = [],
   now = new Date(),
+  horizonHours = null,
+  db = supabase,
+  excludeRequestId = null,
 }) {
   if (!['pickup', 'delivery', 'preorder'].includes(orderType)) {
     throw slotError('Некорректный способ получения заказа');
   }
   const productBounds = await productScheduleBounds(productIds, now);
-  const { data: location, error } = await supabase
+  const { data: location, error } = await db
     .from('bulka_locations')
     .select(
       'id,hours,round_the_clock,active,pickup_enabled,preorder_enabled,delivery_enabled,slot_minutes,pickup_slot_capacity,preorder_slot_capacity,delivery_slot_capacity',
@@ -58,7 +61,8 @@ async function listAvailableSlots({
         ? location.delivery_enabled
         : location.pickup_enabled;
   if (!enabled) throw slotError('Этот способ получения в филиале временно недоступен');
-  const rollingDay = location.round_the_clock === true && orderType !== 'preorder';
+  const rollingDay =
+    (horizonHours === 24 || location.round_the_clock === true) && orderType !== 'preorder';
   const safeDays = rollingDay ? 2 : slotHorizonDays(orderType, days);
   const hours = effectiveHours(location);
 
@@ -71,9 +75,9 @@ async function listAvailableSlots({
   const queryEnd = new Date(
     startLocalDay + (safeDays + 1) * 86400000 - safeOffset * 60000,
   ).toISOString();
-  const { data: reservations, error: reservationsError } = await supabase
+  const { data: reservations, error: reservationsError } = await db
     .from('fulfillment_slot_reservations')
-    .select('scheduled_at,status,expires_at')
+    .select('scheduled_at,status,expires_at,client_request_id')
     .eq('branch_id', branchId)
     .eq('fulfillment_type', orderType)
     .gte('scheduled_at', queryStart)
@@ -83,6 +87,7 @@ async function listAvailableSlots({
 
   const held = new Map();
   for (const reservation of reservations || []) {
+    if (excludeRequestId && reservation.client_request_id === excludeRequestId) continue;
     if (reservation.status === 'active' && new Date(reservation.expires_at) <= now) continue;
     const key = new Date(reservation.scheduled_at).toISOString();
     held.set(key, (held.get(key) || 0) + 1);

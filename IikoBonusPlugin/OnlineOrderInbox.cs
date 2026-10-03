@@ -183,7 +183,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 {
                     if (disposed) return;
                     Request<GuardResponse>(HttpMethod.Post, "orders/board/action", new InboxDecision {
-                        OrderId = order.Id, TerminalId = PluginContext.Operations.GetHostTerminal().Id.ToString(), Action = action });
+                        OrderId = order.Id, TerminalId = PluginContext.Operations.GetHostTerminal().Id.ToString(), Action = action,
+                        ResolutionId = order.DeliveryResolution?.NeedsApproval == true ? order.DeliveryResolution.Id : null });
                     var result = Load(); OnWindow(view => view.Update(result));
                 }
                 catch (Exception error)

@@ -31,6 +31,7 @@ async function markFullRefundDeclined(order, decision, db = supabase) {
 async function reconcileUnknownFullRefundOrder(
   order,
   {
+    db = supabase,
     resolve = reconcileFullRefundForOrder,
     complete = (current, decision) =>
       finalizeConfirmedOrderRefund(current, decision, {
@@ -42,7 +43,25 @@ async function reconcileUnknownFullRefundOrder(
 ) {
   let decision;
   try {
-    decision = await resolve(order);
+    if (
+      order.delivery_resolution?.fullRefundCashSettled === true &&
+      ['pickup_rejecting', 'pickup_accepted'].includes(order.delivery_resolution.status) &&
+      Number(order.amount) === Number(order.delivery_fee) &&
+      Number(order.partially_refunded_amount) === Number(order.amount)
+    ) {
+      const { data: confirmed, error } = await db.rpc('delivery_resolution_fee_refunded', {
+        p_order: order.id,
+      });
+      if (error) throw error;
+      decision = {
+        status: confirmed === true ? 'confirmed' : 'pending',
+        reference: order.refund_reference || null,
+        requestId: order.refund_request_id || null,
+        message: confirmed === true ? null : 'Возврат стоимости доставки ожидает подтверждения',
+      };
+    } else {
+      decision = await resolve(order);
+    }
   } catch (error) {
     decision = {
       status: 'pending',
@@ -124,6 +143,7 @@ async function reconcileUnknownFullRefunds({
         order = recovered;
       }
       const result = await reconcileUnknownFullRefundOrder(order, {
+        db,
         resolve,
         ...(complete && { complete }),
         ...(decline && { decline }),

@@ -5,12 +5,14 @@ class StaffKitchen extends StatefulWidget {
     required this.api,
     required this.canEdit,
     this.canCancel = false,
+    this.canReviewDelivery = true,
     this.onCounters,
     super.key,
   });
   final StaffApiClient api;
   final bool canEdit;
   final bool canCancel;
+  final bool canReviewDelivery;
   final ValueChanged<Map<String, int>>? onCounters;
   @override
   State<StaffKitchen> createState() => _StaffKitchenState();
@@ -46,8 +48,19 @@ class _StaffKitchenState extends State<StaffKitchen>
   }
 
   // /kitchen contains paid orders only; its DTO intentionally omits paymentStatus.
-  bool get _needsAlarm =>
-      _orders.any((row) => row['kitchenStatus'] == 'queued');
+  bool get _needsAlarm => _orders.any(_awaitingAcceptance);
+  bool _awaitingAcceptance(Map order) =>
+      staffNeedsPickupApproval(order) ||
+      (order['kitchenStatus'] == 'queued' &&
+          !staffHasUnresolvedDelivery(order));
+  String _displayStatus(Map order) =>
+      [
+        'pickup_pending_approval',
+        'pickup_accepting',
+        'pickup_rejecting',
+      ].contains((order['deliveryResolution'] as Map?)?['status'])
+      ? 'queued'
+      : '${order['kitchenStatus']}';
   void _syncAlarm() {
     if (!_active || !_soundEnabled || !_needsAlarm) {
       _alarmTimer?.cancel();
@@ -203,7 +216,7 @@ class _StaffKitchenState extends State<StaffKitchen>
               _orders
                   .where(
                     (row) =>
-                        row['kitchenStatus'] == 'queued' &&
+                        _awaitingAcceptance(row) &&
                         ![
                           'cancelled',
                           'completed',
@@ -265,8 +278,10 @@ class _StaffKitchenState extends State<StaffKitchen>
   };
 
   Future<void> _change(Map<String, dynamic> order, String status) async {
+    if (staffHasUnresolvedDelivery(order)) return;
     final id = '${order['id']}';
     if (!widget.canEdit ||
+        !widget.canReviewDelivery ||
         (status == 'cancelled' && !widget.canCancel) ||
         _saving.contains(id)) {
       return;
@@ -415,6 +430,51 @@ class _StaffKitchenState extends State<StaffKitchen>
     return '${pad(local.day)}.${pad(local.month)} ${pad(local.hour)}:${pad(local.minute)}';
   }
 
+  Future<void> _reviewDelivery(
+    Map<String, dynamic> order,
+    String action,
+  ) async {
+    final id = '${order['id']}';
+    if (!widget.canEdit ||
+        !staffNeedsPickupApproval(order) ||
+        _saving.contains(id)) {
+      return;
+    }
+    setState(() {
+      _saving.add(id);
+      _revision++;
+    });
+    try {
+      final result = await widget.api.request(
+        '/orders/${Uri.encodeComponent(id)}/delivery-resolution',
+        method: 'POST',
+        body: {
+          'action': action,
+          'resolutionId': (order['deliveryResolution'] as Map)['id'],
+        },
+      );
+      if (mounted) {
+        setState(() {
+          _revision++;
+          final updated = Map<String, dynamic>.from(result['order'] as Map);
+          _orders = _orders
+              .map((row) => '${row['id']}' == id ? {...row, ...updated} : row)
+              .toList();
+        });
+        await _load();
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(bulkaSnackBar(content: Text('$error')));
+      }
+      await _load();
+    } finally {
+      if (mounted) setState(() => _saving.remove(id));
+    }
+  }
+
   Widget _ticket(Map<String, dynamic> order) {
     final status = '${order['kitchenStatus']}';
     final promised = DateTime.tryParse('${order['promisedReadyAt']}');
@@ -497,6 +557,13 @@ class _StaffKitchenState extends State<StaffKitchen>
             ),
             const SizedBox(height: 4),
             Text('${_label(status)} · ${_time(order['createdAt'])}'),
+            StaffDeliveryResolutionNotice(
+              order: order,
+              saving: busy,
+              onReview: widget.canEdit && widget.canReviewDelivery
+                  ? (action) => _reviewDelivery(order, action)
+                  : null,
+            ),
             if (order['promisedReadyAt'] != null)
               Text(
                 '${staffText('Готовность', 'Дайын болу уақыты', 'Ready by')}: ${_time(order['promisedReadyAt'])}',
@@ -557,7 +624,8 @@ class _StaffKitchenState extends State<StaffKitchen>
                   'No substitutions',
                 ),
               ),
-            if (order['courierDispatchStatus'] == 'awaiting_receipt')
+            if (!staffHasUnresolvedDelivery(order) &&
+                order['courierDispatchStatus'] == 'awaiting_receipt')
               const StaffReceiptDispatchNotice(),
             if (order['posReceiptDue'] == true)
               const StaffDeferredReceiptNotice(),
@@ -588,11 +656,13 @@ class _StaffKitchenState extends State<StaffKitchen>
                   ),
                 ),
             ],
-            if (order['acceptedBy'] != null)
+            if (order['acceptedBy'] != null && !staffNeedsPickupApproval(order))
               Text(
                 '${staffText('Принял', 'Қабылдады', 'Accepted by')}: ${order['acceptedBy']} · ${_time(order['acceptedAt'])}',
               ),
-            if (next != null && widget.canEdit) ...[
+            if (next != null &&
+                widget.canEdit &&
+                !staffHasUnresolvedDelivery(order)) ...[
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: busy ? null : () => _change(order, next),
@@ -620,13 +690,11 @@ class _StaffKitchenState extends State<StaffKitchen>
 
   @override
   Widget build(BuildContext context) {
-    final queued = _orders
-        .where((row) => row['kitchenStatus'] == 'queued')
-        .length;
+    final queued = _orders.where(_awaitingAcceptance).length;
     final visible = _orders
         .where(
           (row) =>
-              (_status == 'all' || row['kitchenStatus'] == _status) &&
+              (_status == 'all' || _displayStatus(row) == _status) &&
               [
                 '${row['number']}',
                 '${row['branch']}',
@@ -799,7 +867,7 @@ class _StaffKitchenState extends State<StaffKitchen>
                           child: Column(
                             children: [
                               Text(
-                                '${_orders.where((row) => row['kitchenStatus'] == status).length}',
+                                '${_orders.where((row) => _displayStatus(row) == status).length}',
                                 style: const TextStyle(
                                   fontSize: 21,
                                   fontWeight: FontWeight.w700,

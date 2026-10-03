@@ -1,5 +1,6 @@
 import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
+import deliveryResolution from '../delivery-resolution';
 const en: Record<string, string> = {
   ...dashboard.en,
   ...referralReport.en,
@@ -1438,6 +1439,7 @@ const en: Record<string, string> = {
   'tiers.background.bronze': 'Bronze',
   'tiers.background.silver': 'Silver',
   'tiers.background.platinum': 'Platinum',
+  ...deliveryResolution.en,
 };
 
 export default en;

@@ -69,11 +69,11 @@ if (flutterDirectory) {
   if (!fs.existsSync(mainFile)) {
     failures.push(`Flutter entry is missing: ${mainFile}`);
   } else {
-    // Family accounts and automatic OTP support measure 6,560,407 B
-    // (1,794,052 B gzip): about 0.8% over the previous catalog release.
+    // Family/OTP plus the persisted delivery-choice flow measure 6,602,552 B
+    // (1,801,038 B gzip), adding 0.64% raw and 0.39% gzip to the family baseline.
     // Keep less than 0.4% headroom above this measured feature baseline.
-    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_580_000);
-    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_800_000);
+    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_625_000);
+    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_808_000);
   }
   const wasmFiles = filesUnder(directory).filter((file) => file.endsWith('.wasm'));
   assertBudget(

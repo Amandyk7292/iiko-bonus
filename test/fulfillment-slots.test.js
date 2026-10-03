@@ -87,6 +87,48 @@ async function fixture(run) {
   }
 }
 
+test('replacement pickup uses a rolling 24h horizon for ordinary schedules and excludes its own held slot', async () =>
+  fixture(async ({ list, reservations, now }) => {
+    const result = await list({ horizonHours: 24 });
+    assert.ok(result.slots.some((slot) => slot.startsAt === '2026-09-11T03:00:00.000Z'));
+    assert.ok(result.slots.every((slot) => Date.parse(slot.startsAt) <= now.getTime() + 86400000));
+    assert.ok(!result.slots.some((slot) => slot.startsAt === '2026-09-11T18:00:00.000Z'));
+    reservations.push(
+      ...[1, 2].map(() => ({
+        scheduled_at: '2026-09-11T03:00:00.000Z',
+        status: 'committed',
+        client_request_id: 'replacement',
+      })),
+    );
+    assert.ok(
+      !(await list({ horizonHours: 24 })).slots.some(
+        (slot) => slot.startsAt === '2026-09-11T03:00:00.000Z',
+      ),
+    );
+    assert.ok(
+      (await list({ horizonHours: 24, excludeRequestId: 'replacement' })).slots.some(
+        (slot) => slot.startsAt === '2026-09-11T03:00:00.000Z',
+      ),
+    );
+  }));
+
+test('replacement next 24h includes overnight continuation and honors tomorrow closing', async () =>
+  fixture(async ({ list, location, now }) => {
+    location.hours = { thu: { open: '22:00', close: '02:30' }, fri: { closed: true } };
+    const { slots } = await list({ horizonHours: 24 });
+    assert.deepEqual(
+      slots.map((slot) => slot.startsAt),
+      [
+        '2026-09-10T18:00:00.000Z',
+        '2026-09-10T19:00:00.000Z',
+        '2026-09-10T20:00:00.000Z',
+        '2026-09-10T21:00:00.000Z',
+      ],
+    );
+    assert.ok(slots.every((slot) => Date.parse(slot.startsAt) > now.getTime()));
+    assert.equal(slots.at(-1).endsAt, '2026-09-10T21:30:00.000Z');
+  }));
+
 test('22:03 checkout exposes 23:00–23:30 and payment accepts that final partial hour', async () =>
   fixture(async ({ list, location, now }) => {
     const { slots } = await list();

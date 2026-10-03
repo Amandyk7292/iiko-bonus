@@ -203,6 +203,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
     }
     if (match != null) {
       _pendingInitialOrderId = null;
+      if (match.needsDeliveryDecision) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) unawaited(_openDetails(match!));
       });
@@ -213,7 +214,9 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
       widget.api
           .getCustomerOrder(id)
           .then((order) {
-            if (mounted) return _openDetails(order);
+            if (mounted && !order.needsDeliveryDecision) {
+              return _openDetails(order);
+            }
           })
           .catchError((Object error) {
             if (mounted) {
@@ -942,12 +945,14 @@ class _CustomerOrderCard extends StatelessWidget {
                     children: [
                       _OrderStateChip(
                         icon: Icons.shopping_bag_outlined,
-                        label: 'order_status_${order.orderStatus}'.tr,
+                        label: customerOrderStatusLabel(order),
                         color: order.orderStatus == 'cancelled'
                             ? _errorRed
                             : colors.brandBrown,
                       ),
-                      if (order.usesDelivery && !order.isClosed)
+                      if (order.usesDelivery &&
+                          !order.isClosed &&
+                          !order.hasDeliveryResolutionInProgress)
                         _OrderStateChip(
                           icon: Icons.delivery_dining_outlined,
                           label: 'delivery_status_${order.deliveryStatus}'.tr,

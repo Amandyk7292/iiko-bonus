@@ -60,6 +60,9 @@ abstract final class OrderLiveStatus {
   }
 
   static String _status(CustomerOrder order) {
+    if (order.hasDeliveryResolutionInProgress) {
+      return customerOrderStatusLabel(order);
+    }
     if (order.usesDelivery && order.deliveryStatus != 'unassigned') {
       return 'delivery_status_${order.deliveryStatus}'.tr;
     }

@@ -2,6 +2,15 @@ using System.Collections.Generic;
 using System.Runtime.Serialization;
 namespace Resto.Front.Api.IikoBonusPlugin
 {
+    [DataContract] internal sealed class DeliveryResolution
+    {
+        [DataMember(Name="id")] public string Id { get; set; }
+        [DataMember(Name="status")] public string Status { get; set; }
+        [DataMember(Name="pickupTime")] public string PickupTime { get; set; }
+        internal bool NeedsApproval => Status == "pickup_pending_approval";
+        internal bool Unresolved => Status == "pending" || Status == "pickup_cancelling" || Status == "cancel_cancelling" || NeedsApproval || Status == "pickup_accepting" || Status == "pickup_rejecting" || Status == "cancel_refunding";
+        internal bool Replacement => Status == "pickup_cancelling" || NeedsApproval || Status == "pickup_accepting" || Status == "pickup_rejecting" || Status == "pickup_accepted" || Status == "pickup_rejected";
+    }
     [DataContract] internal sealed class InboxItem
     {
         [DataMember(Name="name")] public string Name { get; set; }
@@ -16,6 +25,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember(Name="customer")] public string Customer { get; set; }
         [DataMember(Name="items")] public List<InboxItem> Items { get; set; }
         [DataMember(Name="orderType")] public string OrderType { get; set; }
+        [DataMember(Name="deliveryResolution")] public DeliveryResolution DeliveryResolution { get; set; }
         [DataMember(Name="scheduledAt")] public string ScheduledAt { get; set; }
         [DataMember(Name="amount")] public decimal Amount { get; set; }
         [DataMember(Name="comment")] public string Comment { get; set; }
@@ -52,6 +62,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember(Name="orderId")] public string OrderId { get; set; }
         [DataMember(Name="terminalId")] public string TerminalId { get; set; }
         [DataMember(Name="action")] public string Action { get; set; }
+        [DataMember(Name="resolutionId", EmitDefaultValue=false)] public string ResolutionId { get; set; }
     }
     [DataContract] internal sealed class InboxPoll
     {

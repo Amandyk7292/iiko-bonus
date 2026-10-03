@@ -1,6 +1,7 @@
 const { supabase } = require('../config/supabase');
 const { isDeliveryFulfillment } = require('../utils/fulfillment.util');
 const realtime = require('./realtime.service');
+const { deliveryResolutionBlocksDispatch } = require('../utils/delivery-resolution.util');
 
 const MAX_DISPATCH_ATTEMPTS = 10;
 const AUTOMOBILE_TRANSPORT_TYPES = new Set(['car', 'auto', 'automobile', 'van', 'truck']);
@@ -37,7 +38,7 @@ const dispatchRetryAt = (attempts) => {
 };
 
 const dispatchRequestUpdates = (order, now = new Date().toISOString()) => {
-  if (!order || !isDeliveryFulfillment(order)) return {};
+  if (!order || !isDeliveryFulfillment(order) || deliveryResolutionBlocksDispatch(order)) return {};
   if (
     order.courier_dispatch_completed_at ||
     ['succeeded', 'failed'].includes(String(order.courier_dispatch_status || ''))
@@ -64,6 +65,8 @@ async function readOrder(orderId) {
 }
 
 async function dispatchAcceptedDeliveryOrder(order, { yandexDelivery, dispatchService } = {}) {
+  if (deliveryResolutionBlocksDispatch(order))
+    return { skipped: true, reason: 'delivery_resolution' };
   if (!order || !isDeliveryFulfillment(order)) {
     return { skipped: true, reason: 'not_delivery' };
   }
@@ -138,6 +141,8 @@ async function requestDeliveryDispatch(orderId, { processImmediately = true } = 
 
 async function processDeliveryDispatch(orderId, dependencies = {}) {
   const current = await readOrder(orderId);
+  if (deliveryResolutionBlocksDispatch(current))
+    return { skipped: true, reason: 'delivery_resolution' };
   if (!current.courier_dispatch_requested_at) {
     return { skipped: true, reason: 'not_accepted' };
   }

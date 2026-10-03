@@ -1,0 +1,24 @@
+.inline-alert.delivery-resolution-notice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.delivery-resolution-notice > * {
+  min-width: 0;
+  white-space: normal;
+}
+
+.delivery-resolution-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.delivery-resolution-actions > button {
+  flex: 1 1 10rem;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+}

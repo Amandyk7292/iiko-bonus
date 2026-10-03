@@ -2,10 +2,15 @@ const { optionSummary } = require('../utils/order-options');
 const { supabase } = require('../config/supabase');
 const { validQuantity } = require('../utils/quantity.util');
 const { remainingOrder } = require('./front-remaining-order.service');
+const {
+  deliveryResolution,
+  unresolvedDeliveryResolution,
+} = require('../utils/delivery-resolution.util');
 const conflict = (message) => Object.assign(new Error(message), { statusCode: 409 });
 function receiptDraft(order, optionsVersion = 0) {
   if (
     !order ||
+    unresolvedDeliveryResolution(order) ||
     order.status !== 'paid' ||
     ![null, 'partial', 'failed'].includes(order.refund_status ?? null) ||
     ((Number(order.partially_refunded_amount || 0) > 0 || order.refund_status === 'partial') &&
@@ -51,6 +56,8 @@ function receiptDraft(order, optionsVersion = 0) {
   return {
     id: order.id,
     number: Number(order.order_number),
+    deliveryResolution: deliveryResolution(order),
+    scheduledAt: order.scheduled_at || order.pickup_time || null,
     items,
     merchandiseTotal:
       Number(order.subtotal) - Number(order.discount_amount || 0) - Number(order.bonus_spent || 0),

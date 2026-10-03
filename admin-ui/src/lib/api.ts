@@ -505,6 +505,11 @@ export const api = {
       `/orders/${encodeURIComponent(id)}/courier`,
       json('PATCH', { courierId, estimatedDeliveryAt: estimatedDeliveryAt || null }),
     ),
+  reviewDeliveryResolution: (id: string, action: 'accept' | 'reject', resolutionId: string) =>
+    request<{ success: boolean; order: AdminOrder }>(
+      `/orders/${encodeURIComponent(id)}/delivery-resolution`,
+      json('POST', { action, resolutionId }),
+    ),
   updateDeliveryStatus: (id: string, status: string) =>
     request<{ success: boolean; order: AdminOrder }>(
       `/orders/${encodeURIComponent(id)}/delivery-status`,

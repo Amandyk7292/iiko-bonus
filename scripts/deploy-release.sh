@@ -721,24 +721,26 @@ printf 'healthy_at=%s\nsource=deployment\ncommit=%s\n' \
   >"$stored_release/.healthy"
 write_current_release "$current_release"
 
-mapfile -t obsolete_releases < <(
-  find "$release_store" -mindepth 1 -maxdepth 1 -type d \
-    \( -name '*-current' -o -name '*-previous' \) |
-    while read -r directory; do
-      [[ -f "$directory/.healthy" ]] || continue
-      printf '%s %s\n' "$(stat -c '%Y' "$directory")" "$directory"
-    done |
-    sort -nr |
-    tail -n +4 |
-    cut -d' ' -f2-
-)
-for obsolete in "${obsolete_releases[@]}"; do
-  resolved=$(realpath -m "$obsolete")
-  case "$resolved" in
-    "$release_store"/*) rm -rf -- "$resolved" ;;
-    *) echo "Refusing to prune unsafe release path: $resolved" >&2; exit 1 ;;
-  esac
-done
+if [[ ${BULKA_PRESERVE_RELEASES:-true} == 'false' ]]; then
+  mapfile -t obsolete_releases < <(
+    find "$release_store" -mindepth 1 -maxdepth 1 -type d \
+      \( -name '*-current' -o -name '*-previous' \) |
+      while read -r directory; do
+        [[ -f "$directory/.healthy" ]] || continue
+        printf '%s %s\n' "$(stat -c '%Y' "$directory")" "$directory"
+      done |
+      sort -nr |
+      tail -n +4 |
+      cut -d' ' -f2-
+  )
+  for obsolete in "${obsolete_releases[@]}"; do
+    resolved=$(realpath -m "$obsolete")
+    case "$resolved" in
+      "$release_store"/*) rm -rf -- "$resolved" ;;
+      *) echo "Refusing to prune unsafe release path: $resolved" >&2; exit 1 ;;
+    esac
+  done
+fi
 
 pm2 save
 trap - ERR

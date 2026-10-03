@@ -604,6 +604,9 @@ class _StaffWorkspaceState extends State<StaffWorkspace> {
                         role: _role,
                       ),
                       'kitchen' when _kitchenAllowed => StaffKitchen(
+                        canReviewDelivery: staffCanReviewDeliveryResolution(
+                          '${widget.user['role']}',
+                        ),
                         key: ValueKey('kitchen:${widget.api.scopeKey}'),
                         api: widget.api,
                         canEdit: _role != 'viewer',

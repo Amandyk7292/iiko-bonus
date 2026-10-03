@@ -658,7 +658,7 @@ export default function App() {
                       />
                     }
                   />
-                  <Route path="/kitchen" element={guard('/kitchen', <KitchenPage />)} />
+                  <Route path="/kitchen" element={guard('/kitchen', <KitchenPage role={role} />)} />
                   <Route
                     path="/photo-reports"
                     element={guard('/photo-reports', <PhotoReportsPage role={role} />)}

@@ -16,12 +16,17 @@ const {
 } = require('./external-delivery-lifecycle.service');
 const { effectiveFulfillmentType, isDeliveryFulfillment } = require('../utils/fulfillment.util');
 const { runBackgroundTask } = require('../utils/background-task.util');
+const {
+  deliveryResolution,
+  unresolvedDeliveryResolution,
+} = require('../utils/delivery-resolution.util');
 
 const ORDER_FIELDS = [
   'id',
   'order_number',
   'status',
   'fulfillment_status',
+  'delivery_resolution',
   'payment_method',
   'provider_payment_system',
   'amount',
@@ -296,6 +301,7 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     refundError: order.refund_error || null,
     lastError: order.last_error || null,
     deliveryStatus: order.delivery_status || 'unassigned',
+    deliveryResolution: deliveryResolution(order),
     acceptanceStartedAt: order.acceptance_watch_started_at || null,
     courierSearchStartedAt: order.courier_search_started_at || null,
     courierAssignedAt: order.courier_assigned_at || null,
@@ -834,6 +840,21 @@ async function cancelPaidOrder(
   if (cancelExternalDelivery) await cancelExternalDeliveryForOrder(current.id);
   else await assertExternalDeliveryCancelled(current.id);
 
+  let confirmedFeeOnlyRefund = false;
+  if (
+    ['pickup_rejecting', 'pickup_accepted'].includes(current.delivery_resolution?.status) &&
+    ['partial', 'failed', 'unknown'].includes(current.refund_status) &&
+    Number(current.amount) === Number(current.delivery_fee) &&
+    Number(current.partially_refunded_amount) === Number(current.amount)
+  ) {
+    const { data: confirmed, error: ledgerError } = await supabase.rpc(
+      'delivery_resolution_fee_refunded',
+      { p_order: current.id },
+    );
+    if (ledgerError) throw ledgerError;
+    confirmedFeeOnlyRefund = confirmed === true;
+  }
+
   const requestedAt = new Date().toISOString();
   const refundRequestId = retryRequestId || crypto.randomUUID();
   let claim = supabase
@@ -849,6 +870,9 @@ async function cancelPaidOrder(
       }),
       last_error: null,
       refund_request_id: refundRequestId,
+      ...(confirmedFeeOnlyRefund && {
+        delivery_resolution: { ...current.delivery_resolution, fullRefundCashSettled: true },
+      }),
       ...(unacceptedBefore && {
         acceptance_timeout_at: current.acceptance_timeout_at || requestedAt,
         acceptance_timeout_retry_at: new Date(Date.now() + 60_000).toISOString(),
@@ -877,6 +901,11 @@ async function cancelPaidOrder(
   claim = current.refund_status
     ? claim.eq('refund_status', current.refund_status)
     : claim.is('refund_status', null);
+  if (confirmedFeeOnlyRefund) {
+    claim = claim
+      .eq('delivery_resolution->>id', current.delivery_resolution.id)
+      .eq('delivery_resolution->>status', current.delivery_resolution.status);
+  }
   const { data: claimed, error: claimError } = await claim.select('*').maybeSingle();
   if (claimError) {
     if (claimError.message?.includes('DELIVERY_ACTIVE_JOB_CONFLICT')) {
@@ -936,7 +965,7 @@ async function cancelPaidOrder(
     if (
       !Number.isFinite(remainingRefund) ||
       remainingRefund < 0 ||
-      (remainingRefund === 0 && Number(claimed.amount) !== 0)
+      (remainingRefund === 0 && Number(claimed.amount) !== 0 && !confirmedFeeOnlyRefund)
     ) {
       throw refundError(409, 'Заказ уже полностью возвращён', 'PAYMENT_REFUND_CONFLICT');
     }
@@ -1050,6 +1079,9 @@ async function updateAdminOrderStatus(
   const scopedBranchIds = Array.isArray(branchIds) ? branchIds.map(String).filter(Boolean) : [];
   if (scopedBranchIds.length && !scopedBranchIds.includes(String(current.branch_id || ''))) {
     throw httpError(404, 'Заказ не найден');
+  }
+  if (unresolvedDeliveryResolution(current)) {
+    throw httpError(409, 'Сначала завершите выбор клиента и подтверждение замены доставки');
   }
 
   const currentStatus =

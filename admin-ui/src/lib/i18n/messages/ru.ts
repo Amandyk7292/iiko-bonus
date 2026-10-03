@@ -1,4 +1,5 @@
 import settlements from './settlements-ru';
+import deliveryResolution from '../delivery-resolution';
 import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 const ru: Record<string, string> = {
@@ -1461,6 +1462,6 @@ const ru: Record<string, string> = {
   'tiers.background.bronze': 'Бронза',
   'tiers.background.silver': 'Серебро',
   'tiers.background.platinum': 'Платина',
+  ...deliveryResolution.ru,
 };
-
 export default ru;

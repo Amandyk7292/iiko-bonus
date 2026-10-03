@@ -10,6 +10,9 @@ function harness(
     partial = false,
     failFollowup = false,
     failMarkerWrite = false,
+    feeOnly = false,
+    feeState = 'pickup_rejecting',
+    feeConfirmed = true,
   } = {},
 ) {
   let order = {
@@ -18,14 +21,17 @@ function harness(
     operation_id: randomUUID(),
     order_number: 123456,
     status: 'paid',
-    fulfillment_status: 'new',
+    fulfillment_status: feeOnly ? 'ready' : 'new',
     kitchen_status: 'queued',
-    refund_status: staleProcessing ? 'processing' : null,
+    refund_status: feeOnly ? 'partial' : staleProcessing ? 'processing' : null,
     refund_request_id: randomUUID(),
     refund_requested_at: new Date(Date.now() - 10 * 60_000).toISOString(),
     acceptance_timeout_at: null,
     amount: 600,
-    partially_refunded_amount: 0,
+    partially_refunded_amount: feeOnly ? 600 : 0,
+    delivery_fee: feeOnly ? 600 : 0,
+    bonus_spent: feeOnly ? 1200 : 0,
+    delivery_resolution: feeOnly ? { id: randomUUID(), status: feeState } : null,
     payment_method: 'forte_card',
     provider_payment_system: 'forte_widget',
     customer_id: null,
@@ -33,6 +39,7 @@ function harness(
   };
   const reference = randomUUID();
   let bankCalls = 0;
+  let bankReads = 0;
   let failed = false;
   let followupCalls = 0;
   const cached = new Map();
@@ -48,6 +55,11 @@ function harness(
     }
   });
   const db = {
+    async rpc(name, args) {
+      assert.equal(name, 'delivery_resolution_fee_refunded');
+      assert.equal(args.p_order, order.id);
+      return { data: feeConfirmed, error: null };
+    },
     from(table) {
       const filters = [];
       let patch;
@@ -86,7 +98,9 @@ function harness(
           return this;
         },
         eq(k, v) {
-          filters.push((x) => x[k] === v);
+          filters.push((x) =>
+            k.includes('->>') ? x[k.split('->>')[0]]?.[k.split('->>')[1]] === v : x[k] === v,
+          );
           return this;
         },
         is(k, v) {
@@ -128,6 +142,7 @@ function harness(
     reverseOrderLoyalty: async (x) => {
       followupCalls++;
       if (failFollowup && followupCalls === 1) throw new Error('Injected bonus outage');
+      order.bonus_reversed_at = new Date().toISOString();
       return x;
     },
   });
@@ -146,6 +161,8 @@ function harness(
       return { reference };
     },
     reconcileFullRefundForOrder: async (current) => {
+      bankReads++;
+      assert.notEqual(Number(current.amount) - Number(current.partially_refunded_amount), 0);
       assert.equal(current.refund_request_id, order.refund_request_id);
       return { status: 'confirmed', reference };
     },
@@ -158,7 +175,10 @@ function harness(
     cached.set(id, require.cache[id]);
     delete require.cache[id];
   }
-  const { updateAdminOrderStatus } = require('../src/services/customer-order.service');
+  const {
+    updateAdminOrderStatus,
+    cancelPaidOrder,
+  } = require('../src/services/customer-order.service');
   const {
     reconcileUnknownFullRefunds,
   } = require('../src/services/full-refund-reconciliation.service');
@@ -174,13 +194,64 @@ function harness(
     get followupCalls() {
       return followupCalls;
     },
+    get bankReads() {
+      return bankReads;
+    },
     cancel: () =>
       updateAdminOrderStatus(order.id, 'cancelled', 'Test cancellation', {
         branchIds: [order.branch_id],
       }),
     recover: (options) => reconcileUnknownFullRefunds({ db, ...options }),
+    cancelReplacement: () =>
+      cancelPaidOrder(order, 'Истекло время самовывоза', {
+        allowedFulfillmentStatuses: ['ready'],
+        cancelBeforeRefund: true,
+        reuseRefundRequestId: true,
+      }),
   };
 }
+
+test('bonus-paid goods cancelled after fee refund finalize without a second bank operation and reverse loyalty', async (t) => {
+  const h = harness(t, { feeOnly: true });
+  const result = await h.cancelReplacement();
+  assert.equal(h.bankCalls, 0);
+  assert.equal(h.followupCalls, 1);
+  assert.equal(result.paymentStatus, 'refunded');
+  assert.equal(result.orderStatus, 'cancelled');
+  assert.equal(h.order.refund_status, 'succeeded');
+  assert.equal(h.order.kitchen_status, 'cancelled');
+  assert.equal(h.order.refund_followup_pending, false);
+});
+
+for (const feeState of ['pickup_rejecting', 'pickup_accepted']) {
+  test(`fee-only cash ${feeState} cancellation survives final DB outage without bank replay`, async (t) => {
+    const h = harness(t, { feeOnly: true, feeState, failFinalWrite: true });
+    await assert.rejects(h.cancelReplacement(), /Injected final write outage/);
+    assert.equal(h.order.refund_status, 'unknown');
+    assert.equal(h.order.delivery_resolution.fullRefundCashSettled, true);
+    assert.equal(h.followupCalls, 0);
+    assert.equal(await h.recover(), 1);
+    assert.equal(h.order.status, 'refunded');
+    assert.equal(h.order.fulfillment_status, 'cancelled');
+    assert.equal(h.order.kitchen_status, 'cancelled');
+    assert.equal(h.order.refund_followup_pending, false);
+    assert.equal(h.followupCalls, 1);
+    assert.equal(h.bankCalls, 0);
+    assert.equal(h.bankReads, 0);
+    assert.equal(await h.recover(), 0);
+    await h.cancelReplacement();
+    assert.equal(h.followupCalls, 1);
+  });
+}
+
+test('zero-cash replacement cancellation requires a confirmed delivery-fee ledger', async (t) => {
+  const h = harness(t, { feeOnly: true, feeState: 'pickup_accepted', feeConfirmed: false });
+  await assert.rejects(h.cancelReplacement(), (error) => error.code === 'PAYMENT_REFUND_CONFLICT');
+  assert.equal(h.order.status, 'paid');
+  assert.equal(h.order.delivery_resolution.fullRefundCashSettled, undefined);
+  assert.equal(h.bankCalls, 0);
+  assert.equal(h.followupCalls, 0);
+});
 
 test('bank success followed by final DB failure retains reference and worker completes manual cancellation', async (t) => {
   const h = harness(t, { failFinalWrite: true });

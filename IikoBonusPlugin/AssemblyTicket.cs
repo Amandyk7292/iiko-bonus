@@ -45,6 +45,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
             var draft=LoyaltyFlow.DeserializeJson<ReceiptDraft>(response.Body);
             if(!response.IsSuccessStatusCode || draft?.Items==null || draft.Items.Count==0)
                 throw new InvalidOperationException("Не удалось загрузить состав для сборки. Проверьте заказ перед повторной печатью.");
+            if(draft.DeliveryResolution?.Unresolved == true)
+                throw new InvalidOperationException("Замена доставки ожидает подтверждения. Печать пока недоступна.");
+            if(draft.DeliveryResolution?.Status == "pickup_accepted")
+            {
+                doc.Add(new XElement("center", "Замена доставки"), new XElement("center", "Самовывоз"));
+                if(DateTimeOffset.TryParse(draft.DeliveryResolution.PickupTime, out var pickup))
+                    doc.Add(new XElement("left", "Получение: " + pickup.ToLocalTime().ToString("dd.MM HH:mm")));
+            }
             foreach(var item in draft.Items)
                 doc.Add(new XElement("left",item.Quantity.ToString("0.###")+" × "+
                     (string.IsNullOrWhiteSpace(item.CustomName) ? item.Name : item.CustomName)));

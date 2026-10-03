@@ -114,6 +114,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   Timer? _refreshTimer;
   Timer? _startupShellTimer;
   StreamSubscription<Map<String, dynamic>>? _pushOpenSubscription;
+  StreamSubscription<Map<String, dynamic>>? _pushOrderSubscription;
   StreamSubscription<Map<String, dynamic>>? _customerEventSubscription;
   StreamSubscription<Uri>? _appLinkSubscription;
   Future<void>? _profileRefreshTask;
@@ -121,6 +122,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   bool _profileRefreshQueued = false;
   int _profileMutationRevision = 0;
   bool _widgetRefreshInFlight = false;
+  Completer<void>? _widgetRefreshDone;
   bool _widgetRefreshQueued = false;
   bool _loginRouteOpen = false;
   bool _booting = true;
@@ -142,6 +144,22 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   PaymentReturnNotice? _pendingPaymentReturnNotice;
   NotificationTarget? _pendingPushTarget;
   RequiredAppUpdate? _requiredAppUpdate;
+  late final _deliveryResolution = DeliveryResolutionCoordinator(
+    api: _api,
+    canPresent: () =>
+        mounted &&
+        !_booting &&
+        !_staff.isAuthenticated &&
+        !_loginRouteOpen &&
+        _requiredAppUpdate == null &&
+        _customer != null &&
+        _api.isAuthenticated &&
+        !_api.isFamilyChildSession &&
+        (WidgetsBinding.instance.lifecycleState == null ||
+            WidgetsBinding.instance.lifecycleState ==
+                AppLifecycleState.resumed),
+    onOrderChanged: (_) => unawaited(_refreshWidgetOrder()),
+  );
 
   @override
   void initState() {
@@ -156,6 +174,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     );
     _pushOpenSubscription = PushNotifications.openedTargets.listen(
       _handlePushPayload,
+    );
+    _pushOrderSubscription = PushNotifications.orderEvents.listen(
+      (_) => unawaited(_refreshWidgetOrder()),
     );
     final initialPush = PushNotifications.takeInitialOpenedTarget();
     if (initialPush != null) {
@@ -193,8 +214,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     _refreshTimer?.cancel();
     _startupShellTimer?.cancel();
     _pushOpenSubscription?.cancel();
+    _pushOrderSubscription?.cancel();
     _customerEventSubscription?.cancel();
     _appLinkSubscription?.cancel();
+    _deliveryResolution.dispose();
     _api.dispose();
     _staff.removeListener(_handleStaffChanged);
     if (widget.staffSession == null) _staff.dispose();
@@ -218,6 +241,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       _startSessionRecovery();
     } else if (state == AppLifecycleState.resumed && phone != null) {
       unawaited(_refreshProfile(phone));
+      unawaited(_refreshWidgetOrder());
       unawaited(PushNotifications.register(_api));
       _startProfileRefresh(phone);
     } else if (state != AppLifecycleState.resumed) {
@@ -233,6 +257,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     final changed = identity != _lastStaffIdentity;
     final hadStaff = _lastStaffIdentity.isNotEmpty;
     _lastStaffIdentity = identity;
+    if (_staff.isAuthenticated) _deliveryResolution.clear();
     setState(() {});
     if (changed && !_loginRouteOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -597,6 +622,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
 
   Future<void> _openCustomerOrders({String? initialOrderId}) async {
     if (_api.isFamilyChildSession) return;
+    if (_deliveryResolution.hasPendingDecision) return;
     if (_staff.isCashier || _ordersRouteOpen || _savedPhone == null) return;
     final navigator = _navigatorKey.currentState;
     if (navigator == null) return;
@@ -628,6 +654,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   void _handlePushPayload(Map<String, dynamic> payload) {
+    unawaited(_refreshWidgetOrder());
     _pendingPushTarget = resolveNotificationPayload(
       payload,
       fallbackType: _asString(payload['type']),
@@ -652,6 +679,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     final requiresAuth = notificationTargetRequiresCustomerAuth(target.kind);
     if (requiresAuth && _savedPhone == null) return;
     _pendingPushTarget = null;
+    if (target.kind == NotificationTargetKind.order ||
+        target.kind == NotificationTargetKind.orders) {
+      await _refreshWidgetOrder();
+      if (!mounted || _deliveryResolution.hasPendingDecision) return;
+    }
     switch (target.kind) {
       case NotificationTargetKind.order:
         _restoreOrdersScreen = true;
@@ -712,19 +744,23 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   Future<void> _refreshWidgetOrder() async {
-    if (_api.isFamilyChildSession) return;
+    if (_api.isFamilyChildSession || _staff.isAuthenticated) return;
     final customer = _customer;
     if (customer == null || !_api.isAuthenticated) {
       return;
     }
     if (_widgetRefreshInFlight) {
       _widgetRefreshQueued = true;
+      await _widgetRefreshDone?.future;
       return;
     }
     _widgetRefreshInFlight = true;
+    final done = Completer<void>();
+    _widgetRefreshDone = done;
     try {
       final orders = await _api.getCustomerOrders();
       if (_customer?.id != customer.id || !_api.isAuthenticated) return;
+      _deliveryResolution.updateOrders(orders);
       final activeOrder = orders
           .where((order) => order.paymentStatus == 'paid' && !order.isClosed)
           .firstOrNull;
@@ -747,6 +783,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       await OrderLiveStatus.sync(_widgetOrder);
     } finally {
       _widgetRefreshInFlight = false;
+      done.complete();
+      if (identical(_widgetRefreshDone, done)) _widgetRefreshDone = null;
       if (_widgetRefreshQueued && mounted) {
         _widgetRefreshQueued = false;
         unawaited(_refreshWidgetOrder());
@@ -942,6 +980,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     _refreshTimer?.cancel();
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       unawaited(_refreshProfile(phone));
+      unawaited(_refreshWidgetOrder());
       // Retry late APNs tokens and temporary registration/network failures
       // while the authenticated app stays open, without asking permission.
       if (!kIsWeb) unawaited(PushNotifications.register(_api));
@@ -1422,6 +1461,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     String? refreshToken,
     String sessionPhone,
   ) async {
+    _deliveryResolution.clear();
     final previousOrder = _widgetOrder;
     _refreshTimer?.cancel();
     _accessToken = accessToken;
@@ -1529,6 +1569,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   Future<void> _clearSession() async {
+    _deliveryResolution.clear();
     _sessionRecoveryPending = false;
     _refreshTimer?.cancel();
     final prefs = _prefs ?? await SharedPreferences.getInstance();
@@ -1564,6 +1605,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       builder: (context, lang, child) {
         return MaterialApp(
           navigatorKey: _navigatorKey,
+          navigatorObservers: [_deliveryResolution],
           debugShowCheckedModeBanner: false,
           title: 'Bulka',
           locale: Locale(lang),

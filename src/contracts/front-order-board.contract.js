@@ -19,6 +19,7 @@ const frontBoardActionSchema = z
     orderId: z.string().uuid(),
     terminalId: iikoGuidSchema,
     action: z.enum(['accept', 'reject', 'ready', 'hand_over']),
+    resolutionId: z.string().uuid().optional(),
   })
   .strict();
 module.exports = { frontBoardQuerySchema, frontBoardActionSchema };

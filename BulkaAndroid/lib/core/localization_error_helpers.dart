@@ -6,6 +6,11 @@ String localizeErrorMessage(
 }) {
   final code = error is ApiException ? error.code : null;
   switch (code) {
+    case 'DELIVERY_RESOLUTION_INVALID_SLOT':
+      return 'delivery_choice_slot_changed'.tr;
+    case 'DELIVERY_RESOLUTION_CONFLICT':
+    case 'DELIVERY_RESOLUTION_DELIVERY_ACTIVE':
+      return 'delivery_choice_changed'.tr;
     case 'DELIVERY_TEMPORARILY_UNAVAILABLE':
       return 'checkout_delivery_unavailable'.tr;
     case 'CHECKOUT_BONUS_CHANGED':

@@ -32,6 +32,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember(Name="id")] public string Id {get;set;}
         [DataMember(Name="items")] public List<ReceiptDraftItem> Items {get;set;}
         [DataMember(Name="merchandiseTotal")] public decimal MerchandiseTotal {get;set;}
+        [DataMember(Name="deliveryResolution")] public DeliveryResolution DeliveryResolution {get;set;}
         [DataMember(Name="error")] public string Error {get;set;}
     }
     internal sealed partial class SharedStockGuard

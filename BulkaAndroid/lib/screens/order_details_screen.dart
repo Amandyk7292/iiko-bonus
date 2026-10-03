@@ -196,12 +196,14 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
   }
 
   String get _etaConfidenceText {
+    if (_order.hasDeliveryResolutionInProgress) return '';
     final confidence = _order.etaConfidence;
     if (!const {'low', 'medium', 'high'}.contains(confidence)) return '';
     return 'order_eta_confidence_$confidence'.tr;
   }
 
   String get _etaText {
+    if (_order.hasDeliveryResolutionInProgress) return '';
     final minimum = _order.etaMinAt?.toLocal();
     final maximum = _order.etaMaxAt?.toLocal();
     if (minimum != null && maximum != null) {
@@ -307,8 +309,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
           children: [
             Semantics(
               liveRegion: true,
-              label:
-                  '${'order_current_status'.tr}: ${'order_status_${_order.orderStatus}'.tr}. ${'orders_eta'.tr}: $_etaText. $_etaConfidenceText',
+              label: [
+                '${'order_current_status'.tr}: ${customerOrderStatusLabel(_order)}',
+                if (_etaText.isNotEmpty) '${'orders_eta'.tr}: $_etaText',
+                if (_etaConfidenceText.isNotEmpty) _etaConfidenceText,
+              ].join('. '),
               child: Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -323,7 +328,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'order_status_${_order.orderStatus}'.tr,
+                      customerOrderStatusLabel(_order),
                       style: const TextStyle(
                         fontFamily: _headingFont,
                         color: Colors.white,
@@ -331,16 +336,18 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _etaText,
-                      style: const TextStyle(
-                        fontFamily: _headingFont,
-                        color: Color(0xFFFFD36A),
-                        fontSize: BulkaTypeScale.body,
-                        fontWeight: FontWeight.w700,
+                    if (_etaText.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _etaText,
+                        style: const TextStyle(
+                          fontFamily: _headingFont,
+                          color: Color(0xFFFFD36A),
+                          fontSize: BulkaTypeScale.body,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
+                    ],
                     if (_etaConfidenceText.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
@@ -368,7 +375,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
               const SizedBox(height: 16),
               _RefundProgressCard(order: _order),
             ],
-            if (_order.trackingUrl?.isNotEmpty == true) ...[
+            if (_order.trackingUrl?.isNotEmpty == true &&
+                !_order.hasDeliveryResolutionInProgress) ...[
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
@@ -379,7 +387,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
                 ),
               ),
             ],
-            if (_order.usesDelivery) ...[
+            if (_order.usesDelivery &&
+                !_order.hasDeliveryResolutionInProgress) ...[
               const SizedBox(height: 16),
               _OrderSection(
                 title: 'order_courier_live'.tr,
@@ -677,6 +686,13 @@ class _OrderTimeline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
+    if (order.hasDeliveryResolutionInProgress) {
+      return _OrderNotice(
+        icon: Icons.pending_actions_rounded,
+        text: customerOrderStatusLabel(order),
+        color: colors.brandBrown,
+      );
+    }
     if (order.orderStatus == 'cancelled') {
       return _OrderNotice(
         icon: Icons.cancel_rounded,

@@ -13,6 +13,10 @@ const {
 } = require('./delivery-orchestration.service');
 const { runBackgroundTask } = require('../utils/background-task.util');
 const { sessionHash } = require('./admin-session.service');
+const {
+  deliveryResolution,
+  unresolvedDeliveryResolution,
+} = require('../utils/delivery-resolution.util');
 
 const KITCHEN_ORDER_FIELDS = [
   'id',
@@ -25,6 +29,7 @@ const KITCHEN_ORDER_FIELDS = [
   'fulfillment_type',
   'preorder_fulfillment_type',
   'fulfillment_status',
+  'delivery_resolution',
   'kitchen_status',
   'created_at',
   'promised_ready_at',
@@ -164,6 +169,7 @@ const normalize = (order) => ({
   tabletReadyAt: order.tablet_ready_at || null,
   externalDelivery: normalizeKitchenExternalDelivery(order.delivery_jobs),
   customerArrivedAt: order.customer_arrived_at || null,
+  deliveryResolution: deliveryResolution(order),
 });
 
 async function resolveAcceptanceAudit(admin, branchId, now) {
@@ -294,6 +300,9 @@ async function updateKitchenStatus(
     !branchIds.map(String).includes(String(current.branch_id || ''))
   ) {
     throw kitchenError('Заказ не найден', 404);
+  }
+  if (unresolvedDeliveryResolution(current)) {
+    throw kitchenError('Сначала завершите выбор клиента и подтверждение замены доставки', 409);
   }
   const from = current.kitchen_status || 'queued';
   if (from === nextStatus) return normalize(current);

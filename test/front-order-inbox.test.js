@@ -81,6 +81,48 @@ test('inbox contracts reject cross-branch payloads and arbitrary order states', 
   ])
     assert.equal(frontOrderDecisionSchema.safeParse(value).success, false);
 });
+test('replacement review uses authenticated branch and fresh resolution instead of ordinary acceptance', async (t) => {
+  const branch = randomUUID(),
+    resolutionId = randomUUID(),
+    order = {
+      id: randomUUID(),
+      branch_id: branch,
+      status: 'paid',
+      fulfillment_status: 'ready',
+      delivery_resolution: { id: resolutionId, status: 'pickup_pending_approval' },
+    };
+  const h = inbox(t, order),
+    reviews = [];
+  stub(t, '../src/services/delivery-resolution.service', {
+    reviewDeliveryResolution: async (...args) => {
+      reviews.push(args);
+      return { deliveryResolution: { status: 'pickup_accepting' } };
+    },
+  });
+  await assert.rejects(
+    h.service.decideFrontOrder(branch, { orderId: order.id, action: 'accept', terminalId: 'pos' }),
+    (e) => e.statusCode === 409 && /в веб-кассе Bulka/.test(e.message),
+  );
+  const result = await h.service.decideFrontOrder(branch, {
+    orderId: order.id,
+    action: 'accept',
+    terminalId: 'pos',
+    resolutionId,
+  });
+  assert.equal(result.deliveryResolution.status, 'pickup_accepting');
+  assert.deepEqual(reviews, [
+    [
+      order.id,
+      'accept',
+      {
+        branchIds: [branch],
+        actor: 'iikofront:pos',
+        resolutionId,
+      },
+    ],
+  ]);
+  assert.equal(h.actions.length, 0);
+});
 
 test('tablet accepted action delegates to the common queue, dispatch and acceptance audit', async (t) => {
   const branch = randomUUID();
@@ -176,7 +218,10 @@ test('inbox fetch is branch scoped, paid and actionable only, with bounded pagin
   );
   assert.deepEqual(
     reads.find((r) => r[0] === 'or'),
-    ['or', 'refund_status.is.null,refund_status.in.(partial,failed)'],
+    [
+      'or',
+      'refund_status.is.null,refund_status.in.(partial,failed),and(delivery_resolution->>status.in.(pickup_accepting,pickup_rejecting,cancel_refunding),refund_status.in.(processing,unknown))',
+    ],
   );
   assert.equal(result.orders[0].items[0].quantity, 5);
   assert.equal(result.orders[0].orderType, 'preorder');

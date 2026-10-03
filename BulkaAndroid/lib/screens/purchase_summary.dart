@@ -41,6 +41,26 @@ class _PurchaseSummary extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
         children: [
+          if (order.orderStatus == 'cancelled') ...[
+            _OrderNotice(
+              icon: Icons.cancel_outlined,
+              text: customerOrderStatusLabel(order),
+              color: colors.danger,
+            ),
+            if (customerOrderCancellationReason(order).isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                customerOrderCancellationReason(order),
+                key: const ValueKey('order-cancellation-reason'),
+              ),
+            ],
+            const SizedBox(height: 16),
+          ],
+          if (order.refundStatus?.isNotEmpty == true ||
+              order.paymentStatus == 'refunded') ...[
+            _RefundProgressCard(order: order),
+            const SizedBox(height: 16),
+          ],
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(

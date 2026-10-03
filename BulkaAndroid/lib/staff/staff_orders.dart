@@ -14,6 +14,188 @@ bool staffCanRefundOrders(String role) =>
     ['owner', 'admin', 'branch_manager'].contains(role);
 bool staffCanCancelOrders(String role) =>
     role == 'cashier' || staffCanRefundOrders(role);
+bool staffCanReviewDeliveryResolution(String role) =>
+    ['owner', 'admin', 'branch_manager', 'cashier'].contains(role);
+
+bool staffNeedsPickupApproval(Map order) =>
+    (order['deliveryResolution'] as Map?)?['status'] ==
+    'pickup_pending_approval';
+bool staffHasUnresolvedDelivery(Map order) => [
+  'pending',
+  'pickup_cancelling',
+  'cancel_cancelling',
+  'pickup_pending_approval',
+  'pickup_accepting',
+  'pickup_rejecting',
+  'cancel_refunding',
+].contains((order['deliveryResolution'] as Map?)?['status']);
+bool staffDeliveryReplacementVisible(Map order) => [
+  'pickup_cancelling',
+  'pickup_pending_approval',
+  'pickup_accepting',
+  'pickup_rejecting',
+  'pickup_accepted',
+  'pickup_rejected',
+].contains((order['deliveryResolution'] as Map?)?['status']);
+
+class StaffDeliveryResolutionNotice extends StatelessWidget {
+  const StaffDeliveryResolutionNotice({
+    required this.order,
+    this.saving = false,
+    this.onReview,
+    super.key,
+  });
+  final Map<String, dynamic> order;
+  final bool saving;
+  final Future<void> Function(String action)? onReview;
+  @override
+  Widget build(BuildContext context) {
+    if (!staffDeliveryReplacementVisible(order) &&
+        !staffHasUnresolvedDelivery(order)) {
+      return const SizedBox.shrink();
+    }
+    final resolution = order['deliveryResolution'] as Map;
+    final label = switch (resolution['status']) {
+      'pickup_cancelling' => staffText(
+        'Самовывоз запрошен',
+        'Алып кету сұралды',
+        'Pickup requested',
+      ),
+      'pickup_pending_approval' => staffText(
+        'Клиент выбрал самовывоз',
+        'Клиент алып кетуді таңдады',
+        'Customer chose pickup',
+      ),
+      'pickup_accepted' => staffText(
+        'Самовывоз подтверждён',
+        'Алып кету расталды',
+        'Pickup confirmed',
+      ),
+      'pending' => staffText(
+        'Клиент выбирает получение',
+        'Клиент алу тәсілін таңдауда',
+        'Customer is choosing fulfillment',
+      ),
+      'cancel_cancelling' => staffText(
+        'Отмена доставки обрабатывается',
+        'Жеткізуді тоқтату өңделуде',
+        'Cancelling delivery',
+      ),
+      'pickup_accepting' => staffText(
+        'Проверяем возврат стоимости доставки',
+        'Жеткізу ақысын қайтару тексерілуде',
+        'Verifying delivery fee refund',
+      ),
+      'pickup_rejecting' => staffText(
+        'Самовывоз отклонён. Возврат проверяется',
+        'Алып кету қабылданбады. Қайтару тексерілуде',
+        'Pickup rejected. Verifying refund',
+      ),
+      'cancel_refunding' => staffText(
+        'Возврат проверяется',
+        'Қайтару тексерілуде',
+        'Verifying refund',
+      ),
+      _ => staffText(
+        'Самовывоз отклонён',
+        'Алып кету қабылданбады',
+        'Pickup rejected',
+      ),
+    };
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF0DD),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            staffDeliveryReplacementVisible(order)
+                ? staffText(
+                    'Замена доставки',
+                    'Жеткізуді ауыстыру',
+                    'Delivery replacement',
+                  )
+                : staffText(
+                    'Курьер не найден',
+                    'Курьер табылмады',
+                    'Courier not found',
+                  ),
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          Text(label),
+          if (resolution['pickupTime'] != null)
+            Text(
+              '${staffText('Получение', 'Алу уақыты', 'Pickup')}: ${staffDate(resolution['pickupTime'])}',
+            ),
+          if (staffNeedsPickupApproval(order) && onReview != null) ...[
+            const SizedBox(height: 10),
+            FilledButton(
+              onPressed: saving ? null : () => onReview!('accept'),
+              child: Text(
+                staffText(
+                  'Принять самовывоз',
+                  'Алып кетуді қабылдау',
+                  'Accept pickup',
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          title: Text(
+                            staffText(
+                              'Отклонить самовывоз',
+                              'Алып кетуді қабылдамау',
+                              'Reject pickup',
+                            ),
+                          ),
+                          content: Text(
+                            staffText(
+                              'Заказ будет отменён. Оплата будет возвращена.',
+                              'Тапсырыс тоқтатылады. Төлем қайтарылады.',
+                              'The order will be cancelled and refunded.',
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, false),
+                              child: Text(staffText('Назад', 'Артқа', 'Back')),
+                            ),
+                            FilledButton(
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, true),
+                              child: Text(
+                                staffText('Подтвердить', 'Растау', 'Confirm'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true) await onReview!('reject');
+                    },
+              child: Text(
+                staffText(
+                  'Отклонить самовывоз',
+                  'Алып кетуді қабылдамау',
+                  'Reject pickup',
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
 class StaffOrderAmounts extends StatelessWidget {
   const StaffOrderAmounts({required this.order, super.key});
@@ -274,6 +456,16 @@ class _StaffOrdersState extends State<StaffOrders> {
                       children: [
                         Chip(label: Text(staffStatus(order['paymentStatus']))),
                         Chip(label: Text(staffStatus(order['orderStatus']))),
+                        if (staffDeliveryReplacementVisible(order))
+                          Chip(
+                            label: Text(
+                              staffText(
+                                'Замена доставки',
+                                'Жеткізуді ауыстыру',
+                                'Delivery replacement',
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                     Text(
@@ -353,6 +545,7 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
   late final StaffLiveRefresh _live;
   String? _error;
   bool _loading = false;
+  bool _resolutionSaving = false;
   int _generation = 0;
   String get _path => '/orders/${Uri.encodeComponent('${_order['id']}')}';
   bool get _canEdit => staffCanEditOrders(widget.role);
@@ -397,6 +590,7 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
   }
 
   Future<void> _status(String status) async {
+    if (staffHasUnresolvedDelivery(_order) || _resolutionSaving) return;
     if (status == 'cancelled' ? !_canCancel : !_canEdit) return;
     final saved = await staffEdit(
       context,
@@ -461,6 +655,7 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
   }
 
   Future<void> _courier() async {
+    if (staffHasUnresolvedDelivery(_order) || _resolutionSaving) return;
     if (!_canEdit) return;
     try {
       final result = await widget.api.request('/couriers');
@@ -602,6 +797,40 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
     if (mounted) unawaited(_refresh());
   }
 
+  Future<void> _reviewDelivery(String action) async {
+    if (_resolutionSaving ||
+        !staffNeedsPickupApproval(_order) ||
+        !staffCanReviewDeliveryResolution(widget.role)) {
+      return;
+    }
+    final resolutionId = (_order['deliveryResolution'] as Map)['id'];
+    setState(() => _resolutionSaving = true);
+    _generation++;
+    try {
+      final result = await widget.api.request(
+        '$_path/delivery-resolution',
+        method: 'POST',
+        body: {'action': action, 'resolutionId': resolutionId},
+      );
+      if (mounted) {
+        setState(() {
+          _generation++;
+          _order = {
+            ..._order,
+            ...Map<String, dynamic>.from(result['order'] as Map),
+          };
+          _loading = false;
+          _error = null;
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+      await _refresh();
+    } finally {
+      if (mounted) setState(() => _resolutionSaving = false);
+    }
+  }
+
   Future<void> _substitute() async {
     if (!_canEdit) return;
     try {
@@ -739,6 +968,13 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
             if (_error != null)
               _StaffError(message: _error!, onRetry: _refresh),
             StaffOrderAmounts(order: _order),
+            StaffDeliveryResolutionNotice(
+              order: _order,
+              saving: _resolutionSaving,
+              onReview: staffCanReviewDeliveryResolution(widget.role)
+                  ? _reviewDelivery
+                  : null,
+            ),
             if (_order['courierDispatchStatus'] == 'awaiting_receipt')
               const StaffReceiptDispatchNotice(),
             if (_order['posReceiptDue'] == true)
@@ -806,7 +1042,7 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text('${_order['comment']}'),
               ),
-            if (_canEdit || _canCancel)
+            if ((_canEdit || _canCancel) && !staffHasUnresolvedDelivery(_order))
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
@@ -844,6 +1080,7 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
                 ],
               ),
             if (_canRefund &&
+                !staffHasUnresolvedDelivery(_order) &&
                 _order['paymentStatus'] == 'paid' &&
                 !['processing', 'unknown'].contains(_order['refundStatus']))
               Padding(

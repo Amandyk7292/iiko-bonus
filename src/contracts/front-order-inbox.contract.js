@@ -12,6 +12,7 @@ const frontOrderDecisionSchema = z
     orderId: z.string().uuid(),
     terminalId: iikoGuidSchema,
     action: z.enum(['accept', 'reject']),
+    resolutionId: z.string().uuid().optional(),
   })
   .strict();
 const frontOrderPollSchema = z.object({ terminalId: iikoGuidSchema }).strict();

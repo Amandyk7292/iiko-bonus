@@ -77,6 +77,8 @@ const ORDER_REFUND_ROLES = new Set(['owner', 'admin', 'branch_manager']);
 const INVENTORY_MUTATION_ROLES = new Set(['owner', 'admin', 'branch_manager', 'editor']);
 
 export const canMutateOrders = (role: string) => ORDER_MUTATION_ROLES.has(role);
+export const canReviewDeliveryResolution = (role: string) =>
+  ['owner', 'admin', 'branch_manager', 'cashier'].includes(role);
 export const canRefundOrders = (role: string) => ORDER_REFUND_ROLES.has(role);
 export const canCancelOrders = (role: string) => role === 'cashier' || canRefundOrders(role);
 export const canMutateInventory = (role: string) => INVENTORY_MUTATION_ROLES.has(role);

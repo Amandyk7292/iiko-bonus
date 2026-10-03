@@ -124,6 +124,7 @@ class CustomerOrder {
     this.customerArrivedAt,
     this.courier,
     this.receiptUrl,
+    this.deliveryResolution,
   }) : _effectiveFulfillmentType = effectiveFulfillmentType;
 
   final String id;
@@ -173,6 +174,22 @@ class CustomerOrder {
   final DateTime? customerArrivedAt;
   final OrderCourier? courier;
   final String? receiptUrl;
+  final DeliveryResolution? deliveryResolution;
+
+  bool get needsDeliveryDecision =>
+      !isClosed &&
+      paymentStatus == 'paid' &&
+      deliveryResolution?.status == 'pending';
+
+  bool get hasDeliveryResolutionInProgress => const {
+    'pending',
+    'pickup_cancelling',
+    'cancel_cancelling',
+    'pickup_pending_approval',
+    'pickup_accepting',
+    'pickup_rejecting',
+    'cancel_refunding',
+  }.contains(deliveryResolution?.status);
 
   factory CustomerOrder.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'];
@@ -259,6 +276,9 @@ class CustomerOrder {
         _asString(json['customerArrivedAt']),
       ),
       receiptUrl: _nullableString(json['receiptUrl']),
+      deliveryResolution: _asMap(json['deliveryResolution']).isEmpty
+          ? null
+          : DeliveryResolution.fromJson(_asMap(json['deliveryResolution'])),
       courier: _asMap(json['courier']).isEmpty
           ? null
           : OrderCourier.fromJson(_asMap(json['courier'])),
@@ -286,6 +306,7 @@ class CustomerOrder {
   bool get canCancel =>
       paymentStatus == 'paid' &&
       orderStatus == 'new' &&
+      !hasDeliveryResolutionInProgress &&
       (refundStatus == null || refundStatus!.isEmpty);
 
   Map<String, dynamic> toJson() => {
@@ -342,6 +363,7 @@ class CustomerOrder {
     'deliveryPin': deliveryPin,
     'customerArrivedAt': customerArrivedAt?.toUtc().toIso8601String(),
     'receiptUrl': receiptUrl,
+    'deliveryResolution': deliveryResolution?.toJson(),
     'courier': courier?.toJson(),
   };
 }

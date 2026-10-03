@@ -1,10 +1,11 @@
 const { supabase } = require('../config/supabase');
 const { stockArgs, rpc } = require('./front-stock-guard.service');
+const { unresolvedDeliveryResolution } = require('../utils/delivery-resolution.util');
 async function listAutoReceipts(branchId, { terminalId, assemblyVersion }) {
   let query = supabase
     .from('front_receipt_jobs')
     .select(
-      'order_id,receipt_id,terminal_id,created_at,fiscal_due,assembly_status,kaspi_orders!inner(order_number,status,refund_status)',
+      'order_id,receipt_id,terminal_id,created_at,fiscal_due,assembly_status,kaspi_orders!inner(order_number,status,refund_status,delivery_resolution)',
     )
     .eq('branch_id', branchId)
     .neq('status', 'completed')
@@ -23,6 +24,7 @@ async function listAutoReceipts(branchId, { terminalId, assemblyVersion }) {
       .filter(
         (row) =>
           row.kaspi_orders.status === 'paid' &&
+          !unresolvedDeliveryResolution(row.kaspi_orders) &&
           [null, 'partial', 'failed'].includes(row.kaspi_orders.refund_status ?? null),
       )
       .map((row) => ({

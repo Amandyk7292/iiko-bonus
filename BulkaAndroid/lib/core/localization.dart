@@ -143,6 +143,7 @@ const Map<String, Map<String, String>> _appTranslations = {
   ..._locationTranslations,
   ..._accountTranslations,
   ..._orderAndPaymentTranslations,
+  ..._deliveryResolutionTranslations,
   ..._receiptTranslations,
 };
 
