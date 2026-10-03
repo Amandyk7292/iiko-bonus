@@ -59,6 +59,7 @@ const validateUploadedImage = (req, res, next) => {
 };
 
 function registerMenuAdminRoutes(router) {
+  require('./product-inventory-unit.routes').registerProductInventoryUnitRoutes(router);
   require('./cashier-production.routes').registerCashierProductionRoutes(router);
   require('./product-badges.routes').registerProductBadgeRoutes(router);
   registerPriceLabelRoutes(router);

@@ -4,6 +4,7 @@ class BulkaDesktopPhoneViewport extends StatelessWidget {
   const BulkaDesktopPhoneViewport({
     required this.child,
     this.desktopModeOverride,
+    this.staffDesktopMode = false,
     super.key,
   });
 
@@ -13,6 +14,7 @@ class BulkaDesktopPhoneViewport extends StatelessWidget {
   static const _phoneFrameSize = Size(446, 884);
 
   final Widget child;
+  final bool staffDesktopMode;
 
   @visibleForTesting
   final bool? desktopModeOverride;
@@ -27,7 +29,7 @@ class BulkaDesktopPhoneViewport extends StatelessWidget {
             !bulkaBrowserIsTablet &&
             browserSize.width >= desktopBreakpoint);
 
-    if (!usePhoneViewport) return child;
+    if (staffDesktopMode || !usePhoneViewport) return child;
 
     return RepaintBoundary(
       key: const ValueKey('bulka-desktop-backdrop'),

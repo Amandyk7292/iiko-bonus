@@ -76,13 +76,23 @@ class _AdminPasswordLoginFormState extends State<_AdminPasswordLoginForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _AuthStepHeader(
-            title: 'auth_login_title'.tr,
-            subtitle: 'auth_admin_subtitle'.tr,
-          ),
+          if (StaffDesktopScope.enabledOf(context))
+            Text(
+              staffText(
+                'Вход сотрудника',
+                'Қызметкердің кіруі',
+                'Staff sign in',
+              ),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+            )
+          else
+            _AuthStepHeader(
+              title: 'auth_login_title'.tr,
+              subtitle: 'auth_admin_subtitle'.tr,
+            ),
           const SizedBox(height: 22),
-          TextField(
-            key: const ValueKey('auth-admin-username'),
+          StaffTouchField(
+            fieldKey: const ValueKey('auth-admin-username'),
             controller: _username,
             enabled: !_loading,
             autocorrect: false,
@@ -97,8 +107,8 @@ class _AdminPasswordLoginFormState extends State<_AdminPasswordLoginForm> {
             ),
           ),
           const SizedBox(height: 16),
-          TextField(
-            key: const ValueKey('auth-admin-password'),
+          StaffTouchField(
+            fieldKey: const ValueKey('auth-admin-password'),
             controller: _password,
             enabled: !_loading,
             obscureText: !_passwordVisible,
@@ -136,8 +146,8 @@ class _AdminPasswordLoginFormState extends State<_AdminPasswordLoginForm> {
           ),
           if (_needsCode) ...[
             const SizedBox(height: 16),
-            TextField(
-              key: const ValueKey('auth-admin-code'),
+            StaffTouchField(
+              fieldKey: const ValueKey('auth-admin-code'),
               controller: _code,
               enabled: !_loading,
               keyboardType: TextInputType.number,

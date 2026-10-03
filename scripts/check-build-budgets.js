@@ -50,10 +50,10 @@ if (adminDirectory) {
   assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
-    // Editable 24/7 schedules and separate shift reports measure 433,140 B
-    // in total. Allow 1,360 B headroom; retain the largest-chunk/CSS limits.
+    // The shared product unit editor measures 434,921 B in total.
+    // Allow 1,079 B headroom; retain the largest-chunk/CSS limits.
     // Exporters load only on download and keep their separate budgets below.
-    434_500,
+    436_000,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   assertBudget('Admin deferred price-label PDF gzip', Math.max(0, ...priceLabelPdfGzip), 185_000);
@@ -69,11 +69,10 @@ if (flutterDirectory) {
   if (!fs.existsSync(mainFile)) {
     failures.push(`Flutter entry is missing: ${mainFile}`);
   } else {
-    // Cashier production selection/recovery measures 6,626,635 B raw and
-    // 1,807,218 B gzip: +0.36%/+0.34% against the delivery-choice baseline.
-    // Raise raw by only 2,000 B; keep the gzip limit unchanged.
-    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_627_000);
-    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_808_000);
+    // Staff touch keyboards/full-window mode measure 6,637,755 B raw and
+    // 1,812,682 B gzip. Keep a small measured margin for this opt-in UI.
+    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_640_000);
+    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_814_000);
   }
   const wasmFiles = filesUnder(directory).filter((file) => file.endsWith('.wasm'));
   assertBudget(

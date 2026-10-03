@@ -342,7 +342,7 @@ class _CashierCatalogState extends State<CashierCatalog> {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: Column(
             children: [
-              TextField(
+              StaffTouchField(
                 controller: _searchController,
                 onTapOutside: (_) => FocusScope.of(context).unfocus(),
                 decoration: InputDecoration(
@@ -877,7 +877,6 @@ class _CashierQuantitySheetState extends State<_CashierQuantitySheet> {
 
   num? get _entered => num.tryParse(_quantity.text.replaceAll(',', '.'));
   num get _current => num.tryParse('${widget.product['sourceQuantity']}') ?? 0;
-  String get _originalUnit => widget.product['unit'] == 'кг' ? 'кг' : 'шт';
   num? get _resulting {
     final entered = _entered;
     if (entered == null) return null;
@@ -885,35 +884,19 @@ class _CashierQuantitySheetState extends State<_CashierQuantitySheet> {
   }
 
   void _changeReason(String reason) {
-    if (reason == 'receipt' && _unit != _originalUnit) {
-      setState(
-        () => _error = staffText(
-          'При смене единицы используйте «Исправили»',
-          'Өлшем бірлігін ауыстырғанда «Түзетілді» таңдаңыз',
-          'Use “Corrected” when changing the unit',
-        ),
-      );
-      return;
-    }
     setState(() {
       _reason = reason;
       _operationId = null;
       _error = null;
       if (reason == 'correction' && widget.product['sourceQuantity'] != null) {
         _quantity.text = _cashierQuantity(widget.product['sourceQuantity']);
+        _quantity.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: _quantity.text.length,
+        );
       } else {
         _quantity.clear();
       }
-    });
-  }
-
-  void _changeUnit(String unit) {
-    setState(() {
-      _unit = unit;
-      _reason = unit == _originalUnit ? _reason : 'correction';
-      _quantity.clear();
-      _operationId = null;
-      _error = null;
     });
   }
 
@@ -978,28 +961,9 @@ class _CashierQuantitySheetState extends State<_CashierQuantitySheet> {
                 style: const TextStyle(fontSize: 14, color: Color(0xFF746B63)),
               ),
               const SizedBox(height: 22),
-              Text(
-                staffText(
-                  'Единица измерения',
-                  'Өлшем бірлігі',
-                  'Unit of measure',
-                ),
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 8),
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'шт', label: Text('шт')),
-                  ButtonSegment(value: 'кг', label: Text('кг')),
-                ],
-                selected: {_unit},
-                onSelectionChanged: _saving
-                    ? null
-                    : (selected) => _changeUnit(selected.first),
-              ),
-              const SizedBox(height: 16),
-              TextField(
+              StaffTouchField(
                 controller: _quantity,
+                inlineNumericPad: true,
                 autofocus: true,
                 enabled: !_saving,
                 keyboardType: TextInputType.numberWithOptions(
@@ -1089,6 +1053,7 @@ class _CashierQuantitySheetState extends State<_CashierQuantitySheet> {
                 onPressed: _saving
                     ? null
                     : () async {
+                        if (_saving) return;
                         final value = _entered;
                         final step = _unit == 'кг' ? 0.001 : 1;
                         final resulting = _resulting;

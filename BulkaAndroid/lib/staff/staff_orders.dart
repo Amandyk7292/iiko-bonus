@@ -329,7 +329,7 @@ class _StaffOrdersState extends State<StaffOrders> {
     child: ListView(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
       children: [
-        TextField(
+        StaffTouchField(
           controller: _search,
           decoration: InputDecoration(
             prefixIcon: const Icon(Icons.search),
@@ -1377,7 +1377,7 @@ class _StaffRefundState extends State<StaffRefund> {
           for (final line in staffRows(_options!['lines']))
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
-              child: TextField(
+              child: StaffTouchField(
                 controller: _quantities['${line['lineKey']}'],
                 enabled: !_busy && _idempotency == null,
                 keyboardType: const TextInputType.numberWithOptions(
@@ -1391,7 +1391,7 @@ class _StaffRefundState extends State<StaffRefund> {
                 onChanged: (_) => setState(() => _preview = null),
               ),
             ),
-          TextField(
+          StaffTouchField(
             controller: _reason,
             enabled: !_busy && _idempotency == null,
             maxLength: 500,

@@ -2,6 +2,7 @@ import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import Modal from '../../components/Modal';
 import ProductBadges, { type ProductBadgesHandle } from './ProductBadges';
+import ProductInventoryUnit, { type ProductInventoryUnitHandle } from './ProductInventoryUnit';
 import './ProductEditorModal.css';
 
 const tabs = [
@@ -40,12 +41,17 @@ export default function ProductEditorModal({
   const [appearanceBusy, setAppearanceBusy] = useState(false);
   const [validation, setValidation] = useState('');
   const badges = useRef<ProductBadgesHandle>(null);
+  const inventoryUnit = useRef<ProductInventoryUnitHandle>(null);
   const locked = saving || appearanceBusy;
   const selectTab = (next: EditorTab) => {
     setTab(next);
     if (next === 'appearance') setAppearanceVisited(true);
   };
   const saveAppearance = async () => {
+    if (!((await inventoryUnit.current?.saveIfChanged()) ?? true)) {
+      selectTab('main');
+      return false;
+    }
     const saved = (await badges.current?.saveIfChanged()) ?? true;
     if (!saved) selectTab('appearance');
     return saved;
@@ -157,7 +163,18 @@ export default function ProductEditorModal({
               inert={tab !== key}
               className="product-editor-panel"
             >
-              {key === 'main' && main}
+              {key === 'main' && (
+                <>
+                  {main}
+                  {productId && (
+                    <ProductInventoryUnit
+                      ref={inventoryUnit}
+                      productId={productId}
+                      onSaved={onAppearanceSaved}
+                    />
+                  )}
+                </>
+              )}
               {key === 'facts' && facts}
               {key === 'appearance' &&
                 (productId ? (

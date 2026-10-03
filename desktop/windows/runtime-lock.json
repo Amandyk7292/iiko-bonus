@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "runtime": {
+    "name": "Supermium",
+    "version": "144-r5",
+    "browserVersion": "144.0.7559.256",
+    "releaseTag": "v144-r5",
+    "publishedAt": "2026-07-14T20:41:02Z",
+    "prerelease": false,
+    "sourceUrl": "https://github.com/win32ss/supermium/tree/v144-r5",
+    "releaseUrl": "https://github.com/win32ss/supermium/releases/tag/v144-r5",
+    "releaseApiUrl": "https://api.github.com/repos/win32ss/supermium/releases/tags/v144-r5",
+    "licenseUrl": "https://raw.githubusercontent.com/win32ss/supermium/v144-r5/LICENSE",
+    "licenseFileName": "Supermium-v144-r5-LICENSE.txt",
+    "licenseSha256": "368cca1106be99d39ecd32a38d8305585d802a475effb66380b91ffc9bcf709b",
+    "homepageUrl": "https://supermium.net/",
+    "releaseNotes": "Incorporates upstream fixes and security patches. Fixes #1922 and #1926: the browser appears as an option for a default browser when the installer is permitted to write to the registry.",
+    "distributionNotes": "Copy the complete Supermium archive directory, preserving the version subdirectory and bundled DLLs. Do not run the archive-root setup.exe. Reproduce the Chromium copyright, license conditions, and disclaimer in distribution materials; preserve bundled third-party credits."
+  },
+  "architectures": {
+    "x86": {
+      "url": "https://github.com/win32ss/supermium/releases/download/v144-r5/supermium_144_32_nonsetup.zip",
+      "sha256": "17acfcdf89ea651905053b50b0fce5a28db19cb2c69ed5579c7b177806ed6d31",
+      "archiveFileName": "supermium_144_32_nonsetup.zip",
+      "sizeBytes": 153211908,
+      "githubAssetId": 477047729,
+      "githubAssetDigest": "sha256:17acfcdf89ea651905053b50b0fce5a28db19cb2c69ed5579c7b177806ed6d31",
+      "executableRelativePath": "Supermium/chrome.exe",
+      "archiveRuntimeDirectory": "Supermium"
+    },
+    "x64": {
+      "url": "https://github.com/win32ss/supermium/releases/download/v144-r5/supermium_144_64_nonsetup.zip",
+      "sha256": "805232e5cde1bf6971748bc7fb6a2cb09fdfce9ceb91062a1814b228139956ca",
+      "archiveFileName": "supermium_144_64_nonsetup.zip",
+      "sizeBytes": 175790157,
+      "githubAssetId": 477050863,
+      "githubAssetDigest": "sha256:805232e5cde1bf6971748bc7fb6a2cb09fdfce9ceb91062a1814b228139956ca",
+      "executableRelativePath": "Supermium/chrome.exe",
+      "archiveRuntimeDirectory": "Supermium"
+    }
+  },
+  "verification": {
+    "verifiedAt": "2026-10-03",
+    "method": "Release-note SHA2-256 values matched the GitHub API asset digest fields. Both ZIP central directories were inspected using bounded HTTP byte ranges; executable paths and archive contents were verified without downloading full archives.",
+    "fullArchiveHashesMustBeCheckedBeforePackaging": true,
+    "windows7HardwareValidationRequired": true
+  },
+  "compatibilityReferences": {
+    "runtimeWindowsSupport": "https://github.com/win32ss/supermium/blob/main/README.md",
+    "runtimeRequirements": "https://supermium.net/",
+    "runtimeUpdatePolicy": "https://supermium.net/faq/",
+    "flutterWasm": "https://docs.flutter.dev/platform-integration/web/wasm",
+    "flutterRenderers": "https://docs.flutter.dev/platform-integration/web/renderers",
+    "flutterInitialization": "https://docs.flutter.dev/platform-integration/web/initialization",
+    "canvasKitSoftwareFallbackSource": "https://github.com/flutter/flutter/blob/3.41.0/engine/src/flutter/lib/web_ui/lib/src/engine/canvaskit/surface.dart",
+    "notes": "Supermium explicitly supports Windows 7 and supplies x86 and x64 builds. The existing Bulka web release uses dart2js and CanvasKit, so WasmGC is not required for its Dart application code. CanvasKit still uses WebAssembly; its engine has CPU rendering fallback when WebGL initialization fails. Chromium 144 also exceeds Flutter's documented WasmGC baseline of Chromium 119 if a future Bulka release enables Dart Wasm compilation. WebGL, software-rendering fallback, codecs, touch input, and all application workflows still require execution testing on representative Windows 7 devices; this lock is not certification by the Flutter team. Supermium does not automatically update, so runtime updates must be delivered by a reviewed Bulka installer release."
+  }
+}

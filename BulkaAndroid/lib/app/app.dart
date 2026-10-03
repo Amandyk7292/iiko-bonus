@@ -5,7 +5,11 @@ bool shouldProbeStaffSession({
   required bool isWeb,
   required bool isAuthenticated,
   required Uri currentUri,
-}) => !isWeb || isAuthenticated || currentUri.path.startsWith('/admin');
+}) =>
+    !isWeb ||
+    isAuthenticated ||
+    currentUri.path.startsWith('/admin') ||
+    isStaffDesktopUri(currentUri);
 
 @visibleForTesting
 bool shouldProbeCustomerSession({
@@ -84,6 +88,7 @@ class BulkaBonusApp extends StatefulWidget {
     this.appReleaseChecksEnabled = true,
     this.staffSession,
     this.nativeCashierPushEnabled = true,
+    this.staffDesktopModeOverride,
   });
 
   final bool appReleaseChecksEnabled;
@@ -91,6 +96,8 @@ class BulkaBonusApp extends StatefulWidget {
   final StaffAccountSession? staffSession;
   @visibleForTesting
   final bool nativeCashierPushEnabled;
+  @visibleForTesting
+  final bool? staffDesktopModeOverride;
 
   @override
   State<BulkaBonusApp> createState() => _BulkaBonusAppState();
@@ -98,6 +105,10 @@ class BulkaBonusApp extends StatefulWidget {
 
 class _BulkaBonusAppState extends State<BulkaBonusApp>
     with WidgetsBindingObserver {
+  late final bool _staffDesktopMode =
+      widget.staffDesktopModeOverride ??
+      (kIsWeb && isStaffDesktopUri(currentClientUri()));
+  bool _restoringStaff = false;
   static final _minimumSplashDuration = kIsWeb
       ? Duration.zero
       : Durations.extralong1;
@@ -205,7 +216,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     )) {
       return Future<void>.value();
     }
-    return _staff.restore();
+    _restoringStaff = true;
+    return _staff.restore().whenComplete(() {
+      if (mounted) setState(() => _restoringStaff = false);
+    });
   }
 
   @override
@@ -1615,7 +1629,15 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          builder: _buildBulkaAppViewport,
+          builder: (context, child) => StaffDesktopScope(
+            enabled: _staffDesktopMode,
+            child: BulkaDesktopPhoneViewport(
+              staffDesktopMode: _staffDesktopMode,
+              child: BulkaInputDismissal(
+                child: child ?? const SizedBox.shrink(),
+              ),
+            ),
+          ),
           theme: buildBulkaTheme(),
           themeMode: ThemeMode.light,
           home: _AppStage(child: _buildHome()),
@@ -1649,6 +1671,16 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         onLogout: _logoutStaff,
         kitchenRequest: _cashierKitchenRequest,
         nativePushEnabled: widget.nativeCashierPushEnabled,
+      );
+    }
+    if (_staffDesktopMode) {
+      if (_restoringStaff) {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
+      return StaffDesktopLogin(
+        key: const ValueKey('app-stage-staff-desktop-login'),
+        session: _staff,
+        onLogout: _logoutStaff,
       );
     }
     final customer = _booting ? null : _customer;

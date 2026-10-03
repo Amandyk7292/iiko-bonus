@@ -9,6 +9,7 @@ const { getBranchAvailability } = require('./inventory.service');
 const { supabase } = require('../config/supabase');
 const realtime = require('./realtime.service');
 const { branchCatalogSource } = require('./branch-catalog-source.service');
+const { listProductInventoryUnits } = require('./product-inventory-unit.service');
 
 function cashierBranch(admin) {
   const branches = [...new Set(admin?.branchIds || [])];
@@ -27,6 +28,7 @@ function visibleCashierProducts({
   custom,
   stopIds,
   inventory,
+  inventoryUnits = new Map(),
   preorder = false,
 }) {
   const settings = new Map(overrides.map((p) => [p.iiko_product_id, p]));
@@ -91,13 +93,14 @@ function visibleCashierProducts({
   }
   return result.map((p) => {
     const stock = inventory.get(String(p.id));
+    const unit = stock?.unit || inventoryUnits.get(String(p.id)) || 'шт';
     return {
       ...p,
       sourceQuantity: stock?.sourceQuantity ?? null,
       availableQuantity: stock?.availableQuantity ?? null,
       reserved: stock?.reserved ?? 0,
-      quantityStep: stock?.quantityStep ?? 1,
-      unit: stock?.unit || 'шт',
+      quantityStep: stock?.quantityStep ?? (unit === 'кг' ? 0.001 : 1),
+      unit,
       manualStop: stock?.manualStop === true,
       revision: stock?.revision ?? 0,
       stockSource: !p.isIikoProduct || stock?.source === 'admin' ? 'manual' : 'iiko',
@@ -118,6 +121,9 @@ async function loadCashierCatalog(admin, preorder = false) {
     menuService.getCustomProducts(scope),
     getBranchAvailability(branchId, { strict: true, online: false, preorder }),
   ]);
+  const inventoryUnits = await listProductInventoryUnits({
+    productIds: [...(rawMenu.products || []), ...custom].map((product) => product.id),
+  });
   const { data: branch, error } = await supabase
     .from('bulka_locations')
     .select('id,name,address,city,active')
@@ -137,6 +143,7 @@ async function loadCashierCatalog(admin, preorder = false) {
       categories,
       custom,
       inventory,
+      inventoryUnits,
       stopIds,
       preorder,
     }),
@@ -178,13 +185,13 @@ async function updateCashierProduct(admin, productId, payload) {
   if (error)
     throw Object.assign(
       new Error(
-        error.code === '40001'
+        ['40001', '40P01', '55P03'].includes(error.code)
           ? 'Остаток уже изменился. Проверьте новые данные и повторите сохранение.'
           : error.code === 'P0001'
             ? error.message
             : 'Не удалось сохранить остаток',
       ),
-      { statusCode: ['40001', 'P0001'].includes(error.code) ? 409 : 503 },
+      { statusCode: ['40001', 'P0001', '40P01', '55P03'].includes(error.code) ? 409 : 503 },
     );
   realtime.publish(
     'menu.updated',

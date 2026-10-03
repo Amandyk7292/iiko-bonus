@@ -311,8 +311,9 @@ class _StaffKitchenState extends State<StaffKitchen>
                   ),
                 ),
                 const SizedBox(height: 10),
-                TextFormField(
+                StaffTouchField(
                   controller: input,
+                  inlineNumericPad: true,
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   validator: (value) {
@@ -347,7 +348,7 @@ class _StaffKitchenState extends State<StaffKitchen>
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
+                StaffTouchField(
                   controller: input,
                   minLines: 2,
                   maxLines: 4,
@@ -822,7 +823,7 @@ class _StaffKitchenState extends State<StaffKitchen>
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
-          TextField(
+          StaffTouchField(
             // The alarm remains active until a refreshed server response confirms acceptance.
             onChanged: (value) => setState(() => _search = value),
             decoration: InputDecoration(

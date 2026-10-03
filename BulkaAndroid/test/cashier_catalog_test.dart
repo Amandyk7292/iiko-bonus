@@ -382,10 +382,10 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
-  testWidgets('cashier can select kilograms for an absolute correction', (
+  testWidgets('cashier keeps catalog kilograms for an absolute correction', (
     tester,
   ) async {
-    final api = StockApi();
+    final api = StockApi()..unit = 'кг';
     addTearDown(() {
       api.eventsFeed.close();
       api.close();
@@ -399,7 +399,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(OutlinedButton, '5'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('кг'));
+    expect(find.text('Единица измерения'), findsNothing);
+    await tester.tap(find.text('Исправили'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, '1.25');
     await tester.tap(find.widgetWithText(FilledButton, 'Сохранить'));

@@ -196,8 +196,8 @@ class _CashierReportsState extends State<CashierReports> {
         title: Text(
           staffText('Очистить отчёт', 'Есепті тазалау', 'Clear report'),
         ),
-        content: TextField(
-          key: const ValueKey('cashier-report-reset-code'),
+        content: StaffTouchField(
+          fieldKey: const ValueKey('cashier-report-reset-code'),
           autofocus: true,
           obscureText: true,
           maxLength: 4,
