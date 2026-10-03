@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const subscribers = new Map();
 const eventHistory = [];
 const MAX_HISTORY = 250;
+const MAX_PENDING = MAX_HISTORY * 2;
 let sequence = 0;
 
 const writeEvent = (response, event) => {
@@ -101,12 +102,7 @@ function publish(type, data = {}, audience = {}) {
   eventHistory.push(event);
   if (eventHistory.length > MAX_HISTORY) eventHistory.splice(0, eventHistory.length - MAX_HISTORY);
   for (const subscriber of subscribers.values()) {
-    if (!canReceive(subscriber, event)) continue;
-    try {
-      writeEvent(subscriber.response, event);
-    } catch {
-      subscriber.close();
-    }
+    subscriber.deliver(event);
   }
   // Service/job driven updates use the same public invalidation channel.
   if (type === 'menu.updated')
@@ -170,8 +166,14 @@ function openStream(req, res, identity = {}) {
 
   const id = crypto.randomUUID();
   let heartbeat = null;
+  let expiryTimer = null;
+  let closed = false;
+  let pending = 0;
+  let deliveryTail = Promise.resolve();
   const close = () => {
+    closed = true;
     if (heartbeat) clearInterval(heartbeat);
+    if (expiryTimer) clearTimeout(expiryTimer);
     subscribers.delete(id);
     if (!res.writableEnded) res.end();
   };
@@ -188,9 +190,80 @@ function openStream(req, res, identity = {}) {
       ? identity.selectedBranchIds.map(String)
       : [],
     globalBranchAccess: identity.globalBranchAccess === true,
+    sessionJti: identity.sessionJti || null,
+    adminSubject: identity.adminSubject || null,
+    expiresAt: identity.expiresAt || null,
     close,
   };
+  const expired = () => subscriber.expiresAt && Date.parse(subscriber.expiresAt) <= Date.now();
+  const scheduleExpiry = () => {
+    if (expiryTimer) clearTimeout(expiryTimer);
+    if (!subscriber.expiresAt) return;
+    const remaining = Date.parse(subscriber.expiresAt) - Date.now();
+    if (!Number.isFinite(remaining) || remaining <= 0) return close();
+    expiryTimer = setTimeout(
+      () => {
+        if (expired()) close();
+        else scheduleExpiry();
+      },
+      Math.min(remaining, 2147483647),
+    );
+    expiryTimer.unref?.();
+  };
+  const enqueue = (operation) => {
+    if (closed || res.writableEnded || res.destroyed || expired()) return close();
+    if (++pending > MAX_PENDING) return close();
+    deliveryTail = deliveryTail
+      .then(async () => {
+        if (closed || res.writableEnded || res.destroyed || expired()) return close();
+        if (typeof identity.authorize === 'function') {
+          const current = await identity.authorize();
+          if (closed) return;
+          if (!current) return close();
+          for (const key of [
+            'role',
+            'areas',
+            'branchIds',
+            'selectedBranchId',
+            'selectedBranchIds',
+            'globalBranchAccess',
+            'expiresAt',
+          ]) {
+            if (Object.hasOwn(current, key)) subscriber[key] = current[key];
+          }
+          if (expired()) return close();
+          scheduleExpiry();
+        }
+        operation();
+      })
+      .catch(close)
+      .finally(() => pending--);
+  };
+  subscriber.deliver = (event, filter = true) => {
+    const audience = event.audience || {};
+    if (
+      filter &&
+      subscriber.admin &&
+      !(audience.adminOnly || audience.includeAdmins || audience.broadcast)
+    )
+      return;
+    // Public invalidations have no admin data or permission area. They do not
+    // need a session lookup for each connected administrator.
+    if (filter && subscriber.admin && event.type === 'client.data.changed') return;
+    const write = () => {
+      if (!filter || canReceive(subscriber, event)) writeEvent(res, event);
+    };
+    if (typeof identity.authorize === 'function') return enqueue(write);
+    if (closed || expired()) return close();
+    try {
+      write();
+    } catch {
+      close();
+    }
+  };
   subscribers.set(id, subscriber);
+  scheduleExpiry();
+  if (closed) return;
 
   const lastEventId = Number.parseInt(
     String(req.get?.('last-event-id') || req.query?.lastEventId || ''),
@@ -198,27 +271,45 @@ function openStream(req, res, identity = {}) {
   );
   if (Number.isFinite(lastEventId) && lastEventId >= 0) {
     for (const event of eventHistory) {
-      if (Number(event.id) > lastEventId && canReceive(subscriber, event)) writeEvent(res, event);
+      if (Number(event.id) > lastEventId) subscriber.deliver(event);
     }
   }
-  writeEvent(res, {
-    id: String(sequence),
-    type: 'connected',
-    occurredAt: new Date().toISOString(),
-    data: { ready: true },
-  });
+  subscriber.deliver(
+    {
+      id: String(sequence),
+      type: 'connected',
+      occurredAt: new Date().toISOString(),
+      data: { ready: true },
+    },
+    false,
+  );
 
   heartbeat = setInterval(() => {
     if (res.writableEnded || res.destroyed) return close();
-    try {
+    const ping = () => {
       res.write(`: heartbeat ${Date.now()}\n\n`);
       res.flush?.();
+    };
+    if (typeof identity.authorize === 'function') return enqueue(ping);
+    try {
+      ping();
     } catch {
       close();
     }
   }, 20000);
   heartbeat.unref?.();
   req.on('close', close);
+}
+
+function closeAdminStreams({ jti, subject } = {}) {
+  if (!jti && !subject) return;
+  for (const subscriber of subscribers.values()) {
+    if (
+      subscriber.admin &&
+      ((jti && subscriber.sessionJti === jti) || (subject && subscriber.adminSubject === subject))
+    )
+      subscriber.close();
+  }
 }
 
 function activeConnections({ admin = null } = {}) {
@@ -236,6 +327,7 @@ function resetForTests() {
 module.exports = {
   activeConnections,
   canReceive,
+  closeAdminStreams,
   openStream,
   publish,
   publishClientChange,

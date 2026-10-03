@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const { randomUUID, createHash } = require('node:crypto');
 const { readFileSync } = require('node:fs');
 const { PGlite } = require('@electric-sql/pglite');
+const { createStaffDirectory } = require('../src/services/staff-directory.service');
+const { database } = require('./helpers/photo-report-database.cjs');
 const db = new PGlite();
 const branch = randomUUID();
 const secondBranch = randomUUID();
@@ -42,6 +44,9 @@ test.before(async () => {
   await db.exec(readFileSync('supabase/migrations/20261003230000_cashier_signup_race.sql', 'utf8'));
   await db.exec(
     readFileSync('supabase/migrations/20261003232000_cashier_directory_guarded_update.sql', 'utf8'),
+  );
+  await db.exec(
+    readFileSync('supabase/migrations/20261004113000_staff_cashier_branch_mappings.sql', 'utf8'),
   );
   await sync([cashierA, cashierB]);
 });
@@ -146,6 +151,86 @@ test('an active cashier without a point can accrue salary without inventing a cu
   assert.equal(row.amount, 300);
   assert.equal(
     (await ranking([branch])).some((item) => item.id === unassigned.id),
+    false,
+  );
+  await sync([cashierA, cashierB]);
+});
+
+test('reviewed point mapping fills missing historical scope without moving known rewards', async () => {
+  const employee = {
+    ...cashierA,
+    id: '13',
+    pointId: '13',
+    branchId: null,
+    inviteToken: 'f'.repeat(64),
+  };
+  await sync([cashierA, cashierB, employee]);
+  const p = await person();
+  await finish(p, employee);
+  assert.equal(
+    (await ranking([branch])).some((row) => row.id === employee.id),
+    false,
+  );
+  await db.query(
+    "insert into staff_cashier_branch_mappings(point_id,branch_id,reviewed_by) values('13',$1,'audit')",
+    [branch],
+  );
+  assert.equal((await rewards(p))[0].branch_id, branch);
+  const included = (await ranking([branch])).find((row) => row.id === employee.id);
+  assert.equal(included.completed, 1);
+  assert.equal(included.rewardAmount, 300);
+  await db.query("update staff_cashier_branch_mappings set branch_id=$1 where point_id='13'", [
+    secondBranch,
+  ]);
+  assert.equal((await rewards(p))[0].branch_id, branch, 'an existing historical UUID never moves');
+  await sync([cashierA, cashierB, { ...employee, branchId: secondBranch }]);
+  assert.equal((await ranking([branch])).find((row) => row.id === employee.id).completed, 1);
+  assert.equal((await ranking([secondBranch])).find((row) => row.id === employee.id).completed, 0);
+  await sync([cashierA, cashierB]);
+});
+
+test('canonical HR source plus reviewed mapping reaches branch-scoped 300 KZT attribution', async () => {
+  await db.query(
+    "insert into staff_cashier_branch_mappings(point_id,branch_id,reviewed_by) values('14',$1,'audit')",
+    [branch],
+  );
+  const directory = createStaffDirectory({
+    mappingDb: database(db),
+    client: {
+      rpc(name) {
+        assert.equal(name, 'bulka_cashier_signup_directory');
+        return {
+          range: async () => ({
+            data: [
+              {
+                id: '14',
+                name: 'Кассир из HR',
+                point_id: '14',
+                branch_name: 'Точка 1',
+                city: 'Актау',
+              },
+            ],
+          }),
+        };
+      },
+    },
+  });
+  const [imported] = await directory.listCashiers();
+  assert.equal(imported.branchId, branch);
+  const employee = { ...imported, inviteToken: 'e'.repeat(64) };
+  await sync([cashierA, cashierB, employee]);
+  const p = await person();
+  await finish(
+    p,
+    await directory
+      .findCashier('14')
+      .then((row) => ({ ...row, inviteToken: employee.inviteToken })),
+  );
+  const row = (await ranking([branch])).find((row) => row.id === employee.id);
+  assert.equal(row.completed, 1);
+  assert.equal(row.rewardAmount, 300);
+  assert.equal(
+    (await ranking([secondBranch])).some((row) => row.id === employee.id),
     false,
   );
   await sync([cashierA, cashierB]);

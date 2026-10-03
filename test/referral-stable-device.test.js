@@ -34,6 +34,10 @@ test.before(async () => {
   ]) {
     await db.exec(readFileSync('supabase/migrations/' + file, 'utf8'));
   }
+  await db.exec('alter table customers add column deleted_at timestamptz');
+  await db.exec(
+    readFileSync('supabase/migrations/20261004103000_referral_reward_privacy_ledger.sql', 'utf8'),
+  );
   await db.query("update settings set value=$1 where key='bonus_referral'", [
     JSON.stringify({
       enabled: true,

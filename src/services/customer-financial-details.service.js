@@ -56,12 +56,18 @@ async function getCustomerFinancialDetails(
       .maybeSingle(),
     rowsFor(bonusQuery),
     rowsFor(
-      db
-        .from('personal_account_entries')
-        .select('id,amount_minor,kind,source_key,order_id,topup_id,description,created_at')
-        .eq('customer_id', customerId)
-        .order('created_at', { ascending: false })
-        .limit(safeLimit),
+      scopedBranches.length
+        ? db.rpc('customer_scoped_cash_entries', {
+            p_customer_id: customerId,
+            p_branch_ids: scopedBranches,
+            p_limit: safeLimit,
+          })
+        : db
+            .from('personal_account_entries')
+            .select('id,amount_minor,kind,source_key,order_id,topup_id,description,created_at')
+            .eq('customer_id', customerId)
+            .order('created_at', { ascending: false })
+            .limit(safeLimit),
     ),
   ]);
   if (customerResult.error) throw customerResult.error;
@@ -80,21 +86,27 @@ async function getCustomerFinancialDetails(
   );
   const orderIds = unique(accountEntries.map((item) => item.order_id));
   const topupIds = unique(accountEntries.map((item) => item.topup_id));
+  const scopeOrders = (query) =>
+    scopedBranches.length ? query.in('branch_id', scopedBranches) : query;
   const [operationOrders, directOrders, topups] = await Promise.all([
     operationIds.length
       ? rowsFor(
-          db
-            .from('kaspi_orders')
-            .select('id,operation_id,order_number,branch_id')
-            .in('operation_id', operationIds),
+          scopeOrders(
+            db
+              .from('kaspi_orders')
+              .select('id,operation_id,order_number,branch_id')
+              .in('operation_id', operationIds),
+          ),
         )
       : [],
     orderIds.length
       ? rowsFor(
-          db
-            .from('kaspi_orders')
-            .select('id,operation_id,order_number,branch_id')
-            .in('id', orderIds),
+          scopeOrders(
+            db
+              .from('kaspi_orders')
+              .select('id,operation_id,order_number,branch_id')
+              .in('id', orderIds),
+          ),
         )
       : [],
     topupIds.length
@@ -107,6 +119,7 @@ async function getCustomerFinancialDetails(
   const branchIdsToLoad = unique([
     ...bonusTransactions.map((item) => item.branch_id),
     ...allOrders.map((item) => item.branch_id),
+    ...accountEntries.map((item) => item.ledger_branch_id),
   ]);
   const branches = branchIdsToLoad.length
     ? await rowsFor(db.from('bulka_locations').select('id,name,city').in('id', branchIdsToLoad))
@@ -160,7 +173,7 @@ async function getCustomerFinancialDetails(
           description: item.description || '',
           createdAt: item.created_at,
           orderNumber: order?.order_number || null,
-          branch: branchMap.get(String(order?.branch_id || '')) || null,
+          branch: branchMap.get(String(order?.branch_id || item.ledger_branch_id || '')) || null,
           topupStatus: topup?.status || null,
         };
       }),

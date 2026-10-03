@@ -70,7 +70,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private readonly bool enabledAtStartup;
         internal bool Enabled => enabledAtStartup || (PosPairing.Current?.SharedStockEnabled ?? false);
         internal string StatusText => status;
-        internal int PendingCount {get {lock(gate) return requests.Count;}}
+        internal int PendingCount {get {lock(gate) return requests.Values.Count(request => !request.Acknowledged);}}
 
         internal SharedStockGuard()
         {

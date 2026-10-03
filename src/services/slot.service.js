@@ -75,25 +75,25 @@ async function listAvailableSlots({
   const queryEnd = new Date(
     startLocalDay + (safeDays + 1) * 86400000 - safeOffset * 60000,
   ).toISOString();
-  const { data: reservations, error: reservationsError } = await db
-    .from('fulfillment_slot_reservations')
-    .select('scheduled_at,status,expires_at,client_request_id')
-    .eq('branch_id', branchId)
-    .eq('fulfillment_type', orderType)
-    .gte('scheduled_at', queryStart)
-    .lt('scheduled_at', queryEnd)
-    .in('status', ['active', 'committed']);
+  const interval = Number(location.slot_minutes || 60);
+  const { data: reservations, error: reservationsError } = await db.rpc('fulfillment_slot_usage', {
+    p_branch: branchId,
+    p_type: orderType,
+    p_from: queryStart,
+    p_to: queryEnd,
+    p_minutes: interval,
+    p_offset: safeOffset,
+    p_now: now.toISOString(),
+    p_exclude_request: excludeRequestId,
+  });
   if (reservationsError) throw reservationsError;
 
   const held = new Map();
   for (const reservation of reservations || []) {
-    if (excludeRequestId && reservation.client_request_id === excludeRequestId) continue;
-    if (reservation.status === 'active' && new Date(reservation.expires_at) <= now) continue;
-    const key = new Date(reservation.scheduled_at).toISOString();
-    held.set(key, (held.get(key) || 0) + 1);
+    const key = new Date(reservation.startsAt).toISOString();
+    held.set(key, Number(reservation.used));
   }
 
-  const interval = Number(location.slot_minutes || 60);
   const capacity = capacityFor(location, orderType);
   const lead = Number.parseInt(
     orderType === 'preorder'
@@ -118,24 +118,37 @@ async function listAvailableSlots({
     let close = parseClock(schedule.close);
     if (open == null || close == null || open === close || open === 1440) continue;
     if (close < open) close += 1440;
-    const first = Math.ceil(open / interval) * interval;
-    for (let minute = first; minute < close; minute += interval) {
-      const instant = new Date(localDayMs + minute * 60000 - safeOffset * 60000);
-      if (rollingDay && instant.getTime() > now.getTime() + 86400000) continue;
-      if (instant.getTime() < earliest || instant.getTime() > productBounds.latest) continue;
-      const key = instant.toISOString();
-      if (instant.getTime() < new Date(queryStart).getTime() || emitted.has(key)) continue;
-      const used = held.get(key) || 0;
-      if (used >= capacity) continue;
-      emitted.add(key);
-      slots.push({
-        startsAt: key,
-        endsAt: new Date(
-          localDayMs + Math.min(minute + interval, close) * 60000 - safeOffset * 60000,
-        ).toISOString(),
-        capacity,
-        remaining: capacity - used,
-      });
+    // Capacity buckets are anchored to each local midnight. An overnight
+    // schedule continues, but an interval that does not divide 1440 resets its
+    // grid at midnight, exactly as checkout and fulfillment_slot_bounds do.
+    const segments =
+      close > 1440
+        ? [
+            [open, 1440],
+            [1440, close],
+          ]
+        : [[open, close]];
+    for (const [segmentOpen, segmentClose] of segments) {
+      const dayBase = Math.floor(segmentOpen / 1440) * 1440;
+      const first = dayBase + Math.ceil((segmentOpen - dayBase) / interval) * interval;
+      for (let minute = first; minute < segmentClose; minute += interval) {
+        const instant = new Date(localDayMs + minute * 60000 - safeOffset * 60000);
+        if (rollingDay && instant.getTime() > now.getTime() + 86400000) continue;
+        if (instant.getTime() < earliest || instant.getTime() > productBounds.latest) continue;
+        const key = instant.toISOString();
+        if (instant.getTime() < new Date(queryStart).getTime() || emitted.has(key)) continue;
+        const used = held.get(key) || 0;
+        if (used >= capacity) continue;
+        emitted.add(key);
+        slots.push({
+          startsAt: key,
+          endsAt: new Date(
+            localDayMs + Math.min(minute + interval, segmentClose) * 60000 - safeOffset * 60000,
+          ).toISOString(),
+          capacity,
+          remaining: capacity - used,
+        });
+      }
     }
   }
   return {

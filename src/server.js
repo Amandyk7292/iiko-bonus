@@ -51,6 +51,7 @@ if (!process.env.VERCEL) {
     // An iiko outage is visible in worker metrics/logs but must not take the
     // entire customer API out of readiness while local functionality works.
     critical: false,
+    alertOnFailure: true,
   });
   if (outgoingEnabled) {
     const syncOutgoing = () =>

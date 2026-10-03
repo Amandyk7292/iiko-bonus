@@ -53,6 +53,16 @@ test('customer financial details combine scoped bonuses with the prepaid ledger'
   const db = {
     rpc(name, args) {
       calls.push(['rpc', name, args]);
+      if (name === 'customer_scoped_cash_entries') {
+        return Promise.resolve({
+          data: fixtures.personal_account_entries.filter((entry) =>
+            fixtures.kaspi_orders.some(
+              (order) => order.id === entry.order_id && args.p_branch_ids.includes(order.branch_id),
+            ),
+          ),
+          error: null,
+        });
+      }
       return Promise.resolve({
         data: { entryId: 'adjustment-entry', balanceMinor: 115050, duplicate: false },
         error: null,
@@ -150,5 +160,33 @@ test('customer financial details combine scoped bonuses with the prepaid ledger'
         call[2] === 'branch_id' &&
         call[3][0] === 'branch-1',
     ),
+  );
+  fixtures.kaspi_orders.push({ id: 'outside-order', branch_id: 'branch-2', order_number: 999 });
+  fixtures.personal_account_entries.push(
+    {
+      id: 'outside-payment',
+      customer_id: 'customer-1',
+      amount_minor: -50000,
+      kind: 'payment',
+      order_id: 'outside-order',
+    },
+    {
+      id: 'global-topup',
+      customer_id: 'customer-1',
+      amount_minor: 50000,
+      kind: 'topup',
+      topup_id: 'topup-1',
+    },
+  );
+  const scoped = await getCustomerFinancialDetails('customer-1', { branchIds: ['branch-1'] }, db);
+  assert.deepEqual(
+    scoped.personalAccount.entries.map((entry) => entry.id),
+    ['entry-1'],
+  );
+  assert.equal(scoped.personalAccount.balance, 1250.5);
+  const global = await getCustomerFinancialDetails('customer-1', {}, db);
+  assert.deepEqual(
+    global.personalAccount.entries.map((entry) => entry.id),
+    ['entry-1', 'outside-payment', 'global-topup'],
   );
 });

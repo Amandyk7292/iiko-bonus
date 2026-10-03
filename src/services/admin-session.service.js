@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const { supabase } = require('../config/supabase');
 const { logger } = require('../config/logger');
+const { closeAdminStreams } = require('./realtime.service');
 
 const localSessions = new Map();
 const sessionHash = (jti) =>
@@ -129,6 +130,7 @@ async function revokeAdminSession(jti, { db = supabase, now = () => new Date() }
   if (useLocalStore()) {
     const session = localSessions.get(jtiHash);
     if (session) session.revoked_at = now().toISOString();
+    closeAdminStreams({ jti });
     return;
   }
   const { error } = await db
@@ -140,6 +142,7 @@ async function revokeAdminSession(jti, { db = supabase, now = () => new Date() }
     logger.error({ err: error, event: 'admin_session_revoke_failed' }, 'Session revoke failed');
     throw error;
   }
+  closeAdminStreams({ jti });
 }
 
 async function revokeAdminSessionsForSubject(
@@ -155,6 +158,7 @@ async function revokeAdminSessionsForSubject(
         session.revoked_at = revokedAt;
       }
     }
+    closeAdminStreams({ subject: normalizedSubject });
     return;
   }
   const { error } = await db
@@ -169,6 +173,7 @@ async function revokeAdminSessionsForSubject(
     );
     throw error;
   }
+  closeAdminStreams({ subject: normalizedSubject });
 }
 
 module.exports = {

@@ -9,6 +9,40 @@ const {
   workerSnapshot,
 } = require('../src/services/operational-health.service');
 
+test('iiko failures alert independently of customer API readiness and repeated alerts are throttled', async (t) => {
+  const oldFetch = global.fetch;
+  const oldWebhook = process.env.OPS_ALERT_WEBHOOK_URL;
+  process.env.OPS_ALERT_WEBHOOK_URL = 'https://ops.example.test/alert';
+  const alerts = [];
+  global.fetch = async (_url, options) => {
+    alerts.push(JSON.parse(options.body));
+    return { ok: true };
+  };
+  const name = 'test-outgoing-noncritical';
+  t.after(() => {
+    global.fetch = oldFetch;
+    if (oldWebhook === undefined) delete process.env.OPS_ALERT_WEBHOOK_URL;
+    else process.env.OPS_ALERT_WEBHOOK_URL = oldWebhook;
+    registerWorker(name, { enabled: false });
+  });
+  registerWorker(name, { critical: false, alertOnFailure: true });
+  const fail = async () => {
+    throw Object.assign(new Error('private mapping details'), {
+      code: 'IIKO_OUTGOING_MAPPING_INCOMPLETE',
+    });
+  };
+  await runMonitoredWorker(name, fail);
+  await runMonitoredWorker(name, fail);
+  assert.equal(alerts.length, 1);
+  assert.equal(alerts[0].worker, name);
+  assert.equal(alerts[0].errorCode, 'IIKO_OUTGOING_MAPPING_INCOMPLETE');
+  assert.doesNotMatch(JSON.stringify(alerts), /private mapping details/);
+  const snapshot = workerSnapshot().find((worker) => worker.name === name);
+  assert.equal(snapshot.critical, false);
+  assert.equal(snapshot.alertOnFailure, true);
+  assert.equal(snapshot.failures, 2);
+});
+
 test('worker monitoring records successful and failed runs without exposing messages', async () => {
   registerWorker('test-success', { intervalMs: 1000 });
   await runMonitoredWorker('test-success', async () => {});
@@ -49,9 +83,12 @@ test('a hung critical worker becomes stale while it is still running', async (t)
   const running = workerSnapshot();
   const worker = running.find((entry) => entry.name === 'test-hung-critical');
   assert.equal(worker.running, true);
-  assert.equal(workerSnapshot(Date.parse(worker.lastStartedAt)).find(
-    (entry) => entry.name === 'test-hung-critical',
-  ).stale, false);
+  assert.equal(
+    workerSnapshot(Date.parse(worker.lastStartedAt)).find(
+      (entry) => entry.name === 'test-hung-critical',
+    ).stale,
+    false,
+  );
   const stale = workerSnapshot(Date.parse(worker.lastStartedAt) + 26).find(
     (entry) => entry.name === 'test-hung-critical',
   );

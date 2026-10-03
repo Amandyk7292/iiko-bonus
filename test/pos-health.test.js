@@ -122,6 +122,17 @@ test('health API requires bounded telemetry and a reason for manual closure', ()
     errors: [],
   };
   assert.equal(posHealthHeartbeatSchema.safeParse(heartbeat).success, true);
+  const largeQueue = { ...heartbeat, queues: { ...heartbeat.queues, stockPending: 10001 } };
+  assert.equal(posHealthHeartbeatSchema.safeParse(largeQueue).success, true);
+  assert.equal(telemetryCases(randomUUID(), randomUUID(), largeQueue)[0].kind, 'stock_sync');
+  for (const stockPending of [-1, 1.5, 2147483648])
+    assert.equal(
+      posHealthHeartbeatSchema.safeParse({
+        ...heartbeat,
+        queues: { ...heartbeat.queues, stockPending },
+      }).success,
+      false,
+    );
   assert.equal(
     posHealthHeartbeatSchema.safeParse({ ...heartbeat, pluginVersion: 'latest' }).success,
     false,

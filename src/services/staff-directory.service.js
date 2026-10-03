@@ -15,7 +15,7 @@ const cleanText = (value, maximum) => {
   return value.trim().replace(/\s+/g, ' ');
 };
 
-function createStaffDirectory({ client, env = process.env } = {}) {
+function createStaffDirectory({ client, mappingDb, env = process.env } = {}) {
   let db = client;
   const database = () => {
     if (db) return db;
@@ -50,6 +50,33 @@ function createStaffDirectory({ client, env = process.env } = {}) {
         if (rows.length > 20000) throw unavailable();
         if (data.length < 500) break;
       }
+      // HR point IDs and customer branch UUIDs are different identity spaces.
+      // Only an explicitly reviewed mapping may establish branch permissions.
+      const branchMappings = new Map();
+      if (rows.some((row) => row.point_id != null)) {
+        const target = mappingDb || require('../config/supabase').supabase;
+        for (let offset = 0; offset <= 20000; offset += 500) {
+          const { data, error } = await target
+            .from('staff_cashier_branch_mappings')
+            .select('point_id,branch_id')
+            .order('point_id')
+            .range(offset, offset + 499);
+          if (error || !Array.isArray(data) || data.length > 500) throw unavailable();
+          for (const mapping of data) {
+            const point = idText(mapping.point_id);
+            if (
+              !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                mapping.branch_id,
+              ) ||
+              branchMappings.has(point)
+            )
+              throw unavailable();
+            branchMappings.set(point, mapping.branch_id.toLowerCase());
+          }
+          if (branchMappings.size > 20000) throw unavailable();
+          if (data.length < 500) break;
+        }
+      }
       const seen = new Set();
       return rows.map((row) => {
         const id = idText(row.id);
@@ -61,8 +88,7 @@ function createStaffDirectory({ client, env = process.env } = {}) {
           pointId: row.point_id == null ? null : idText(row.point_id),
           branchName: cleanText(row.branch_name || 'Точка не назначена', 240),
           city: cleanText(row.city || 'Не указан', 120),
-          // Attendance points and customer branches have separate ID spaces.
-          branchId: null,
+          branchId: row.point_id == null ? null : branchMappings.get(idText(row.point_id)) || null,
           isActive: true,
         };
       });

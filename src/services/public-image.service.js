@@ -4,7 +4,7 @@ const os = require('node:os');
 const crypto = require('node:crypto');
 const fetch = require('node-fetch');
 const sharp = require('sharp');
-const root = path.join(process.env.PUBLIC_IMAGE_CACHE_DIR || os.tmpdir(), 'bulka-images-v1');
+const root = path.join(process.env.PUBLIC_IMAGE_CACHE_DIR || os.tmpdir(), 'bulka-images-v2');
 const edges = new Set([256, 384, 512, 768, 1024, 1536]);
 const pending = new Map();
 const TTL = 7 * 86400000;
@@ -85,7 +85,13 @@ async function publicImage(objectPath, edge) {
         .resize({ width: edge, height: edge, fit: 'inside', withoutEnlargement: true })
         .webp({ lossless: true, effort: 4 })
         .toBuffer();
-      if (metadata.format === 'webp' && original.length < buffer.length) buffer = original;
+      if (
+        metadata.format === 'webp' &&
+        metadata.width <= edge &&
+        metadata.height <= edge &&
+        original.length < buffer.length
+      )
+        buffer = original;
       await fs.mkdir(root, { recursive: true });
       const temporary = file + '.' + process.pid + '.tmp';
       await fs.writeFile(temporary, buffer);

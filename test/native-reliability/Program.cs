@@ -86,10 +86,34 @@ internal static class Program
         PluginContext.Initialize(services,()=>{},Proxy.Make<ILog>(call=>null));
         http=new FakeHttp{Reply=request=>throw new Exception("Unexpected HTTP: "+request.RequestUri)};
         typeof(LoyaltyFlow).GetField("_httpClient",Static).SetValue(null,new HttpClient(http));
-        UnknownOrders();GiftAuthenticationRecovery();JournalRecovery();PreparePayments();ActiveJournalRecovery();FamilyPayments();
+        StockPendingTelemetry();UnknownOrders();GiftAuthenticationRecovery();JournalRecovery();PreparePayments();ActiveJournalRecovery();FamilyPayments();
         Check(http.Calls>0,"network scenarios used intercepted production HttpClient");
         Console.WriteLine("PASS: "+assertions+" production-plugin reliability assertions; no actual HTTP/POS.");
         PluginContext.Uninitialize();
+    }
+    private static void StockPendingTelemetry()
+    {
+        // Bypass construction so no timers, HTTP or POS work can occur. Keep the
+        // acknowledged tombstones: only the production PendingCount is tested.
+        var guardType=Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.SharedStockGuard",true);
+        var requestType=Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.GuardRequest",true);
+        var guard=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(guardType);
+        guardType.GetField("gate",Instance).SetValue(guard,new object());
+        var requestField=guardType.GetField("requests",Instance);
+        var requests=(System.Collections.IDictionary)Activator.CreateInstance(requestField.FieldType);
+        requestField.SetValue(guard,requests);
+        var pending=guardType.GetProperty("PendingCount",Instance);
+        Func<bool,string,object> request=(acknowledged,state)=>{
+            var value=Activator.CreateInstance(requestType,true);
+            requestType.GetProperty("Acknowledged").SetValue(value,acknowledged);
+            requestType.GetProperty("State").SetValue(value,state);return value;
+        };
+        for(var i=0;i<10001;i++) requests.Add(i.ToString(),request(true,"closed"));
+        Check((int)pending.GetValue(guard)==0&&requests.Count==10001,"completed stock tombstones remain durable and are not reported pending");
+        requests.Add("held",request(false,"held"));requests.Add("closed",request(false,"closed"));
+        Check((int)pending.GetValue(guard)==2,"stock telemetry counts unacknowledged holds and closed receipts only");
+        requestType.GetProperty("Acknowledged").SetValue(requests["closed"],true);
+        Check((int)pending.GetValue(guard)==1,"server acknowledgement immediately clears stock pending telemetry");
     }
     private static void UnknownOrders()
     {

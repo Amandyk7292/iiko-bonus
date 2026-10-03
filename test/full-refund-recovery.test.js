@@ -13,6 +13,7 @@ function harness(
     feeOnly = false,
     feeState = 'pickup_rejecting',
     feeConfirmed = true,
+    personalAccount = false,
   } = {},
 ) {
   let order = {
@@ -21,7 +22,7 @@ function harness(
     operation_id: randomUUID(),
     order_number: 123456,
     status: 'paid',
-    fulfillment_status: feeOnly ? 'ready' : 'new',
+    fulfillment_status: feeOnly ? 'ready' : personalAccount ? 'preparing' : 'new',
     kitchen_status: 'queued',
     refund_status: feeOnly ? 'partial' : staleProcessing ? 'processing' : null,
     refund_request_id: randomUUID(),
@@ -32,8 +33,8 @@ function harness(
     delivery_fee: feeOnly ? 600 : 0,
     bonus_spent: feeOnly ? 1200 : 0,
     delivery_resolution: feeOnly ? { id: randomUUID(), status: feeState } : null,
-    payment_method: 'forte_card',
-    provider_payment_system: 'forte_widget',
+    payment_method: personalAccount ? 'personal_account' : 'forte_card',
+    provider_payment_system: personalAccount ? null : 'forte_widget',
     customer_id: null,
     cart_items: [],
   };
@@ -304,6 +305,37 @@ test('full refund worker never converts an active partial refund into a full ref
   assert.equal(await h.recover(), 0);
   assert.equal(h.order.refund_status, 'processing');
   assert.equal(h.bankCalls, 0);
+});
+
+test('accepted personal-account refund recovers after the cash RPC and before final status write', async (t) => {
+  const h = harness(t, { personalAccount: true, failFinalWrite: true });
+  await assert.rejects(h.cancel(), /Injected final write outage/);
+  const key = h.order.refund_request_id;
+  assert.equal(h.order.refund_status, 'unknown');
+  assert.equal(h.order.acceptance_timeout_at, null);
+  assert.equal(await h.recover(), 1);
+  assert.equal(h.order.status, 'refunded');
+  assert.equal(h.order.refund_status, 'succeeded');
+  assert.equal(h.order.refund_request_id, key);
+  assert.equal(h.bankCalls, 1);
+  assert.equal(h.followupCalls, 1);
+  assert.equal(await h.recover(), 0);
+});
+
+test('stale personal-account processing uses its permanent key and excludes partial operations', async (t) => {
+  const h = harness(t, { personalAccount: true, staleProcessing: true });
+  const key = h.order.refund_request_id;
+  assert.equal(await h.recover({ now: Date.now() + 48 * 60 * 60_000 }), 1);
+  assert.equal(h.order.refund_request_id, key);
+  assert.equal(h.order.refund_status, 'succeeded');
+  assert.equal(await h.recover(), 0);
+});
+
+test('personal-account full recovery never claims an active partial refund', async (t) => {
+  const h = harness(t, { personalAccount: true, staleProcessing: true, partial: true });
+  assert.equal(await h.recover(), 0);
+  assert.equal(h.order.refund_status, 'processing');
+  assert.equal(h.bankReads, 0);
 });
 
 test('missing-reference full refund repeats only its original key inside the safe window', async (t) => {

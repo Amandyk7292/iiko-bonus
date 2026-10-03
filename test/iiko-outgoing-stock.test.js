@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const { readFileSync } = require('node:fs');
 const { PGlite } = require('@electric-sql/pglite');
+const { normalizeDocuments } = require('../src/services/iiko-outgoing-documents');
 
 async function fixture(run) {
   const db = new PGlite();
@@ -68,6 +69,49 @@ test('outgoing stock: posting, duplicate/lost reply, revision and cancellation a
     assert.equal(await quantity(), 5);
     await apply({ ...revised, status: 'DELETED', items: [] });
     assert.equal(await quantity(), 10);
+  }));
+
+test('outgoing kg aliases pass the real stock unit fence and deduct the exact fractional amount once', async () =>
+  fixture(async ({ db, branch, product, document, apply, quantity }) => {
+    const unit = randomUUID(),
+      department = randomUUID(),
+      store = randomUUID();
+    await db.query(
+      "update branch_product_inventory set unit='кг',quantity_step=0.001,source_quantity=2 where branch_id=$1",
+      [branch],
+    );
+    for (const name of ['кг.', 'килограмм', 'килограммы', 'kg']) {
+      const [normalized] = normalizeDocuments(
+        {
+          documents: [
+            {
+              id: document.id,
+              status: 'PROCESSED',
+              dateIncoming: document.postedAt,
+              documentNumber: document.number,
+              defaultStoreId: store,
+              items: { item: { productId: product, amount: '0.375' } },
+            },
+          ],
+          stores: [{ id: store, parentId: department }],
+          products: [{ id: product, mainUnit: unit }],
+          units: [{ id: unit, name }],
+        },
+        { id: 'aktau', city: 'aktau' },
+        { [branch]: { serverId: 'aktau', departmentId: department } },
+      );
+      await apply(normalized);
+      assert.equal(await quantity(), 1.625);
+    }
+    await assert.rejects(
+      apply({
+        ...document,
+        id: randomUUID(),
+        items: [{ branchId: branch, productId: product, quantity: 375, unit: 'г' }],
+      }),
+      /units differ/,
+    );
+    assert.equal(await quantity(), 1.625);
   }));
 
 test('outgoing stock: drafts and history before first worker activation do not reduce stock', async () =>

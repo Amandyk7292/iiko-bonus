@@ -8,7 +8,9 @@ const queueSchema = z
     giftPending: z.number().int().min(0).max(10000),
     giftFailed: z.number().int().min(0).max(10000),
     offlineReceipts: z.number().int().min(0).max(10000),
-    stockPending: z.number().int().min(0).max(10000),
+    // The plugin reports an Int32 count. Large real queues must remain visible
+    // instead of invalidating the heartbeat for every POS subsystem.
+    stockPending: z.number().int().min(0).max(2147483647),
     automaticReceipts: z.number().int().min(0).max(10000),
     personalAccountPending: z.number().int().min(0).max(10000),
   })

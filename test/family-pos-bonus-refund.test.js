@@ -58,6 +58,7 @@ test.before(async () => {
     '20261002171000_family_pos_wallet.sql',
     '20261002172600_family_pos_bonus_refund.sql',
     '20261002172600_family_pos_bonus_refund.sql',
+    '20261004100000_personal_account_authorized_holds.sql',
   ])
     await db.exec(read(`supabase/migrations/${migration}`));
 });

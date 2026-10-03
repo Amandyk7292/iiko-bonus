@@ -1,7 +1,11 @@
 const { readFileSync } = require('node:fs');
 
 module.exports = async function createFrontStockSchema(db) {
-  await db.exec(`create role anon; create role authenticated; create role service_role;
+  // PostgreSQL roles belong to the cluster, so independent isolated fixture
+  // databases may already share them. PGlite starts with its own empty cluster.
+  await db.exec(`do $$ begin create role anon; exception when duplicate_object then null; end $$;
+    do $$ begin create role authenticated; exception when duplicate_object then null; end $$;
+    do $$ begin create role service_role; exception when duplicate_object then null; end $$;
     create table bulka_locations(id uuid primary key, active boolean default true,
       pickup_slot_capacity integer default 10, delivery_slot_capacity integer default 10, preorder_slot_capacity integer default 10);
     create table kaspi_orders(id uuid primary key, branch_id uuid, order_number bigint, status text default 'paid',

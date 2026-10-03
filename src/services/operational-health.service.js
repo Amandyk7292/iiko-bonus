@@ -61,7 +61,13 @@ const sendOperationalAlert = async (worker, errorCode) => {
 
 const registerWorker = (
   name,
-  { enabled = true, intervalMs = 60_000, critical = false, maxRunMs = null } = {},
+  {
+    enabled = true,
+    intervalMs = 60_000,
+    critical = false,
+    alertOnFailure = critical,
+    maxRunMs = null,
+  } = {},
 ) => {
   const existing = workers.get(name);
   workers.set(name, {
@@ -71,6 +77,7 @@ const registerWorker = (
     maxRunMs:
       Number.isFinite(maxRunMs) && maxRunMs > 0 ? maxRunMs : Math.max(intervalMs * 2, 60_000),
     critical,
+    alertOnFailure,
     running: existing?.running || false,
     runs: existing?.runs || 0,
     failures: existing?.failures || 0,
@@ -111,7 +118,7 @@ const runMonitoredWorker = async (name, task) => {
       lastErrorCode: String(error?.code || 'WORKER_FAILED').slice(0, 80),
     });
     logger.error({ err: error, event: 'background_worker_failed', worker: name }, 'Worker failed');
-    if (latest.critical) {
+    if (latest.alertOnFailure) {
       void sendOperationalAlert(
         { ...latest, failures: latest.failures + 1 },
         String(error?.code || 'WORKER_FAILED').slice(0, 80),
@@ -257,7 +264,7 @@ const readinessSnapshot = async ({
     (worker) => worker.enabled && worker.critical && worker.stale,
   );
   for (const worker of workerStates) {
-    if (worker.enabled && worker.critical && worker.stale) {
+    if (worker.enabled && worker.alertOnFailure && worker.stale) {
       void sendOperationalAlert(worker, 'WORKER_STALE');
     }
   }

@@ -833,6 +833,7 @@ async function checkAndExpireInactiveBonuses(inactivityDays = 90) {
           p_customer_id: c.id,
           p_expected_balance: expiredAmt,
           p_order_id: orderId,
+          p_inactive_before: new Date(cutoffTime).toISOString(),
         });
 
         if (!updateErr && Number(expired) > 0) {

@@ -16,7 +16,10 @@ class _FamilyScreenState extends State<FamilyScreen> {
   Map<String, dynamic>? _family;
   String? _error;
   bool _loading = true;
+  bool _refreshing = false;
   bool _working = false;
+  int _requestRevision = 0;
+  String? _identity;
   bool get _owner => _family?['isOwner'] == true;
   bool get _canManage => _owner || _family?['groupId'] == null;
   List<Map<String, dynamic>> _items(String key) =>
@@ -27,13 +30,44 @@ class _FamilyScreenState extends State<FamilyScreen> {
   @override
   void initState() {
     super.initState();
+    _identity = widget.api.sessionCacheScope;
     unawaited(_load());
   }
 
+  @override
+  void didUpdateWidget(FamilyScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.api != widget.api ||
+        _identity != widget.api.sessionCacheScope) {
+      _identity = widget.api.sessionCacheScope;
+      _family = null;
+      _error = null;
+      _loading = true;
+      _working = false;
+      unawaited(_load());
+    }
+  }
+
+  @override
+  void dispose() {
+    _requestRevision++;
+    super.dispose();
+  }
+
   Future<void> _load() async {
+    if (!mounted) return;
+    final revision = ++_requestRevision;
+    final api = widget.api;
+    final identity = api.sessionCacheScope;
+    bool current() =>
+        mounted &&
+        revision == _requestRevision &&
+        api == widget.api &&
+        identity == widget.api.sessionCacheScope;
+    setState(() => _refreshing = true);
     try {
-      final family = await widget.api.getFamily();
-      if (mounted) {
+      final family = await api.getFamily();
+      if (current()) {
         setState(() {
           _family = family;
           _error = null;
@@ -41,12 +75,14 @@ class _FamilyScreenState extends State<FamilyScreen> {
         });
       }
     } catch (error) {
-      if (mounted) {
+      if (current()) {
         setState(() {
           _error = _familyError(error);
           _loading = false;
         });
       }
+    } finally {
+      if (current()) setState(() => _refreshing = false);
     }
   }
 
@@ -72,18 +108,28 @@ class _FamilyScreenState extends State<FamilyScreen> {
 
   Future<void> _act(Future<Object?> Function() operation) async {
     if (_working) return;
+    final api = widget.api;
+    final identity = api.sessionCacheScope;
+    bool current() =>
+        mounted &&
+        api == widget.api &&
+        identity == widget.api.sessionCacheScope;
+    _requestRevision++;
     setState(() {
       _working = true;
+      _refreshing = false;
       _error = null;
     });
     try {
       await operation();
+      if (!current()) return;
       await _load();
+      if (!current()) return;
       await widget.onRefreshProfile();
     } catch (error) {
-      if (mounted) setState(() => _error = _familyError(error));
+      if (current()) setState(() => _error = _familyError(error));
     } finally {
-      if (mounted) setState(() => _working = false);
+      if (current()) setState(() => _working = false);
     }
   }
 
@@ -105,6 +151,8 @@ class _FamilyScreenState extends State<FamilyScreen> {
   }
 
   Future<void> _form({bool child = false, Map<String, dynamic>? member}) async {
+    _requestRevision++;
+    _refreshing = false;
     final changed = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -112,8 +160,9 @@ class _FamilyScreenState extends State<FamilyScreen> {
             FamilyFormScreen(api: widget.api, child: child, member: member),
       ),
     );
-    if (changed == true) {
-      await _load();
+    if (!mounted) return;
+    await _load();
+    if (changed == true && mounted) {
       await widget.onRefreshProfile();
     }
   }
@@ -143,7 +192,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
         title: _BulkaPageTitle(_familyText('title')),
         actions: [
           IconButton(
-            onPressed: _working ? null : _load,
+            onPressed: _working || _loading || _refreshing ? null : _load,
             tooltip: 'retry_btn'.tr,
             icon: const Icon(Icons.refresh_rounded),
           ),

@@ -105,6 +105,9 @@ class _DeliveryResolutionDialogState extends State<DeliveryResolutionDialog> {
     }
     _revision++;
     setState(() {
+      // Submitting invalidates the outstanding options request. Its finally
+      // block must not own the loading flag after that invalidation.
+      _loading = false;
       _saving = true;
       _error = null;
     });

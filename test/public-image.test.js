@@ -70,3 +70,74 @@ test('image variants are lossless, bounded, coalesced and cached; paths cannot e
   assert.equal((await sharp(banner.buffer).metadata()).width, 768);
   assert.throws(() => sourceUrl('stories/../../private/file'));
 });
+
+test('a smaller original WebP never bypasses the requested image dimensions or reuses old unbounded cache', async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'bulka-webp-test-'));
+  const previousDir = process.env.PUBLIC_IMAGE_CACHE_DIR;
+  const previousUrl = process.env.SUPABASE_URL;
+  process.env.PUBLIC_IMAGE_CACHE_DIR = directory;
+  process.env.SUPABASE_URL = 'https://project.supabase.co';
+  const width = 1024;
+  const height = 768;
+  const raw = Buffer.alloc(width * height * 3);
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 3;
+      raw[i] = 128 + 120 * Math.sin(x / 27 + y / 51);
+      raw[i + 1] = 128 + 120 * Math.cos(x / 61 - y / 39);
+      raw[i + 2] = 128 + 120 * Math.sin(x / 93 + y / 29);
+    }
+  const original = await sharp(raw, { raw: { width, height, channels: 3 } })
+    .webp({ quality: 30 })
+    .toBuffer();
+  const expected = await sharp(original)
+    .resize({ width: 256, height: 256, fit: 'inside', withoutEnlargement: true })
+    .webp({ lossless: true, effort: 4 })
+    .toBuffer();
+  assert.ok(
+    original.length < expected.length,
+    'fixture must exercise the smaller-original fallback',
+  );
+  const fetchPath = require.resolve('node-fetch');
+  const oldFetch = require.cache[fetchPath];
+  let requests = 0;
+  require.cache[fetchPath] = {
+    id: fetchPath,
+    filename: fetchPath,
+    loaded: true,
+    exports: async () => {
+      requests++;
+      return { ok: true, buffer: async () => original };
+    },
+  };
+  const servicePath = require.resolve('../src/services/public-image.service');
+  delete require.cache[servicePath];
+  t.after(async () => {
+    if (oldFetch) require.cache[fetchPath] = oldFetch;
+    else delete require.cache[fetchPath];
+    delete require.cache[servicePath];
+    if (previousDir === undefined) delete process.env.PUBLIC_IMAGE_CACHE_DIR;
+    else process.env.PUBLIC_IMAGE_CACHE_DIR = previousDir;
+    if (previousUrl === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = previousUrl;
+    await fs.rm(directory, { recursive: true, force: true });
+  });
+  const oldCache = path.join(directory, 'bulka-images-v1');
+  await fs.mkdir(oldCache);
+  const url = 'https://project.supabase.co/storage/v1/object/public/menu_images/test.webp';
+  const key = require('node:crypto')
+    .createHash('sha256')
+    .update(url + ':256')
+    .digest('hex');
+  await fs.writeFile(path.join(oldCache, key + '.webp'), original);
+  const { publicImage } = require(servicePath);
+  const result = await publicImage('menu_images/test.webp', 256);
+  assert.equal(requests, 1);
+  assert.deepEqual(result.buffer, expected);
+  const metadata = await sharp(result.buffer).metadata();
+  assert.equal(metadata.width, 256);
+  assert.equal(metadata.height, 192);
+  const cached = await publicImage('menu_images/test.webp', 256);
+  assert.deepEqual(cached.buffer, result.buffer);
+  assert.equal(requests, 1);
+});

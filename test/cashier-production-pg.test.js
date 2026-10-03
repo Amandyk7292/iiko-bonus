@@ -23,6 +23,9 @@ test.before(async () => {
   await pg.exec(
     readFileSync('supabase/migrations/20261003180000_cashier_iiko_production.sql', 'utf8'),
   );
+  await pg.exec(
+    readFileSync('supabase/migrations/20261004111000_production_send_permissions.sql', 'utf8'),
+  );
 });
 test.after(() => pg.close());
 async function fixture({ city = 'Актау', bound = true, mainUnit = 'шт' } = {}) {
@@ -683,4 +686,88 @@ test('claim-before-send interruption is publicly resumable after session restart
     ).rows[0].n,
     1,
   );
+});
+
+test('durable pending acts cannot start after production is disabled or the point is inactive', async () => {
+  for (const kind of ['disabled', 'inactive']) {
+    const f = await fixture(),
+      event = await f.add(),
+      id = randomUUID();
+    f.options.db = {
+      ...db,
+      rpc: async (name, args) =>
+        name === 'begin_cashier_production_send'
+          ? { error: new Error('Interrupted before send') }
+          : db.rpc(name, args),
+    };
+    await assert.rejects(f.send([event], id), /Interrupted/);
+    f.options.db = db;
+    await pg.query(
+      kind === 'disabled'
+        ? 'update cashier_iiko_production_bindings set enabled=false where branch_id=$1'
+        : 'update bulka_locations set active=false where id=$1',
+      [f.branch],
+    );
+    await assert.rejects(f.send([event], id), {
+      code: kind === 'disabled' ? 'IIKO_PRODUCTION_DISABLED' : 'IIKO_PRODUCTION_BRANCH_UNAVAILABLE',
+    });
+    const pending = (await pg.query('select * from cashier_iiko_production_acts where id=$1', [id]))
+      .rows[0];
+    assert.equal(pending.status, 'pending');
+    assert.equal(pending.send_started_at, null);
+    assert.equal(f.sends, 0);
+    assert.equal(
+      (
+        await pg.query(
+          'select count(*) n from cashier_iiko_production_allocations where act_id=$1',
+          [id],
+        )
+      ).rows[0].n,
+      1,
+    );
+    await pg.query(
+      kind === 'disabled'
+        ? 'update cashier_iiko_production_bindings set enabled=true where branch_id=$1'
+        : 'update bulka_locations set active=true where id=$1',
+      [f.branch],
+    );
+    assert.equal((await f.send([event], id)).act.status, 'created');
+    assert.equal(f.sends, 1);
+  }
+});
+
+test('disabling production while a first send is queued defers HTTP without releasing its UUID or additions', async () => {
+  const f = await fixture(),
+    event = await f.add(),
+    id = randomUUID(),
+    create = f.options.create;
+  f.options.create = async (_act, { beforeSend }) => {
+    await pg.query('update cashier_iiko_production_bindings set enabled=false where branch_id=$1', [
+      f.branch,
+    ]);
+    assert.equal(await beforeSend(), false);
+    return { status: 'unknown' };
+  };
+  assert.equal((await f.send([event], id)).act.status, 'pending');
+  assert.equal(f.sends, 0);
+  assert.equal(
+    (await pg.query('select send_started_at from cashier_iiko_production_acts where id=$1', [id]))
+      .rows[0].send_started_at,
+    null,
+  );
+  assert.equal(
+    (
+      await pg.query('select count(*) n from cashier_iiko_production_allocations where act_id=$1', [
+        id,
+      ])
+    ).rows[0].n,
+    1,
+  );
+  await pg.query('update cashier_iiko_production_bindings set enabled=true where branch_id=$1', [
+    f.branch,
+  ]);
+  f.options.create = create;
+  assert.equal((await f.send([event], id)).act.status, 'created');
+  await f.send([event], id);
+  assert.equal(f.sends, 1);
 });

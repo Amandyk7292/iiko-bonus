@@ -9,6 +9,15 @@ String productQuantityText(num value) =>
     value.toStringAsFixed(3).replaceFirst(RegExp(r'\.?0+$'), '');
 num normalizedProductQuantity(num value) => (value * 1000).round() / 1000;
 
+bool _validProductQuantity(num quantity, num step) =>
+    quantity.isFinite &&
+    step.isFinite &&
+    step > 0 &&
+    quantity >= step &&
+    quantity <= CartProvider.maxItemQuantity &&
+    (quantity / step).isFinite &&
+    (quantity / step - (quantity / step).round()).abs() < 0.000001;
+
 class CartItem {
   final String id;
   final String cartKey;
@@ -207,11 +216,19 @@ class CartProvider extends ChangeNotifier {
     num quantityStep = 1,
     String unit = 'шт.',
   }) {
+    if (!quantity.isFinite || !quantityStep.isFinite || quantityStep <= 0) {
+      return;
+    }
+    final requested = normalizedProductQuantity(
+      quantity.clamp(quantityStep, maxItemQuantity),
+    );
+    if (!_validProductQuantity(requested, quantityStep)) return;
     final key = configuredCartKey(productId, configuration, modifiers);
     final current = _items[key];
     if (current != null) {
+      if ((current.quantityStep < 1) != (quantityStep < 1)) return;
       current.quantity = normalizedProductQuantity(
-        (current.quantity + quantity).clamp(quantityStep, 99),
+        (current.quantity + requested).clamp(quantityStep, maxItemQuantity),
       );
     } else {
       _items[key] = CartItem(
@@ -223,7 +240,7 @@ class CartProvider extends ChangeNotifier {
         imageUrl: imageUrl,
         configuration: configuration,
         modifiers: modifiers,
-        quantity: normalizedProductQuantity(quantity.clamp(quantityStep, 99)),
+        quantity: requested,
         quantityStep: quantityStep,
         unit: unit,
       );
@@ -242,9 +259,16 @@ class CartProvider extends ChangeNotifier {
     num? quantity,
   }) {
     if (isStopListed) return;
+    if (!quantityStep.isFinite ||
+        quantityStep <= 0 ||
+        (quantity != null && !quantity.isFinite)) {
+      return;
+    }
     final increment = quantityStep < 1 ? max<num>(quantityStep, 0.5) : 1;
     final requested = normalizedProductQuantity(quantity ?? increment);
+    if (!_validProductQuantity(requested, quantityStep)) return;
     if (_items.containsKey(productId)) {
+      if ((_items[productId]!.quantityStep < 1) != (quantityStep < 1)) return;
       _items[productId]!.quantity = normalizedProductQuantity(
         (_items[productId]!.quantity + requested).clamp(
           quantityStep,
@@ -269,13 +293,16 @@ class CartProvider extends ChangeNotifier {
   void setQuantity(String productId, num quantity) {
     final item = _items[productId];
     if (item == null) return;
+    if (!quantity.isFinite) return;
     if (item.isStopListed && quantity > item.quantity) return;
     if (quantity <= 0) {
       _items.remove(productId);
     } else {
-      _items[productId]!.quantity = normalizedProductQuantity(
+      final next = normalizedProductQuantity(
         quantity.clamp(item.quantityStep, maxItemQuantity),
       );
+      if (!_validProductQuantity(next, item.quantityStep)) return;
+      _items[productId]!.quantity = next;
     }
     _changedByCustomer();
   }
@@ -300,7 +327,10 @@ class CartProvider extends ChangeNotifier {
   void replaceWithItems(Iterable<CartItem> items, {bool reconcileMenu = true}) {
     final next = <String, CartItem>{};
     for (final item in items) {
-      if (item.id.trim().isEmpty || item.quantity <= 0) continue;
+      if (item.id.trim().isEmpty ||
+          !_validProductQuantity(item.quantity, item.quantityStep)) {
+        continue;
+      }
       final copy = copyItem(
         item,
         quantity: item.quantity.clamp(item.quantityStep, maxItemQuantity),
@@ -319,8 +349,15 @@ class CartProvider extends ChangeNotifier {
       for (final entry in _items.entries) entry.key: copyItem(entry.value),
     };
     for (final item in items) {
-      if (item.id.trim().isEmpty || item.quantity <= 0) continue;
+      if (item.id.trim().isEmpty ||
+          !_validProductQuantity(item.quantity, item.quantityStep)) {
+        continue;
+      }
       final current = next[item.cartKey];
+      if (current != null &&
+          (current.quantityStep < 1) != (item.quantityStep < 1)) {
+        continue;
+      }
       if (current == null) {
         next[item.cartKey] = copyItem(
           item,
@@ -359,6 +396,15 @@ class CartProvider extends ChangeNotifier {
     for (final entry in _items.entries.toList()) {
       final current = entry.value;
       final latest = menu[current.id];
+      if (latest != null &&
+          ((current.quantityStep < 1) != (latest.quantityStep < 1) ||
+              !_validProductQuantity(current.quantity, latest.quantityStep))) {
+        // Weight and piece quantities cannot be converted without a new
+        // customer selection. Preserve all unrelated cart lines.
+        _items.remove(entry.key);
+        changed = true;
+        continue;
+      }
       final next = latest == null
           ? CartItem(
               id: current.id,
@@ -415,7 +461,9 @@ class CartProvider extends ChangeNotifier {
       for (final value in decoded) {
         if (value is! Map) continue;
         final item = CartItem.fromJson(Map<String, dynamic>.from(value));
-        if (item.id.isNotEmpty && item.price > 0) {
+        if (item.id.isNotEmpty &&
+            item.price > 0 &&
+            _validProductQuantity(item.quantity, item.quantityStep)) {
           _items[item.cartKey] = item;
         }
       }

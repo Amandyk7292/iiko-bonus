@@ -132,6 +132,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   String? _profileRefreshPhone;
   bool _profileRefreshQueued = false;
   int _profileMutationRevision = 0;
+  int _authenticationRevision = 0;
   bool _widgetRefreshInFlight = false;
   Completer<void>? _widgetRefreshDone;
   bool _widgetRefreshQueued = false;
@@ -224,6 +225,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
 
   @override
   void dispose() {
+    _authenticationRevision++;
     WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
     _startupShellTimer?.cancel();
@@ -269,6 +271,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         ? '${_staff.user?['username']}:${_staff.role}'
         : '';
     final changed = identity != _lastStaffIdentity;
+    if (changed) _authenticationRevision++;
     final hadStaff = _lastStaffIdentity.isNotEmpty;
     _lastStaffIdentity = identity;
     if (_staff.isAuthenticated) _deliveryResolution.clear();
@@ -1008,37 +1011,64 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     });
   }
 
+  bool _isCurrentAuthentication(
+    int revision, {
+    String? phone,
+    String? accessToken,
+  }) =>
+      mounted &&
+      revision == _authenticationRevision &&
+      !_staff.isAuthenticated &&
+      (phone == null || _sameSessionPhone(_api.sessionPhone, phone)) &&
+      (accessToken == null || _api.accessToken == accessToken);
+
   Future<String?> _acceptAuthenticatedProfile(
     String phone,
     ProfileResponse profile, {
+    required int authenticationRevision,
     String fallbackKey = 'error_login',
   }) async {
+    if (!_isCurrentAuthentication(authenticationRevision)) {
+      return 'error_session_changed'.tr;
+    }
     if (!profile.exists || profile.customer == null) return fallbackKey.tr;
     final token = profile.accessToken;
     final refreshToken = profile.refreshToken;
     if (token == null || (!kIsWeb && refreshToken == null)) {
       return 'error_session_missing'.tr;
     }
+    final sessionRevision = _api._sessionRevision;
+    bool canInstall() =>
+        _isCurrentAuthentication(authenticationRevision) &&
+        sessionRevision == _api._sessionRevision;
     await PendingReferral.set('');
+    if (!canInstall()) return 'error_session_changed'.tr;
     await PendingCashierInvite.clear();
-    _accessToken = token;
-    _refreshToken = refreshToken;
+    if (!canInstall()) return 'error_session_changed'.tr;
     _api.setSession(
       accessToken: token,
       refreshToken: refreshToken,
       cacheScope: phone,
     );
-    unawaited(PushNotifications.register(_api));
+    bool current() => _isCurrentAuthentication(
+      authenticationRevision,
+      phone: phone,
+      accessToken: token,
+    );
     final customer = await _withLatestLoyalty(profile.customer!);
+    if (!current()) return 'error_session_changed'.tr;
     await _saveSession(
       phone,
       customer,
       profile.transactions,
       token,
       refreshToken,
+      isCurrent: current,
     );
-    if (!mounted) return null;
+    if (!current()) return 'error_session_changed'.tr;
     setState(() {
+      _accessToken = token;
+      _refreshToken = refreshToken;
       _savedPhone = phone;
       _customer = customer;
       _transactions = profile.transactions;
@@ -1046,34 +1076,49 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     if (customer.isFamilyChild) {
       _widgetOrder = null;
       await HomeWidgetSync.clear();
+      if (!current()) return 'error_session_changed'.tr;
       await OrderLiveStatus.sync(null);
+      if (!current()) return 'error_session_changed'.tr;
     }
     _startProfileRefresh(phone);
+    unawaited(PushNotifications.register(_api));
     unawaited(PushNotifications.requestCustomerPermissionAfterSignIn(_api));
     unawaited(_refreshWidgetOrder());
     return null;
   }
 
   Future<String?> _loginWithPassword(String phone, String password) async {
+    final revision = ++_authenticationRevision;
+    _registrationToken = null;
     try {
       final profile = await _api.loginWithPassword(
         phone: phone,
         password: password,
       );
-      return _acceptAuthenticatedProfile(phone, profile);
+      return await _acceptAuthenticatedProfile(
+        phone,
+        profile,
+        authenticationRevision: revision,
+      );
     } catch (error) {
       return _userError(error, 'error_login');
     }
   }
 
   Future<String?> _loginFamilyChild(String login, String password) async {
+    final revision = ++_authenticationRevision;
+    _registrationToken = null;
     try {
       final profile = await _api.loginFamilyChild(
         login: login,
         password: password,
       );
       if (profile.customer?.isFamilyChild != true) return 'error_login'.tr;
-      return _acceptAuthenticatedProfile(profile.customer!.phone, profile);
+      return await _acceptAuthenticatedProfile(
+        profile.customer!.phone,
+        profile,
+        authenticationRevision: revision,
+      );
     } catch (error) {
       return _familyError(error);
     }
@@ -1084,20 +1129,29 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     String password,
     String token,
   ) async {
+    final revision = ++_authenticationRevision;
+    _registrationToken = null;
     try {
-      return await _api.startPasswordRegistration(
+      final result = await _api.startPasswordRegistration(
         phone: phone,
         password: password,
         token: token,
       );
+      return _isCurrentAuthentication(revision)
+          ? result
+          : OtpRequestResult(error: 'error_session_changed'.tr);
     } catch (error) {
       return OtpRequestResult(error: _userError(error, 'error_register'));
     }
   }
 
   Future<String?> _verifyPasswordRegistration(String phone, String code) async {
+    final revision = ++_authenticationRevision;
     try {
       final profile = await _api.verifyOtp(phone: phone, code: code);
+      if (!_isCurrentAuthentication(revision)) {
+        return 'error_session_changed'.tr;
+      }
       if (profile.exists || profile.registrationToken == null) {
         return 'auth_account_exists'.tr;
       }
@@ -1112,8 +1166,13 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     String phone,
     String token,
   ) async {
+    final revision = ++_authenticationRevision;
+    _registrationToken = null;
     try {
-      return await _api.startPasswordReset(phone: phone, token: token);
+      final result = await _api.startPasswordReset(phone: phone, token: token);
+      return _isCurrentAuthentication(revision)
+          ? result
+          : OtpRequestResult(error: 'error_session_changed'.tr);
     } catch (error) {
       return OtpRequestResult(error: _userError(error, 'error_send_code'));
     }
@@ -1124,13 +1183,19 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     String code,
     String password,
   ) async {
+    final revision = ++_authenticationRevision;
+    _registrationToken = null;
     try {
       final profile = await _api.completePasswordReset(
         phone: phone,
         code: code,
         password: password,
       );
-      return _acceptAuthenticatedProfile(phone, profile);
+      return await _acceptAuthenticatedProfile(
+        phone,
+        profile,
+        authenticationRevision: revision,
+      );
     } catch (error) {
       return _userError(error, 'error_password_reset');
     }
@@ -1145,6 +1210,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     String? email,
     String? cashierInviteToken,
   }) async {
+    final revision = ++_authenticationRevision;
     try {
       final profile = await _api.registerCustomer(
         phone: phone,
@@ -1156,10 +1222,14 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         cashierInviteToken: cashierInviteToken,
         registrationToken: _registrationToken ?? '',
       );
+      if (!_isCurrentAuthentication(revision)) {
+        return 'error_session_changed'.tr;
+      }
       _registrationToken = null;
-      return _acceptAuthenticatedProfile(
+      return await _acceptAuthenticatedProfile(
         phone,
         profile,
+        authenticationRevision: revision,
         fallbackKey: 'error_register',
       );
     } catch (error) {
@@ -1172,11 +1242,15 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     Customer customer,
     List<BonusTransaction> transactions,
     String accessToken,
-    String? refreshToken,
-  ) async {
+    String? refreshToken, {
+    bool Function()? isCurrent,
+  }) async {
     final prefs = _prefs ?? await SharedPreferences.getInstance();
-    if (_api.accessToken != accessToken ||
-        !_sameSessionPhone(_api.sessionPhone, phone)) {
+    bool current() =>
+        (isCurrent?.call() ?? true) &&
+        _api.accessToken == accessToken &&
+        _sameSessionPhone(_api.sessionPhone, phone);
+    if (!current()) {
       return false;
     }
     final customerJson = jsonEncode(customer.toJson());
@@ -1190,14 +1264,13 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     if (prefs.getString('phone') != phone) {
       await prefs.setString('phone', phone);
     }
+    if (!current()) return false;
     await SessionStore.write(accessToken, refreshToken);
-    if (_api.accessToken != accessToken ||
-        !_sameSessionPhone(_api.sessionPhone, phone)) {
-      return false;
-    }
+    if (!current()) return false;
     if (prefs.getString('customer') != customerJson) {
       await prefs.setString('customer', customerJson);
     }
+    if (!current()) return false;
     if (prefs.getString('transactions') != transactionsJson) {
       await prefs.setString('transactions', transactionsJson);
     }
@@ -1212,7 +1285,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     try {
       final tier = await _api.getCustomerLoyalty();
       return tier == null ? customer : customer.copyWith(tier: tier);
-    } catch (_) {
+    } catch (error) {
+      if (error is ApiException && error.code == 'SESSION_IDENTITY_CHANGED') {
+        rethrow;
+      }
       return customer;
     }
   }
@@ -1279,6 +1355,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     final navigator = _navigatorKey.currentState;
     if (navigator == null) return false;
     _loginRouteOpen = true;
+    _authenticationRevision++;
+    _registrationToken = null;
     var staffAuthenticated = false;
     final clientUri = clientRouteNotifier.value;
     final cashierRegistration =
@@ -1289,78 +1367,89 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         PendingCashierInvite.validToken(clientUri.queryParameters['cashier']) !=
             null;
 
-    void finishAuthentication() {
+    late final MaterialPageRoute<bool> authenticationRoute;
+    void finishAuthentication(int revision) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final currentNavigator = _navigatorKey.currentState;
-        if (_loginRouteOpen && currentNavigator?.canPop() == true) {
+        if (_isCurrentAuthentication(revision) &&
+            _loginRouteOpen &&
+            authenticationRoute.isCurrent &&
+            currentNavigator?.canPop() == true) {
           currentNavigator!.pop(true);
         }
       });
     }
 
     try {
-      final authenticated = await navigator.push<bool>(
-        MaterialPageRoute(
-          settings: cashierRegistration
-              ? null
-              : const RouteSettings(name: 'authentication'),
-          fullscreenDialog: true,
-          builder: (routeContext) => LoginScreen(
-            startRegistration: cashierRegistration,
-            onChildLogin: (login, password) async {
-              final result = await _loginFamilyChild(login, password);
-              if (result == null) finishAuthentication();
-              return result;
-            },
-            onClose: () => Navigator.of(routeContext).pop(false),
-            onAdminLogin: _staff.signIn,
-            onOpenAdminPortal: (_) async {
-              staffAuthenticated = _staff.isAuthenticated;
-              if (routeContext.mounted) Navigator.of(routeContext).pop(false);
-            },
-            onLogin: (phone, password) async {
-              final result = await _loginWithPassword(phone, password);
-              if (result == null) finishAuthentication();
-              return result;
-            },
-            onStartRegistration: _startPasswordRegistration,
-            onVerifyRegistration: _verifyPasswordRegistration,
-            onLookupCashierInvite: _api.getCashierInvite,
-            onStartPasswordReset: _startPasswordReset,
-            onResetPassword: (phone, code, password) async {
-              final result = await _completePasswordReset(
-                phone,
-                code,
-                password,
-              );
-              if (result == null) finishAuthentication();
-              return result;
-            },
-            onRegister:
-                ({
-                  required phone,
-                  required name,
-                  surname,
-                  gender,
-                  birthdate,
-                  email,
-                  cashierInviteToken,
-                }) async {
-                  final result = await _registerCustomer(
-                    phone: phone,
-                    name: name,
-                    surname: surname,
-                    gender: gender,
-                    birthdate: birthdate,
-                    email: email,
-                    cashierInviteToken: cashierInviteToken,
-                  );
-                  if (result == null) finishAuthentication();
-                  return result;
-                },
-          ),
+      authenticationRoute = MaterialPageRoute<bool>(
+        settings: cashierRegistration
+            ? null
+            : const RouteSettings(name: 'authentication'),
+        fullscreenDialog: true,
+        builder: (routeContext) => LoginScreen(
+          startRegistration: cashierRegistration,
+          onChildLogin: (login, password) async {
+            final operation = _loginFamilyChild(login, password);
+            final revision = _authenticationRevision;
+            final result = await operation;
+            if (result == null) finishAuthentication(revision);
+            return result;
+          },
+          onClose: () {
+            _authenticationRevision++;
+            _registrationToken = null;
+            Navigator.of(routeContext).pop(false);
+          },
+          onAdminLogin: _staff.signIn,
+          onOpenAdminPortal: (_) async {
+            staffAuthenticated = _staff.isAuthenticated;
+            if (routeContext.mounted) Navigator.of(routeContext).pop(false);
+          },
+          onLogin: (phone, password) async {
+            final operation = _loginWithPassword(phone, password);
+            final revision = _authenticationRevision;
+            final result = await operation;
+            if (result == null) finishAuthentication(revision);
+            return result;
+          },
+          onStartRegistration: _startPasswordRegistration,
+          onVerifyRegistration: _verifyPasswordRegistration,
+          onLookupCashierInvite: _api.getCashierInvite,
+          onStartPasswordReset: _startPasswordReset,
+          onResetPassword: (phone, code, password) async {
+            final operation = _completePasswordReset(phone, code, password);
+            final revision = _authenticationRevision;
+            final result = await operation;
+            if (result == null) finishAuthentication(revision);
+            return result;
+          },
+          onRegister:
+              ({
+                required phone,
+                required name,
+                surname,
+                gender,
+                birthdate,
+                email,
+                cashierInviteToken,
+              }) async {
+                final operation = _registerCustomer(
+                  phone: phone,
+                  name: name,
+                  surname: surname,
+                  gender: gender,
+                  birthdate: birthdate,
+                  email: email,
+                  cashierInviteToken: cashierInviteToken,
+                );
+                final revision = _authenticationRevision;
+                final result = await operation;
+                if (result == null) finishAuthentication(revision);
+                return result;
+              },
         ),
       );
+      final authenticated = await navigator.push<bool>(authenticationRoute);
       if (staffAuthenticated && mounted) {
         navigator.popUntil((route) => route.isFirst);
         if (_staff.isCashier) {
@@ -1387,6 +1476,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       }
       return succeeded;
     } finally {
+      _authenticationRevision++;
+      _registrationToken = null;
       _loginRouteOpen = false;
     }
   }
@@ -1502,6 +1593,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     String? refreshToken,
     String sessionPhone,
   ) async {
+    _authenticationRevision++;
     _deliveryResolution.clear();
     final previousOrder = _widgetOrder;
     _refreshTimer?.cancel();
@@ -1610,6 +1702,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   Future<void> _clearSession() async {
+    _authenticationRevision++;
+    _registrationToken = null;
     _deliveryResolution.clear();
     _sessionRecoveryPending = false;
     _refreshTimer?.cancel();

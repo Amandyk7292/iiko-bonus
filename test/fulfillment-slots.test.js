@@ -26,6 +26,32 @@ async function fixture(run) {
   };
   const reservations = [];
   const database = {
+    async rpc(name, args) {
+      assert.equal(name, 'fulfillment_slot_usage');
+      const used = new Map();
+      for (const reservation of reservations) {
+        if (args.p_exclude_request && reservation.client_request_id === args.p_exclude_request)
+          continue;
+        if (
+          reservation.status === 'active' &&
+          Date.parse(reservation.expires_at) <= Date.parse(args.p_now)
+        )
+          continue;
+        const instant = Date.parse(reservation.scheduled_at);
+        if (instant < Date.parse(args.p_from) || instant >= Date.parse(args.p_to)) continue;
+        const local = new Date(instant + args.p_offset * 60000);
+        const day = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate());
+        const bucket = new Date(
+          day +
+            Math.floor((local.getUTCHours() * 60 + local.getUTCMinutes()) / args.p_minutes) *
+              args.p_minutes *
+              60000 -
+            args.p_offset * 60000,
+        ).toISOString();
+        used.set(bucket, (used.get(bucket) || 0) + 1);
+      }
+      return { data: [...used].map(([startsAt, used]) => ({ startsAt, used })), error: null };
+    },
     from(table) {
       return {
         select() {
@@ -87,6 +113,60 @@ async function fixture(run) {
   }
 }
 
+test('changed slot interval counts every existing reservation inside the new bucket', async () =>
+  fixture(async ({ list, location, reservations }) => {
+    location.slot_minutes = 60;
+    reservations.push(
+      { scheduled_at: '2026-09-10T18:00:00Z', status: 'committed' },
+      { scheduled_at: '2026-09-10T18:30:00Z', status: 'committed' },
+    );
+    assert.equal((await list()).slots.length, 0);
+    location.slot_minutes = 30;
+    assert.deepEqual(
+      (await list()).slots.map((slot) => slot.remaining),
+      [2, 1],
+    );
+  }));
+
+test('all supported intervals agree with checkout for ordinary, overnight and 24/7 grids', async () =>
+  fixture(async ({ list, location, now }) => {
+    for (let interval = 15; interval <= 240; interval++) {
+      location.slot_minutes = interval;
+      for (const [hours, roundTheClock] of [
+        [{ daily: { open: '08:00', close: '23:30' } }, false],
+        [{ thu: { open: '22:00', close: '02:30' }, fri: { closed: true } }, false],
+        [{ daily: { open: '00:00', close: '24:00' } }, true],
+      ]) {
+        location.hours = hours;
+        location.round_the_clock = roundTheClock;
+        const { slots } = await list({ horizonHours: 24 });
+        for (const slot of slots) {
+          // Preorder allows the overnight continuation date while testing the
+          // identical hours/grid validator used by checkout.
+          assert.equal(
+            normalizeSchedule(
+              slot.startsAt,
+              'preorder',
+              new Date(now.getTime() - 86400000),
+              process.env,
+              hours,
+              interval,
+              roundTheClock,
+            ),
+            slot.startsAt,
+            `${interval} min ${slot.startsAt}`,
+          );
+          const start = new Date(Date.parse(slot.startsAt) + 300 * 60000);
+          const midnight =
+            Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate() + 1) -
+            300 * 60000;
+          assert.ok(Date.parse(slot.endsAt) <= midnight, `${interval} min crosses midnight`);
+          assert.ok(Date.parse(slot.endsAt) > Date.parse(slot.startsAt));
+          assert.equal((start.getUTCHours() * 60 + start.getUTCMinutes()) % interval, 0);
+        }
+      }
+    }
+  }));
 test('replacement pickup uses a rolling 24h horizon for ordinary schedules and excludes its own held slot', async () =>
   fixture(async ({ list, reservations, now }) => {
     const result = await list({ horizonHours: 24 });

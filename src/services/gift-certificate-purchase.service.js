@@ -2,7 +2,6 @@ const crypto = require('node:crypto');
 const { supabase } = require('../config/supabase');
 const { normalizeKazakhstanPhone } = require('../utils/phone.util');
 const { decryptSecret, encryptSecret } = require('../utils/secret-envelope.util');
-const { sendPushToCustomer } = require('./push.service');
 const forteService = require('./forte.service');
 const forteWidgetService = require('./forte-widget.service');
 const paymentOperations = require('./payment-operations.service');
@@ -435,76 +434,25 @@ async function createGiftCertificatePurchase(customer, payload) {
   };
 }
 
-async function notifyGiftRecipient(purchase, card) {
+async function notifyGiftRecipient(purchase) {
   if (
     purchase.recipient_notified_at ||
     (purchase.delivery_at && Date.parse(purchase.delivery_at) > Date.now())
   ) {
     return false;
   }
-  let recipientCustomerId = card.recipient_customer_id || null;
-  if (!recipientCustomerId) {
-    const { data, error } = await supabase
-      .from('customers')
-      .select('id')
-      .eq('phone', purchase.recipient_phone)
-      .is('deleted_at', null)
-      .maybeSingle();
-    if (error) throw error;
-    recipientCustomerId = data?.id || null;
-  }
-  if (!recipientCustomerId) return false;
-  if (!card.recipient_customer_id) {
-    const { error: recipientLinkError } = await supabase
-      .from('gift_cards')
-      .update({ recipient_customer_id: recipientCustomerId })
-      .eq('id', card.id)
-      .is('recipient_customer_id', null);
-    if (recipientLinkError) throw recipientLinkError;
-  }
-  const claimedAt = new Date().toISOString();
-  const { data: claimed, error: claimError } = await supabase
-    .from('gift_certificate_purchases')
-    .update({ recipient_notified_at: claimedAt, updated_at: claimedAt })
-    .eq('id', purchase.id)
-    .is('recipient_notified_at', null)
-    .select('id')
-    .maybeSingle();
-  if (claimError) throw claimError;
-  if (!claimed) return false;
-  const title = 'Вам подарили сертификат Bulka';
-  const body = `${purchase.recipient_name || 'Для вас'} — сертификат на ${Number(
-    purchase.amount,
-  ).toLocaleString('ru-RU')} ₸ уже доступен.`;
-  const { data: notification, error } = await supabase
-    .from('customer_notifications')
-    .insert({
-      customer_id: recipientCustomerId,
-      title,
-      body,
-      type: 'gift',
-      payload: {
-        messageKey: 'gift_certificate_received',
-        giftPurchaseId: purchase.id,
-        giftCardLast4: card.code_last4,
-      },
-    })
-    .select('id')
-    .maybeSingle();
-  if (error) {
-    await supabase
-      .from('gift_certificate_purchases')
-      .update({ recipient_notified_at: null, updated_at: new Date().toISOString() })
-      .eq('id', purchase.id)
-      .eq('recipient_notified_at', claimedAt);
-    throw error;
-  }
-  await sendPushToCustomer(recipientCustomerId, title, body, {
-    type: 'gift_certificate_received',
-    giftPurchaseId: String(purchase.id),
-    notificationId: String(notification?.id || ''),
-    deepLink: '/profile?section=gift-cards',
-  }).catch((pushError) => console.error('Gift certificate push failed:', pushError.message));
+  const { data, error } = await supabase.rpc('deliver_gift_certificate_notification', {
+    p_purchase_id: purchase.id,
+  });
+  if (error) throw error;
+  // Inbox, push outbox and the completion marker are committed together. The
+  // existing push worker handles delivery/retries after this process restarts.
+  if (data?.status !== 'delivered') return false;
+  require('./realtime.service').publish(
+    'notification.created',
+    {},
+    { customerId: data.customerId },
+  );
   return true;
 }
 
@@ -521,13 +469,7 @@ async function activateGiftCertificateForPaidOrder(order) {
       .eq('id', data.purchaseId)
       .single();
     if (purchaseError) throw purchaseError;
-    const { data: card, error: cardError } = await supabase
-      .from('gift_cards')
-      .select('*')
-      .eq('id', purchase.gift_card_id)
-      .single();
-    if (cardError) throw cardError;
-    await notifyGiftRecipient(purchase, card).catch((notificationError) =>
+    await notifyGiftRecipient(purchase).catch((notificationError) =>
       console.error('Gift recipient notification failed:', notificationError.message),
     );
   }
@@ -619,13 +561,7 @@ async function deliverDueGiftCertificates({ limit = 100 } = {}) {
   if (error) throw error;
   let delivered = 0;
   for (const purchase of data || []) {
-    const { data: card, error: cardError } = await supabase
-      .from('gift_cards')
-      .select('*')
-      .eq('id', purchase.gift_card_id)
-      .maybeSingle();
-    if (cardError) throw cardError;
-    if (card && (await notifyGiftRecipient(purchase, card))) delivered += 1;
+    if (await notifyGiftRecipient(purchase)) delivered += 1;
   }
   return delivered;
 }

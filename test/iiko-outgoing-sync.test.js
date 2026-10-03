@@ -299,6 +299,27 @@ test('outgoing ingredient measures and fractional quantities reach tracked-stock
   assert.equal(normalizeDocuments(data, server, mapping)[0].items[0].quantity, 0.125);
 });
 
+test('outgoing unit spelling aliases match production units without physical conversion', () => {
+  for (const [names, expected] of [
+    [['кг', 'кг.', 'килограмм', 'килограммы', 'kg', ' KG '], 'кг'],
+    [['шт', 'шт.', 'штука', 'штуки', 'штук', 'pcs', 'piece', 'pieces'], 'шт'],
+  ]) {
+    for (const name of names) {
+      const data = dataset([invoice({ items: { item: { productId: product, amount: '0.375' } } })]);
+      data.units[0].name = name;
+      assert.deepEqual(normalizeDocuments(data, server, mapping)[0].items[0], {
+        branchId: branch,
+        productId: product,
+        quantity: 0.375,
+        unit: expected,
+      });
+    }
+  }
+  const data = dataset();
+  data.units[0].name = 'г';
+  assert.equal(normalizeDocuments(data, server, mapping)[0].items[0].unit, 'г');
+});
+
 test('outgoing invalid calendar dates never normalize silently to a different stock day', () => {
   assert.throws(
     () =>

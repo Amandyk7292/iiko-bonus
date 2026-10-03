@@ -1,6 +1,25 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createStaffDirectory } = require('../src/services/staff-directory.service');
+const {
+  createStaffDirectory: directoryFactory,
+} = require('../src/services/staff-directory.service');
+const mappings = (rows = [], error = null) => ({
+  from(table) {
+    assert.equal(table, 'staff_cashier_branch_mappings');
+    return {
+      select() {
+        return this;
+      },
+      order() {
+        return this;
+      },
+      async range(first, last) {
+        return { data: rows.slice(first, last + 1), error };
+      },
+    };
+  },
+});
+const createStaffDirectory = (options) => directoryFactory({ mappingDb: mappings(), ...options });
 const employee = {
   id: '123',
   name: 'Алия Кассир',
@@ -108,4 +127,36 @@ test('active cashier without an assigned point keeps their QR identity and usefu
   assert.equal(row.pointId, null);
   assert.equal(row.branchName, 'Точка не назначена');
   assert.equal(row.city, 'Не указан');
+});
+
+test('only reviewed point IDs establish customer branch scope; identical names do not', async () => {
+  const branch = '11111111-1111-4111-8111-111111111111';
+  const f = fixture([employee, { ...employee, id: '124', point_id: '5' }]);
+  const directory = createStaffDirectory({
+    client: f.client,
+    mappingDb: mappings([{ point_id: '4', branch_id: branch }]),
+  });
+  const rows = await directory.listCashiers();
+  assert.equal(rows[0].branchId, branch);
+  assert.equal(rows[1].branchId, null);
+  assert.equal((await directory.findCashier('123')).branchId, branch);
+});
+
+test('mapping failures and malformed identities cannot silently remove branch permissions', async () => {
+  for (const mappingDb of [
+    mappings([], { message: 'source secret' }),
+    mappings([{ point_id: '4', branch_id: 'bad' }]),
+    mappings([
+      { point_id: '4', branch_id: '11111111-1111-4111-8111-111111111111' },
+      { point_id: '4', branch_id: '22222222-1111-4111-8111-111111111111' },
+    ]),
+  ]) {
+    await assert.rejects(
+      createStaffDirectory({ client: fixture().client, mappingDb }).listCashiers(),
+      {
+        statusCode: 503,
+        code: 'STAFF_DIRECTORY_UNAVAILABLE',
+      },
+    );
+  }
 });

@@ -97,18 +97,35 @@ async function reconcileUnknownFullRefunds({
   now = Date.now(),
 } = {}) {
   const batchLimit = Math.max(1, Math.min(100, Number(limit) || 25));
-  const { data, error } = await db
-    .from('kaspi_orders')
-    .select('*')
-    .eq('payment_method', 'forte_card')
-    .eq('provider_payment_system', 'forte_widget')
-    .eq('status', 'paid')
-    .or(
-      `refund_status.eq.unknown,and(refund_status.eq.processing,refund_requested_at.lt.${new Date(now - 5 * 60_000).toISOString()})`,
+  const pendingQuery = (query) =>
+    query
+      .eq('status', 'paid')
+      .or(
+        `refund_status.eq.unknown,and(refund_status.eq.processing,refund_requested_at.lt.${new Date(now - 5 * 60_000).toISOString()})`,
+      )
+      .order('updated_at', { ascending: true })
+      .limit(batchLimit);
+  // Cash-ledger refunds keep their idempotency key permanently. They must be
+  // recovered even when the original process stopped before recording success.
+  const results = await Promise.all([
+    pendingQuery(
+      db
+        .from('kaspi_orders')
+        .select('*')
+        .eq('payment_method', 'forte_card')
+        .eq('provider_payment_system', 'forte_widget'),
+    ),
+    pendingQuery(db.from('kaspi_orders').select('*').eq('payment_method', 'personal_account')),
+  ]);
+  for (const result of results) if (result.error) throw result.error;
+  const data = results
+    .flatMap((result) => result.data || [])
+    .sort(
+      (left, right) =>
+        Date.parse(left.updated_at || left.refund_requested_at || 0) -
+        Date.parse(right.updated_at || right.refund_requested_at || 0),
     )
-    .order('updated_at', { ascending: true })
-    .limit(batchLimit);
-  if (error) throw error;
+    .slice(0, batchLimit);
 
   let processed = 0;
   for (let order of data || []) {

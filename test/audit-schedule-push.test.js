@@ -2,6 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const configPath = require.resolve('../src/config/supabase');
 const supabase = {
+  async rpc(name) {
+    assert.equal(name, 'fulfillment_slot_usage');
+    return { data: [], error: null };
+  },
   from() {
     throw new Error('Unmocked database query');
   },

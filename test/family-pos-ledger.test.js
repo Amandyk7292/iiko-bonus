@@ -29,6 +29,7 @@ test.before(async () => {
     '20260924160000_personal_pos_notice_amount.sql',
     '20261002170000_customer_family.sql',
     '20261002171000_family_pos_wallet.sql',
+    '20261004100000_personal_account_authorized_holds.sql',
   ])
     await db.exec(fs.readFileSync(`supabase/migrations/${migration}`, 'utf8'));
 });
@@ -415,6 +416,112 @@ test('different family members reserve the same owner wallet and cannot collecti
   await action(first, 'cancel');
   assert.equal((await start(second)).status, 'authorized');
   assert.equal(await wallet(f), 70000);
+});
+
+test('online checkout cannot consume a positive family authorization, but can spend the unheld remainder', async () => {
+  const f = await fixture({ limit: 100000 });
+  const p = payment(f, 40000);
+  assert.equal((await start(p)).status, 'authorized');
+  const expensive = crypto.randomUUID(),
+    allowed = crypto.randomUUID();
+  await db.query(
+    "insert into kaspi_orders(id,customer_id,payment_method,amount) values($1,$3,'personal_account',800),($2,$3,'personal_account',600)",
+    [expensive, allowed, f.owner.id],
+  );
+  assert.equal(
+    (await rpc('personal_account_pay_order($1,$2)', [f.owner.id, expensive])).status,
+    'insufficient',
+  );
+  assert.equal(await wallet(f), 100000);
+  assert.equal(
+    (await rpc('personal_account_pay_order($1,$2)', [f.owner.id, allowed])).status,
+    'paid',
+  );
+  assert.equal(
+    (await rpc('personal_account_pay_order($1,$2)', [f.owner.id, allowed])).status,
+    'paid',
+  );
+  assert.equal((await action(p, 'pay')).status, 'paid');
+  assert.equal((await action(p, 'pay')).status, 'paid');
+  assert.equal(await wallet(f), 0);
+  assert.equal(
+    Number(
+      (
+        await one(
+          "select count(*) n from personal_account_entries where customer_id=$1 and kind='payment'",
+          [f.owner.id],
+        )
+      ).n,
+    ),
+    2,
+  );
+});
+
+test('revoked and expired authorizations release the cash available to online orders', async () => {
+  for (const release of ['expired', 'removed']) {
+    const f = await fixture({ limit: 100000 });
+    const p = payment(f, 40000);
+    await start(p);
+    if (release === 'expired')
+      await db.query(
+        "update personal_account_pos_payments set expires_at=now()-interval '1 second' where id=$1",
+        [p.id],
+      );
+    else await rpc('family_remove_member($1,$2)', [f.owner.id, f.member]);
+    const order = crypto.randomUUID();
+    await db.query(
+      "insert into kaspi_orders(id,customer_id,payment_method,amount) values($1,$2,'personal_account',800)",
+      [order, f.owner.id],
+    );
+    assert.equal(
+      (await rpc('personal_account_pay_order($1,$2)', [f.owner.id, order])).status,
+      'paid',
+    );
+    assert.equal(await wallet(f), 20000);
+  }
+});
+
+test('ordinary POS confirmation protects another family hold and cannot over-authorize the shared wallet', async () => {
+  const f = await fixture({ limit: 100000 });
+  const family = payment(f, 40000);
+  await start(family);
+  const ordinary = payment(f, 80000),
+    code = 'd'.repeat(64);
+  await db.query(
+    'insert into personal_account_pos_payments(id,request_id,customer_id,branch_id,iiko_order_id,amount_minor,fingerprint,code_hash,notification_id) values($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+    [
+      ordinary.id,
+      ordinary.request,
+      f.owner.id,
+      f.branch,
+      ordinary.order,
+      ordinary.amount,
+      fingerprint,
+      code,
+      crypto.randomUUID(),
+    ],
+  );
+  const confirm = () =>
+    rpc('personal_account_pos_action($1,$2,$3,$4,$5,$6,$7,$8)', [
+      ordinary.id,
+      f.branch,
+      ordinary.order,
+      ordinary.amount,
+      fingerprint,
+      'confirm',
+      code,
+      null,
+    ]);
+  assert.equal((await confirm()).status, 'insufficient');
+  assert.equal(
+    (await one('select status from personal_account_pos_payments where id=$1', [ordinary.id]))
+      .status,
+    'pending',
+  );
+  await action(family, 'cancel');
+  assert.equal((await confirm()).status, 'authorized');
+  assert.equal((await action(ordinary, 'pay')).status, 'paid');
+  assert.equal(await wallet(f), 20000);
 });
 
 test('payment is bound to branch, order fingerprint, amount and transaction identity', async () => {

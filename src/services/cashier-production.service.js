@@ -2,6 +2,7 @@ const { supabase } = require('../config/supabase');
 const { service: reporting } = require('./iiko-dashboard.service');
 const { cashierBranch } = require('./cashier-catalog.service');
 const { validQuantity } = require('../utils/quantity.util');
+const { inventoryUnitKey: unitKey } = require('../utils/inventory-unit.util');
 const bindings = require('./cashier-production-binding.service');
 const activeSends = new Set();
 
@@ -83,14 +84,6 @@ async function reconcile(act, d) {
   }
   return act;
 }
-const unitKey = (value) => {
-  const v = String(value || '')
-    .trim()
-    .toLowerCase();
-  if (/^(шт\.?|штука|штуки|штук|pcs|pieces?)$/.test(v)) return 'шт';
-  if (/^(кг\.?|килограмм|килограммы|kg)$/.test(v)) return 'кг';
-  return v;
-};
 async function productReferences(binding, branchId, d) {
   const { server } = await bindings.productionServer(branchId, binding.server_id, d);
   const directory = await bindings.loadProductionDirectory(binding.server_id, d);
@@ -254,16 +247,35 @@ async function submitCashierProductionAct(admin, input, options = {}) {
     return { act: publicAct(current) };
   }
   let outcome;
+  let permissionDeferred = false;
   activeSends.add(sending.id);
   try {
     outcome = await d.create(sending, {
-      beforeSend: () =>
-        rpc(d, 'start_cashier_production_http', { p_branch: branch, p_request: sending.id }),
+      beforeSend: async () => {
+        const started = await rpc(d, 'start_cashier_production_http', {
+          p_branch: branch,
+          p_request: sending.id,
+        });
+        permissionDeferred = !started;
+        return started;
+      },
     });
   } catch {
     outcome = { status: 'unknown', errorCode: 'IIKO_PRODUCTION_UNCONFIRMED' };
   } finally {
     activeSends.delete(sending.id);
+  }
+  if (permissionDeferred) {
+    const { data: current, error: readError } = await d.db
+      .from('cashier_iiko_production_acts')
+      .select('*')
+      .eq('id', sending.id)
+      .eq('branch_id', branch)
+      .single();
+    if (readError) throw readError;
+    // A disabled point can defer a queued first send while retaining its frozen
+    // UUID and allocations. A request that reached HTTP remains unretryable.
+    if (current.status === 'pending') return { act: publicAct(current) };
   }
   return { act: publicAct(await finish(sending, outcome, d)) };
 }

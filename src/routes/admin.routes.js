@@ -33,6 +33,7 @@ const {
 } = require('../services/location.service');
 const { supabase } = require('../config/supabase');
 const realtime = require('../services/realtime.service');
+const { openAdminStream } = require('../services/admin-realtime.service');
 const {
   assignCourier,
   getDeliveryProof,
@@ -350,17 +351,7 @@ router.get('/admin/api/scope', async (req, res) => {
     res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
-router.get('/admin/api/events', (req, res) =>
-  realtime.openStream(req, res, {
-    admin: true,
-    role: req.admin?.role,
-    areas: [...(ROLE_AREAS[req.admin?.role] || [])],
-    branchIds: hasGlobalBranchAccess(req.admin) ? [] : normalizeBranchIds(req.admin?.branchIds),
-    selectedBranchId: req.admin?.selectedBranchId || null,
-    selectedBranchIds: normalizeBranchIds(req.admin?.selectedBranchIds),
-    globalBranchAccess: hasGlobalBranchAccess(req.admin),
-  }),
-);
+router.get('/admin/api/events', openAdminStream);
 router.get('/admin/api/operations/summary', async (req, res) => {
   try {
     const areas = ROLE_AREAS[req.admin?.role] || new Set();

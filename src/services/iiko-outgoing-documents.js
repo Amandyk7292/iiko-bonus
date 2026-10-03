@@ -1,17 +1,12 @@
 const { branchBindings } = require('../config/bought-together-branches');
 const { list } = require('./iiko-dashboard-barters');
+const { inventoryUnitKey: measure } = require('../utils/inventory-unit.util');
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const invalid = () =>
   Object.assign(new Error('Invalid outgoing invoice data or mapping'), {
     code: 'IIKO_OUTGOING_INVALID',
   });
 const identity = (value) => String(value || '').toLowerCase();
-const measure = (value) => {
-  const name = String(value || '')
-    .trim()
-    .toLowerCase();
-  return /^(шт\.?|штука|штуки)$/.test(name) ? 'шт' : name;
-};
 
 function references(rows, select) {
   if (!Array.isArray(rows)) throw invalid();
