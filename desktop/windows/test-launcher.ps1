@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$LauncherPath,
+    [ValidateSet('x86', 'x64')][string]$FixtureArchitecture = 'x86',
     [string]$VisualCppDirectory = 'C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133',
     [string]$WindowsSdkDirectory = 'C:\Program Files (x86)\Windows Kits\10',
     [string]$WindowsSdkVersion = '10.0.19041.0'
@@ -57,14 +58,22 @@ $stubPath = Join-Path $testDirectory 'browser-fixture.cpp'
 [IO.File]::WriteAllText($stubPath, $stubSource, [Text.Encoding]::UTF8)
 $sdkInclude = Join-Path $WindowsSdkDirectory "Include\$WindowsSdkVersion"
 $sdkLibrary = Join-Path $WindowsSdkDirectory "Lib\$WindowsSdkVersion"
-$compiler = Join-Path $VisualCppDirectory 'bin\Hostx64\x64\cl.exe'
+$compiler = Join-Path $VisualCppDirectory "bin\Hostx64\$FixtureArchitecture\cl.exe"
 $compilerArguments = @('/nologo', '/MT', '/EHsc', '/utf-8', '/DUNICODE', '/D_UNICODE', '/DWINVER=0x0601', '/D_WIN32_WINNT=0x0601',
     "/I$VisualCppDirectory\include", "/I$sdkInclude\um", "/I$sdkInclude\shared", "/I$sdkInclude\ucrt",
     "/Fo$testDirectory\browser-fixture.obj", "/Fe$testBrowser", $stubPath, '/link',
-    "/LIBPATH:$VisualCppDirectory\lib\x64", "/LIBPATH:$sdkLibrary\um\x64", "/LIBPATH:$sdkLibrary\ucrt\x64",
+    "/LIBPATH:$VisualCppDirectory\lib\$FixtureArchitecture", "/LIBPATH:$sdkLibrary\um\$FixtureArchitecture", "/LIBPATH:$sdkLibrary\ucrt\$FixtureArchitecture",
     '/SUBSYSTEM:WINDOWS,6.01', 'kernel32.lib', 'user32.lib', 'shell32.lib', 'ole32.lib')
 & $compiler @compilerArguments
 if ($LASTEXITCODE -ne 0) { throw 'Browser contract fixture compilation failed.' }
+$fixtureBytes = [IO.File]::ReadAllBytes($testBrowser)
+$fixturePeOffset = [BitConverter]::ToInt32($fixtureBytes, 0x3c)
+$fixtureMachine = [BitConverter]::ToUInt16($fixtureBytes, $fixturePeOffset + 4)
+$expectedFixtureMachine = if ($FixtureArchitecture -eq 'x86') { 0x14c } else { 0x8664 }
+if ($fixtureMachine -ne $expectedFixtureMachine) { throw 'Browser fixture architecture did not match the requested contract.' }
+$launcherBytes = [IO.File]::ReadAllBytes($testLauncher)
+$launcherPeOffset = [BitConverter]::ToInt32($launcherBytes, 0x3c)
+$launcherMachine = [BitConverter]::ToUInt16($launcherBytes, $launcherPeOffset + 4)
 $originalTrace = $env:BULKA_STAFF_TEST_TRACE
 $env:BULKA_STAFF_TEST_TRACE = $tracePath
 $primary = $null
@@ -85,6 +94,8 @@ try {
     $result = [ordered]@{
         fixedLiveUrl = $true; isolatedPersistentProfile = $true; safeBrowserArguments = $true
         secondLaunchReusesWindow = $true; launcherTracksActiveWindow = $true
+        launcherMachine = ('0x{0:x}' -f $launcherMachine); fixtureArchitecture = $FixtureArchitecture
+        fixtureMachine = ('0x{0:x}' -f $fixtureMachine)
         fixture = 'native browser contract; not a real browser or Windows 7 compatibility test'
     }
     $result | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $testDirectory 'test-report.json') -Encoding UTF8

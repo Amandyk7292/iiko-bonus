@@ -1,7 +1,7 @@
 #ifndef BuildRoot
   #error BuildRoot must identify the verified build payload directory.
 #endif
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppName "Bulka — кассир"
 
 [Setup]
@@ -40,8 +40,7 @@ Name: "desktopicon"; Description: "Создать ярлык Bulka на рабо
 [Files]
 Source: "{#BuildRoot}\payload\x86\BulkaStaff.exe"; DestDir: "{app}"; Check: not IsX64Compatible; Flags: ignoreversion
 Source: "{#BuildRoot}\payload\x64\BulkaStaff.exe"; DestDir: "{app}"; Check: IsX64Compatible; Flags: ignoreversion
-Source: "{#BuildRoot}\payload\x86\runtime\*"; DestDir: "{app}\runtime"; Check: not IsX64Compatible; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#BuildRoot}\payload\x64\runtime\*"; DestDir: "{app}\runtime"; Check: IsX64Compatible; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#BuildRoot}\payload\x86\runtime\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#BuildRoot}\distribution-notices.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildRoot}\runtime-lock.json"; DestDir: "{app}"; Flags: ignoreversion
 

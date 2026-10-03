@@ -2,7 +2,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$PayloadDirectory,
     [string]$SiteUrl = 'http://127.0.0.1:58333/?desktop=1',
-    [ValidateSet('x86', 'x64')][string[]]$Architectures = @('x86', 'x64'),
+    [ValidateSet('x86', 'x64')][string[]]$Architectures = @('x86'),
     [ValidateRange(0, 60000)][int]$VirtualTimeBudget = 10000,
     [switch]$DisableGpu
 )
@@ -45,6 +45,8 @@ foreach ($architecture in $Architectures) {
         architecture = $architecture; browserVersion = (Get-Item -LiteralPath $browser).VersionInfo.FileVersion
         processExitCode = $process.ExitCode; screenshot = $screenshot; screenshotBytes = (Get-Item -LiteralPath $screenshot).Length
         isolatedEmptyTestProfile = $true; browserSandboxDisabled = $false; tlsChecksDisabled = $false
+        operatingSystem64Bit = [Environment]::Is64BitOperatingSystem
+        browserUsesWOW64 = ($architecture -eq 'x86' -and [Environment]::Is64BitOperatingSystem)
         gpuDisabledForDiagnostics = [bool]$DisableGpu
         virtualTimeBudget = $VirtualTimeBudget
         visualReviewRequired = $true; testedOnWindows7Hardware = $false

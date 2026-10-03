@@ -189,10 +189,11 @@ foreach ($architecture in @('x86', 'x64')) {
 }
 
 $report = [ordered]@{
-    application = 'Bulka Staff'; version = '1.0.0'; url = 'https://bulka.com.kz/?desktop=1'
+    application = 'Bulka Staff'; version = '1.0.1'; url = 'https://bulka.com.kz/?desktop=1'
     builtAt = (Get-Date).ToUniversalTime().ToString('o'); workspace = $repositoryRoot
     minimumWindows = '6.1'; userProfile = '%LOCALAPPDATA%\Bulka\Staff\Profile'
     launchers = $launcherChecks; launcherOnly = [bool]$LaunchersOnly
+    runtimeArchitecture = 'x86'; x64WindowsUsesWOW64 = $true
     testedOnWindows7Hardware = $false; signed = $false
 }
 if ($LaunchersOnly) {
@@ -211,7 +212,9 @@ Assert-OfficialUrl $lock.runtime.licenseUrl $licensePrefix
 New-Item -ItemType Directory -Path $RuntimeCacheDirectory -Force | Out-Null
 $licensePath = Get-VerifiedCacheFile $lock.runtime.licenseUrl $lock.runtime.licenseFileName $lock.runtime.licenseSha256
 $runtimeChecks = @()
-foreach ($architecture in @('x86', 'x64')) {
+# One verified 32-bit browser runs on x86 Windows and under WOW64 on x64 Windows.
+# Keep the x64 lock entry as source history; it is not packaged in this release.
+foreach ($architecture in @('x86')) {
     $runtime = $lock.architectures.$architecture
     Assert-OfficialUrl $runtime.url $releasePrefix
     if ($runtime.archiveFileName -notmatch '\.zip$') { throw 'Only pinned runtime ZIP archives are supported.' }
@@ -221,13 +224,20 @@ foreach ($architecture in @('x86', 'x64')) {
     Expand-VerifiedArchive $archivePath $extractDirectory
     $browserSource = Assert-ChildPath (Join-Path $extractDirectory $runtime.executableRelativePath) $extractDirectory
     if (-not (Test-Path -LiteralPath $browserSource -PathType Leaf)) { throw "Browser executable missing after verified extraction: $architecture" }
+    $browserBytes = [IO.File]::ReadAllBytes($browserSource)
+    $browserPeOffset = [BitConverter]::ToInt32($browserBytes, 0x3c)
+    if ($browserPeOffset -lt 0 -or $browserPeOffset + 6 -gt $browserBytes.Length -or
+        [BitConverter]::ToUInt32($browserBytes, $browserPeOffset) -ne 0x4550 -or
+        [BitConverter]::ToUInt16($browserBytes, $browserPeOffset + 4) -ne 0x14c) {
+        throw 'The common runtime must be a native x86 PE executable.'
+    }
     $runtimeSource = [IO.Path]::GetDirectoryName($browserSource)
     $runtimeDestination = Assert-ChildPath (Join-Path $buildRoot "payload\$architecture\runtime") $buildRoot
     New-Item -ItemType Directory -Path $runtimeDestination | Out-Null
     Get-ChildItem -LiteralPath $runtimeSource -Force | Copy-Item -Destination $runtimeDestination -Recurse -Force
     Copy-Item -LiteralPath $licensePath -Destination (Join-Path $runtimeDestination 'LICENSE-Supermium.txt')
     $runtimeChecks += [pscustomobject]@{
-        architecture = $architecture; archive = $runtime.archiveFileName; archiveSha256 = $runtime.sha256
+        architecture = $architecture; machine = '0x14c'; archive = $runtime.archiveFileName; archiveSha256 = $runtime.sha256
         sourceUrl = $runtime.url; browserVersion = (Get-Item -LiteralPath $browserSource).VersionInfo.FileVersion
         runtimeDirectory = $runtimeDestination
     }
@@ -235,7 +245,7 @@ foreach ($architecture in @('x86', 'x64')) {
 Copy-Item -LiteralPath $lockPath -Destination (Join-Path $buildRoot 'runtime-lock.json')
 $licenseText = [IO.File]::ReadAllText($licensePath)
 $notices = @"
-Bulka Staff 1.0.0
+Bulka Staff 1.0.1
 Browser runtime: $($lock.runtime.name) $($lock.runtime.version) / $($lock.runtime.browserVersion)
 Official release: $($lock.runtime.releaseUrl)
 Corresponding source: $($lock.runtime.sourceUrl)
@@ -248,7 +258,7 @@ $licenseText
 $installerArguments = @('/Qp', "/DBuildRoot=$buildRoot", (Join-Path $sourceDirectory 'BulkaStaff.iss'))
 & $InnoCompiler @installerArguments 2>&1 | Tee-Object -FilePath (Join-Path $buildRoot 'installer-build.txt') | Write-Host
 if ($LASTEXITCODE -ne 0) { throw 'Universal Windows installer compilation failed.' }
-$installerPath = Join-Path $buildRoot 'release\Bulka-Staff-Setup-1.0.0-Universal.exe'
+$installerPath = Join-Path $buildRoot 'release\Bulka-Staff-Setup-1.0.1-Universal.exe'
 if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) { throw 'The compiler did not produce the expected installer.' }
 $installerHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $checksumPath = $installerPath + '.sha256'

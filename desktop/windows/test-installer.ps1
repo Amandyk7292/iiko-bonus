@@ -36,12 +36,17 @@ try {
         $installedPath = Join-Path $installDirectory $relativePath
         if (-not (Test-Path -LiteralPath $installedPath -PathType Leaf)) { throw "Required installed component is missing: $relativePath" }
         if ($relativePath -in @('BulkaStaff.exe', 'runtime\chrome.exe')) {
-            $payloadPath = Join-Path $buildRoot "payload\$architecture\$relativePath"
+            $payloadArchitecture = if ($relativePath -eq 'runtime\chrome.exe') { 'x86' } else { $architecture }
+            $payloadPath = Join-Path $buildRoot "payload\$payloadArchitecture\$relativePath"
             if ((Get-FileHash -LiteralPath $payloadPath).Hash -ne (Get-FileHash -LiteralPath $installedPath).Hash) {
                 throw 'Installer selected the wrong architecture or changed a verified payload.'
             }
         }
     }
+    $browserBytes = [IO.File]::ReadAllBytes((Join-Path $installDirectory 'runtime\chrome.exe'))
+    $browserPeOffset = [BitConverter]::ToInt32($browserBytes, 0x3c)
+    $browserMachine = [BitConverter]::ToUInt16($browserBytes, $browserPeOffset + 4)
+    if ($browserMachine -ne 0x14c) { throw 'The universal installation did not select the verified common x86 browser.' }
     if (-not (Test-Path -LiteralPath $registryPath)) { throw 'Per-user uninstall registration is missing.' }
     if ([IO.File]::ReadAllText($marker) -ne $nonce) { throw 'Installation altered the existing browser profile marker.' }
     $uninstall = Start-Process -FilePath (Join-Path $installDirectory 'unins000.exe') -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', ('/LOG="' + (Join-Path $testRoot 'uninstall.log') + '"')) -WindowStyle Hidden -PassThru
@@ -52,6 +57,8 @@ try {
     if (-not (Test-Path -LiteralPath $marker) -or [IO.File]::ReadAllText($marker) -ne $nonce) { throw 'Uninstall changed or deleted the existing browser profile.' }
     $result = [ordered]@{
         perUserInstall = $true; installedArchitecture = $architecture; installedPayloadHashesMatch = $true
+        browserArchitecture = 'x86'; browserMachine = '0x14c'
+        browserUsesWOW64 = [Environment]::Is64BitOperatingSystem
         blocksWhileApplicationRuns = $true; blockedExitCode = $blocked.ExitCode
         uninstallRemovesApplication = $true; uninstallPreservesProfile = $true
         installedOnWindows7Hardware = $false
