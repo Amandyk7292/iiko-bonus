@@ -18,6 +18,7 @@ import LocationScheduleFields, {
   validPhotoShifts,
   type LocationSchedule,
 } from './LocationScheduleFields';
+import LocationProductionBinding from './LocationProductionBinding';
 
 type Hours = Record<string, unknown> & { daily?: { open?: string; close?: string } };
 
@@ -638,6 +639,12 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
                         </td>
                         <td data-label={t('common.actions')}>
                           <div className="row-actions justify-end">
+                            {canManageStructure && (
+                              <LocationProductionBinding
+                                locationId={location.id}
+                                name={location.name}
+                              />
+                            )}
                             <button
                               type="button"
                               className="icon-button"

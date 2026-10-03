@@ -15,6 +15,10 @@ class _CashierReportsState extends State<CashierReports> {
 
   DateTime _date = _today();
   Map<String, dynamic>? _report;
+  CashierProductionReport? _production;
+  final Map<String, String> _selected = {};
+  bool _submitting = false, _reviewing = false, _historyOpen = false;
+  String? _submissionId, _submissionSignature, _submitError;
   List<Map<String, dynamic>> _events = [];
   bool _loading = false;
   bool _clearing = false;
@@ -34,14 +38,14 @@ class _CashierReportsState extends State<CashierReports> {
       widget.api,
       () => _load(silent: true),
       events: ['inventory.updated'],
-      isBusy: () => _loading || _clearing,
+      isBusy: () => _loading || _clearing || _submitting || _reviewing,
     );
   }
 
-  Future<Map<String, dynamic>> _fetch(int offset) async =>
+  Future<Map<String, dynamic>> _fetch(int offset, String date) async =>
       Map<String, dynamic>.from(
         await widget.api.request(
-              '/staff/reports/display-stock?date=$_dateKey&offset=$offset',
+              '/staff/reports/display-stock?date=$date&offset=$offset',
             )
             as Map,
       );
@@ -67,6 +71,8 @@ class _CashierReportsState extends State<CashierReports> {
 
   Future<void> _load({bool more = false, bool silent = false}) async {
     final request = ++_request;
+    final date = _dateKey;
+    final branch = widget.api.scopeKey;
     if (mounted) {
       setState(() {
         _loading = !silent;
@@ -75,8 +81,32 @@ class _CashierReportsState extends State<CashierReports> {
     }
     try {
       final offset = more ? _events.length : 0;
-      final report = await _fetch(offset);
-      if (!mounted || request != _request) return;
+      final responses = await Future.wait([
+        _fetch(offset, date),
+        if (!more)
+          widget.api
+              .request('/staff/reports/production?date=$date')
+              .then((value) => Map<String, dynamic>.from(value as Map)),
+      ]);
+      final report = responses.first;
+      final production = more
+          ? _production
+          : CashierProductionReport(responses.last);
+      if (!mounted || request != _request || branch != widget.api.scopeKey) {
+        return;
+      }
+      if (production != null &&
+          (production.date != date ||
+              (widget.api.branchId.isNotEmpty &&
+                  production.branch['id'] != widget.api.branchId))) {
+        throw StateError(
+          staffText(
+            'Отчёт изменился. Обновите данные.',
+            'Есеп өзгерді. Деректерді жаңартыңыз.',
+            'Report changed. Refresh the data.',
+          ),
+        );
+      }
       var nextEvents = more
           ? _mergeEvents(_events, staffRows(report['events']))
           : silent
@@ -89,7 +119,7 @@ class _CashierReportsState extends State<CashierReports> {
         var nextOffset = _events.length;
         var pages = 0;
         while (nextEvents.length < eventCount && pages < 5) {
-          final page = await _fetch(nextOffset);
+          final page = await _fetch(nextOffset, date);
           if (!mounted || request != _request) return;
           final rows = staffRows(page['events']);
           if (rows.isEmpty) break;
@@ -103,6 +133,28 @@ class _CashierReportsState extends State<CashierReports> {
       setState(() {
         _report = report;
         _events = nextEvents;
+        _production = production;
+        _selected.removeWhere(
+          (key, snapshot) =>
+              !production!.enabled ||
+              !production.products.any(
+                (product) =>
+                    product.key == key &&
+                    product.selectable &&
+                    product.snapshot == snapshot,
+              ),
+        );
+        final ownAct = production?.acts
+            .where((act) => act.id == _submissionId)
+            .firstOrNull;
+        if (ownAct != null) {
+          if (ownAct.status != 'pending') {
+            _submissionId = null;
+            _submissionSignature = null;
+          }
+          _submitError = null;
+          _selected.clear();
+        }
       });
     } catch (error) {
       if (mounted && request == _request) setState(() => _error = '$error');
@@ -112,6 +164,7 @@ class _CashierReportsState extends State<CashierReports> {
   }
 
   Future<void> _pickDate() async {
+    if (_submitting || _reviewing || _clearing) return;
     final date = await showDatePicker(
       context: context,
       initialDate: _date,
@@ -122,14 +175,20 @@ class _CashierReportsState extends State<CashierReports> {
     setState(() {
       _date = date;
       _report = null;
+      _production = null;
+      _selected.clear();
+      _submitError = null;
+      _submissionId = null;
+      _submissionSignature = null;
       _events = [];
+      _historyOpen = false;
     });
     if (_scroll.hasClients) _scroll.jumpTo(0);
     await _load();
   }
 
   Future<void> _clearToday() async {
-    if (_clearing || _date != _today()) return;
+    if (_clearing || _submitting || _reviewing || _date != _today()) return;
     var enteredCode = '';
     final code = await showDialog<String>(
       context: context,
@@ -183,6 +242,10 @@ class _CashierReportsState extends State<CashierReports> {
         _report = response;
         _events = staffRows(response['events']);
         _error = null;
+        _selected.clear();
+        _submissionId = null;
+        _submissionSignature = null;
+        _submitError = null;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         bulkaSnackBar(
@@ -195,6 +258,7 @@ class _CashierReportsState extends State<CashierReports> {
           ),
         ),
       );
+      await _load(silent: true);
     } catch (error) {
       if (mounted && request == _request) {
         ScaffoldMessenger.of(
@@ -202,7 +266,124 @@ class _CashierReportsState extends State<CashierReports> {
         ).showSnackBar(bulkaSnackBar(content: Text('$error')));
       }
     } finally {
-      if (mounted && request == _request) setState(() => _clearing = false);
+      if (mounted) setState(() => _clearing = false);
+    }
+  }
+
+  List<CashierProductionProduct> get _chosen =>
+      _production?.products
+          .where(
+            (product) =>
+                product.selectable &&
+                _selected[product.key] == product.snapshot,
+          )
+          .toList() ??
+      [];
+
+  Future<void> _sendProduction() async {
+    final production = _production;
+    final chosen = _chosen;
+    if (_submitting ||
+        _reviewing ||
+        _loading ||
+        _error != null ||
+        production == null ||
+        !production.enabled ||
+        chosen.isEmpty) {
+      return;
+    }
+    final date = _dateKey, scope = widget.api.scopeKey;
+    final snapshots = chosen.map((product) => product.snapshot).toList()
+      ..sort();
+    final signature = '$scope:$date:${snapshots.join('|')}';
+    setState(() => _reviewing = true);
+    final confirmed = await _confirmProduction(context, production, chosen);
+    if (!mounted) return;
+    setState(() => _reviewing = false);
+    if (!confirmed || date != _dateKey || scope != widget.api.scopeKey) return;
+    if (!_chosen.every((product) => snapshots.contains(product.snapshot)) ||
+        _chosen.length != chosen.length) {
+      setState(
+        () => _submitError = staffText(
+          'Отчёт изменился. Выберите товары заново.',
+          'Есеп өзгерді. Тауарларды қайта таңдаңыз.',
+          'Report changed. Select products again.',
+        ),
+      );
+      return;
+    }
+    if (_submissionSignature != signature) {
+      _submissionId = staffRequestId();
+      _submissionSignature = signature;
+    }
+    final eventIds =
+        chosen.expand((product) => product.eventIds).toSet().toList()..sort();
+    await _submitProduction(_submissionId!, date, eventIds);
+  }
+
+  Future<void> _resumeProduction(CashierProductionAct act) async {
+    if (_submitting ||
+        _reviewing ||
+        _loading ||
+        _error != null ||
+        act.status != 'pending' ||
+        act.eventIds.isEmpty ||
+        act.date != _dateKey) {
+      return;
+    }
+    _submissionId = act.id;
+    await _submitProduction(act.id, act.date, act.eventIds);
+  }
+
+  Future<void> _submitProduction(
+    String requestId,
+    String date,
+    List<String> eventIds,
+  ) async {
+    final scope = widget.api.scopeKey;
+    setState(() {
+      _submitting = true;
+      _submitError = null;
+    });
+    try {
+      final response = await widget.api.request(
+        '/staff/reports/production',
+        method: 'POST',
+        body: {'requestId': requestId, 'date': date, 'eventIds': eventIds},
+      );
+      if (!mounted || date != _dateKey || scope != widget.api.scopeKey) return;
+      final act = CashierProductionAct(
+        Map<String, dynamic>.from(response['act'] as Map),
+      );
+      setState(() {
+        _production!.acts.removeWhere((existing) => existing.id == act.id);
+        _production!.acts.insert(0, act);
+        _selected.clear();
+        if (act.status != 'pending') {
+          _submissionId = null;
+          _submissionSignature = null;
+        }
+      });
+    } catch (error) {
+      if (mounted && date == _dateKey && scope == widget.api.scopeKey) {
+        setState(() {
+          _submitError =
+              error is StaffApiException &&
+                  error.status >= 400 &&
+                  error.status < 500
+              ? _productionReason(error.message, error.code)
+              : staffText(
+                  'Результат отправки уточняется. Обновите отчёт.',
+                  'Жіберу нәтижесі тексерілуде. Есепті жаңартыңыз.',
+                  'Checking the send result. Refresh the report.',
+                );
+        });
+      }
+    } finally {
+      if (mounted && date == _dateKey && scope == widget.api.scopeKey) {
+        await _load(silent: true);
+        if (mounted) setState(() => _submitting = false);
+      }
     }
   }
 
@@ -313,6 +494,17 @@ class _CashierReportsState extends State<CashierReports> {
   Widget build(BuildContext context) {
     final products = staffRows(_report?['products']);
     final totals = staffRows(_report?['totals']);
+    final productionProducts =
+        _production?.products ?? <CashierProductionProduct>[];
+    final chosen = _chosen;
+    final busy = _loading || _clearing || _submitting || _reviewing;
+    final eligible = productionProducts
+        .where((product) => product.selectable)
+        .toList();
+    final canSelect =
+        !(_loading || _clearing || _submitting) &&
+        _error == null &&
+        _production?.enabled == true;
     final eventCount =
         int.tryParse('${_report?['eventCount']}') ?? _events.length;
     final hasMore = _events.length < eventCount;
@@ -324,7 +516,9 @@ class _CashierReportsState extends State<CashierReports> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: _pickDate,
+                  onPressed: _submitting || _reviewing || _clearing
+                      ? null
+                      : _pickDate,
                   icon: const Icon(Icons.calendar_month_outlined),
                   label: Text(_day(_date)),
                 ),
@@ -332,7 +526,7 @@ class _CashierReportsState extends State<CashierReports> {
               const SizedBox(width: 8),
               IconButton(
                 tooltip: staffText('Обновить', 'Жаңарту', 'Refresh'),
-                onPressed: _loading ? null : () => _load(),
+                onPressed: busy ? null : () => _load(),
                 icon: _loading && _report != null
                     ? const SizedBox.square(
                         dimension: 20,
@@ -356,24 +550,25 @@ class _CashierReportsState extends State<CashierReports> {
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
                       sliver: SliverList.list(
                         children: [
-                          Row(
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              Expanded(
-                                child: Text(
-                                  staffText(
-                                    'Добавлено в витрину',
-                                    'Витринаға қосылды',
-                                    'Added to display',
-                                  ),
-                                  style: Theme.of(context).textTheme.titleLarge,
+                              Text(
+                                staffText(
+                                  'Добавлено в витрину',
+                                  'Витринаға қосылды',
+                                  'Added to display',
                                 ),
+                                style: Theme.of(context).textTheme.titleLarge,
                               ),
                               if (_date == _today())
                                 TextButton.icon(
                                   key: const ValueKey(
                                     'cashier-report-reset-button',
                                   ),
-                                  onPressed: _clearing ? null : _clearToday,
+                                  onPressed: busy ? null : _clearToday,
                                   icon: _clearing
                                       ? const SizedBox.square(
                                           dimension: 16,
@@ -401,27 +596,57 @@ class _CashierReportsState extends State<CashierReports> {
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            staffText(
-                              'Сюда входят только изменения с причиной «Добавление в витрину». Исправления, пересчёт, продажи и возвраты показаны отдельно.',
-                              'Мұнда тек «Витринаға қосу» себебі бар өзгерістер кіреді. Түзетулер, қайта санау, сатылымдар және қайтарулар бөлек көрсетіледі.',
-                              'Only changes marked “Added to display” are included. Corrections, recounts, sales and refunds are shown separately.',
+                          if (_production?.enabled == false)
+                            Text(
+                              _productionReason(
+                                _production!.unavailableReason,
+                                _production!.unavailableReasonCode,
+                              ),
+                              key: const ValueKey('production-unavailable'),
+                              style: Theme.of(context).textTheme.bodySmall,
                             ),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          if (_report?['trackingStartedAt'] != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                '${staffText('История ведётся с', 'Тарих басталған уақыт', 'History recorded since')} ${_localTime(_report!['trackingStartedAt'], date: true)}',
-                                style: Theme.of(context).textTheme.bodySmall,
+                          if (_production?.enabled == true &&
+                              eligible.isNotEmpty)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton(
+                                key: const ValueKey('production-select-all'),
+                                onPressed: canSelect
+                                    ? () => setState(() {
+                                        if (chosen.length == eligible.length) {
+                                          _selected.clear();
+                                        } else {
+                                          _selected.addEntries(
+                                            eligible.map(
+                                              (product) => MapEntry(
+                                                product.key,
+                                                product.snapshot,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      })
+                                    : null,
+                                child: Text(
+                                  chosen.length == eligible.length
+                                      ? staffText(
+                                          'Снять выбор',
+                                          'Таңдауды алып тастау',
+                                          'Clear selection',
+                                        )
+                                      : staffText(
+                                          'Выбрать все',
+                                          'Бәрін таңдау',
+                                          'Select all',
+                                        ),
+                                ),
                               ),
                             ),
                           const SizedBox(height: 12),
                         ],
                       ),
                     ),
-                    if (products.isEmpty)
+                    if (productionProducts.isEmpty)
                       SliverPadding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -430,9 +655,9 @@ class _CashierReportsState extends State<CashierReports> {
                         sliver: SliverToBoxAdapter(
                           child: Text(
                             staffText(
-                              'За выбранную дату записей нет.',
-                              'Таңдалған күнге жазбалар жоқ.',
-                              'No records for this date.',
+                              'Нет товаров для отправки.',
+                              'Жіберетін тауар жоқ.',
+                              'No products to send.',
                             ),
                           ),
                         ),
@@ -441,25 +666,99 @@ class _CashierReportsState extends State<CashierReports> {
                       SliverPadding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         sliver: _sliver(
+                          (index) => _productionProductRow(
+                            context,
+                            productionProducts[index],
+                            selected:
+                                _selected[productionProducts[index].key] ==
+                                productionProducts[index].snapshot,
+                            enabled: canSelect,
+                            onChanged: (selected) => setState(() {
+                              if (selected) {
+                                _selected[productionProducts[index].key] =
+                                    productionProducts[index].snapshot;
+                              } else {
+                                _selected.remove(productionProducts[index].key);
+                              }
+                              _submitError = null;
+                            }),
+                          ),
+                          productionProducts.length,
+                        ),
+                      ),
+                    if (_production?.acts.isNotEmpty == true)
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        sliver: _sliver(
+                          (index) => _productionActRow(
+                            context,
+                            _production!.acts[index],
+                            onResume:
+                                !busy &&
+                                    _error == null &&
+                                    _production!.acts[index].date == _dateKey
+                                ? () => _resumeProduction(
+                                    _production!.acts[index],
+                                  )
+                                : null,
+                          ),
+                          _production!.acts.length,
+                        ),
+                      ),
+                    if (products.isNotEmpty || _events.isNotEmpty)
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                        sliver: SliverToBoxAdapter(
+                          child: TextButton.icon(
+                            key: const ValueKey('cashier-report-history'),
+                            onPressed: () =>
+                                setState(() => _historyOpen = !_historyOpen),
+                            icon: Icon(
+                              _historyOpen
+                                  ? Icons.expand_less
+                                  : Icons.expand_more,
+                            ),
+                            label: Text(
+                              staffText(
+                                'История изменений',
+                                'Өзгерістер тарихы',
+                                'Change history',
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (_historyOpen)
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        sliver: SliverList.list(
+                          children: [
+                            Text(
+                              staffText(
+                                'Только добавления формируют акт. Исправления и пересчёт — в истории.',
+                                'Актіге тек қосылған тауарлар кіреді. Түзетулер мен қайта санау тарихта.',
+                                'Only additions form the act. Corrections and recounts are in history.',
+                              ),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            if (_report?['trackingStartedAt'] != null)
+                              Text(
+                                '${staffText('История ведётся с', 'Тарих басталған уақыт', 'History recorded since')} ${_localTime(_report!['trackingStartedAt'], date: true)}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            const SizedBox(height: 8),
+                          ],
+                        ),
+                      ),
+                    if (_historyOpen && products.isNotEmpty)
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        sliver: _sliver(
                           (index) => _productRow(products[index]),
                           products.length,
                         ),
                       ),
-                    if (_events.isNotEmpty)
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                        sliver: SliverToBoxAdapter(
-                          child: Text(
-                            staffText(
-                              'История изменений',
-                              'Өзгерістер тарихы',
-                              'Change history',
-                            ),
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                      ),
-                    if (_events.isNotEmpty)
+                    if (_historyOpen && _events.isNotEmpty)
                       SliverPadding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         sliver: _sliver(
@@ -467,7 +766,7 @@ class _CashierReportsState extends State<CashierReports> {
                           _events.length,
                         ),
                       ),
-                    if (hasMore)
+                    if (_historyOpen && hasMore)
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                         sliver: SliverToBoxAdapter(
@@ -489,6 +788,63 @@ class _CashierReportsState extends State<CashierReports> {
                       const SliverToBoxAdapter(child: SizedBox(height: 24)),
                   ],
                 ),
+        ),
+        SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(
+                top: BorderSide(color: Theme.of(context).colorScheme.outline),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_submitError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      _submitError!,
+                      key: const ValueKey('production-submit-error'),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                if (chosen.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      '${staffText('Выбрано', 'Таңдалды', 'Selected')}: ${chosen.length} · ${_productionTotals(chosen)}',
+                    ),
+                  ),
+                FilledButton(
+                  key: const ValueKey('production-send'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(48, 48),
+                  ),
+                  onPressed: canSelect && chosen.isNotEmpty
+                      ? _sendProduction
+                      : null,
+                  child: _submitting
+                      ? const SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          staffText(
+                            'Отправить в iiko',
+                            'iiko-ға жіберу',
+                            'Send to iiko',
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );

@@ -38,14 +38,26 @@ class IikoDashboardClient {
     return this.serverRegistry.remove(id);
   }
 
-  async request(server, path, token, body, secretQuery, format = 'json') {
+  async request(server, path, token, body, secretQuery, format = 'json', bodyFormat = 'json') {
+    const xmlBody = bodyFormat === 'xml';
+    if (
+      !['json', 'xml'].includes(bodyFormat) ||
+      (xmlBody &&
+        (path !== 'documents/import/productionDocument' ||
+          typeof body !== 'string' ||
+          !body.length ||
+          Buffer.byteLength(body, 'utf8') > 2 * 1024 * 1024))
+    )
+      throw failure('IIKO_REPORT_QUERY', 422);
     const url = new URL(`https://${server.host}/resto/api/${path}`);
     if (token) url.searchParams.set('key', token);
     for (const [key, value] of Object.entries(secretQuery || {})) url.searchParams.set(key, value);
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
-      path === 'v2/reports/olap' || path.startsWith('documents/export/')
+      path === 'v2/reports/olap' ||
+        path.startsWith('documents/export/') ||
+        path.startsWith('documents/import/')
         ? this.reportTimeoutMs
         : this.timeoutMs,
     );
@@ -59,9 +71,11 @@ class IikoDashboardClient {
             : format === 'xml'
               ? 'application/xml'
               : 'application/json',
-          ...(body ? { 'Content-Type': 'application/json' } : {}),
+          ...(body
+            ? { 'Content-Type': xmlBody ? 'application/xml; charset=utf-8' : 'application/json' }
+            : {}),
         },
-        ...(body ? { body: JSON.stringify(body) } : {}),
+        ...(body ? { body: xmlBody ? body : JSON.stringify(body) } : {}),
         signal: controller.signal,
         size: 20 * 1024 * 1024,
       });
@@ -129,8 +143,8 @@ class IikoDashboardClient {
             queue.jobs.splice(0, 3).map(async (job) => {
               try {
                 job.resolve(
-                  await job.work((path, body, format) =>
-                    this.request(server, path, token, body, undefined, format),
+                  await job.work((path, body, format, bodyFormat) =>
+                    this.request(server, path, token, body, undefined, format, bodyFormat),
                   ),
                 );
               } catch (error) {

@@ -1,10 +1,12 @@
 import settlements from './settlements-ru';
+import productionBinding from '../production-binding';
 import deliveryResolution from '../delivery-resolution';
 import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 const ru: Record<string, string> = {
   'access.role.iikoDashboard': 'Только Dashboard',
   ...settlements,
+  ...productionBinding.ru,
 
   ...dashboard.ru,
   ...referralReport.ru,

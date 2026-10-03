@@ -1,10 +1,12 @@
 import settlements from './settlements-kk';
+import productionBinding from '../production-binding';
 import deliveryResolution from '../delivery-resolution';
 import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 const kk: Record<string, string> = {
   'access.role.iikoDashboard': 'Тек Dashboard',
   ...settlements,
+  ...productionBinding.kk,
 
   ...dashboard.kk,
   ...referralReport.kk,

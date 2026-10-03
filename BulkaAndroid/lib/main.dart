@@ -78,6 +78,7 @@ part 'staff/cashier_workspace.dart';
 part 'staff/cashier_pos_devices.dart';
 part 'staff/cashier_catalog.dart';
 part 'staff/cashier_reports.dart';
+part 'staff/cashier_production.dart';
 part 'staff/staff_count_badge.dart';
 part 'staff/staff_empty_state.dart';
 part 'api/admin_portal_login_client.dart';

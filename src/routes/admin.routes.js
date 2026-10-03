@@ -319,6 +319,7 @@ router.use(
 
 registerTaplinkAdminRoutes(router);
 registerIikoDashboardRoutes(router);
+require('./admin/production-bindings.routes').registerProductionBindingRoutes(router);
 registerAccessAdminRoutes(router);
 registerStaffPushAdminRoutes(router);
 require('./admin/branch-photo-reports.routes').registerBranchPhotoReportRoutes(router);
