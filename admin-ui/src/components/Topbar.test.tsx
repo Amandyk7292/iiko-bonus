@@ -104,6 +104,15 @@ describe('Topbar city and branch scope', () => {
     expect(screen.getByRole('heading', { name: 'Фотоотчёты точек' })).toBeVisible();
   });
 
+  it('shows the FAQ title without branch filters for global content', () => {
+    window.history.replaceState({}, '', '/admin/faq');
+    render(topbar('aktau-1', vi.fn()));
+    expect(screen.getByRole('heading', { name: 'Вопросы и ответы' })).toBeVisible();
+    expect(
+      screen.queryByRole('combobox', { name: 'Город для фильтрации данных' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('asks for a city first and then shows only that city branches', () => {
     const onBranchChange = vi.fn();
     const view = render(topbar('', onBranchChange));

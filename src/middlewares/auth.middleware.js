@@ -252,6 +252,7 @@ const adminArea = (req) => {
   // place so a permitted section is not rejected just because its endpoint
   // has a legacy prefix.
   if (root === 'stats') return 'analytics';
+  if (root === 'faq') return 'loyalty-tiers';
   if (root === 'push' && child === 'mass') return 'broadcast';
   if (root === 'settings') {
     // App release policy is owner/admin configuration. Bonus settings share

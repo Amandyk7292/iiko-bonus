@@ -7,6 +7,7 @@ class LoyaltyTierCard extends StatelessWidget {
     this.bonusBalance = 0,
     this.personalAccountBalance = 0,
     this.onPersonalAccountTap,
+    this.onLearnMoreTap,
     super.key,
   });
 
@@ -15,6 +16,7 @@ class LoyaltyTierCard extends StatelessWidget {
   final double bonusBalance;
   final double personalAccountBalance;
   final VoidCallback? onPersonalAccountTap;
+  final VoidCallback? onLearnMoreTap;
 
   String _amount(num value) {
     final normalized = value
@@ -77,7 +79,35 @@ class LoyaltyTierCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 52),
+                    if (onLearnMoreTap == null)
+                      const SizedBox(height: 52)
+                    else
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          key: const ValueKey('loyalty-learn-more'),
+                          onPressed: onLearnMoreTap,
+                          style: TextButton.styleFrom(
+                            foregroundColor: foreground,
+                            minimumSize: const Size(BulkaTouch.minimum, 52),
+                            padding: EdgeInsets.zero,
+                            alignment: Alignment.centerLeft,
+                            textStyle: const TextStyle(
+                              fontFamily: _descriptionFont,
+                              fontSize: BulkaTypeScale.bodySmall,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(child: Text('loyalty_learn_more'.tr)),
+                              const SizedBox(width: 4),
+                              const Icon(Icons.chevron_right_rounded, size: 18),
+                            ],
+                          ),
+                        ),
+                      ),
                     Material(
                       color: Colors.white.withValues(alpha: 0.38),
                       borderRadius: BorderRadius.circular(BulkaRadii.control),

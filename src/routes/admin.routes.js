@@ -318,6 +318,7 @@ router.use(
 );
 
 registerTaplinkAdminRoutes(router);
+require('./admin/faq.routes').registerFaqAdminRoutes(router);
 registerIikoDashboardRoutes(router);
 require('./admin/production-bindings.routes').registerProductionBindingRoutes(router);
 registerAccessAdminRoutes(router);

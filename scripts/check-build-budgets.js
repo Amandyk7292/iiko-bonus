@@ -50,10 +50,10 @@ if (adminDirectory) {
   assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
-    // The shared product unit editor measures 434,921 B in total.
-    // Allow 1,079 B headroom; retain the largest-chunk/CSS limits.
+    // The lazy editable FAQ measures 439,006 B in total.
+    // Allow 1,994 B headroom; retain the largest-chunk/CSS limits.
     // Exporters load only on download and keep their separate budgets below.
-    436_000,
+    441_000,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   assertBudget('Admin deferred price-label PDF gzip', Math.max(0, ...priceLabelPdfGzip), 185_000);
@@ -69,10 +69,10 @@ if (flutterDirectory) {
   if (!fs.existsSync(mainFile)) {
     failures.push(`Flutter entry is missing: ${mainFile}`);
   } else {
-    // Staff touch keyboards/full-window mode measure 6,637,755 B raw and
-    // 1,812,682 B gzip. Keep a small measured margin for this opt-in UI.
-    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_640_000);
-    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_814_000);
+    // The public FAQ/card link measures 6,649,759 B raw and 1,816,088 B gzip.
+    // Keep 2,241 B raw / 1,912 B gzip headroom; all asset limits stay enforced.
+    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_652_000);
+    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_818_000);
   }
   const wasmFiles = filesUnder(directory).filter((file) => file.endsWith('.wasm'));
   assertBudget(

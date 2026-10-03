@@ -24,6 +24,7 @@ import {
   Headphones,
   Activity,
   Link2,
+  CircleHelp,
 } from 'lucide-react';
 import { NavLink, useLocation } from '../lib/router';
 import { ADMIN_ALLOWED_PATHS } from '../lib/admin-permissions';
@@ -75,6 +76,7 @@ const sections = [
       { to: '/bonus', label: 'nav.bonus', icon: Gift },
       { to: '/marketing', label: 'nav.marketing', icon: Workflow },
       { to: '/tiers', label: 'nav.tiers', icon: CircleDollarSign },
+      { to: '/faq', label: 'nav.faq', icon: CircleHelp },
     ],
   },
   {

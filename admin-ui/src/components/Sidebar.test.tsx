@@ -81,6 +81,15 @@ describe('Sidebar role navigation', () => {
     expect(paths).not.toContain('/reviews');
   });
 
+  it.each(['owner', 'admin', 'editor', 'marketer'])(
+    'places FAQ beside loyalty tiers for %s',
+    (role) => {
+      renderSidebar(role);
+      const paths = visiblePaths();
+      expect(paths[paths.indexOf('/tiers') + 1]).toBe('/faq');
+    },
+  );
+
   it('caps live badges and invokes mobile and desktop controls immediately', () => {
     const onClose = vi.fn();
     const onCollapse = vi.fn();

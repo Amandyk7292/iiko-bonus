@@ -57,6 +57,12 @@ vi.mock('./pages/KitchenPage', () => ({
 vi.mock('./pages/WhatsAppPage', () => ({
   default: ({ role }: { role: string }) => <div>whatsapp-page:{role}</div>,
 }));
+vi.mock('./pages/FaqPage', () => ({
+  default: () => <div>faq-page</div>,
+}));
+vi.mock('./pages/IikoDashboardPage', () => ({
+  default: () => <div>dashboard-page</div>,
+}));
 
 import App, { normalizeNumberInputValue } from './App';
 import { ApiError } from './lib/api';
@@ -222,5 +228,34 @@ describe('Admin application authentication and role guards', () => {
     expect(normalizeNumberInputValue('00042')).toBe('42');
     expect(normalizeNumberInputValue('-00042')).toBe('-42');
     expect(normalizeNumberInputValue('0')).toBe('0');
+  });
+
+  it.each(['owner', 'admin', 'editor', 'marketer'])(
+    'allows %s to open the FAQ editor',
+    async (role) => {
+      apiMocks.session.mockResolvedValue({ user: { username: role, role, branchIds: [] } });
+      window.history.replaceState({}, '', '/admin/faq');
+      renderApp();
+      expect(await screen.findByText('faq-page')).toBeInTheDocument();
+      expect(window.location.pathname).toBe('/admin/faq');
+    },
+  );
+
+  it.each([
+    ['viewer', '/operations', 'operations-page'],
+    ['branch_manager', '/operations', 'operations-page'],
+    ['operator', '/operations', 'operations-page'],
+    ['cashier', '/kitchen', 'kitchen-page'],
+    ['whatsapp_operator', '/whatsapp', 'whatsapp-page:whatsapp_operator'],
+    ['iiko_dashboard', '/iiko-dashboard', 'dashboard-page'],
+  ])('redirects %s away from FAQ to its allowed workspace', async (role, path, content) => {
+    apiMocks.session.mockResolvedValue({
+      user: { username: role === 'iiko_dashboard' ? 'shamrad' : role, role, branchIds: [] },
+    });
+    window.history.replaceState({}, '', '/admin/faq');
+    renderApp();
+    expect(await screen.findByText(content)).toBeInTheDocument();
+    expect(window.location.pathname).toBe(`/admin${path}`);
+    expect(screen.queryByText('faq-page')).not.toBeInTheDocument();
   });
 });

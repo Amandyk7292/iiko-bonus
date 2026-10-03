@@ -3,7 +3,9 @@ import productionBinding from '../production-binding';
 import deliveryResolution from '../delivery-resolution';
 import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
+import faq from '../faq';
 const ru: Record<string, string> = {
+  ...faq.ru,
   'access.role.iikoDashboard': 'Только Dashboard',
   ...settlements,
   ...productionBinding.ru,

@@ -343,7 +343,11 @@ class _BulkaPressScaleState extends State<BulkaPressScale>
 
 /// Uses the platform's reversible page transition and native back gesture.
 class BulkaPageRoute<T> extends MaterialPageRoute<T> {
-  BulkaPageRoute({required super.builder, required this.reduceMotion});
+  BulkaPageRoute({
+    required super.builder,
+    required this.reduceMotion,
+    super.settings,
+  });
 
   final bool reduceMotion;
 

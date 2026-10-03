@@ -51,6 +51,7 @@ class _MainShellState extends State<MainShell> {
   bool _hasCatalogOrderType = false;
   bool _authFlowInProgress = false;
   final _navigationGate = _AsyncActionGate();
+  Route<void>? _faqRoute;
 
   static int? _tabForClientUri(Uri uri) {
     final segments = uri.pathSegments
@@ -91,7 +92,8 @@ class _MainShellState extends State<MainShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _catalogKey.currentState?.applyClientUri(clientRouteNotifier.value);
       if (mounted) {
-        if (clientRouteNotifier.value.path == '/promos') {
+        if (clientRouteNotifier.value.path == '/promos' ||
+            clientRouteNotifier.value.path == '/faq') {
           _onClientRouteChanged();
         }
         // Staff devices can be intentionally signed out of the customer
@@ -119,6 +121,15 @@ class _MainShellState extends State<MainShell> {
   void _onClientRouteChanged() {
     if (!mounted) return;
     final uri = clientRouteNotifier.value;
+    if (uri.path == '/faq') {
+      unawaited(_openFaq(publishRoute: false));
+      return;
+    }
+    final faqRoute = _faqRoute;
+    if (faqRoute != null) {
+      _faqRoute = null;
+      Navigator.of(context).removeRoute(faqRoute);
+    }
     if (_pendingCatalogProduct != null && uri != _pendingCatalogProduct) {
       _pendingCatalogProduct = null;
       _catalogKey.currentState?.cancelPendingProductNavigation();
@@ -149,6 +160,27 @@ class _MainShellState extends State<MainShell> {
       return await widget.onRequireAuth?.call() ?? false;
     } finally {
       _authFlowInProgress = false;
+    }
+  }
+
+  Future<void> _openFaq({bool publishRoute = true}) async {
+    if (!mounted || _faqRoute != null) return;
+    final currentUri = normalizedClientUri(clientRouteNotifier.value);
+    final returnUri = currentUri.path == '/faq' ? _uriForTab(_tab) : currentUri;
+    final route = BulkaPageRoute<void>(
+      settings: const RouteSettings(name: '/faq'),
+      builder: (_) => FaqScreen(api: widget.api),
+      reduceMotion: BulkaMotion.reduced(context),
+    );
+    _faqRoute = route;
+    if (publishRoute) publishClientRoute(Uri(path: '/faq'));
+    try {
+      await Navigator.of(context).push<void>(route);
+    } finally {
+      if (identical(_faqRoute, route)) _faqRoute = null;
+      if (mounted && clientRouteNotifier.value.path == '/faq') {
+        publishClientRoute(returnUri, replace: true);
+      }
     }
   }
 
@@ -328,6 +360,7 @@ class _MainShellState extends State<MainShell> {
           onRefreshProfile: widget.onRefreshProfile,
           onAvatarSaved: widget.onAvatarSaved,
           onOpenOrders: widget.onOpenOrders ?? () async {},
+          onOpenFaq: _openFaq,
         ),
     ];
 

@@ -27,6 +27,7 @@ export const ADMIN_ALLOWED_PATHS: Record<string, string[]> = {
     '/taplink',
     '/bonus',
     '/tiers',
+    '/faq',
     '/marketing',
     '/support',
   ],
@@ -51,6 +52,7 @@ export const ADMIN_ALLOWED_PATHS: Record<string, string[]> = {
     '/taplink',
     '/bonus',
     '/tiers',
+    '/faq',
     '/marketing',
   ],
   viewer: [

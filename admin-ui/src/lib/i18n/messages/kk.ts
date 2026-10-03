@@ -3,7 +3,9 @@ import productionBinding from '../production-binding';
 import deliveryResolution from '../delivery-resolution';
 import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
+import faq from '../faq';
 const kk: Record<string, string> = {
+  ...faq.kk,
   'access.role.iikoDashboard': 'Тек Dashboard',
   ...settlements,
   ...productionBinding.kk,

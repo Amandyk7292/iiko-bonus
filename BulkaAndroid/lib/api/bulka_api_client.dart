@@ -48,6 +48,8 @@ class BulkaApiClient {
        _usesCookieSessionTransport = useCookieSessionTransport ?? kIsWeb;
 
   final http.Client _client;
+  final Map<String, _FaqCacheEntry> _faqCache = {};
+  final Map<String, Future<List<FaqItem>>> _faqRequests = {};
   final bool _usesCookieSessionTransport;
   final Future<String> Function()? _sessionRecoveryKey;
   int _sessionRevision = 0;

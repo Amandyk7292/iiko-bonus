@@ -38,6 +38,7 @@ const TaplinkPage = lazy(() => import('./pages/TaplinkPage'));
 const LocationsPage = lazy(() => import('./pages/LocationsPage'));
 const BonusPage = lazy(() => import('./pages/BonusPage'));
 const LoyaltyTiersPage = lazy(() => import('./pages/LoyaltyTiersPage'));
+const FaqPage = lazy(() => import('./pages/FaqPage'));
 const CashierCatalogPage = lazy(() => import('./pages/CashierCatalogPage'));
 const MenuPage = lazy(() => import('./pages/MenuPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
@@ -632,6 +633,7 @@ export default function App() {
                   />
                   <Route path="/bonus" element={guard('/bonus', <BonusPage />)} />
                   <Route path="/tiers" element={guard('/tiers', <LoyaltyTiersPage />)} />
+                  <Route path="/faq" element={guard('/faq', <FaqPage />)} />
                   <Route
                     path="/locations"
                     element={guard('/locations', <LocationsPage user={adminUser} />)}

@@ -1,0 +1,145 @@
+.faq-page {
+  min-width: 0;
+}
+
+.faq-toolbar {
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.faq-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+}
+
+.faq-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 16px;
+}
+
+.faq-card {
+  padding: 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.faq-card-hidden {
+  border: 1px dashed var(--sagi-border);
+}
+
+.faq-card-content,
+.faq-card-heading h2 {
+  min-width: 0;
+}
+
+.faq-card-content {
+  flex: 1;
+}
+
+.faq-card-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.faq-rank {
+  flex: 0 0 auto;
+  color: var(--sagi-muted);
+  font-size: var(--type-body-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.faq-card-heading h2 {
+  margin: 0;
+  font-size: var(--type-title);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--sagi-cocoa);
+  overflow-wrap: anywhere;
+}
+
+.faq-answer-preview {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 12px 0 16px;
+  color: var(--sagi-muted);
+  font-size: var(--type-body);
+  line-height: 1.6;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.faq-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.faq-editor-fields {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.faq-language-control {
+  align-self: flex-start;
+}
+
+.faq-language-control button {
+  min-height: 44px;
+}
+
+.faq-answer-input {
+  line-height: 1.6;
+}
+
+.faq-editor-options {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  align-items: start;
+  gap: 24px;
+}
+
+.faq-visibility-control {
+  min-height: 44px;
+  margin-top: 24px;
+}
+
+@media (max-width: 767px) {
+  .faq-card {
+    flex-direction: column;
+    padding: 20px;
+    gap: 16px;
+  }
+
+  .faq-card-actions {
+    width: 100%;
+  }
+
+  .faq-card-actions .faq-action {
+    flex: 1 1 130px;
+  }
+
+  .faq-editor-options {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .faq-visibility-control {
+    margin-top: 0;
+  }
+}

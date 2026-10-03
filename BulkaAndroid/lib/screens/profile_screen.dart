@@ -10,6 +10,7 @@ class ProfileScreen extends StatefulWidget {
     required this.onRefreshProfile,
     required this.onOpenOrders,
     this.onAvatarSaved,
+    this.onOpenFaq,
     super.key,
   });
 
@@ -21,6 +22,7 @@ class ProfileScreen extends StatefulWidget {
   final Future<void> Function() onRefreshProfile;
   final Future<void> Function() onOpenOrders;
   final CustomerAvatarSavedCallback? onAvatarSaved;
+  final Future<void> Function()? onOpenFaq;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -558,6 +560,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     bonusBalance: widget.customer.balance,
     personalAccountBalance: _personalAccountBalance,
     onPersonalAccountTap: _openPersonalAccount,
+    onLearnMoreTap: () => unawaited(
+      widget.onOpenFaq?.call() ?? _openPage((_) => FaqScreen(api: widget.api)),
+    ),
   );
 }
 

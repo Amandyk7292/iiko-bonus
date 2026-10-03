@@ -154,6 +154,7 @@ router.get('/api/public/events', (req, res) => realtime.openStream(req, res, { p
 registerTaplinkPublicRoutes(router);
 require('./public/branch-signup.routes').registerBranchSignupRoutes(router);
 registerBoughtTogetherRoutes(router);
+require('./public/faq.routes').registerFaqPublicRoutes(router);
 require('./public/image.routes').registerPublicImageRoutes(router);
 router.post(
   '/api/public/analytics/events',
