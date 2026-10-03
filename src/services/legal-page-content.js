@@ -888,7 +888,7 @@ const pages = {
       title: 'Условия доставки',
       description:
         'Условия курьерской доставки заказов Bulka по Астане через сервис Яндекс Доставка.',
-      updated: 'Редакция от 25 июля 2026 года',
+      updated: 'Редакция от 3 октября 2026 года',
       summary: [
         ['Яндекс Курьер', 'Заказ доставляет курьер сервиса Яндекс Доставка.'],
         ['Цена до оплаты', 'Стоимость доставки и общая сумма заказа показываются до оплаты.'],
@@ -945,7 +945,7 @@ const pages = {
               при оформлении заказа. В такой ситуации необходимо сразу обратиться в Bulka.</li>
           </ul>
         </section>
-        <section>
+        <section id="receiving-order">
           <h2>5. Срок и получение заказа</h2>
           <p>Указанное время доставки является ориентировочным. Оно включает приготовление и
             комплектацию заказа, поиск курьера и дорогу. Время может измениться из-за загрузки
@@ -953,9 +953,17 @@ const pages = {
           <p>После назначения курьера покупателю могут быть доступны имя и телефон курьера,
             ориентировочное время прибытия и ссылка для отслеживания — если эти сведения переданы
             сервисом Яндекс Доставка.</p>
-          <p>Заказ передаётся по указанному адресу получателю или лицу, которое приняло заказ от его
-            имени. Если получатель не отвечает или отсутствует, курьер и Bulka пытаются связаться
-            с ним. Повторная доставка при необходимости оформляется отдельно.</p>
+          <p>Заказ передаётся по указанному адресу получателю или лицу, принимающему заказ от его имени.</p>
+          <p>Если курьер прибыл по адресу, указанному в заказе, с соблюдением согласованных условий
+            доставки, а получатель не открыл дверь, отсутствует или не отвечает после попыток
+            курьера и Bulka связаться с ним, фиксируется неудачная попытка вручения по причинам,
+            зависящим от получателя.</p>
+          <p>Бесплатная повторная доставка и повторная выдача товаров не предусмотрены.
+            Автоматический полный возврат оплаты за товары и доставку не производится.
+            Обращение о возврате рассматривается Bulka с учётом подтверждённых фактически
+            понесённых разумных расходов и требований законодательства Республики Казахстан.</p>
+          <p>Это условие не применяется при ошибке Bulka или курьера и не ограничивает обязательные
+            права потребителя.</p>
         </section>
         <section>
           <h2>6. Отмена и проблемы с доставкой</h2>
@@ -968,6 +976,8 @@ const pages = {
             состав или неполную комплектацию, сообщите об этом Bulka и укажите номер заказа. Замена,
             частичный или полный возврат рассматриваются по <a href="/payment-and-refund">Условиям
             оплаты и возврата</a>.</p>
+          <p>Если вручение не состоялось из-за недоступности получателя, применяются правила
+            <a href="#receiving-order">раздела 5</a> с соблюдением обязательных прав потребителя.</p>
         </section>
         <section class="notice">
           <h2>7. Как обратиться</h2>
@@ -980,7 +990,7 @@ const pages = {
       title: 'Жеткізу шарттары',
       description:
         'Яндекс Доставка сервисі арқылы Астана қаласында Bulka тапсырыстарын курьермен жеткізу шарттары.',
-      updated: '2026 жылғы 25 шілдедегі редакция',
+      updated: '2026 жылғы 3 қазандағы редакция',
       summary: [
         ['Яндекс Курьер', 'Тапсырысты Яндекс Доставка сервисінің курьері жеткізеді.'],
         [
@@ -1038,7 +1048,7 @@ const pages = {
               талап етпеуге тиіс. Мұндай жағдайда дереу Bulka-ға хабарласу қажет.</li>
           </ul>
         </section>
-        <section>
+        <section id="receiving-order">
           <h2>5. Мерзімі және тапсырысты алу</h2>
           <p>Көрсетілген жеткізу уақыты болжамды. Оған тапсырысты дайындау және жинақтау, курьерді
             іздеу және жол уақыты кіреді. Наубайхананың жүктемесіне, курьерлерге сұранысқа, кептеліске,
@@ -1046,9 +1056,17 @@ const pages = {
           <p>Курьер тағайындалғаннан кейін, егер Яндекс Доставка сервисі осы мәліметтерді берсе,
             сатып алушыға курьердің аты мен телефоны, болжамды келу уақыты және бақылау сілтемесі
             қолжетімді болуы мүмкін.</p>
-          <p>Тапсырыс көрсетілген мекенжайда алушыға немесе оның атынан тапсырысты қабылдаған адамға
-            беріледі. Алушы жауап бермесе немесе орнында болмаса, курьер мен Bulka онымен
-            байланысуға тырысады. Қажет болса, қайта жеткізу бөлек рәсімделеді.</p>
+          <p>Тапсырыс көрсетілген мекенжайда алушыға немесе оның атынан қабылдайтын адамға беріледі.</p>
+          <p>Курьер тапсырыста көрсетілген мекенжайға келісілген жеткізу шарттарын сақтай отырып
+            келіп, курьер мен Bulka байланысуға әрекет жасағаннан кейін алушы есікті ашпаса,
+            орнында болмаса немесе жауап бермесе, алушыға байланысты себептерден тапсырысты
+            табыстаудың сәтсіз әрекеті тіркеледі.</p>
+          <p>Тегін қайта жеткізу және тауарларды қайта беру көзделмеген. Тауарлар мен жеткізу үшін
+            төлем толық көлемде автоматты түрде қайтарылмайды. Қайтару туралы өтінішті Bulka
+            расталған, іс жүзінде жұмсалған ақылға қонымды шығындарды және Қазақстан Республикасы
+            заңнамасының талаптарын ескере отырып қарайды.</p>
+          <p>Bulka немесе курьер қателескен жағдайда бұл шарт қолданылмайды және тұтынушының заңмен
+            кепілдендірілген құқықтарын шектемейді.</p>
         </section>
         <section>
           <h2>6. Болдырмау және жеткізу мәселелері</h2>
@@ -1061,6 +1079,9 @@ const pages = {
             толық болмаса, Bulka-ға хабарлап, тапсырыс нөмірін көрсетіңіз. Ауыстыру, ішінара немесе
             толық қайтару <a href="/kk/payment-and-refund">Төлем және қайтару шарттарына</a> сай
             қаралады.</p>
+          <p>Тапсырыс алушының байланысқа шықпауынан табысталмаса, тұтынушының заңмен
+            кепілдендірілген құқықтарын сақтай отырып, <a href="#receiving-order">5-бөлімнің</a>
+            ережелері қолданылады.</p>
         </section>
         <section class="notice">
           <h2>7. Байланысу тәртібі</h2>
@@ -1073,7 +1094,7 @@ const pages = {
     en: {
       title: 'Delivery terms',
       description: 'Terms for courier delivery of Bulka orders in Astana through Yandex Delivery.',
-      updated: 'Revision dated 25 July 2026',
+      updated: 'Revision dated 3 October 2026',
       summary: [
         ['Yandex Courier', 'The order is delivered by a courier from Yandex Delivery.'],
         ['Price before payment', 'The delivery fee and full order total are shown before payment.'],
@@ -1126,17 +1147,24 @@ const pages = {
               checkout. Contact Bulka immediately if this occurs.</li>
           </ul>
         </section>
-        <section>
+        <section id="receiving-order">
           <h2>5. Timing and receipt of the order</h2>
           <p>The stated delivery time is an estimate. It includes preparation and packing, finding a
             courier and travel time. It may change because of bakery workload, courier demand,
             traffic, weather or other circumstances outside Bulka’s control.</p>
           <p>After assignment, the courier’s name and phone number, estimated arrival time and a
             tracking link may be available if Yandex Delivery provides this information.</p>
-          <p>The order is handed over at the stated address to the recipient or a person accepting
-            it on the recipient’s behalf. If the recipient is absent or does not answer, the courier
-            and Bulka will try to contact them. A repeat delivery, when required, is arranged
-            separately.</p>
+          <p>The order is handed over at the stated address to the recipient or someone accepting it on their behalf.</p>
+          <p>If the courier arrives at the address stated in the order in accordance with the agreed
+            delivery terms, but the recipient does not open the door, is absent or does not respond
+            after the courier and Bulka attempt to contact them, an unsuccessful handover for
+            reasons attributable to the recipient is recorded.</p>
+          <p>Free redelivery and a second supply of the ordered goods are not provided. There is no
+            automatic full refund for the goods and delivery. Bulka reviews refund requests taking
+            into account documented reasonable costs actually incurred and the requirements of
+            the laws of the Republic of Kazakhstan.</p>
+          <p>This condition does not apply where Bulka or the courier has made an error and does not
+            limit mandatory consumer rights.</p>
         </section>
         <section>
           <h2>6. Cancellation and delivery issues</h2>
@@ -1148,6 +1176,8 @@ const pages = {
             contains the wrong items or is incomplete, notify Bulka and provide the order number.
             Replacement, partial refund or full refund is reviewed under the
             <a href="/en/payment-and-refund">Payment and refund terms</a>.</p>
+          <p>If handover fails because the recipient is unavailable, the rules in
+            <a href="#receiving-order">section 5</a> apply, subject to mandatory consumer rights.</p>
         </section>
         <section class="notice">
           <h2>7. Contacting us</h2>

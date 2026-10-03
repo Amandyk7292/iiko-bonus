@@ -313,21 +313,26 @@ export default function IikoDashboardPage({ readOnly = false }: { readOnly?: boo
     return () => controller.abort();
   }, [base, tab, comparison, selectedServer?.configured, rangeValid, refresh]);
 
+  const applyPeriod = (from: string, to: string) => {
+    setRange({ from, to });
+    setSupplier('');
+    setRefresh((value) => value + 1);
+    if (periodDisclosure.current) periodDisclosure.current.open = false;
+    requestAnimationFrame(() => periodDisclosure.current?.querySelector('summary')?.focus());
+  };
   const setPeriod = (period: string) => {
     const now = today();
-    setSupplier('');
     if (period === 'yesterday') {
-      setRange({ from: offsetDate(now, -1), to: offsetDate(now, -1) });
+      applyPeriod(offsetDate(now, -1), offsetDate(now, -1));
     } else {
-      setRange({
-        to: now,
-        from:
-          period === 'week'
-            ? offsetDate(now, -6)
-            : period === 'month'
-              ? `${now.slice(0, 7)}-01`
-              : now,
-      });
+      applyPeriod(
+        period === 'week'
+          ? offsetDate(now, -6)
+          : period === 'month'
+            ? `${now.slice(0, 7)}-01`
+            : now,
+        now,
+      );
     }
   };
   const fetchedAt = overview?.summary.fetchedAt;
@@ -437,19 +442,7 @@ export default function IikoDashboardPage({ readOnly = false }: { readOnly?: boo
               ))}
             </div>
             <div className="id-period">
-              <DateRangePicker
-                from={from}
-                to={to}
-                onChange={(start, end) => {
-                  setRange({ from: start, to: end });
-                  setSupplier('');
-                  setRefresh((value) => value + 1);
-                  if (periodDisclosure.current) periodDisclosure.current.open = false;
-                  requestAnimationFrame(() =>
-                    periodDisclosure.current?.querySelector('summary')?.focus(),
-                  );
-                }}
-              />
+              <DateRangePicker from={from} to={to} onChange={applyPeriod} />
               <label>
                 <span>{t('id.compare')}</span>
                 <select

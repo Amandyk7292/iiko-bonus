@@ -147,10 +147,6 @@
   font-size: 12px;
   border: 0;
 }
-.id-dashboard .id-calendar-footer .id-calendar-apply {
-  background: #333a2c;
-  color: #fff;
-}
 @media (max-width: 600px) {
   .id-date-range {
     grid-column: 1/-1;

@@ -4,6 +4,7 @@ const express = require('express');
 const { IikoDashboardService } = require('../src/services/iiko-dashboard.service');
 const { registerIikoDashboardRoutes } = require('../src/routes/admin/iiko-dashboard.routes');
 const { adminMutationRoleMiddleware } = require('../src/middlewares/auth.middleware');
+const { reportQuery } = require('../src/contracts/iiko-dashboard.contract');
 
 const query = {
   serverId: 'aktau-chain',
@@ -192,4 +193,159 @@ test('read-only dashboard role can read product analytics while invalid scope an
   for (const role of ['branch_manager', 'viewer', 'cashier', 'operator'])
     assert.equal((await request(query, role)).status, 403);
   assert.equal(calls.length, 1);
+});
+
+const productId = '99999999-9999-4999-8999-999999999999';
+const detailQuery = {
+  serverId: query.serverId,
+  reportType: 'SALES',
+  from: '2026-12-30',
+  to: '2026-12-31',
+  groupBy: ['OpenDate.Typed', 'Department', 'DishMeasureUnit'],
+  aggregate: ['DishAmountInt', 'DishDiscountSumInt'],
+  filters: [
+    { field: 'OrderDeleted', values: ['NOT_DELETED'] },
+    { field: 'DeletedWithWriteoff', values: ['NOT_DELETED'] },
+    { field: 'DishId', values: [productId] },
+    { field: 'Department', values: [query.department] },
+  ],
+};
+const detailColumns = {
+  ...columns,
+  'OpenDate.Typed': { filteringAllowed: true, groupingAllowed: true },
+  Department: { filteringAllowed: true, groupingAllowed: true },
+  DishId: { filteringAllowed: true, groupingAllowed: true },
+};
+
+test('product drilldown keeps product, point, units and signed values within the complete selected period', async () => {
+  const data = [
+    {
+      'OpenDate.Typed': '2026-12-30',
+      Department: query.department,
+      DishMeasureUnit: 'шт',
+      DishAmountInt: 3,
+      DishDiscountSumInt: 900,
+    },
+    {
+      'OpenDate.Typed': '2026-12-31',
+      Department: query.department,
+      DishMeasureUnit: 'шт',
+      DishAmountInt: -1,
+      DishDiscountSumInt: -300,
+    },
+    {
+      'OpenDate.Typed': '2026-12-31',
+      Department: query.department,
+      DishMeasureUnit: 'кг',
+      DishAmountInt: 0.5,
+      DishDiscountSumInt: 350,
+    },
+  ];
+  let requestBody;
+  const service = new IikoDashboardService({
+    withSession: async (serverId, work) => {
+      assert.equal(serverId, detailQuery.serverId);
+      return work(async (path, body) => {
+        if (path === 'v2/reports/olap/columns?reportType=SALES') return detailColumns;
+        assert.equal(path, 'v2/reports/olap');
+        requestBody = body;
+        return { data };
+      });
+    },
+  });
+  const report = await service.report(reportQuery.parse(detailQuery));
+  assert.deepEqual(requestBody.groupByRowFields, detailQuery.groupBy);
+  assert.deepEqual(requestBody.aggregateFields, detailQuery.aggregate);
+  assert.deepEqual(requestBody.filters.DishId, {
+    filterType: 'IncludeValues',
+    values: [productId],
+  });
+  assert.deepEqual(requestBody.filters.Department, {
+    filterType: 'IncludeValues',
+    values: [query.department],
+  });
+  assert.deepEqual(requestBody.filters['OpenDate.Typed'], {
+    filterType: 'DateRange',
+    periodType: 'CUSTOM',
+    from: '2026-12-30T00:00:00.000',
+    to: '2027-01-01T00:00:00.000',
+    includeLow: true,
+    includeHigh: false,
+  });
+  assert.deepEqual(report.rows, data);
+  assert.deepEqual(report.period, { from: detailQuery.from, to: detailQuery.to });
+  assert.equal(report.columns.DishMeasureUnit.groupingAllowed, true);
+});
+
+test('read-only dashboard role can open product drilldown for exact point or all server departments', async (t) => {
+  const calls = [];
+  const service = new IikoDashboardService({
+    withSession: async (serverId, work) =>
+      work(async (path, body) => {
+        if (path === 'v2/reports/olap/columns?reportType=SALES') return detailColumns;
+        assert.equal(path, 'v2/reports/olap');
+        calls.push({ serverId, body });
+        return {
+          data: [
+            {
+              'OpenDate.Typed': '2026-12-31',
+              Department: body.filters.Department?.values[0] || 'Other department',
+              DishMeasureUnit: 'шт',
+              DishAmountInt: -1.25,
+              DishDiscountSumInt: -200,
+            },
+          ],
+        };
+      }),
+  });
+  const app = express();
+  app.use(express.json());
+  app.use((req, _res, next) => {
+    req.admin = { role: req.headers['x-fixture-role'] || 'iiko_dashboard', branchIds: [] };
+    next();
+  });
+  app.use('/admin/api', adminMutationRoleMiddleware);
+  registerIikoDashboardRoutes(app, service);
+  app.use((error, _req, res, _next) =>
+    res.status(error.statusCode || 500).json({ code: error.code }),
+  );
+  const server = app.listen(0, '127.0.0.1');
+  t.after(() => {
+    server.closeAllConnections();
+    server.close();
+  });
+  await new Promise((resolve) => server.once('listening', resolve));
+  const url = `http://127.0.0.1:${server.address().port}/admin/api/iiko-dashboard/report`;
+  const request = (body, role = 'iiko_dashboard') =>
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-fixture-role': role },
+      body: JSON.stringify(body),
+    });
+  const exactPoint = await request(detailQuery);
+  assert.equal(exactPoint.status, 200);
+  assert.equal(exactPoint.headers.get('cache-control'), 'no-store');
+  const exactReport = await exactPoint.json();
+  assert.equal(exactReport.rows[0].Department, query.department);
+  assert.equal(exactReport.rows[0].DishAmountInt, -1.25);
+  assert.equal(exactReport.rows[0].DishMeasureUnit, 'шт');
+  const allPoints = await request({
+    ...detailQuery,
+    filters: detailQuery.filters.filter((filter) => filter.field !== 'Department'),
+  });
+  assert.equal(allPoints.status, 200);
+  assert.equal(Object.hasOwn(calls[1].body.filters, 'Department'), false);
+  for (const call of calls) {
+    assert.equal(call.serverId, detailQuery.serverId);
+    assert.deepEqual(call.body.filters.DishId.values, [productId]);
+  }
+  const overriddenDate = await request({
+    ...detailQuery,
+    filters: [...detailQuery.filters, { field: 'OpenDate.Typed', values: ['2020-01-01'] }],
+  });
+  assert.equal(overriddenDate.status, 400);
+  assert.equal((await overriddenDate.json()).code, 'IIKO_REPORT_FIELD');
+  assert.equal((await request({ ...detailQuery, from: '2026-02-30' })).status, 400);
+  assert.equal((await request(detailQuery, 'branch_manager')).status, 403);
+  assert.equal(calls.length, 2);
 });

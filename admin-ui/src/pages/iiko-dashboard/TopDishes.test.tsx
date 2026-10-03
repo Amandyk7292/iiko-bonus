@@ -1,10 +1,11 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../lib/i18n';
 import TopDishes from './TopDishes';
 import type { Report } from './model';
 
-const mock = vi.hoisted(() => ({ analytics: vi.fn() }));
+const mock = vi.hoisted(() => ({ analytics: vi.fn(), report: vi.fn() }));
 vi.mock('./api', () => ({ dashboardApi: mock }));
 const props = {
   serverId: 'aktau-chain',
@@ -29,6 +30,7 @@ const view = (scope = props) => (
 beforeEach(() => {
   localStorage.setItem('adminLocale', 'ru');
   mock.analytics.mockReset();
+  mock.report.mockReset().mockResolvedValue(report());
 });
 
 it('uses the shared scope and shows only ten products sorted by quantity with iiko units and revenue', async () => {
@@ -161,4 +163,85 @@ it('does not revive an old result when switching back to a previous point before
   ui.rerender(view());
   expect(screen.queryByText('Старый отчёт')).not.toBeInTheDocument();
   expect(screen.getByRole('status')).toBeVisible();
+});
+
+it('keeps the same-filter list during refresh and on refresh failure, with retry replacing it only after success', async () => {
+  let reject!: (error: unknown) => void;
+  mock.analytics
+    .mockResolvedValueOnce(
+      report([{ DishId: 'a', DishName: 'Сохранённый товар', DishAmountInt: 4 }]),
+    )
+    .mockImplementationOnce(
+      () =>
+        new Promise((_resolve, fail) => {
+          reject = fail;
+        }),
+    )
+    .mockResolvedValueOnce(
+      report([{ DishId: 'b', DishName: 'Обновлённый товар', DishAmountInt: 6 }]),
+    );
+  const ui = render(view());
+  expect(await screen.findByText('Сохранённый товар')).toBeVisible();
+  ui.rerender(view({ ...props, refresh: 1 }));
+  expect(screen.getByText('Сохранённый товар')).toBeVisible();
+  expect(screen.getByRole('status', { name: 'Обновляем…' })).toBeInTheDocument();
+  await act(async () => reject({ code: 'IIKO_REPORT_ACCESS' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('нет доступа');
+  expect(screen.getByText('Сохранённый товар')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Обновить' }));
+  expect(await screen.findByText('Обновлённый товар')).toBeVisible();
+  expect(screen.queryByText('Сохранённый товар')).not.toBeInTheDocument();
+});
+
+it('opens a stable product by keyboard and closes by Escape with focus return, while missing-ID rows cannot drill', async () => {
+  const user = userEvent.setup();
+  let detailSignal!: AbortSignal;
+  mock.analytics.mockResolvedValue(
+    report([
+      { DishName: 'Неизвестный ID', DishAmountInt: 5 },
+      { DishId: 'a', DishName: 'Коже', DishMeasureUnit: 'кг', DishAmountInt: 3.25 },
+    ]),
+  );
+  mock.report.mockImplementation((_query, signal: AbortSignal) => {
+    detailSignal = signal;
+    return new Promise(() => {});
+  });
+  render(view());
+  const missing = await screen.findByRole('button', { name: /Неизвестный ID/ });
+  expect(missing).toBeDisabled();
+  const product = screen.getByRole('button', { name: /Коже/ });
+  expect(product).toHaveAttribute('aria-haspopup', 'dialog');
+  await user.tab();
+  expect(product).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(screen.getByRole('dialog', { name: 'Коже' })).toBeVisible();
+  expect(mock.report.mock.calls[0][0].filters).toContainEqual({
+    field: 'DishId',
+    values: ['a'],
+    exclude: false,
+  });
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Закрыть' })).toHaveFocus());
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(product).toHaveFocus();
+  expect(detailSignal.aborted).toBe(true);
+});
+
+it('closes and cancels detail when the shared point/period changes without reviving it on return', async () => {
+  mock.analytics.mockResolvedValue(
+    report([{ DishId: 'a', DishName: 'Коже', DishMeasureUnit: 'шт', DishAmountInt: 3 }]),
+  );
+  let detailSignal!: AbortSignal;
+  mock.report.mockImplementation((_query, signal: AbortSignal) => {
+    detailSignal = signal;
+    return new Promise(() => {});
+  });
+  const ui = render(view());
+  fireEvent.click(await screen.findByRole('button', { name: /Коже/ }));
+  expect(screen.getByRole('dialog')).toBeVisible();
+  ui.rerender(view({ ...props, department: 'Основной цех', from: '2026-09-02' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(detailSignal.aborted).toBe(true);
+  ui.rerender(view());
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });

@@ -32,6 +32,11 @@ export default function DateRangePicker({
     setOpen(false);
     trigger.current?.focus();
   };
+  const apply = (from: string, to: string) => {
+    if (!validRange(from, to)) return;
+    onChange(from, to);
+    close();
+  };
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
@@ -64,7 +69,7 @@ export default function DateRangePicker({
       }}
       onBlur={(event) => {
         // Native month/year menus and touch browsers can temporarily clear focus.
-        // Closing on relatedTarget=null removes Apply before its click is delivered.
+        // Closing on relatedTarget=null interrupts date selection before its click.
         if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget))
           setOpen(false);
       }}
@@ -183,9 +188,14 @@ export default function DateRangePicker({
                     setEnd(date);
                     setAnchor(date);
                   } else {
-                    setStart(date < anchor ? date : anchor);
-                    setEnd(date > anchor ? date : anchor);
-                    setAnchor(undefined);
+                    const from = date < anchor ? date : anchor;
+                    const to = date > anchor ? date : anchor;
+                    setStart(from);
+                    setEnd(to);
+                    if (validRange(from, to)) {
+                      setAnchor(undefined);
+                      apply(from, to);
+                    }
                   }
                 }}
                 onKeyDown={(event) => {
@@ -223,11 +233,7 @@ export default function DateRangePicker({
           <button
             type="button"
             className="id-calendar-whole-month"
-            onClick={() => {
-              setStart(month);
-              setEnd(offsetDate(shiftMonth(month, 1), -1));
-              setAnchor(undefined);
-            }}
+            onClick={() => apply(month, offsetDate(shiftMonth(month, 1), -1))}
           >
             {t('id.selectMonth')}
           </button>
@@ -235,17 +241,6 @@ export default function DateRangePicker({
           <div className="id-calendar-footer">
             <button type="button" onClick={close}>
               {t('id.cancel')}
-            </button>
-            <button
-              type="button"
-              className="id-calendar-apply"
-              disabled={!validRange(start, end)}
-              onClick={() => {
-                onChange(start, end);
-                close();
-              }}
-            >
-              {t('id.apply')}
             </button>
           </div>
         </div>

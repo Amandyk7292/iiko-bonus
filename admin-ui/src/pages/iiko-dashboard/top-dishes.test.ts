@@ -43,10 +43,10 @@ it('merges name/group splits by ID and unit, keeps signed fractions and separate
   ];
   const snapshot = structuredClone(rows);
   expect(topDishes(rows)).toMatchObject([
-    { name: 'Коже', unit: 'шт', quantity: 8.5, revenue: 4400 },
-    { name: 'Коже', unit: 'шт', quantity: 7, revenue: 6000 },
-    { name: 'Коже', unit: 'кг', quantity: 2.125, revenue: 2500.5 },
-    { name: 'Больше выручки', quantity: 1 },
+    { productId: 'a', name: 'Коже', unit: 'шт', quantity: 8.5, revenue: 4400 },
+    { productId: 'b', name: 'Коже', unit: 'шт', quantity: 7, revenue: 6000 },
+    { productId: 'a', name: 'Коже', unit: 'кг', quantity: 2.125, revenue: 2500.5 },
+    { productId: 'c', name: 'Больше выручки', quantity: 1 },
   ]);
   expect(rows).toEqual(snapshot);
 });
@@ -92,4 +92,20 @@ it('keeps incomplete revenue unknown when any contributing quantity row lacks it
   ]);
   expect(rows.map((row) => row.quantity)).toEqual([3, 2]);
   expect(rows.every((row) => row.revenue === null)).toBe(true);
+});
+
+it('excludes incomplete ID/unit quantity groups regardless of split order instead of ranking a partial total', () => {
+  const rows = topDishes([
+    { DishId: 'a', DishMeasureUnit: 'шт', DishAmountInt: 5, DishDiscountSumInt: 500 },
+    { DishId: 'a', DishMeasureUnit: 'шт', DishAmountInt: null, DishDiscountSumInt: 100 },
+    { DishId: 'a', DishMeasureUnit: 'кг', DishAmountInt: 2, DishDiscountSumInt: 300 },
+    { DishId: 'b', DishAmountInt: undefined, DishDiscountSumInt: 100 },
+    { DishId: 'b', DishAmountInt: 9, DishDiscountSumInt: 900 },
+    { DishName: 'Missing ID', DishAmountInt: null },
+    { DishName: 'Missing ID', DishAmountInt: 1, DishDiscountSumInt: 50 },
+  ]);
+  expect(rows.map((row) => [row.productId, row.unit, row.quantity, row.revenue])).toEqual([
+    ['a', 'кг', 2, 300],
+    ['', '', 1, 50],
+  ]);
 });

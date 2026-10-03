@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, Trophy } from 'lucide-react';
+import { ChevronRight, RefreshCw, Trophy } from 'lucide-react';
 import { useI18n } from '../../lib/i18n';
 import { dashboardApi } from './api';
 import { errorKey, validRange, type Report } from './model';
-import { topDishes } from './top-dishes';
+import { topDishes, type TopDish } from './top-dishes';
+import TopDishDetails from './TopDishDetails';
 import './top-dishes.css';
 
 export default function TopDishes({
@@ -34,13 +35,22 @@ export default function TopDishes({
     report?: Report;
     error?: string;
   }>();
+  const [selected, setSelected] = useState<{ query: typeof query; product: TopDish }>();
   const requestKey = JSON.stringify([query, refresh, attempt, configured]);
-  const current = result?.key === requestKey && result.query === query ? result : undefined;
+  const current = result?.query === query ? result : undefined;
   const report = configured && periodValid ? current?.report : undefined;
-  const error = !configured ? 'id.notConfigured' : !periodValid ? 'id.range' : current?.error;
-  const loading = configured && periodValid && !current;
+  const error = !configured
+    ? 'id.notConfigured'
+    : !periodValid
+      ? 'id.range'
+      : current?.key === requestKey
+        ? current.error
+        : undefined;
+  const loading = configured && periodValid && current?.key !== requestKey;
   const rows = useMemo(() => topDishes(report?.rows || []), [report]);
   const maximum = rows[0]?.quantity || 1;
+
+  useEffect(() => setSelected(undefined), [query, configured, periodValid]);
 
   useEffect(() => {
     if (!configured || !periodValid) {
@@ -55,7 +65,12 @@ export default function TopDishes({
       })
       .catch((caught) => {
         if (!controller.signal.aborted)
-          setResult({ key: requestKey, query, error: errorKey(caught) });
+          setResult((previous) => ({
+            key: requestKey,
+            query,
+            error: errorKey(caught),
+            report: previous?.query === query ? previous.report : undefined,
+          }));
       });
     return () => controller.abort();
   }, [query, configured, periodValid, requestKey]);
@@ -77,12 +92,19 @@ export default function TopDishes({
           </div>
         </div>
         {report && (
-          <time dateTime={report.fetchedAt} title={t('id.updated')}>
-            {formatDate(report.fetchedAt, { hour: '2-digit', minute: '2-digit' })}
-          </time>
+          <div className="id-top-dishes-update">
+            {loading && (
+              <span role="status" aria-label={t('id.topDishesRefreshing')}>
+                <RefreshCw size={16} className="spin" aria-hidden="true" />
+              </span>
+            )}
+            <time dateTime={report.fetchedAt} title={t('id.updated')}>
+              {formatDate(report.fetchedAt, { hour: '2-digit', minute: '2-digit' })}
+            </time>
+          </div>
         )}
       </div>
-      {loading && (
+      {loading && !report && (
         <p className="id-top-dishes-status" role="status">
           {t('id.loading')}
         </p>
@@ -113,37 +135,59 @@ export default function TopDishes({
           <ol className="id-top-dishes-list">
             {rows.map((row, index) => (
               <li key={row.key}>
-                <span
-                  className="id-top-dishes-rank"
-                  aria-label={`${t('id.topDishesRank')} ${index + 1}`}
+                <button
+                  type="button"
+                  className="id-top-dishes-row"
+                  aria-haspopup="dialog"
+                  disabled={!row.productId}
+                  onClick={() => setSelected({ query, product: row })}
                 >
-                  {index + 1}
-                </span>
-                <div className="id-top-dishes-product">
-                  <strong>{row.name}</strong>
-                  <div className="id-top-dishes-track" aria-hidden="true">
-                    <span style={{ width: `${(row.quantity / maximum) * 100}%` }} />
-                  </div>
-                </div>
-                <div className="id-top-dishes-quantity">
-                  <span className="id-top-dishes-mobile-label">{t('id.productSalesSold')}</span>
-                  <span className="id-top-dishes-value">
-                    <strong>{formatNumber(row.quantity, { maximumFractionDigits: 6 })}</strong>
-                    {row.unit && <span className="id-top-dishes-unit"> {row.unit}</span>}
+                  <span
+                    className="id-top-dishes-rank"
+                    aria-label={`${t('id.topDishesRank')} ${index + 1}`}
+                  >
+                    {index + 1}
                   </span>
-                </div>
-                <div className="id-top-dishes-revenue">
-                  <span className="id-top-dishes-mobile-label">{t('id.revenue')}</span>
-                  <span className="id-top-dishes-value">
-                    {row.revenue === null
-                      ? '—'
-                      : `${formatNumber(row.revenue, { maximumFractionDigits: 2 })} ₸`}
+                  <span className="id-top-dishes-product">
+                    <span className="id-top-dishes-product-heading">
+                      <strong>{row.name}</strong>
+                      {row.productId && <ChevronRight size={16} aria-hidden="true" />}
+                    </span>
+                    <span className="id-top-dishes-track" aria-hidden="true">
+                      <span style={{ width: `${(row.quantity / maximum) * 100}%` }} />
+                    </span>
                   </span>
-                </div>
+                  <span className="id-top-dishes-quantity">
+                    <span className="id-top-dishes-mobile-label">{t('id.productSalesSold')}</span>
+                    <span className="id-top-dishes-value">
+                      <strong>{formatNumber(row.quantity, { maximumFractionDigits: 6 })}</strong>
+                      {row.unit && <span className="id-top-dishes-unit"> {row.unit}</span>}
+                    </span>
+                  </span>
+                  <span className="id-top-dishes-revenue">
+                    <span className="id-top-dishes-mobile-label">{t('id.revenue')}</span>
+                    <span className="id-top-dishes-value">
+                      {row.revenue === null
+                        ? '—'
+                        : `${formatNumber(row.revenue, { maximumFractionDigits: 2 })} ₸`}
+                    </span>
+                  </span>
+                </button>
               </li>
             ))}
           </ol>
         </>
+      )}
+      {selected?.query === query && configured && periodValid && (
+        <TopDishDetails
+          product={selected.product}
+          serverId={serverId}
+          from={from}
+          to={to}
+          department={department}
+          refresh={refresh}
+          onClose={() => setSelected(undefined)}
+        />
       )}
     </section>
   );
