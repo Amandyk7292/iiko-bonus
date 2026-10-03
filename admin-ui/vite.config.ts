@@ -6,6 +6,7 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   base: '/admin/',
   build: {
+    minify: 'terser',
     rollupOptions: {
       output: {
         manualChunks(id) {
