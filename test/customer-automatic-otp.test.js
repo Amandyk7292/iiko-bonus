@@ -238,7 +238,7 @@ test('AutoCall schedules immediate SMS using one Kazakhstan date/time snapshot a
   }
 });
 
-test('AutoCall polls a newly generating campaign with GET until running or exact confirmed delivery', async () => {
+test('AutoCall polls transient creation states with GET until running or exact confirmed delivery', async () => {
   const config = otpProviderConfig(autocallEnv, 'customer_registration');
   const generated = { id: 12345, status: 'generating', segments: 1, recipients: 1 };
   const completed = {
@@ -249,7 +249,20 @@ test('AutoCall polls a newly generating campaign with GET until running or exact
       data: [{ id: 98765, bulk_id: 12345, number: phone, status: 'delivered' }],
     },
   };
-  for (const updates of [[generated, { ...generated, status: 'running' }], [completed]]) {
+  for (const [initialStatus, updates] of [
+    ['generating', [generated, { ...generated, status: 'running' }]],
+    ['generating', [completed]],
+    ['awaiting', [{ ...generated, status: 'running' }]],
+    ['moderation', [generated, { ...generated, status: 'running' }]],
+    ['generating', [...Array(9).fill(generated), { ...generated, status: 'running' }]],
+    [
+      'generating',
+      [
+        { ...generated, status: 'moderation' },
+        { ...generated, status: 'running' },
+      ],
+    ],
+  ]) {
     const calls = [];
     const waits = [];
     let originalSignal;
@@ -262,7 +275,11 @@ test('AutoCall polls a newly generating campaign with GET until running or exact
             assert.equal(options.method, 'POST');
             assert.equal(url, 'https://autocall.kz/api/v1/bulks');
             originalSignal = options.signal;
-            return { ok: true, status: 201, json: async () => generated };
+            return {
+              ok: true,
+              status: 201,
+              json: async () => ({ ...generated, status: initialStatus }),
+            };
           }
           assert.equal(url, 'https://autocall.kz/api/v1/bulks/12345');
           assert.equal(options.method, 'GET');
@@ -285,37 +302,47 @@ test('AutoCall polls a newly generating campaign with GET until running or exact
   }
 });
 
-test('AutoCall stops after five generating reads and never repeats the paid POST', async () => {
+test('AutoCall stops after ten pending reads and never repeats the paid POST', async () => {
   const config = otpProviderConfig(autocallEnv, 'customer_registration');
-  let posts = 0;
-  let reads = 0;
-  let waits = 0;
-  await assert.rejects(
-    sendAutomaticOtp(
-      { phone, code: '123456', config },
-      {
-        fetchImpl: async (_url, options) => {
-          if (options.method === 'POST') posts += 1;
-          else reads += 1;
-          return {
-            ok: true,
-            status: options.method === 'POST' ? 201 : 200,
-            json: async () => ({ id: 12345, status: 'generating', segments: 1, recipients: 1 }),
-          };
+  for (const status of ['generating', 'awaiting', 'moderation']) {
+    let posts = 0;
+    let reads = 0;
+    let waits = 0;
+    await assert.rejects(
+      sendAutomaticOtp(
+        { phone, code: '123456', config },
+        {
+          fetchImpl: async (_url, options) => {
+            if (options.method === 'POST') posts += 1;
+            else reads += 1;
+            return {
+              ok: true,
+              status: options.method === 'POST' ? 201 : 200,
+              json: async () => ({
+                id: 12345,
+                status,
+                segments: 1,
+                recipients: 1,
+                ...(status === 'awaiting'
+                  ? { date_from: '2026-10-04', time_from: '00:00:00' }
+                  : {}),
+              }),
+            };
+          },
+          waitImpl: async () => {
+            waits += 1;
+          },
         },
-        waitImpl: async () => {
-          waits += 1;
-        },
-      },
-    ),
-    { code: 'OTP_SEND_FAILED' },
-  );
-  assert.equal(posts, 1);
-  assert.equal(reads, 5);
-  assert.equal(waits, 5);
+      ),
+      { code: 'OTP_SEND_FAILED' },
+    );
+    assert.equal(posts, 1);
+    assert.equal(reads, 10);
+    assert.equal(waits, 10);
+  }
 });
 
-test('AutoCall generating reads reject changed IDs, pending states, errors and malformed responses immediately', async () => {
+test('AutoCall status reads reject changed IDs, denied states, errors and malformed responses immediately', async () => {
   const config = otpProviderConfig(autocallEnv, 'customer_registration');
   const generated = { id: 12345, status: 'generating', segments: 1, recipients: 1 };
   const sensitive = `123456 ${phone} ${config.token}`;
@@ -325,8 +352,6 @@ test('AutoCall generating reads reject changed IDs, pending states, errors and m
     { ok: true, status: 200, body: null },
     ...[
       { id: 99999, status: 'running' },
-      { status: 'moderation' },
-      { status: 'awaiting' },
       { status: 'denied' },
       { status: 'unexpected' },
       { segments: 2 },
@@ -374,8 +399,6 @@ test('AutoCall rejects unaccepted statuses, malformed responses and failures wit
       { id: 0 },
       { id: '12345' },
       { id: { sensitive } },
-      { status: 'moderation' },
-      { status: 'awaiting' },
       { status: 'denied' },
       { status: 'completed' },
       { status: 'failed' },
@@ -560,7 +583,7 @@ test('an AutoCall campaign awaiting moderation does not activate the registratio
     }),
     { code: 'OTP_SEND_FAILED' },
   );
-  assert.deepEqual(methods, ['POST', 'GET']);
+  assert.deepEqual(methods, ['POST', ...Array(10).fill('GET')]);
   assert.equal((await pg.query('select * from whatsapp_sessions')).rows.length, 0);
   assert.equal((await consumeCustomerOtp(phone, code, { db, env: autocallEnv })).status, 'expired');
   await assert.rejects(startCustomerOtp(request, { db, env: autocallEnv }), {

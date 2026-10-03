@@ -193,7 +193,8 @@ async function sendAutomaticOtp(
         ) {
           throw new Error('Provider rejected message');
         }
-        if (body.status !== 'generating' || attempt === 5) break;
+        if (!['generating', 'awaiting', 'moderation'].includes(body.status) || attempt === 10)
+          break;
         // Creating a campaign can be asynchronous. Read its state briefly;
         // never resubmit the paid POST, and keep the original 15-second limit.
         await waitImpl(500, options.signal);
