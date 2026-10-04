@@ -230,4 +230,100 @@ class IosSigningAuditTest < Minitest::Test
     refute result[:complete]
     refute result.key?(:exportedMainProfile)
   end
+
+  def complete_audit_fixture(failing_profile: 'stale-id', status: 404, code: 'NOT_FOUND')
+    main, _result = export_fixture
+    stale = profile
+    stale['id'] = 'stale-id'
+    stale['attributes']['profileContent'] = 'STALE_PROFILE_MUST_NOT_DECODE'
+    widget = profile
+    widget['id'] = 'widget-profile'
+    widget['attributes']['name'] = 'WidgetStore'
+    widget['attributes']['profileContent'] = 'WIDGET_CMS_FIXTURE'
+    cert = certificate
+    cert['id'] = IosSigningAudit::EXPORT_CERTIFICATE_ID
+    client = Object.new
+    client.define_singleton_method(:list) do |path, query|
+      if path == '/v1/bundleIds'
+        identifier = query.fetch('filter[identifier]')
+        id = identifier == 'com.bulka.bonus' ? 'main-bundle' : 'widget-bundle'
+        [{ 'id' => id, 'attributes' => { 'identifier' => identifier } }]
+      elsif path.end_with?('/bundleIdCapabilities')
+        []
+      elsif path == '/v1/bundleIds/main-bundle/profiles'
+        [stale, main]
+      elsif path == '/v1/bundleIds/widget-bundle/profiles'
+        [widget]
+      elsif path == "/v1/profiles/#{failing_profile}/certificates"
+        raise IosSigningAudit::AuditError.new('APPLE_API_ERROR', path: path, status: status,
+          apple_errors: [{ 'code' => code, 'detail' => 'Profile is unavailable' }])
+      elsif path == '/v1/profiles/stale-id/certificates'
+        raise IosSigningAudit::AuditError.new('APPLE_API_ERROR', path: path, status: 404,
+          apple_errors: [{ 'code' => 'NOT_FOUND', 'detail' => 'Profile is unavailable' }])
+      elsif path.end_with?('/certificates')
+        [cert]
+      else
+        raise 'Unexpected fixture request'
+      end
+    end
+    client.define_singleton_method(:get) do |path, _query|
+      raise 'Unexpected fixture profile lookup' unless path == "/v1/profiles/#{IosSigningAudit::EXPORT_PROFILE_ID}"
+
+      { 'data' => main.merge('relationships' => { 'bundleId' => { 'data' => { 'id' => 'main-bundle' } } }),
+        'included' => [{ 'type' => 'bundleIds', 'id' => 'main-bundle',
+                         'attributes' => { 'identifier' => 'com.bulka.bonus' } }] }
+    end
+    decoder = lambda do |content|
+      value = decoded
+      if content == widget['attributes']['profileContent']
+        value['Name'] = 'WidgetStore'
+        value['Entitlements']['application-identifier'] = 'LEGACY.com.bulka.bonus.BulkaWidget'
+      elsif content == main['attributes']['profileContent']
+        value['Name'] = IosSigningAudit::EXPORT_PROFILE_NAME
+      else
+        raise 'Stale profile must not be decoded'
+      end
+      value
+    end
+    [client, decoder]
+  end
+
+  def test_unrelated_stale_not_found_profile_does_not_prevent_verified_target_export
+    client, decoder = complete_audit_fixture
+    Dir.mktmpdir do |directory|
+      Dir.chdir(directory) do
+        result = IosSigningAudit.audit(client, now: NOW, decoder: decoder, export_main_profile: true)
+        assert result[:complete], result[:errors].inspect
+        assert_empty result[:errors]
+        stale = result[:bundles].first[:profiles].find { |entry| entry[:id] == 'stale-id' }
+        assert stale[:unavailable]
+        refute stale[:usableForRequestedAppStoreEntitlements]
+        assert_equal 'NOT_FOUND', stale[:unavailableReason][:appleErrors].first['code']
+        refute_match(/STALE_PROFILE_MUST_NOT_DECODE|profileContent/, JSON.generate(result))
+        assert_equal IosSigningAudit::EXPORT_PROFILE_ID, result[:exportedMainProfile][:id]
+        assert_equal 'PUBLIC_CMS_FIXTURE', File.binread('signing-audit/main.mobileprovision')
+      end
+    end
+  end
+
+  def test_target_not_found_and_other_unrelated_errors_remain_blocking
+    failures = [
+      { failing_profile: IosSigningAudit::EXPORT_PROFILE_ID, status: 404, code: 'NOT_FOUND' },
+      { status: 403, code: 'NOT_FOUND' },
+      { status: 500, code: 'NOT_FOUND' },
+      { status: 404, code: 'OTHER_ERROR' }
+    ]
+    failures.each do |options|
+      client, decoder = complete_audit_fixture(**options)
+      Dir.mktmpdir do |directory|
+        Dir.chdir(directory) do
+          result = IosSigningAudit.audit(client, now: NOW, decoder: decoder, export_main_profile: true)
+          refute result[:complete]
+          refute result.key?(:exportedMainProfile)
+          refute File.exist?('signing-audit/main.mobileprovision')
+          assert_equal 'APPLE_API_ERROR', result[:errors].first[:code]
+        end
+      end
+    end
+  end
 end

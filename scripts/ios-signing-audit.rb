@@ -259,8 +259,22 @@ module IosSigningAudit
           profile_id = profile.fetch('id')
           raise AuditError.new('INVALID_RESOURCE_ID') unless profile_id.match?(/\A[A-Za-z0-9-]+\z/)
 
-          certificates = client.list("/v1/profiles/#{profile_id}/certificates",
-                                     'fields[certificates]' => CERTIFICATE_FIELDS.join(','))
+          certificate_path = "/v1/profiles/#{profile_id}/certificates"
+          begin
+            certificates = client.list(certificate_path,
+                                       'fields[certificates]' => CERTIFICATE_FIELDS.join(','))
+          rescue AuditError => error
+            not_found = error.details[:code] == 'APPLE_API_ERROR' && error.details[:status] == 404 &&
+              error.details[:path] == certificate_path &&
+              error.details.fetch(:appleErrors, []).any? { |entry| entry['code'] == 'NOT_FOUND' }
+            raise unless profile_id != EXPORT_PROFILE_ID && not_found
+
+            summary[:profiles] << {
+              id: profile_id, **profile.fetch('attributes').slice(*PROFILE_FIELDS), bundleId: identifier,
+              unavailable: true, unavailableReason: error.details, usableForRequestedAppStoreEntitlements: false
+            }
+            next
+          end
           decoded = decoder.call(profile.fetch('attributes').fetch('profileContent'))
           profile_result = profile_summary(profile, certificates, decoded, identifier, required, now)
           summary[:profiles] << profile_result
