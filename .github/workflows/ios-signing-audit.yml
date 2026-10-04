@@ -1,0 +1,54 @@
+name: iOS signing audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      export_main_profile:
+        description: Export the verified Bulka App Store 20261004 public provisioning profile
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Check audit helper
+        shell: bash
+        run: |
+          ruby -c scripts/ios-signing-audit.rb
+          ruby test/ios-signing-audit-test.rb
+      - name: Read bundle capabilities and signing profiles
+        shell: bash
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          EXPORT_MAIN_PROFILE: ${{ inputs.export_main_profile }}
+        run: |
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing App Store Connect secret: $name"
+              exit 1
+            fi
+          done
+          ruby scripts/ios-signing-audit.rb | tee ios-signing-audit.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: ios-signing-audit-${{ github.run_id }}
+          path: ios-signing-audit.json
+          if-no-files-found: warn
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: success() && inputs.export_main_profile
+        with:
+          name: ios-main-profile-${{ github.run_id }}
+          path: signing-audit/main.mobileprovision
+          if-no-files-found: error
+          retention-days: 1
