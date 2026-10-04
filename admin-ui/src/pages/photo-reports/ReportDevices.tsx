@@ -282,18 +282,49 @@ function DeviceList({ branch, copy }: { branch: Branch; copy: PhotoCopy }) {
 }
 
 function DevicesBody({ branches, copy }: { branches: Branch[]; copy: PhotoCopy }) {
+  const [cityKey, setCityKey] = useState('');
   const [branchId, setBranchId] = useState('');
-  const branch = branches.find((item) => item.id === branchId);
+  const cities = [...new Set(branches.map((item) => item.city.trim()))].sort((first, second) => first.localeCompare(second));
+  const city = cities.find((name) => `city:${name}` === cityKey);
+  const cityBranches = city === undefined ? [] : branches.filter((item) => item.city.trim() === city);
+  const branch = cityBranches.find((item) => item.id === branchId);
   return (
     <div className="closing-devices">
-      <div className="closing-device-branch">
-        <label htmlFor="closing-device-branch">{copy.text('Точка', 'Нүкте')}</label>
-        <select id="closing-device-branch" className="input-classic" value={branch?.id ?? ''} onChange={(event) => setBranchId(event.target.value)}>
-          <option value="">{copy.text('Выберите точку', 'Нүктені таңдаңыз')}</option>
-          {branches.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.city}</option>)}
-        </select>
+      <div className="closing-device-scope">
+        <div className="closing-device-field">
+          <label htmlFor="closing-device-city">{copy.text('Город', 'Қала')}</label>
+          <select
+            id="closing-device-city"
+            className="input-classic"
+            value={city === undefined ? '' : cityKey}
+            onChange={(event) => {
+              setCityKey(event.target.value);
+              setBranchId('');
+            }}
+          >
+            <option value="">{copy.text('Выберите город', 'Қаланы таңдаңыз')}</option>
+            {cities.map((name) => (
+              <option key={`city:${name}`} value={`city:${name}`}>
+                {name || copy.text('Без города', 'Қаласы жоқ')}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="closing-device-field">
+          <label htmlFor="closing-device-branch">{copy.text('Точка', 'Нүкте')}</label>
+          <select
+            id="closing-device-branch"
+            className="input-classic"
+            value={branch?.id ?? ''}
+            disabled={city === undefined}
+            onChange={(event) => setBranchId(event.target.value)}
+          >
+            <option value="">{copy.text('Выберите точку', 'Нүктені таңдаңыз')}</option>
+            {cityBranches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </div>
       </div>
-      {branch ? <DeviceList key={branch.id} branch={branch} copy={copy} /> : <div className="closing-device-intro"><Tablet size={30} aria-hidden="true" /><p>{copy.text('Выберите точку для подключения планшета.', 'Планшетті қосу үшін нүктені таңдаңыз.')}</p></div>}
+      {branch ? <DeviceList key={branch.id} branch={branch} copy={copy} /> : <div className="closing-device-intro"><Tablet size={30} aria-hidden="true" /><p>{copy.text('Выберите город и точку.', 'Қала мен нүктені таңдаңыз.')}</p></div>}
     </div>
   );
 }

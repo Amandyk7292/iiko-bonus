@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../lib/i18n';
 import ReportDevices from './ReportDevices';
-import { usePhotoCopy, type ReportDevice } from './model';
+import { usePhotoCopy, type Branch, type ReportDevice } from './model';
 
 const mocks = vi.hoisted(() => ({ request: vi.fn(), realtime: vi.fn() }));
 vi.mock('../../lib/api', () => ({ request: mocks.request }));
@@ -19,11 +19,15 @@ const active: ReportDevice = {
   ...pending, status: 'active', name: 'Планшет зала', expiresAt: null,
   approvedAt: '2026-10-04T12:03:00Z', lastSeenAt: '2026-10-04T12:05:00Z',
 };
-function Harness() {
+function Harness({ branches }: { branches: Branch[] }) {
   const copy = usePhotoCopy();
-  return <ReportDevices open branches={[a, b]} copy={copy} onClose={vi.fn()} />;
+  return <ReportDevices open branches={branches} copy={copy} onClose={vi.fn()} />;
 }
-const renderDevices = () => render(<I18nProvider><Harness /></I18nProvider>);
+const renderDevices = (branches = [a, b]) => render(<I18nProvider><Harness branches={branches} /></I18nProvider>);
+const selectBranch = async (user: ReturnType<typeof userEvent.setup>, branch: Branch) => {
+  await user.selectOptions(screen.getByLabelText('Город'), `city:${branch.city.trim()}`);
+  await user.selectOptions(screen.getByLabelText('Точка'), branch.id);
+};
 
 describe('photo report tablet management', () => {
   beforeEach(() => {
@@ -36,8 +40,9 @@ describe('photo report tablet management', () => {
     const user = userEvent.setup();
     renderDevices();
     expect(mocks.request).not.toHaveBeenCalled();
-    expect(screen.getByText('Выберите точку для подключения планшета.')).toBeVisible();
-    await user.selectOptions(screen.getByLabelText('Точка'), a.id);
+    expect(screen.getByText('Выберите город и точку.')).toBeVisible();
+    expect(screen.getByLabelText('Точка')).toBeDisabled();
+    await selectBranch(user, a);
     expect(await screen.findByText('Ждёт подтверждения')).toBeVisible();
     expect(mocks.request).toHaveBeenCalledWith(
       '/photo-reports/devices?branchId=branch-a',
@@ -47,6 +52,64 @@ describe('photo report tablet management', () => {
     expect(screen.getByLabelText('Код с планшета')).toHaveValue('');
   });
 
+  it.each([
+    ['ru', 'Город', 'Точка', 'Без города'],
+    ['kk', 'Қала', 'Нүкте', 'Қаласы жоқ'],
+  ])('deduplicates scoped cities and supports branches without a city in %s', async (locale, cityLabel, branchLabel, emptyLabel) => {
+    localStorage.setItem('adminLocale', locale);
+    mocks.request.mockResolvedValue({ success: true, devices: [] });
+    const user = userEvent.setup();
+    const c = { id: 'branch-c', name: 'Центр', city: ' Актау ' };
+    const noCity = { id: 'branch-empty', name: 'Склад', city: '  ' };
+    renderDevices([a, b, c, noCity, { id: 'branch-empty-2', name: 'Цех', city: '' }]);
+    const citySelect = screen.getByLabelText(cityLabel);
+    const branchSelect = screen.getByLabelText(branchLabel);
+    expect(within(citySelect).getAllByRole('option')).toHaveLength(4);
+    expect(within(citySelect).getAllByRole('option', { name: 'Актау' })).toHaveLength(1);
+    expect(within(citySelect).getByRole('option', { name: emptyLabel })).toBeVisible();
+    expect(branchSelect).toBeDisabled();
+    await user.selectOptions(citySelect, 'city:Актау');
+    expect(branchSelect).toBeEnabled();
+    expect(within(branchSelect).getByRole('option', { name: '19А' })).toBeVisible();
+    expect(within(branchSelect).getByRole('option', { name: 'Центр' })).toBeVisible();
+    expect(within(branchSelect).queryByRole('option', { name: 'Premium' })).not.toBeInTheDocument();
+    expect(mocks.request).not.toHaveBeenCalled();
+    await user.selectOptions(citySelect, 'city:');
+    expect(within(branchSelect).getByRole('option', { name: 'Склад' })).toBeVisible();
+    expect(within(branchSelect).getByRole('option', { name: 'Цех' })).toBeVisible();
+    expect(within(branchSelect).queryByRole('option', { name: '19А' })).not.toBeInTheDocument();
+    await user.selectOptions(branchSelect, noCity.id);
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith(
+      '/photo-reports/devices?branchId=branch-empty', expect.anything(), { branchScope: '' },
+    ));
+  });
+
+  it('resets the branch and aborts its list when the city changes without fetching an unselected branch', async () => {
+    const user = userEvent.setup();
+    let resolveOld!: (value: unknown) => void;
+    mocks.request.mockImplementation((path: string) => path.endsWith('branch-a')
+      ? new Promise((resolve) => { resolveOld = resolve; })
+      : Promise.resolve({ success: true, devices: [{ ...active, id: 'tablet-b', branchId: b.id, name: 'Планшет Premium' }] }));
+    renderDevices();
+    await selectBranch(user, a);
+    const oldSignal = mocks.request.mock.calls[0][1].signal as AbortSignal;
+    await user.selectOptions(screen.getByLabelText('Город'), 'city:Астана');
+    expect(screen.getByLabelText('Точка')).toHaveValue('');
+    expect(screen.getByLabelText('Точка')).toBeEnabled();
+    expect(oldSignal.aborted).toBe(true);
+    expect(mocks.request).toHaveBeenCalledTimes(1);
+    await act(async () => resolveOld({ success: true, devices: [active] }));
+    expect(screen.queryByText('Планшет зала')).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Точка'), b.id);
+    expect(await screen.findByText('Планшет Premium')).toBeVisible();
+    await user.selectOptions(screen.getByLabelText('Город'), '');
+    expect(screen.getByLabelText('Точка')).toBeDisabled();
+    expect(screen.getByLabelText('Точка')).toHaveValue('');
+    expect(within(screen.getByLabelText('Точка')).getAllByRole('option')).toHaveLength(1);
+    expect(screen.queryByText('Планшет Premium')).not.toBeInTheDocument();
+    expect(mocks.request).toHaveBeenCalledTimes(2);
+  });
+
   it('approves with the manually entered code and trimmed name, then shows the active tablet', async () => {
     const user = userEvent.setup();
     mocks.request.mockImplementation((path: string) => Promise.resolve(
@@ -54,7 +117,7 @@ describe('photo report tablet management', () => {
         : { success: true, devices: [pending] },
     ));
     renderDevices();
-    await user.selectOptions(screen.getByLabelText('Точка'), a.id);
+    await selectBranch(user, a);
     const name = await screen.findByLabelText('Название планшета');
     await user.type(name, ' Касса зала ');
     await user.type(screen.getByLabelText('Код с планшета'), '001234');
@@ -76,7 +139,7 @@ describe('photo report tablet management', () => {
         : { success: true, devices: [active] },
     ));
     renderDevices();
-    await user.selectOptions(screen.getByLabelText('Точка'), a.id);
+    await selectBranch(user, a);
     await user.click(await screen.findByRole('button', { name: 'Отключить' }));
     const confirm = within(screen.getByRole('dialog', { name: 'Отключить планшет?' }));
     expect(confirm.getByText('Планшет зала · 19А · Актау')).toBeVisible();
@@ -96,7 +159,7 @@ describe('photo report tablet management', () => {
     const user = userEvent.setup();
     mocks.request.mockImplementation(() => Promise.resolve({ success: true, devices: [{ ...pending, expiresAt: new Date(Date.now() + 250).toISOString() }] }));
     renderDevices();
-    await user.selectOptions(screen.getByLabelText('Точка'), a.id);
+    await selectBranch(user, a);
     expect(await screen.findByText('Ждёт подтверждения')).toBeVisible();
     expect(screen.getByLabelText('Код с планшета')).toBeVisible();
     expect(await screen.findByText('Код истёк')).toBeVisible();
@@ -113,9 +176,9 @@ describe('photo report tablet management', () => {
       ? new Promise((resolve) => { resolveOld = resolve; })
       : Promise.resolve({ success: true, devices: [{ ...active, id: 'tablet-b', branchId: b.id, name: 'Планшет Premium' }] }));
     renderDevices();
-    await user.selectOptions(screen.getByLabelText('Точка'), a.id);
+    await selectBranch(user, a);
     const oldSignal = mocks.request.mock.calls[0][1].signal as AbortSignal;
-    await user.selectOptions(screen.getByLabelText('Точка'), b.id);
+    await selectBranch(user, b);
     expect(await screen.findByText('Планшет Premium')).toBeVisible();
     await act(async () => resolveOld({ success: true, devices: [active] }));
     expect(oldSignal.aborted).toBe(true);
@@ -131,12 +194,16 @@ describe('photo report tablet management', () => {
       return Promise.resolve({ success: true, devices: path.endsWith('branch-a') ? [pending] : [{ ...active, id: 'tablet-b', branchId: b.id, name: 'Планшет Premium' }] });
     });
     renderDevices();
-    await user.selectOptions(screen.getByLabelText('Точка'), a.id);
+    await selectBranch(user, a);
     await user.type(await screen.findByLabelText('Название планшета'), 'Зал');
     await user.type(screen.getByLabelText('Код с планшета'), '123456');
     await user.click(screen.getByRole('button', { name: 'Подключить планшет' }));
     expect(screen.getByRole('button', { name: 'Подключаем…' })).toBeDisabled();
     const mutationSignal = mocks.request.mock.calls.find(([path]) => path.endsWith('/approve'))![1].signal as AbortSignal;
+    await user.selectOptions(screen.getByLabelText('Город'), 'city:Астана');
+    expect(screen.getByLabelText('Точка')).toHaveValue('');
+    expect(mutationSignal.aborted).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Подключаем…' })).not.toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText('Точка'), b.id);
     await screen.findByText('Планшет Premium');
     await act(async () => approve({ success: true, device: active }));
@@ -150,7 +217,7 @@ describe('photo report tablet management', () => {
     mocks.request.mockImplementation((path: string) => path.endsWith('/approve')
       ? Promise.reject(new Error('Код не совпадает')) : Promise.resolve({ success: true, devices: [pending] }));
     renderDevices();
-    await user.selectOptions(screen.getByLabelText('Точка'), a.id);
+    await selectBranch(user, a);
     await user.type(await screen.findByLabelText('Название планшета'), 'Зал');
     await user.type(screen.getByLabelText('Код с планшета'), '123456');
     await user.click(screen.getByRole('button', { name: 'Подключить планшет' }));
@@ -164,7 +231,7 @@ describe('photo report tablet management', () => {
     const user = userEvent.setup();
     mocks.request.mockResolvedValue({ success: true, devices: [{ ...active, branchId: b.id }] });
     renderDevices();
-    await user.selectOptions(screen.getByLabelText('Точка'), a.id);
+    await selectBranch(user, a);
     expect(await screen.findByText('Не удалось загрузить планшеты этой точки.')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Отключить' })).not.toBeInTheDocument();
     expect(screen.queryByText('Планшет зала')).not.toBeInTheDocument();

@@ -570,7 +570,13 @@
   gap: 16px;
   min-width: 0;
 }
-.closing-device-branch,
+.closing-device-scope {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+.closing-device-field,
 .closing-device-form label {
   display: grid;
   gap: 7px;
@@ -1006,6 +1012,9 @@
   }
   .closing-devices {
     padding: 16px;
+  }
+  .closing-device-scope {
+    grid-template-columns: minmax(0, 1fr);
   }
   .closing-device-form {
     grid-template-columns: minmax(0, 1fr);
