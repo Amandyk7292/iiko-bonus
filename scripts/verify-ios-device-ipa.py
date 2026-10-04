@@ -14,6 +14,9 @@ WORKFLOW = '.github/workflows/ios-device-build.yml'
 PROVENANCE = 'release-provenance.json'
 SHOREBIRD_APP = 'aa065f22-7fd3-458b-99ff-9c6fd096355f'
 LAUNCH_SHA = 'd0e12de33820f8ccc2fe1bac034a73bd4f6e2b426f8d56593cc00e264b54a1b0'
+APP_GROUP = 'group.com.bulka.bonus'
+APP_ATTEST = 'com.apple.developer.devicecheck.appattest-environment'
+ASSOCIATED_DOMAINS = 'com.apple.developer.associated-domains'
 
 
 def validate_source_run(run, artifacts, expected_sha, repository, run_id):
@@ -53,7 +56,61 @@ def _verify_profile(archive, bundle_root, bundle, distribution, temp):
         raise ValueError('IPA uses a device or enterprise profile instead of an App Store profile')
     if distribution == 'appstore' and entitlements.get('get-task-allow'):
         raise ValueError('App Store IPA unexpectedly allows debugging')
-    return team[0]
+    return profile
+
+
+def _signature_command(command, bundle):
+    try:
+        return subprocess.check_output(command, stderr=subprocess.PIPE)
+    except (subprocess.CalledProcessError, OSError) as error:
+        # Tool diagnostics may contain the complete entitlement/profile payload.
+        raise ValueError('IPA code signature verification failed: ' + bundle) from error
+
+
+def _profile_permits(name, permission, claimed):
+    if name == APP_ATTEST:
+        return permission == claimed or (isinstance(permission, list) and claimed in permission)
+    if isinstance(claimed, list):
+        if name == ASSOCIATED_DOMAINS and permission == '*':
+            return True
+        return (isinstance(permission, list) and all(
+            value in permission or (name == ASSOCIATED_DOMAINS and '*' in permission)
+            for value in claimed))
+    return permission == claimed
+
+
+def _verify_signed_bundle(path, bundle, profile, distribution, *, main):
+    _signature_command(['codesign', '--verify', '--deep', '--strict', str(path)], bundle)
+    # --xml writes a clean plist to stdout on current macOS; diagnostics stay on
+    # stderr. Unlike the historical :- spelling this does not emit a warning.
+    payload = _signature_command(
+        ['codesign', '--display', '--entitlements', '-', '--xml', str(path)], bundle)
+    try:
+        entitlements = plistlib.loads(payload)
+    except (plistlib.InvalidFileException, ValueError, TypeError) as error:
+        raise ValueError('IPA signed entitlements are not a plist: ' + bundle) from error
+    if not isinstance(entitlements, dict):
+        raise ValueError('IPA signed entitlements are not a dictionary: ' + bundle)
+    allowed = profile.get('Entitlements', {})
+    if (entitlements.get('application-identifier') != allowed.get('application-identifier')
+            or entitlements.get('com.apple.developer.team-identifier') != profile['TeamIdentifier'][0]):
+        raise ValueError('IPA signed bundle or team mismatch: ' + bundle)
+    if distribution == 'appstore' and entitlements.get('get-task-allow', False) is not False:
+        raise ValueError('App Store IPA signed entitlements allow debugging: ' + bundle)
+
+    required = {'com.apple.security.application-groups': [APP_GROUP]}
+    if main:
+        required[ASSOCIATED_DOMAINS] = ['applinks:bulka.com.kz']
+        if distribution == 'appstore':
+            required.update({APP_ATTEST: 'production', 'aps-environment': 'production'})
+    for name, expected in required.items():
+        claimed = entitlements.get(name)
+        matches = (isinstance(claimed, list) and all(value in claimed for value in expected)
+                   if isinstance(expected, list) else claimed == expected)
+        if not matches:
+            raise ValueError('IPA signed entitlement mismatch: ' + bundle + ': ' + name)
+        if not _profile_permits(name, allowed.get(name), claimed):
+            raise ValueError('IPA profile does not permit signed entitlement: ' + bundle + ': ' + name)
 
 
 def verify(directory, expected, distribution='device', *, expected_version=None,
@@ -106,11 +163,16 @@ def verify(directory, expected, distribution='device', *, expected_version=None,
                 or widget_info.get('CFBundleVersion') != build):
             raise ValueError('IPA widget bundle or version mismatch')
         with tempfile.TemporaryDirectory() as temp:
-            team = _verify_profile(archive, root, expected, distribution, temp)
-            widget_team = _verify_profile(archive, widgets[0].rsplit('/', 1)[0],
-                                          widget_bundle, distribution, temp)
-            if team != widget_team:
+            app_profile = _verify_profile(archive, root, expected, distribution, temp)
+            widget_root = widgets[0].rsplit('/', 1)[0]
+            widget_profile = _verify_profile(archive, widget_root, widget_bundle, distribution, temp)
+            if app_profile['TeamIdentifier'] != widget_profile['TeamIdentifier']:
                 raise ValueError('IPA app and widget signing teams differ')
+            # Preserve framework symlinks and executable modes for codesign.
+            expanded = Path(temp) / 'expanded'
+            _signature_command(['ditto', '-xk', str(packages[0].resolve()), str(expanded)], expected)
+            _verify_signed_bundle(expanded / root, expected, app_profile, distribution, main=True)
+            _verify_signed_bundle(expanded / widget_root, widget_bundle, widget_profile, distribution, main=False)
             if require_ota:
                 config = archive.read(asset_root + 'shorebird.yaml').decode('utf-8')
                 app_values = re.findall(r'^app_id:\s*[\'"]?([a-f0-9-]+)[\'"]?\s*(?:#.*)?$', config, re.M)
@@ -131,7 +193,8 @@ def verify(directory, expected, distribution='device', *, expected_version=None,
                 'ipaSha256': hashlib.sha256(packages[0].read_bytes()).hexdigest(),
                 'bundleId': expected, 'distribution': distribution, 'version': version,
                 'buildNumber': build, 'otaEnabled': bool(require_ota),
-                'launchSha256': launch_sha, 'shorebirdAppId': expected_shorebird_app}
+                'launchSha256': launch_sha, 'shorebirdAppId': expected_shorebird_app,
+                'signedEntitlementsVerified': True}
 
 
 def verify_provenance(directory, source_commit, run_id, repository):
@@ -143,6 +206,7 @@ def verify_provenance(directory, source_commit, run_id, repository):
             or str(record.get('runId')) != str(run_id) or record.get('repository') != repository
             or record.get('workflow') != WORKFLOW or record.get('buildMode') != 'release'
             or record.get('distribution') != 'appstore' or record.get('otaEnabled') is not True
+            or record.get('signedEntitlementsVerified') is not True
             or record.get('launchSha256') != LAUNCH_SHA
             or record.get('shorebirdAppId') != SHOREBIRD_APP
             or not re.fullmatch(r'\d+\.\d+\.\d+', str(record.get('version', '')))

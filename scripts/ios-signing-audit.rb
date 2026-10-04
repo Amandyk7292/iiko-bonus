@@ -167,7 +167,11 @@ module IosSigningAudit
   def self.entitlement_checks(actual, required)
     required.to_h do |name, expected|
       value = actual[name]
-      matches = if expected.is_a?(Array)
+      matches = if name == 'com.apple.developer.devicecheck.appattest-environment'
+                  value == expected || (value.is_a?(Array) && value.include?(expected))
+                elsif name == 'com.apple.developer.associated-domains' && expected.is_a?(Array) && value == '*'
+                  true
+                elsif expected.is_a?(Array)
                   value.is_a?(Array) && expected.all? { |entry| value.include?(entry) || value.include?('*') }
                 else
                   value == expected

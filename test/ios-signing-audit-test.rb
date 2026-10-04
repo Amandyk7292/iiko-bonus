@@ -56,6 +56,43 @@ class IosSigningAuditTest < Minitest::Test
     assert_equal 'production', IosSigningAudit::BUNDLES['com.bulka.bonus']['com.apple.developer.devicecheck.appattest-environment']
   end
 
+  def test_actual_provider_permission_arrays_and_scalar_domains_allow_production_profile
+    p, _result = export_fixture
+    c = certificate
+    c['id'] = IosSigningAudit::EXPORT_CERTIFICATE_ID
+    d = decoded
+    d['Name'] = IosSigningAudit::EXPORT_PROFILE_NAME
+    d['Entitlements']['com.apple.developer.devicecheck.appattest-environment'] = %w[development production]
+    d['Entitlements']['com.apple.developer.associated-domains'] = '*'
+    result = summary(p, c, d)
+    assert result[:requiredEntitlements].values.all?
+    assert result[:usableForRequestedAppStoreEntitlements]
+    Dir.mktmpdir do |parent|
+      IosSigningAudit.export_profile(p, result, directory: File.join(parent, 'export'))
+      assert_equal 'PUBLIC_CMS_FIXTURE', File.binread(File.join(parent, 'export', 'main.mobileprovision'))
+    end
+  end
+
+  def test_permission_compatibility_does_not_allow_development_only_or_wildcard_app_attest
+    ['development', ['development'], '*', ['*'], nil].each do |permission|
+      d = decoded
+      d['Entitlements']['com.apple.developer.devicecheck.appattest-environment'] = permission
+      d['Entitlements']['com.apple.developer.associated-domains'] = '*'
+      result = summary(profile, certificate, d)
+      refute result[:requiredEntitlements]['com.apple.developer.devicecheck.appattest-environment']
+      refute result[:usableForRequestedAppStoreEntitlements]
+    end
+    d = decoded
+    d['Entitlements']['com.apple.security.application-groups'] = '*'
+    refute summary(profile, certificate, d)[:usableForRequestedAppStoreEntitlements]
+    d = decoded
+    d['Entitlements']['com.apple.developer.team-identifier'] = '*'
+    refute summary(profile, certificate, d)[:usableForRequestedAppStoreEntitlements]
+    d = decoded
+    d['Entitlements']['get-task-allow'] = true
+    refute summary(profile, certificate, d)[:usableForRequestedAppStoreEntitlements]
+  end
+
   def test_profile_bytes_certificate_bytes_and_unknown_fields_are_never_published
     report = JSON.generate(summary)
     refute_match(/MUST_NOT_LEAK|PRIVATE_UNKNOWN_FIELD|profileContent|certificateContent|unknown-secret/, report)
