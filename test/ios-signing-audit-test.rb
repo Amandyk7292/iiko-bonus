@@ -1,4 +1,5 @@
 require 'minitest/autorun'
+require 'minitest/mock'
 require 'tmpdir'
 require_relative '../scripts/ios-signing-audit'
 
@@ -156,6 +157,29 @@ class IosSigningAuditTest < Minitest::Test
     end
     error = assert_raises(IosSigningAudit::AuditError) { client.list('/v1/bundleIds') }
     assert_equal 'INVALID_PAGINATION', error.details[:code]
+  end
+
+  def test_relationship_outgoing_get_does_not_force_unsupported_limit
+    requests = []
+    response = Net::HTTPOK.new('1.1', '200', 'OK')
+    body = JSON.generate(data: [], links: { next: nil })
+    response.define_singleton_method(:body) { body }
+    http = Object.new
+    http.define_singleton_method(:request) do |request|
+      requests << request
+      response
+    end
+    transport = ->(*_args, &block) { block.call(http) }
+    Net::HTTP.stub(:start, transport) do
+      result = IosSigningAudit::Client.new('DUMMY_TOKEN').list('/v1/bundleIds/id/bundleIdCapabilities',
+        'fields[bundleIdCapabilities]' => 'capabilityType')
+      assert_empty result
+    end
+    assert_equal 1, requests.length
+    assert_equal 'GET', requests.first.method
+    query = URI.decode_www_form(URI(requests.first.path).query).to_h
+    assert_equal({ 'fields[bundleIdCapabilities]' => 'capabilityType' }, query)
+    refute query.key?('limit')
   end
 
   def test_cycle_in_pagination_is_bounded

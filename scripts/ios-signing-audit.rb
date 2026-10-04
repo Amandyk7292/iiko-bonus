@@ -92,7 +92,7 @@ module IosSigningAudit
 
     def list(path, query = {})
       uri = URI("https://#{HOST}#{path}")
-      uri.query = URI.encode_www_form(query.merge('limit' => '200'))
+      uri.query = URI.encode_www_form(query) unless query.empty?
       result = []
       visited = {}
       20.times do
