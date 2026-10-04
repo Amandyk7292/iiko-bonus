@@ -18,7 +18,11 @@ on:
         type: boolean
         default: true
       build_number:
-        description: Explicit iOS build number (blank uses the workflow run number)
+        description: Explicit iOS build number (required for App Store; blank device builds use run number)
+        type: string
+        default: ''
+      build_name:
+        description: Marketing version (blank uses pubspec.yaml)
         type: string
         default: ''
 
@@ -47,8 +51,31 @@ jobs:
       BUILD_MODE: ${{ inputs.mode }}
       IOS_DISTRIBUTION: ${{ inputs.distribution }}
       REQUESTED_BUILD_NUMBER: ${{ inputs.build_number }}
+      REQUESTED_BUILD_NAME: ${{ inputs.build_name }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Resolve explicit release identity
+        run: |
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          version = re.search(r'^version:\s*(\d+\.\d+\.\d+)\+', Path('pubspec.yaml').read_text(), re.M).group(1)
+          version = os.environ['REQUESTED_BUILD_NAME'].strip() or version
+          number = os.environ['REQUESTED_BUILD_NUMBER'].strip()
+          if os.environ['IOS_DISTRIBUTION'] == 'appstore':
+              if os.environ['GITHUB_REF'] != 'refs/heads/main':
+                  raise SystemExit('App Store releases must be built from main')
+              if not number:
+                  raise SystemExit('App Store releases require an explicit build number checked against App Store Connect')
+              if os.environ['BUILD_MODE'] != 'release':
+                  raise SystemExit('App Store distribution requires release mode')
+          number = number or os.environ['GITHUB_RUN_NUMBER']
+          if not re.fullmatch(r'\d+\.\d+\.\d+', version) or not re.fullmatch(r'[1-9][0-9]*', number):
+              raise SystemExit('Invalid iOS marketing version or build number')
+          ota = os.environ['OTA_ENABLED'] == 'true' and os.environ['IOS_DISTRIBUTION'] == 'appstore' and os.environ['BUILD_MODE'] == 'release'
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'BUILD_NAME={version}\nBUILD_NUMBER={number}\nBUILT_OTA={str(ota).lower()}\n')
+          PY
       - name: Check signing inputs
         run: |
           for name in IOS_CERTIFICATE_P12 IOS_CERTIFICATE_PASSWORD IOS_APP_PROFILE IOS_WIDGET_PROFILE IOS_FIREBASE_PLIST; do
@@ -75,31 +102,43 @@ jobs:
         run: ruby ../scripts/apply-ios-device-profiles.rb
       - name: Build signed IPA
         run: |
-          BUILD_NUMBER="${REQUESTED_BUILD_NUMBER:-$GITHUB_RUN_NUMBER}"
           if [[ "$OTA_ENABLED" == "true" && "$IOS_DISTRIBUTION" == "appstore" && "$BUILD_MODE" == "release" ]]; then
             test -n "$SHOREBIRD_TOKEN"
             shorebird release ios --flutter-version=3.38.5 \
+              --build-name="$BUILD_NAME" \
               --build-number="$BUILD_NUMBER" \
               --export-options-plist="$RUNNER_TEMP/bulka-signing/ExportOptions.plist" \
               --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
           else
             flutter build ipa "--$BUILD_MODE" \
+              --build-name="$BUILD_NAME" \
               --build-number="$BUILD_NUMBER" \
               --export-options-plist="$RUNNER_TEMP/bulka-signing/ExportOptions.plist" \
               --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
           fi
       - name: Verify built application
         run: |
+          extra_args=()
+          if [[ "$BUILT_OTA" == "true" ]]; then
+            extra_args+=(--require-ota --expected-shorebird-app-id=aa065f22-7fd3-458b-99ff-9c6fd096355f)
+          fi
           python3 ../scripts/verify-ios-device-ipa.py build/ios/ipa \
             --expected-bundle-id com.bulka.bonus \
-            --distribution="$IOS_DISTRIBUTION"
-          shasum -a 256 build/ios/ipa/*.ipa > build/ios/ipa/SHA256SUMS
+            --distribution="$IOS_DISTRIBUTION" \
+            --expected-version="$BUILD_NAME" --expected-build="$BUILD_NUMBER" \
+            --expected-launch-sha256=d0e12de33820f8ccc2fe1bac034a73bd4f6e2b426f8d56593cc00e264b54a1b0 \
+            --metadata-output=build/ios/ipa/release-provenance.json \
+            --source-commit="$GITHUB_SHA" --run-id="$GITHUB_RUN_ID" \
+            --repository="$GITHUB_REPOSITORY" --build-mode="$BUILD_MODE" \
+            "${extra_args[@]}"
+          (cd build/ios/ipa && shasum -a 256 ./*.ipa > SHA256SUMS)
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: bulka-iphone-${{ inputs.distribution }}-${{ inputs.mode }}-${{ github.sha }}
           path: |
             BulkaAndroid/build/ios/ipa/*.ipa
             BulkaAndroid/build/ios/ipa/SHA256SUMS
+            BulkaAndroid/build/ios/ipa/release-provenance.json
           if-no-files-found: error
           retention-days: 7
       - name: Remove temporary signing materials

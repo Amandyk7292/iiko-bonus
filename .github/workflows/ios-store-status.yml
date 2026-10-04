@@ -16,5 +16,20 @@ jobs:
       ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Check App Store Connect credentials
+        run: |
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing App Store Connect secret: $name"
+              exit 1
+            fi
+          done
       - name: Read App Store versions and build processing
-        run: ruby scripts/ios-store-status.rb
+        shell: bash
+        run: ruby scripts/ios-store-status.rb | tee ios-store-status.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ios-store-status-${{ github.run_id }}
+          path: ios-store-status.json
+          if-no-files-found: error
+          retention-days: 7
