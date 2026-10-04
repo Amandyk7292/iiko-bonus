@@ -220,7 +220,7 @@ export default function BonusPage({ scope = '' }: { scope?: string }) {
         aria-labelledby="bonus-tab-cashiers"
         hidden={tab !== 'cashiers'}
       >
-        <CashierSignupRace />
+        <CashierSignupRace active={tab === 'cashiers'} />
       </div>
       <div
         role="tabpanel"

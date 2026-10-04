@@ -15,7 +15,8 @@ const toPublic = (row) => ({
 });
 
 function createCashierSignup({ db = supabase, directory = staffDirectory } = {}) {
-  const sync = async () => {
+  let syncTask;
+  const readAndSync = async () => {
     const cashiers = await directory.listCashiers();
     const { data, error } = await db.rpc('sync_cashier_signup_directory', {
       p_cashiers: cashiers.map((cashier) => ({
@@ -25,6 +26,16 @@ function createCashierSignup({ db = supabase, directory = staffDirectory } = {})
     });
     if (error) throw error;
     return data?.items || [];
+  };
+  // Page refreshes and the background worker share one full source read. Do
+  // not retain a result: the next refresh must see new/deleted HR employees.
+  const sync = async () => {
+    if (!syncTask) {
+      syncTask = readAndSync().finally(() => {
+        syncTask = undefined;
+      });
+    }
+    return syncTask;
   };
   const resolve = async (token) => {
     const { data: row, error } = await db

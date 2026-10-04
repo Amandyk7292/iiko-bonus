@@ -36,10 +36,27 @@ function fixture(rows = [employee], error = null) {
         assert.fail('HR tables must not be queried');
       },
       rpc(name, args) {
+        let afterId = null;
+        let order = null;
         return {
+          order(field) {
+            assert.equal(field, 'id');
+            order = field;
+            return this;
+          },
+          gt(field, value) {
+            assert.equal(field, 'id');
+            afterId = value;
+            return this;
+          },
           async range(first, last) {
-            calls.push({ name, args, first, last });
-            return { data: Array.isArray(rows) ? rows.slice(first, last + 1) : rows, error };
+            calls.push({ name, args, order, afterId, first, last });
+            const sorted = Array.isArray(rows)
+              ? rows
+                  .filter((row) => afterId == null || String(row.id) > afterId)
+                  .sort((a, b) => String(a.id).localeCompare(String(b.id), 'en'))
+              : rows;
+            return { data: Array.isArray(sorted) ? sorted.slice(first, last + 1) : sorted, error };
           },
         };
       },
@@ -61,7 +78,14 @@ test('source access is limited to the dedicated public-fields RPC with string bi
     },
   ]);
   assert.deepEqual(f.calls, [
-    { name: 'bulka_cashier_signup_directory', args: undefined, first: 0, last: 499 },
+    {
+      name: 'bulka_cashier_signup_directory',
+      args: undefined,
+      order: 'id',
+      afterId: null,
+      first: 0,
+      last: 499,
+    },
   ]);
 });
 test('every eligibility lookup rechecks source omission after archive or role changes', async () => {
@@ -113,10 +137,90 @@ test('an authorized empty directory is valid and a roster beyond one thousand is
     f.calls.map(({ first, last }) => [first, last]),
     [
       [0, 499],
-      [500, 999],
-      [1000, 1499],
+      [0, 499],
+      [0, 499],
     ],
   );
+  const sorted = [...rows].sort((a, b) => a.id.localeCompare(b.id, 'en'));
+  assert.deepEqual(
+    f.calls.map((call) => call.afterId),
+    [null, sorted[499].id, sorted[999].id],
+  );
+});
+
+test('an archive and rename between pages do not shift an active cashier out of the roster', async () => {
+  const rows = Array.from({ length: 501 }, (_, index) => ({
+    ...employee,
+    id: String(1001 + index),
+  }));
+  const f = fixture(rows);
+  const rpc = f.client.rpc.bind(f.client);
+  let changed = false;
+  f.client.rpc = (...args) => {
+    const query = rpc(...args);
+    const range = query.range.bind(query);
+    query.range = async (...limits) => {
+      const response = await range(...limits);
+      if (!changed) {
+        changed = true;
+        rows.shift();
+        rows.at(-1).name = 'Имя теперь первым по алфавиту';
+      }
+      return response;
+    };
+    return query;
+  };
+  const directory = createStaffDirectory({ client: f.client });
+  const imported = await directory.listCashiers();
+  assert.equal(imported.length, 501);
+  assert.ok(
+    imported.some((row) => row.id === '1501'),
+    'last active ID is not skipped after archive',
+  );
+  assert.ok(rows.every((row) => imported.some((item) => item.id === row.id)));
+  assert.deepEqual(
+    f.calls.map((call) => call.afterId),
+    [null, '1500'],
+  );
+  assert.equal(
+    await directory.findCashier('1001'),
+    null,
+    'fresh eligibility rejects the newly archived ID',
+  );
+});
+
+test('an ID hired below an in-progress cursor is included by the next fresh read', async () => {
+  const rows = Array.from({ length: 501 }, (_, index) => ({
+    ...employee,
+    id: String(1001 + index),
+  }));
+  const f = fixture(rows);
+  const rpc = f.client.rpc.bind(f.client);
+  let hired = false;
+  f.client.rpc = (...args) => {
+    const query = rpc(...args);
+    const range = query.range.bind(query);
+    query.range = async (...limits) => {
+      const response = await range(...limits);
+      if (!hired) {
+        hired = true;
+        rows.unshift({ ...employee, id: '1000' });
+      }
+      return response;
+    };
+    return query;
+  };
+  const directory = createStaffDirectory({ client: f.client });
+  const first = await directory.listCashiers();
+  assert.equal(first.length, 501);
+  assert.ok(first.some((row) => row.id === '1501'));
+  assert.equal(
+    first.some((row) => row.id === '1000'),
+    false,
+  );
+  const next = await directory.listCashiers();
+  assert.equal(next.length, 502);
+  assert.ok(next.some((row) => row.id === '1000'));
 });
 test('active cashier without an assigned point keeps their QR identity and useful display fallbacks', async () => {
   const directory = createStaffDirectory({

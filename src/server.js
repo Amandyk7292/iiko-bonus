@@ -44,6 +44,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 const PAYMENT_PROVIDER_PROBE_INTERVAL_MS = 30 * 60 * 1000;
 const WHATSAPP_SESSION_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 const RESERVATION_RECONCILIATION_INTERVAL_MS = 60 * 1000;
+const CASHIER_DIRECTORY_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 if (!process.env.VERCEL) {
   const runWorkers = process.env.RUN_BACKGROUND_WORKERS === 'true';
@@ -54,6 +55,27 @@ if (!process.env.VERCEL) {
   let photoTelegramDigestWorker;
   let photoTelegramDigestTask;
   let shuttingDown = false;
+  const cashierDirectoryEnabled =
+    runWorkers &&
+    Boolean(
+      process.env.STAFF_DIRECTORY_SUPABASE_URL &&
+      (process.env.STAFF_DIRECTORY_SERVICE_ROLE_KEY || process.env.STAFF_DIRECTORY_SUPABASE_KEY),
+    );
+  registerWorker('cashier-directory-sync', {
+    enabled: cashierDirectoryEnabled,
+    intervalMs: CASHIER_DIRECTORY_SYNC_INTERVAL_MS,
+    maxRunMs: 120000,
+    critical: false,
+    alertOnFailure: true,
+  });
+  if (cashierDirectoryEnabled) {
+    const syncCashiers = () =>
+      runMonitoredWorker('cashier-directory-sync', () =>
+        require('./services/cashier-signup.service').cashierSignup.sync(),
+      );
+    setTimeout(syncCashiers, 10000).unref?.();
+    setInterval(syncCashiers, CASHIER_DIRECTORY_SYNC_INTERVAL_MS).unref?.();
+  }
   registerWorker('branch-photo-telegram-digest', {
     enabled: photoTelegramEnabled,
     intervalMs: 30000,

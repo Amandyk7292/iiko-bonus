@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../lib/i18n';
 import CashierSignupRace, { type CashierRaceItem } from './CashierSignupRace';
 
@@ -45,6 +45,10 @@ const deferred = <T,>() => {
 };
 
 describe('cashier registration race', () => {
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
   beforeEach(() => {
     localStorage.setItem('adminLocale', 'ru');
     mocks.request.mockReset().mockResolvedValue(response());
@@ -246,5 +250,79 @@ describe('cashier registration race', () => {
     await screen.findByText('Кассирлер табылмады');
     expect(screen.getByLabelText('Қала')).toHaveValue('Актау');
     expect(screen.getByRole('option', { name: 'Актау' })).toBeInTheDocument();
+  });
+
+  it('refreshes visible data without clearing the table, overlapping requests, or keeping archived QR open', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const next = deferred<ReturnType<typeof response>>();
+    mocks.request.mockResolvedValueOnce(response()).mockReturnValueOnce(next.promise);
+    renderRace();
+    fireEvent.click(await screen.findByRole('button', { name: 'QR: Алия Рублева' }));
+    fireEvent.change(screen.getByLabelText('Город'), { target: { value: 'Актау' } });
+    fireEvent.change(screen.getByLabelText('Найти кассира'), { target: { value: 'Жасыл' } });
+    await act(async () => vi.advanceTimersByTimeAsync(60_000));
+    expect(mocks.request).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('rowheader', { name: /Алия Рублева/ })).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.focus(window);
+    fireEvent.online(window);
+    fireEvent(document, new Event('visibilitychange'));
+    expect(mocks.request).toHaveBeenCalledTimes(2);
+    await act(async () => next.resolve(response([
+      item({ name: 'Алия Новая', isArchived: true, inviteToken: null, url: null }),
+      item({ id: 'cashier-new', name: 'Новый кассир' }),
+    ])));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText('Алия Рублева')).not.toBeInTheDocument();
+    expect(screen.getByText('Алия Новая')).toBeInTheDocument();
+    expect(screen.getByText('Новый кассир')).toBeInTheDocument();
+    expect(screen.getByLabelText('Город')).toHaveValue('Актау');
+    expect(screen.getByLabelText('Найти кассира')).toHaveValue('Жасыл');
+    expect(screen.queryByRole('button', { name: 'QR: Алия Новая' })).not.toBeInTheDocument();
+  });
+
+  it('pauses hidden and inactive refreshes, then reloads on return and updates the open QR identity', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    mocks.request.mockResolvedValueOnce(response()).mockResolvedValue(response([
+      item({ name: 'Новое ФИО', branchName: 'Новая точка' }),
+    ]));
+    const view = renderRace();
+    fireEvent.click(await screen.findByRole('button', { name: 'QR: Алия Рублева' }));
+    visibility.mockReturnValue('hidden');
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    fireEvent.focus(window);
+    fireEvent.online(window);
+    expect(mocks.request).toHaveBeenCalledTimes(1);
+    visibility.mockReturnValue('visible');
+    fireEvent(document, new Event('visibilitychange'));
+    await screen.findByRole('dialog', { name: 'Новое ФИО' });
+    expect(screen.getByRole('dialog')).toHaveTextContent('Новая точка');
+    expect(mocks.request).toHaveBeenCalledTimes(2);
+    view.rerender(<I18nProvider><CashierSignupRace active={false} /></I18nProvider>);
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    fireEvent.focus(window);
+    expect(mocks.request).toHaveBeenCalledTimes(2);
+    view.rerender(<I18nProvider><CashierSignupRace active /></I18nProvider>);
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(3));
+    view.unmount();
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    fireEvent.online(window);
+    expect(mocks.request).toHaveBeenCalledTimes(3);
+  });
+
+  it('retains the last successful rows after a failed refresh and recovers when the connection returns', async () => {
+    mocks.request.mockResolvedValueOnce(response())
+      .mockRejectedValueOnce(new Error('Не удалось обновить'))
+      .mockResolvedValueOnce(response([item({ name: 'Восстановленный список' })]));
+    renderRace();
+    await screen.findByText('Алия Рублева');
+    fireEvent.focus(window);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось обновить');
+    expect(screen.getByText('Алия Рублева')).toBeInTheDocument();
+    fireEvent.online(window);
+    await screen.findByText('Восстановленный список');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText('Алия Рублева')).not.toBeInTheDocument();
   });
 });

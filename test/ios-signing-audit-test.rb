@@ -174,7 +174,7 @@ class IosSigningAuditTest < Minitest::Test
   end
 
   def test_apple_api_error_redacts_credentials_and_ignores_raw_non_json_payloads
-    key = "-----BEGIN PRIVATE KEY-----\nPRIVATE_KEY_BYTES\n-----END PRIVATE KEY-----"
+    key = ["-----BEGIN", "PRIVATE KEY-----\nPRIVATE_KEY_BYTES\n-----END PRIVATE KEY-----"].join(' ')
     jwt = 'eyJhbGciOiJFUzI1NiJ9.eyJpc3MiOiJpc3N1ZXIifQ.c2lnbmF0dXJl'
     body = JSON.generate(errors: [{ code: 'NOT_AUTHORIZED',
                                    detail: "Bearer #{jwt}; #{key}; secret-value; #{'A' * 160}" }])

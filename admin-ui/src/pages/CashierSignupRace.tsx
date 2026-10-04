@@ -99,7 +99,7 @@ function hasQr(row: CashierRaceItem) {
   return !row.isArchived && Boolean(row.url) && /^[a-f0-9]{64}$/i.test(row.inviteToken || '');
 }
 
-export default function CashierSignupRace() {
+export default function CashierSignupRace({ active = true }: { active?: boolean }) {
   const { locale, formatNumber } = useI18n();
   const text = copy[locale === 'kk' ? 'kk' : 'ru'];
   const [from, setFrom] = useState(() => `${today().slice(0, 7)}-01`);
@@ -113,11 +113,14 @@ export default function CashierSignupRace() {
   const [copyFailed, setCopyFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [imageAttempt, setImageAttempt] = useState(0);
+  const [pendingKey, setPendingKey] = useState<string>();
+  const pending = useRef(false);
   const copyRevision = useRef(0);
   const valid = validDate(from) && validDate(to) && from <= to;
-  const key = `${from}|${to}|${attempt}`;
+  const key = `${from}|${to}`;
   const current = valid && result?.key === key ? result : undefined;
   const loading = valid && !current;
+  const refreshing = valid && pendingKey === key;
   const rows = current?.response?.items || [];
   const cities = useMemo(
     () =>
@@ -151,8 +154,10 @@ export default function CashierSignupRace() {
   );
 
   useEffect(() => {
-    if (!valid) return;
+    if (!valid || !active) return;
     const controller = new AbortController();
+    pending.current = true;
+    setPendingKey(key);
     void request<RaceResponse>(
       `/bonus/cashier-race?from=${from}&to=${to}`,
       { signal: controller.signal },
@@ -163,15 +168,49 @@ export default function CashierSignupRace() {
       })
       .catch((caught) => {
         if (!controller.signal.aborted)
-          setResult({ key, error: caught instanceof Error ? caught.message : '' });
+          setResult((previous) => ({
+            key,
+            response: previous?.key === key ? previous.response : undefined,
+            error: caught instanceof Error && caught.message ? caught.message : text.loadError,
+          }));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          pending.current = false;
+          setPendingKey(undefined);
+        }
       });
-    return () => controller.abort();
-  }, [from, to, key, valid]);
+    return () => {
+      controller.abort();
+      pending.current = false;
+    };
+  }, [from, to, key, valid, attempt, active, text.loadError]);
+
+  useEffect(() => {
+    if (!active || !valid) return;
+    const refresh = () => {
+      if (document.visibilityState === 'visible' && !pending.current)
+        setAttempt((value) => value + 1);
+    };
+    const timer = window.setInterval(refresh, 60_000);
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('online', refresh);
+    };
+  }, [active, valid]);
 
   useEffect(() => {
     if (!current?.response || !qr) return;
     const updated = current.response.items.find((row) => row.id === qr.id);
-    if (!updated || !hasQr(updated)) setQr(null);
+    if (!updated || !hasQr(updated) || updated.inviteToken !== qr.inviteToken) {
+      copyRevision.current++;
+      setQr(null);
+    } else if (updated !== qr) setQr(updated);
   }, [current, qr]);
 
   const closeQr = () => {
@@ -189,7 +228,7 @@ export default function CashierSignupRace() {
   const qrImage = qr ? `/api/public/cashier-invites/${qr.inviteToken}/qr` : '';
 
   return (
-    <section className="card cashier-race" aria-label={text.heading} aria-busy={loading}>
+    <section className="card cashier-race" aria-label={text.heading} aria-busy={loading || refreshing}>
       <div className="cashier-race-heading">
         <span className="cashier-race-heading-icon" aria-hidden="true">
           <Trophy size={22} />
@@ -203,10 +242,10 @@ export default function CashierSignupRace() {
           className="icon-button cashier-race-refresh"
           aria-label={text.refresh}
           title={text.refresh}
-          disabled={loading || !valid}
+          disabled={loading || refreshing || !valid}
           onClick={() => setAttempt((value) => value + 1)}
         >
-          <RefreshCw size={19} aria-hidden="true" className={loading ? 'spin' : undefined} />
+          <RefreshCw size={19} aria-hidden="true" className={loading || refreshing ? 'spin' : undefined} />
         </button>
       </div>
 
@@ -272,7 +311,7 @@ export default function CashierSignupRace() {
           {text.rangeError}
         </p>
       )}
-      {current && !current.response && (
+      {current?.error && (
         <div className="inline-alert inline-alert-error" role="alert">
           <span>{current.error || text.loadError}</span>
           <button

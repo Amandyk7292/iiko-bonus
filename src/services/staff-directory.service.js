@@ -39,16 +39,20 @@ function createStaffDirectory({ client, mappingDb, env = process.env } = {}) {
       // their existing RLS. An anon key cannot silently hide the roster here.
       const source = database();
       const rows = [];
-      // PostgREST caps rows even for set-returning RPCs. Request smaller pages
-      // explicitly so a roster above the default 1000 is never marked archived.
-      for (let offset = 0; offset <= 20000; offset += 500) {
-        const { data, error } = await source
-          .rpc('bulka_cashier_signup_directory')
-          .range(offset, offset + 499);
+      // The source returns immutable text IDs. Keyset pages keep an archive or
+      // rename between requests from shifting an active cashier out of the
+      // roster. New IDs below the cursor appear in the next refresh; eligibility
+      // still reads the source afresh for every QR redemption.
+      let afterId;
+      for (let page = 0; page <= 40; page += 1) {
+        let query = source.rpc('bulka_cashier_signup_directory').order('id');
+        if (afterId) query = query.gt('id', afterId);
+        const { data, error } = await query.range(0, 499);
         if (error || !Array.isArray(data) || data.length > 500) throw unavailable();
         rows.push(...data);
         if (rows.length > 20000) throw unavailable();
         if (data.length < 500) break;
+        afterId = idText(data.at(-1).id);
       }
       // HR point IDs and customer branch UUIDs are different identity spaces.
       // Only an explicitly reviewed mapping may establish branch permissions.

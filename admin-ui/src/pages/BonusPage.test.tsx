@@ -227,7 +227,9 @@ describe('bonus workspace', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Кассиры' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Приглашения' }));
     expect(screen.getByText('Тестовый клиент')).toBeVisible();
-    expect(mockRequest).toHaveBeenCalledTimes(2);
+    expect(mockRequest).toHaveBeenCalledTimes(3);
+    expect(mockRequest.mock.calls[2][0]).toContain('/bonus/cashier-race?');
+    expect(mockRequest.mock.calls[2][1]?.signal?.aborted).toBe(true);
   });
 
   it('preserves unsaved settings across tabs and branch changes, then saves all policy fields', async () => {

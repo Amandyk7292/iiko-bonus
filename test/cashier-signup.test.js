@@ -151,6 +151,49 @@ test('ranking applies authorized dates/scope and sums actual accrued ledger amou
   assert.deepEqual(f.calls.at(-1).args.p_branches, ['allowed']);
   assert.deepEqual(result.totals, { completed: 2, rewardAmount: 600 });
 });
+
+test('overlapping directory/ranking refreshes share a source read, then read fresh again', async () => {
+  const f = fixture();
+  const service = createCashierSignup(f);
+  let release;
+  let reads = 0;
+  f.directory.listCashiers = async () => {
+    reads += 1;
+    await new Promise((resolve) => {
+      release = resolve;
+    });
+    return [employee];
+  };
+  const requests = [service.list(), service.ranking({ from: '2026-10-01', to: '2026-10-04' })];
+  assert.equal(reads, 1);
+  release();
+  await Promise.all(requests);
+  assert.equal(f.calls.filter((call) => call.name === 'sync_cashier_signup_directory').length, 1);
+  const next = service.list();
+  assert.equal(reads, 2, 'a completed snapshot is never reused on the next refresh');
+  release();
+  await next;
+});
+
+test('a failed source refresh never writes a partial directory and the next refresh recovers', async () => {
+  const f = fixture();
+  const service = createCashierSignup(f);
+  const original = await service.list();
+  const unavailable = publicError(503, 'STAFF_DIRECTORY_UNAVAILABLE', 'Недоступно');
+  f.directory.listCashiers = async () => {
+    throw unavailable;
+  };
+  const requests = await Promise.allSettled([service.list(), service.list()]);
+  assert.ok(
+    requests.every((request) => request.status === 'rejected' && request.reason === unavailable),
+  );
+  assert.equal(f.calls.filter((call) => call.name === 'sync_cashier_signup_directory').length, 1);
+  f.directory.listCashiers = async () => [{ ...employee, name: 'Новое ФИО', city: 'Астана' }];
+  const updated = await service.list();
+  assert.equal(updated.items[0].name, 'Новое ФИО');
+  assert.equal(updated.items[0].city, 'Астана');
+  assert.equal(updated.items[0].inviteToken, original.items[0].inviteToken);
+});
 test('strict registration contract rejects forged employee identity/reward and malformed invite tokens', () => {
   const input = {
     name: 'Client',

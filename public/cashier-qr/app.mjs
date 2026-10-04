@@ -45,10 +45,12 @@ function openQr(row, button) {
   dialog.showModal();
 }
 function render() {
+  const focusedId = document.activeElement?.getAttribute('data-cashier-id');
+  let focusButton = null;
   list.replaceChildren();
-  if (loading || failed) return;
+  if ((loading || failed) && !items.length) return;
   const rows = filterCashiers(items, city.value, search.value);
-  status.textContent = rows.length ? `Кассиры · ${rows.length}` : items.length ? 'Никого не нашли' : 'Кассиров пока нет';
+  if (!failed) status.textContent = rows.length ? `Кассиры · ${rows.length}` : items.length ? 'Никого не нашли' : 'Кассиров пока нет';
   const fragment = document.createDocumentFragment();
   for (const row of rows) {
     const card = textElement('article', 'cashier-card', '');
@@ -58,14 +60,20 @@ function render() {
     details.append(textElement('h2', '', row.name), textElement('p', 'point-name', row.branchName), textElement('span', 'city-pill', row.city));
     const button = textElement('button', 'qr-button', 'Мой QR');
     button.type = 'button';
+    button.dataset.cashierId = row.id;
     button.setAttribute('aria-label', `Открыть QR: ${row.name}`);
     button.addEventListener('click', () => openQr(row, button));
+    if (current?.id === row.id) previousFocus = button;
+    if (focusedId === row.id) focusButton = button;
     card.append(avatar, details, button);
     fragment.append(card);
   }
   list.append(fragment);
+  if (focusButton) focusButton.focus();
+  else if (focusedId) search.focus();
 }
 async function load() {
+  if (loading) return;
   const revision = ++request;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
@@ -73,9 +81,10 @@ async function load() {
   failed = false;
   refresh.disabled = true;
   list.setAttribute('aria-busy', 'true');
-  status.textContent = 'Загружаем кассиров…';
-  list.replaceChildren();
-  if (dialog.open) closeDialog();
+  if (!items.length) {
+    status.textContent = 'Загружаем кассиров…';
+    list.replaceChildren();
+  }
   try {
     const response = await fetch('/api/public/cashier-invites', { signal: controller.signal, cache: 'no-store', credentials: 'omit', headers: { Accept: 'application/json' } });
     if (!response.ok) throw new Error('Список временно недоступен. Попробуйте обновить.');
@@ -85,7 +94,17 @@ async function load() {
     const selectedCity = city.value;
     city.replaceChildren(new Option('Все города', ''));
     [...new Set(items.map((row) => row.city).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')).forEach((name) => city.add(new Option(name, name)));
-    if (items.some((row) => row.city === selectedCity)) city.value = selectedCity;
+    if (selectedCity && !items.some((row) => row.city === selectedCity)) city.add(new Option(selectedCity, selectedCity));
+    city.value = selectedCity;
+    if (current) {
+      const updated = items.find((row) => row.id === current.id);
+      if (!updated || updated.inviteToken !== current.inviteToken) closeDialog();
+      else {
+        Object.assign(current, updated);
+        document.getElementById('qr-title').textContent = current.name;
+        document.getElementById('qr-point').textContent = [current.city, current.branchName].filter(Boolean).join(' · ');
+      }
+    }
   } catch {
     if (revision !== request) return;
     failed = true;
@@ -104,6 +123,12 @@ document.querySelector('form').addEventListener('submit', (event) => event.preve
 search.addEventListener('input', render);
 city.addEventListener('change', render);
 refresh.addEventListener('click', load);
+const reloadVisible = () => { if (document.visibilityState === 'visible') void load(); };
+setInterval(reloadVisible, 60_000);
+document.addEventListener('visibilitychange', reloadVisible);
+window.addEventListener('focus', reloadVisible);
+window.addEventListener('online', reloadVisible);
+window.addEventListener('pageshow', (event) => { if (event.persisted) reloadVisible(); });
 document.getElementById('close-dialog').addEventListener('click', closeDialog);
 dialog.addEventListener('click', (event) => { if (event.target === dialog) closeDialog(); });
 dialog.addEventListener('cancel', () => { current = null; previousFocus?.focus(); });

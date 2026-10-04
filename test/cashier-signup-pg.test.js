@@ -4,6 +4,7 @@ const { randomUUID, createHash } = require('node:crypto');
 const { readFileSync } = require('node:fs');
 const { PGlite } = require('@electric-sql/pglite');
 const { createStaffDirectory } = require('../src/services/staff-directory.service');
+const { createCashierSignup } = require('../src/services/cashier-signup.service');
 const { database } = require('./helpers/photo-report-database.cjs');
 const db = new PGlite();
 const branch = randomUUID();
@@ -200,6 +201,14 @@ test('canonical HR source plus reviewed mapping reaches branch-scoped 300 KZT at
       rpc(name) {
         assert.equal(name, 'bulka_cashier_signup_directory');
         return {
+          order(field) {
+            assert.equal(field, 'id');
+            return this;
+          },
+          gt(field) {
+            assert.equal(field, 'id');
+            return this;
+          },
           range: async () => ({
             data: [
               {
@@ -362,4 +371,122 @@ test('client roles cannot read/mutate attribution; the service cannot rewrite ac
     ),
     /check constraint/,
   );
+});
+
+test('canonical source refresh follows hire, transfer, archive, deletion and restore without changing QR or earned history', async () => {
+  await db.exec(`
+    create table public.points(id bigint primary key, name text, city text);
+    create table public.bulka_users(id bigint primary key, display_name text, first_name text,
+      last_name text, position text, point_id bigint, role text, is_deleted boolean, deleted_at timestamptz);
+    insert into public.points values (501,'Кадровая точка A','Актау'),(502,'Кадровая точка B','Астана');
+    insert into public.bulka_users values (9001,'Кассир Первый',null,null,'Кассир',501,'cashier',false,null);
+  `);
+  await db.exec(readFileSync('docs/integrations/cashier-directory-source.sql', 'utf8'));
+  await db.query(
+    `insert into staff_cashier_branch_mappings(point_id,branch_id,reviewed_by)
+    values('501',$1,'test'),('502',$2,'test')`,
+    [branch, secondBranch],
+  );
+  const directory = createStaffDirectory({
+    mappingDb: database(db),
+    client: {
+      rpc(name) {
+        assert.equal(name, 'bulka_cashier_signup_directory');
+        let cursor = null;
+        return {
+          order(field) {
+            assert.equal(field, 'id');
+            return this;
+          },
+          gt(field, value) {
+            assert.equal(field, 'id');
+            cursor = value;
+            return this;
+          },
+          async range(first, last) {
+            assert.equal(first, 0);
+            const result = await db.query(
+              `select * from public.bulka_cashier_signup_directory()
+              where ($1::text is null or id > $1) order by id limit $2`,
+              [cursor, last + 1],
+            );
+            return { data: result.rows };
+          },
+        };
+      },
+    },
+  });
+  const service = createCashierSignup({ db: database(db), directory });
+  try {
+    const hired = (await service.list()).items;
+    assert.equal(hired.length, 1);
+    const original = hired[0];
+    assert.equal(original.id, '9001');
+    const firstCustomer = await person();
+    await service.finish(
+      firstCustomer,
+      { name: 'Первый Клиент' },
+      original.inviteToken,
+      firstCustomer.key,
+    );
+    const firstReward = (await rewards(firstCustomer))[0];
+    assert.equal(firstReward.amount, 300);
+    assert.equal(firstReward.branch_id, branch);
+
+    await db.exec(
+      "update public.bulka_users set display_name='Кассир Новое Имя',point_id=502 where id=9001",
+    );
+    const transferred = (await service.list()).items[0];
+    assert.equal(transferred.inviteToken, original.inviteToken);
+    assert.equal(transferred.name, 'Кассир Новое Имя');
+    assert.equal(transferred.branchName, 'Кадровая точка B');
+    assert.equal(transferred.city, 'Астана');
+    assert.equal((await service.resolve(original.inviteToken)).branchId, secondBranch);
+    assert.deepEqual((await rewards(firstCustomer))[0], firstReward);
+    const secondCustomer = await person();
+    await service.finish(
+      secondCustomer,
+      { name: 'Второй Клиент' },
+      original.inviteToken,
+      secondCustomer.key,
+    );
+    assert.equal((await rewards(secondCustomer))[0].branch_id, secondBranch);
+
+    await db.exec('update public.bulka_users set is_deleted=true where id=9001');
+    assert.deepEqual((await service.list()).items, []);
+    await assert.rejects(service.resolve(original.inviteToken), {
+      code: 'CASHIER_INVITE_UNAVAILABLE',
+    });
+    const archived = (await ranking()).find((row) => row.id === original.id);
+    assert.equal(archived.isArchived, true);
+    assert.equal(archived.inviteToken, null);
+    assert.equal(archived.completed, 2);
+    assert.equal(archived.rewardAmount, 600);
+    assert.deepEqual((await rewards(firstCustomer))[0], firstReward);
+
+    await db.exec('update public.bulka_users set is_deleted=false where id=9001');
+    assert.equal((await service.list()).items[0].inviteToken, original.inviteToken);
+    await db.exec('update public.bulka_users set deleted_at=now() where id=9001');
+    assert.deepEqual((await service.list()).items, []);
+    await assert.rejects(service.resolve(original.inviteToken), {
+      code: 'CASHIER_INVITE_UNAVAILABLE',
+    });
+    await db.exec('delete from public.bulka_users where id=9001');
+    assert.deepEqual((await service.list()).items, []);
+    await assert.rejects(service.resolve(original.inviteToken), {
+      code: 'CASHIER_INVITE_UNAVAILABLE',
+    });
+
+    await db.exec(`insert into public.bulka_users values
+      (9001,'Кассир Восстановлен',null,null,'Кассир',502,'cashier',false,null),
+      (9002,'Новый Сотрудник',null,null,'Кассир',501,'cashier',false,null)`);
+    const restored = (await service.list()).items;
+    assert.equal(restored.length, 2);
+    assert.equal(restored.find((row) => row.id === original.id).inviteToken, original.inviteToken);
+    assert.notEqual(restored.find((row) => row.id === '9002').inviteToken, original.inviteToken);
+    assert.equal((await ranking()).find((row) => row.id === original.id).rewardAmount, 600);
+    assert.deepEqual((await rewards(firstCustomer))[0], firstReward);
+  } finally {
+    await sync([cashierA, cashierB]);
+  }
 });
