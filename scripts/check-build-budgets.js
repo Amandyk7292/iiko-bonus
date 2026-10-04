@@ -70,10 +70,10 @@ if (flutterDirectory) {
   if (!fs.existsSync(mainFile)) {
     failures.push(`Flutter entry is missing: ${mainFile}`);
   } else {
-    // The optional cashier signup/QR flow measures 6,677,016 B raw and
-    // 1,822,147 B gzip after finalization. Keep 2,984 B / 1,853 B headroom. Its QR decoder is
+    // Responsive QR and stale-login guards measure 6,682,398 B raw and
+    // 1,822,680 B gzip after finalization. Keep 1,602 B / 1,320 B headroom. Its QR decoder is
     // deferred until scanning and has a separate total budget below.
-    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_680_000);
+    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_684_000);
     assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_824_000);
   }
   const deferredChunks = filesUnder(directory).filter((file) => /\.part\.js$/.test(file));
