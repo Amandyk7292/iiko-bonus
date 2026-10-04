@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react';
-import { Download, Search } from 'lucide-react';
+import { Download, Search } from '../../components/BulkaIcons';
 import { useI18n } from '../../lib/i18n';
 import { dashboardApi, exportProductSales } from './api';
 import { loadControls } from './load-controls';

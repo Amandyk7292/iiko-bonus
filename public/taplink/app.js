@@ -413,69 +413,35 @@
     return node;
   };
 
-  const createSvg = (parts) => {
+  const createBrandSvg = (name) => {
     const svg = createSvgNode('svg', {
       viewBox: '0 0 24 24',
       fill: 'none',
+      stroke: 'currentColor',
+      'stroke-width': '1.75',
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round',
       'aria-hidden': 'true',
       focusable: 'false',
     });
-    parts.forEach(([tag, attributes]) => svg.append(createSvgNode(tag, attributes)));
+    svg.append(
+      createSvgNode('use', {
+        href: `/assets/brand/bulka-icons.svg?v=bulka-premium-1#${name}`,
+      }),
+    );
     return svg;
   };
 
   const iconSvg = (icon) => {
-    if (icon === 'phone') {
-      return createSvg([
-        [
-          'path',
-          {
-            d: 'M7.1 3.4 9.4 3a1.5 1.5 0 0 1 1.7 1l1.1 3.2a1.5 1.5 0 0 1-.5 1.7l-1.6 1.2a13.2 13.2 0 0 0 3.8 3.8l1.2-1.6a1.5 1.5 0 0 1 1.7-.5l3.2 1.1a1.5 1.5 0 0 1 1 1.7l-.4 2.3a3 3 0 0 1-3 2.5A15 15 0 0 1 4.6 6.4a3 3 0 0 1 2.5-3Z',
-          },
-        ],
-      ]);
-    }
-    if (icon === 'whatsapp') {
-      return createSvg([
-        ['path', { d: 'M20 11.7a8 8 0 0 1-11.8 7L4 20l1.3-4.1A8 8 0 1 1 20 11.7Z' }],
-        [
-          'path',
-          {
-            d: 'M8.4 8.1c.4 3.6 2 5.2 5.6 5.7l1.2-1.2 2 .9-.4 2c-5.4.8-9.8-3.6-9-9l2-.4.9 2-1.3 1Z',
-          },
-        ],
-      ]);
-    }
-    if (icon === 'instagram') {
-      return createSvg([
-        ['rect', { x: '3.5', y: '3.5', width: '17', height: '17', rx: '5' }],
-        ['circle', { cx: '12', cy: '12', r: '3.7' }],
-        ['circle', { cx: '17.4', cy: '6.8', r: '0.8', fill: 'currentColor', stroke: 'none' }],
-      ]);
-    }
-    if (icon === 'telegram') {
-      return createSvg([
-        ['path', { d: 'm3 11 17-7-4.2 16-5-4.2-3.2 2.4.6-5.2L17 7.1l-10.8 4.8L3 11Z' }],
-      ]);
-    }
-    if (icon === 'globe') {
-      return createSvg([
-        ['circle', { cx: '12', cy: '12', r: '9' }],
-        [
-          'path',
-          {
-            d: 'M3 12h18M12 3c2.3 2.5 3.5 5.5 3.5 9s-1.2 6.5-3.5 9c-2.3-2.5-3.5-5.5-3.5-9S9.7 5.5 12 3Z',
-          },
-        ],
-      ]);
-    }
-    if (icon === 'location') {
-      return createSvg([
-        ['path', { d: 'M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z' }],
-        ['circle', { cx: '12', cy: '10', r: '2.5' }],
-      ]);
-    }
-    return null;
+    const name = {
+      phone: 'Phone',
+      whatsapp: 'WhatsApp',
+      instagram: 'Instagram',
+      telegram: 'Telegram',
+      globe: 'Globe2',
+      location: 'MapPin',
+    }[icon];
+    return name ? createBrandSvg(name) : null;
   };
 
   const createLinkIcon = (block) => {
@@ -503,15 +469,7 @@
     const wrapper = document.createElement('span');
     wrapper.className = external ? 'external-arrow' : 'link-arrow';
     wrapper.setAttribute('aria-hidden', 'true');
-    wrapper.append(
-      external
-        ? createSvg([
-            ['path', { d: 'M14 5h5v5' }],
-            ['path', { d: 'm19 5-8 8' }],
-            ['path', { d: 'M18 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5' }],
-          ])
-        : createSvg([['path', { d: 'm9 18 6-6-6-6' }]]),
-    );
+    wrapper.append(createBrandSvg(external ? 'ExternalLink' : 'ChevronRight'));
     return wrapper;
   };
 

@@ -240,13 +240,25 @@ class _FamilyScreenState extends State<FamilyScreen> {
                                   _invitationCard(invitation),
                               ],
                               if (_canManage) ...[
-                                Row(
-                                  children: [
-                                    Expanded(child: _addAction(child: false)),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: _addAction(child: true)),
-                                  ],
-                                ),
+                                if (MediaQuery.textScalerOf(context).scale(1) >
+                                    1.2)
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      _addAction(child: false),
+                                      const SizedBox(height: 12),
+                                      _addAction(child: true),
+                                    ],
+                                  )
+                                else
+                                  Row(
+                                    children: [
+                                      Expanded(child: _addAction(child: false)),
+                                      const SizedBox(width: 12),
+                                      Expanded(child: _addAction(child: true)),
+                                    ],
+                                  ),
                                 const SizedBox(height: 24),
                               ],
                               if (_family!['groupId'] != null) ...[
@@ -305,41 +317,41 @@ class _FamilyScreenState extends State<FamilyScreen> {
     );
   }
 
-  Widget _addAction({required bool child}) => Material(
-    color: child
-        ? context.bulkaColors.surfaceCream
-        : context.bulkaColors.brandBrown,
-    borderRadius: BorderRadius.circular(20),
-    child: InkWell(
-      key: ValueKey(child ? 'family-add-child' : 'family-invite'),
-      onTap: _working ? null : () => _form(child: child),
-      borderRadius: BorderRadius.circular(20),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              child ? Icons.face_rounded : Icons.person_add_alt_1_rounded,
-              size: 20,
-              color: child ? context.bulkaColors.brandBrown : Colors.white,
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                _familyText(child ? 'childShort' : 'inviteShort'),
-                softWrap: false,
-                maxLines: 1,
-                style: TextStyle(
-                  fontFamily: _headingFont,
-                  fontSize: 12,
-                  color: child ? context.bulkaColors.brandBrown : Colors.white,
-                ),
-              ),
-            ),
-          ],
+  Widget _addAction({required bool child}) => FilledButton(
+    key: ValueKey(child ? 'family-add-child' : 'family-invite'),
+    onPressed: _working ? null : () => _form(child: child),
+    style:
+        FilledButton.styleFrom(
+          backgroundColor: child
+              ? Colors.white
+              : context.bulkaColors.brandBrown,
+          foregroundColor: child
+              ? context.bulkaColors.brandBrown
+              : Colors.white,
+          minimumSize: const Size(0, BulkaTouch.primaryButton),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        ).copyWith(
+          backgroundBuilder: child
+              ? _bulkaSecondaryButtonBackground
+              : _bulkaChoiceButtonBackground,
         ),
-      ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          child ? Icons.face_rounded : Icons.person_add_alt_1_rounded,
+          size: 22,
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            _familyText(child ? 'childShort' : 'inviteShort'),
+            softWrap: true,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontFamily: _headingFont, fontSize: 14),
+          ),
+        ),
+      ],
     ),
   );
 

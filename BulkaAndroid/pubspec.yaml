@@ -31,7 +31,6 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
-  cupertino_icons: ^1.0.8
   http: ^1.6.0
   http_parser: ^4.1.2
   qr_flutter: ^4.1.0
@@ -89,10 +88,8 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
 
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
-  uses-material-design: true
+  # API-compatible codepoints render our own Bulka artwork, including framework controls.
+  uses-material-design: false
 
   assets:
     - assets/audio/
@@ -107,6 +104,12 @@ flutter:
     - shorebird.yaml
 
   fonts:
+    - family: MaterialIcons
+      fonts:
+        - asset: assets/fonts/BulkaIcons.ttf
+    - family: packages/cupertino_icons/CupertinoIcons
+      fonts:
+        - asset: assets/fonts/BulkaCupertinoIcons.ttf
     - family: MontserratBold
       fonts:
         - asset: assets/fonts/Montserrat-Bold-subset.ttf

@@ -244,7 +244,7 @@ void main() {
     }
   });
 
-  test('only Montserrat typography is registered for customer UI', () {
+  test('Montserrat typography and custom Bulka icon font are bundled', () {
     const familyWeights = {
       'Montserrat': [
         'Regular-subset',
@@ -265,7 +265,30 @@ void main() {
       r'^\s*-\s+family:\s*([^\s]+)',
       multiLine: true,
     ).allMatches(pubspec).map((match) => match.group(1)).toSet();
-    expect(declaredFamilies, {'MontserratBold', 'Montserrat'});
+    expect(declaredFamilies, {
+      'MontserratBold',
+      'Montserrat',
+      'MaterialIcons',
+      'packages/cupertino_icons/CupertinoIcons',
+    });
+    expect(pubspec, matches(RegExp(r'uses-material-design:\s*false')));
+    expect(
+      pubspec,
+      matches(
+        RegExp(
+          r'family:\s*MaterialIcons\s+fonts:\s+-\s+asset:\s*assets/fonts/BulkaIcons\.ttf',
+        ),
+      ),
+    );
+    expect(File('assets/fonts/BulkaIcons.ttf').lengthSync(), greaterThan(1000));
+    expect(
+      File('assets/fonts/BulkaCupertinoIcons.ttf').lengthSync(),
+      greaterThan(1000),
+    );
+    expect(
+      pubspec,
+      isNot(matches(RegExp(r'^\s+cupertino_icons:', multiLine: true))),
+    );
   });
 
   test('customer UI uses only the two semantic font roles', () {

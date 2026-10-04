@@ -8,7 +8,7 @@ import {
   Plus,
   Power,
   Trash2,
-} from 'lucide-react';
+} from '../components/BulkaIcons';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import { tierArtworkStyle } from '../components/TierBackgroundEditor';

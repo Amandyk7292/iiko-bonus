@@ -13,6 +13,7 @@
     "lint": "eslint src/**/*.js",
     "lint:fix": "eslint src/**/*.js --fix",
     "check:structure": "node scripts/check-source-size.js",
+    "check:icons": "node scripts/check-bulka-icons.js",
     "check:contracts": "node scripts/check-api-contract-coverage.js --minimum=170 --minimum-percentage=100",
     "check:secrets": "node scripts/check-secrets.js",
     "check:migration-safety": "node scripts/check-migration-safety.js",
@@ -25,7 +26,7 @@
     "wallet:google:setup": "node scripts/setup-google-wallet.js",
     "build:admin": "npm --prefix admin-ui run build",
     "build": "npm run build:admin",
-    "verify": "npm run check:secrets && npm run check:contracts && npm run lint && npm run check:structure && npm run check:migration-safety && npm run test:coverage && npm run build && npm run check:bundle-admin && npm --prefix admin-ui run lint && npm --prefix admin-ui run test:coverage"
+    "verify": "npm run check:secrets && npm run check:contracts && npm run lint && npm run check:structure && npm run check:icons && npm run check:migration-safety && npm run test:coverage && npm run build && npm run check:bundle-admin && npm --prefix admin-ui run lint && npm --prefix admin-ui run test:coverage"
   },
   "dependencies": {
     "@parse/node-apn": "^8.1.0",

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown } from '../../components/BulkaIcons';
 import { useI18n } from '../../lib/i18n';
 import { loadControls } from './load-controls';
 import { errorKey, type Query } from './model';

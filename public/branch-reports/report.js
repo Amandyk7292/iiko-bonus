@@ -301,7 +301,7 @@
         button.classList.toggle('done', Boolean(report));
         button.disabled = Boolean(report);
         element(button.dataset.kind + '-status').textContent = report
-          ? '✓ Отправлен · ' + report.photoCount + ' фото'
+          ? 'Отправлен · ' + report.photoCount + ' фото'
           : 'Ещё не отправлен';
       });
       show('intro');
@@ -334,7 +334,8 @@
       image.alt = 'Снимок ' + (index + 1);
       const remove = document.createElement('button');
       remove.type = 'button';
-      remove.textContent = '×';
+      remove.innerHTML =
+        '<svg class="bulka-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#X" /></svg>';
       remove.setAttribute('aria-label', 'Удалить снимок ' + (index + 1));
       remove.disabled = sending;
       remove.addEventListener('click', () => {

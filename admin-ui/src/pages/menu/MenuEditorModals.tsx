@@ -1,4 +1,4 @@
-import { LoaderCircle, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { LoaderCircle, Plus, SlidersHorizontal, Trash2 } from '../../components/BulkaIcons';
 import Modal from '../../components/Modal';
 import { CustomProductEditor, IikoProductEditor } from './ProductEditorForms';
 import SelectControl from '../../components/SelectControl';

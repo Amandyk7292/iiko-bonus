@@ -1,0 +1,205 @@
+/* Shared brand controls for Bulka's small web pages, independent of Flutter. */
+:root {
+  --bulka-primary-finish: linear-gradient(118deg, #ffdf84 0%, #ffc23b 52%, #efa51c 100%);
+  --bulka-ivory-finish: linear-gradient(145deg, #fff 0%, #fffbf3 72%, #f6eddd 100%);
+  --bulka-cocoa-finish: linear-gradient(125deg, #835030 0%, #60351f 56%, #482516 100%);
+}
+.bulka-icon {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: middle;
+}
+:is(button, a).primary,
+.button.primary,
+.save-button,
+.qr-button,
+.store-button {
+  background: var(--bulka-primary-finish);
+  color: #492512;
+  border: 1px solid #dba337;
+  box-shadow:
+    inset 0 1px 0 #fff0b7,
+    0 5px 14px #b07a2226;
+  transition:
+    background 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+:is(button, a).primary:hover:not(:disabled),
+.button.primary:hover:not(:disabled),
+.save-button:hover,
+.qr-button:hover:not(:disabled),
+.store-button:hover {
+  background: linear-gradient(118deg, #ffe69f, #ffcb50 52%, #f4af27);
+  border-color: #c78e28;
+  color: #492512;
+}
+.store-button {
+  color: #fff;
+  background: linear-gradient(140deg, #382417, #16100b 72%, #080604);
+  border-color: #634733;
+  box-shadow:
+    inset 0 1px 0 #ffffff24,
+    0 5px 16px #3b251324;
+}
+.store-button:hover {
+  color: #fff;
+  background: linear-gradient(140deg, #49301f, #211710 72%, #080604);
+  border-color: #7c5937;
+}
+:is(button, a).secondary,
+button.ghost,
+.button:not(.primary):not(.danger),
+.refresh,
+.close,
+.close-button,
+.icon-button,
+.map-control {
+  background: var(--bulka-ivory-finish);
+  color: #60351f;
+  border: 1px solid #e6d7bf;
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 3px 10px #6b431210;
+}
+.secondary-action,
+.position-actions button,
+.zoom button,
+.products-head button,
+.product-editor-actions button:not(.danger),
+.language-button:not(.is-active):not([aria-pressed='true']) {
+  background: var(--bulka-ivory-finish);
+  color: #60351f;
+  border: 1px solid #e6d7bf;
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 3px 10px #6b431210;
+}
+.zoom button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+button.danger {
+  background: linear-gradient(125deg, #c74b3e, #9c2926);
+  color: #fff;
+  border-color: #a63930;
+  box-shadow:
+    inset 0 1px 0 #ffffff38,
+    0 4px 12px #9c29261a;
+}
+:is(button, a).secondary:hover:not(:disabled),
+.refresh:hover:not(:disabled),
+.close:hover,
+.close-button:hover,
+.icon-button:hover,
+.map-control:hover {
+  background: linear-gradient(145deg, #fff, #fff0cb);
+  border-color: #c8a76f;
+}
+.close .bulka-icon,
+.close-button .bulka-icon {
+  width: 22px;
+  height: 22px;
+}
+.receipt-close {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  background: var(--bulka-ivory-finish);
+  color: #60351f;
+  border: 1px solid #e6d7bf;
+  border-radius: 14px;
+}
+.secure-icon {
+  width: 17px;
+  height: 17px;
+}
+.success > div .bulka-icon {
+  width: 42px;
+  height: 42px;
+}
+#back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.close,
+.close-button {
+  display: grid;
+  place-items: center;
+}
+.shift-picker button[aria-pressed='true'],
+.language-button.is-active,
+.language-button[aria-pressed='true'],
+#locate {
+  background: var(--bulka-cocoa-finish);
+  color: #fff8e7;
+  border-color: #6f4227;
+  box-shadow:
+    inset 0 1px 0 #ffffff28,
+    0 4px 12px #60351f1f;
+}
+#locate:hover {
+  background: linear-gradient(125deg, #925a36, #60351f 56%, #482516);
+  color: #fff8e7;
+  border-color: #6f4227;
+}
+.report-kind {
+  background: var(--bulka-ivory-finish);
+  border-color: #e8dcc8;
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 4px 14px #6b431208;
+}
+.link-card {
+  background-image: linear-gradient(125deg, #ffffff38, #ffffff08 58%, #7c4b1c0a);
+}
+.link-card_primary {
+  background-image: linear-gradient(125deg, #ffffff42, #ffffff00 55%, #9b56100c);
+}
+.taplink-effect-shine .link-card:not([data-taplink-effect]),
+.link-card[data-taplink-effect='shine'] {
+  box-shadow:
+    inset 0 1px 0 #ffffff80,
+    0 7px 20px #7045201c;
+}
+.taplink-effect-shine .link-card:not([data-taplink-effect]):active,
+.link-card[data-taplink-effect='shine']:active {
+  box-shadow:
+    inset 0 1px 3px #5e381b12,
+    0 2px 8px #70452012;
+}
+:is(button, a).primary:active:not(:disabled),
+.qr-button:active:not(:disabled),
+.save-button:active {
+  transform: scale(0.985);
+  box-shadow: inset 0 1px 3px #5e381b12;
+}
+:is(button, a).primary:disabled,
+.qr-button:disabled,
+.refresh:disabled {
+  background: linear-gradient(125deg, #f3ebdc, #e7dfd2);
+  color: #76664e;
+  border-color: #ded4c2;
+  opacity: 1;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(button, .button, .primary, .secondary, .save-button, .qr-button, .store-button) {
+    transition: none !important;
+    animation: none !important;
+  }
+  :is(button, .button, .primary, .secondary, .save-button, .qr-button, .store-button):active {
+    transform: none;
+  }
+}

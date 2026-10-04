@@ -14,7 +14,7 @@ import {
   ShieldCheck,
   UserCog,
   ChevronDown,
-} from 'lucide-react';
+} from '../components/BulkaIcons';
 import Modal from '../components/Modal';
 import GuardedModal from '../components/GuardedModal';
 import BranchAccessPicker, { type AccessBranch } from '../components/BranchAccessPicker';

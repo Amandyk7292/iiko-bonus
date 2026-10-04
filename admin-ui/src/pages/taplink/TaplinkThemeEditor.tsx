@@ -7,7 +7,7 @@ import {
   Palette,
   RotateCcw,
   Square,
-} from 'lucide-react';
+} from '../../components/BulkaIcons';
 import type {
   TaplinkBackgroundMode,
   TaplinkDocument,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, Check, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { AlertCircle, Check, ChevronLeft, ChevronRight, RefreshCw } from '../../components/BulkaIcons';
 import Modal from '../../components/Modal';
 import PageState from '../../components/PageState';
 import ReportAudit from './ReportAudit';

@@ -207,7 +207,7 @@ void main() {
     await regular.load();
     await (FontLoader(
       'MaterialIcons',
-    )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
+    )..addFont(rootBundle.load('assets/fonts/BulkaIcons.ttf'))).load();
   });
   setUp(() {
     SharedPreferences.setMockInitialValues({'staffKitchenSound': false});

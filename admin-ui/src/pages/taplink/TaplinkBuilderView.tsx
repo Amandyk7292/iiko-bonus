@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, ExternalLink, LoaderCircle, Save, Send } from 'lucide-react';
+import { AlertTriangle, Check, ExternalLink, LoaderCircle, Save, Send } from '../../components/BulkaIcons';
 import { useFeedback } from '../../components/Feedback';
 import { useI18n } from '../../lib/i18n';
 import TaplinkBlockEditor from './TaplinkBlockEditor';

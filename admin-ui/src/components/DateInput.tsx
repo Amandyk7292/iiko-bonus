@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight } from './BulkaIcons';
 import Modal from './Modal';
 import { useI18n } from '../lib/i18n';
 import './date-input.css';

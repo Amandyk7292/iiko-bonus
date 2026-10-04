@@ -1,3 +1,4 @@
+import { Check } from '../../components/BulkaIcons';
 import { useEffect, useId, useState } from 'react';
 import { request } from '../../lib/api';
 import type { ProductBadge } from './menu-page.shared';
@@ -95,7 +96,7 @@ export default function ProductStickerPicker({
           >
             <ProductPhotoSticker badges={[badge]} size={64} />
             <span>
-              {badge.id === selectedId ? '✓ ' : ''}
+              {badge.id === selectedId && <Check aria-hidden="true" size={16} />}
               {badge.label === 'Менің таңдауым (круг)'
                 ? 'Круг'
                 : badge.label === 'Менің таңдауым (сердце)'

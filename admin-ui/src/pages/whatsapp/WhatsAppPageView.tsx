@@ -24,7 +24,7 @@ import {
   Trash2,
   UserRound,
   X,
-} from 'lucide-react';
+} from '../../components/BulkaIcons';
 import PageState from '../../components/PageState';
 import WhatsAppStatusPanel from '../WhatsAppStatusPanel';
 import {

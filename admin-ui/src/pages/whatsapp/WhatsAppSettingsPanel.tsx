@@ -11,7 +11,7 @@ import {
   Save,
   ShieldCheck,
   Sparkles,
-} from 'lucide-react';
+} from '../../components/BulkaIcons';
 import { type WhatsAppAssistantSettings } from '../../lib/api';
 import {
   formatDateTime,

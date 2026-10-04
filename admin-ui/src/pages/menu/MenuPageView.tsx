@@ -15,7 +15,7 @@ import {
   Trash2,
   Upload,
   UtensilsCrossed,
-} from 'lucide-react';
+} from '../../components/BulkaIcons';
 import PageState from '../../components/PageState';
 import SelectControl from '../../components/SelectControl';
 import MenuCityScope from './MenuCityScope';

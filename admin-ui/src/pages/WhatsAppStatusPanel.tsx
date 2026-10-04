@@ -1,4 +1,4 @@
-import { LoaderCircle, QrCode, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { LoaderCircle, QrCode, RefreshCw, Wifi, WifiOff } from '../components/BulkaIcons';
 import type { WhatsAppConnectionStatus } from '../lib/api';
 import { connectionCopy, providerLabels } from './whatsapp-page.helpers';
 

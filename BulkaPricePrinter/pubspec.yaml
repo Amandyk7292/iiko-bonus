@@ -31,8 +31,6 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
   http: ^1.6.0
   barcode_widget: ^2.0.4
   pdf: ^3.12.0
@@ -56,13 +54,18 @@ dev_dependencies:
 # The following section is specific to Flutter packages.
 flutter:
 
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
-  uses-material-design: true
+  # Material-compatible codepoints use the shared, original Bulka icon artwork.
+  uses-material-design: false
   assets:
     - assets/fonts/Roboto-Regular.ttf
     - assets/fonts/Roboto-Bold.ttf
+  fonts:
+    - family: MaterialIcons
+      fonts:
+        - asset: assets/fonts/BulkaIcons.ttf
+    - family: packages/cupertino_icons/CupertinoIcons
+      fonts:
+        - asset: assets/fonts/BulkaCupertinoIcons.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

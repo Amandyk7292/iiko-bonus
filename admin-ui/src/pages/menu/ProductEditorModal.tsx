@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { LoaderCircle } from 'lucide-react';
+import { LoaderCircle } from '../../components/BulkaIcons';
 import Modal from '../../components/GuardedModal';
 import ProductBadges, { type ProductBadgesHandle } from './ProductBadges';
 import ProductInventoryUnit, { type ProductInventoryUnitHandle } from './ProductInventoryUnit';

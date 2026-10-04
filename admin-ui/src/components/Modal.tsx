@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { X } from './BulkaIcons';
 import { useI18n } from '../lib/i18n';
 import { motionDurations, useReducedMotion } from '../lib/motion';
 import { isTopmostModal, lockModalScroll } from '../lib/modal-scroll-lock';

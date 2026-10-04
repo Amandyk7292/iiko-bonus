@@ -16,6 +16,7 @@ import './styles/global-search.css';
 import './styles/topbar.css';
 import './styles/workspace.css';
 import './styles/admin-usability.css';
+import './styles/premium-controls.css';
 
 installChunkRecovery();
 

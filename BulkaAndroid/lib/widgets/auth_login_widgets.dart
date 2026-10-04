@@ -43,48 +43,51 @@ class _AuthLoginMethodSelector extends StatelessWidget {
                     onTap: enabled && admin != adminMethod
                         ? () => onChanged(adminMethod)
                         : null,
-                    child: AnimatedContainer(
-                      duration: BulkaMotion.duration(context, BulkaMotion.fast),
-                      constraints: const BoxConstraints(minHeight: 48),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: admin == adminMethod
-                            ? colors.brandGold.withValues(alpha: .22)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(
-                          BulkaRadii.control - 4,
+                    child: BulkaButtonSurface(
+                      ink: true,
+                      disabled: !enabled,
+                      radius: BulkaRadii.control - 4,
+                      tone: admin == adminMethod
+                          ? BulkaButtonTone.choice
+                          : BulkaButtonTone.secondary,
+                      child: Container(
+                        constraints: const BoxConstraints(minHeight: 48),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 10,
                         ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            adminMethod
-                                ? Icons.lock_outline_rounded
-                                : Icons.phone_outlined,
-                            size: 18,
-                            color: colors.brandBrown,
-                          ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              (adminMethod
-                                      ? 'auth_method_password'
-                                      : 'auth_method_phone')
-                                  .tr,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontFamily: _headingFont,
-                                color: colors.brandBrown,
-                                fontSize: BulkaTypeScale.bodySmall,
-                                fontWeight: FontWeight.w700,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              adminMethod
+                                  ? Icons.lock_outline_rounded
+                                  : Icons.phone_outlined,
+                              size: 18,
+                              color: enabled && admin == adminMethod
+                                  ? Colors.white
+                                  : colors.brandBrown,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                (adminMethod
+                                        ? 'auth_method_password'
+                                        : 'auth_method_phone')
+                                    .tr,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: _headingFont,
+                                  color: enabled && admin == adminMethod
+                                      ? Colors.white
+                                      : colors.brandBrown,
+                                  fontSize: BulkaTypeScale.bodySmall,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),

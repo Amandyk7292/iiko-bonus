@@ -350,34 +350,38 @@ extension _LoginScreenForms on _LoginScreenState {
       inMutuallyExclusiveGroup: true,
       label: label,
       child: Material(
-        color: selected ? colors.surfaceCream : Colors.transparent,
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(BulkaRadii.control),
         child: InkWell(
           onTap: () => _update(() => _selectedGender = value),
           borderRadius: BorderRadius.circular(BulkaRadii.control),
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 48),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              children: [
-                Icon(
-                  selected
-                      ? Icons.radio_button_checked_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  color: colors.brandBrown,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurface,
-                      fontSize: BulkaTypeScale.bodySmall,
-                      fontWeight: FontWeight.w600,
+          child: BulkaButtonSurface(
+            ink: true,
+            tone: selected ? BulkaButtonTone.choice : BulkaButtonTone.secondary,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 48),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  Icon(
+                    selected
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    color: selected ? Colors.white : colors.brandBrown,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        color: selected ? Colors.white : colors.brandBrown,
+                        fontSize: BulkaTypeScale.bodySmall,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -464,44 +468,42 @@ extension _LoginScreenForms on _LoginScreenState {
 
   Widget _buildLanguageBadge() {
     final colors = context.bulkaColors;
-    final scheme = Theme.of(context).colorScheme;
     return Tooltip(
       message: 'language_tooltip'.tr,
-      child: InkWell(
-        onTap: _showLanguageBottomSheet,
+      child: Material(
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(BulkaRadii.control),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: scheme.surface,
-            borderRadius: BorderRadius.circular(BulkaRadii.control),
-            border: Border.all(
-              color: colors.cardBorder,
-              width: BulkaStrokes.hairline,
+        child: InkWell(
+          onTap: _showLanguageBottomSheet,
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+          child: BulkaButtonSurface(
+            ink: true,
+            tone: BulkaButtonTone.secondary,
+            shadows: BulkaButtonSurface.softShadow,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: BulkaTouch.minimum),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.language_rounded,
+                    color: colors.brandBrown,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _langCode,
+                    style: TextStyle(
+                      fontFamily: _headingFont,
+                      color: colors.brandBrown,
+                      fontSize: BulkaTypeScale.bodySmall,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0A000000),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.language_rounded, color: colors.brandBrown, size: 18),
-              const SizedBox(width: 6),
-              Text(
-                _langCode,
-                style: TextStyle(
-                  fontFamily: _headingFont,
-                  color: colors.brandBrown,
-                  fontSize: BulkaTypeScale.bodySmall,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
           ),
         ),
       ),

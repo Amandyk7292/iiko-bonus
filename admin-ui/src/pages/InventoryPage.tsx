@@ -7,7 +7,7 @@ import {
   Save,
   Search,
   Warehouse,
-} from 'lucide-react';
+} from '../components/BulkaIcons';
 import PageState from '../components/PageState';
 import SelectControl from '../components/SelectControl';
 import { useFeedback } from '../components/Feedback';

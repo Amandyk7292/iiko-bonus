@@ -17,7 +17,7 @@ import {
   ClipboardCheck,
   ReceiptText,
   Trophy,
-} from 'lucide-react';
+} from '../components/BulkaIcons';
 import { useI18n } from '../lib/i18n';
 import { isIikoRequestPending } from '../lib/iiko-request-policy';
 import { dashboardApi, exportReport } from './iiko-dashboard/api';

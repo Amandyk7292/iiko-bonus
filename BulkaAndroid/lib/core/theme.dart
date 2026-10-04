@@ -1,18 +1,7 @@
 part of '../main.dart';
 
 const _bulkaYellow = Color(0xFFFFB300);
-// Highlights blended into brand yellow keep the glass finish fully opaque.
-const _bulkaGlassGradient = LinearGradient(
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
-  colors: [
-    Color(0xFFFFD061),
-    Color(0xFFFFBC1F),
-    _bulkaYellow,
-    Color(0xFFFAAE01),
-  ],
-  stops: [0, 0.34, 0.66, 1],
-);
+const _bulkaGlassGradient = BulkaButtonSurface.goldGradient;
 const _bulkaBrown = Color(0xFF532814);
 const _milkyBackground = Color(0xFFFFFFFF);
 const _lightCard = Color(0xFFFFFFFF);
@@ -595,6 +584,7 @@ ThemeData buildBulkaTheme() {
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: ButtonStyle(
+        backgroundBuilder: _bulkaPrimaryButtonBackground,
         minimumSize: const WidgetStatePropertyAll(
           Size(0, BulkaTouch.primaryButton),
         ),
@@ -614,7 +604,8 @@ ThemeData buildBulkaTheme() {
           return _bulkaYellow;
         }),
         overlayColor: _bulkaButtonOverlay(_bulkaBrown),
-        elevation: const WidgetStatePropertyAll(0),
+        elevation: const WidgetStatePropertyAll(1),
+        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
         shadowColor: WidgetStatePropertyAll(
           _bulkaBrown.withValues(alpha: 0.14),
         ),
@@ -638,6 +629,7 @@ ThemeData buildBulkaTheme() {
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ButtonStyle(
+        backgroundBuilder: _bulkaSecondaryButtonBackground,
         minimumSize: const WidgetStatePropertyAll(Size(0, BulkaTouch.button)),
         tapTargetSize: MaterialTapTargetSize.padded,
         animationDuration: BulkaMotion.fast,
@@ -650,7 +642,7 @@ ThemeData buildBulkaTheme() {
         }),
         backgroundColor: const WidgetStatePropertyAll(Colors.white),
         overlayColor: _bulkaButtonOverlay(_bulkaBrown),
-        elevation: const WidgetStatePropertyAll(0),
+        elevation: const WidgetStatePropertyAll(1),
         surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
         shadowColor: WidgetStatePropertyAll(
           _bulkaBrown.withValues(alpha: 0.12),
@@ -675,6 +667,7 @@ ThemeData buildBulkaTheme() {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: ButtonStyle(
+        backgroundBuilder: _bulkaSecondaryButtonBackground,
         minimumSize: const WidgetStatePropertyAll(Size(0, BulkaTouch.button)),
         tapTargetSize: MaterialTapTargetSize.padded,
         animationDuration: BulkaMotion.fast,

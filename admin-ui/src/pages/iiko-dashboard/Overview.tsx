@@ -9,7 +9,7 @@ import {
   Users,
   Package,
   Coins,
-} from 'lucide-react';
+} from '../../components/BulkaIcons';
 import {
   Chart as ChartJS,
   CategoryScale,

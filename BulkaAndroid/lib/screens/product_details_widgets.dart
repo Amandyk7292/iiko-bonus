@@ -171,12 +171,13 @@ class _ProductPurchaseBar extends StatelessWidget {
               constraints: const BoxConstraints(minHeight: 68),
               padding: const EdgeInsets.fromLTRB(20, 8, 8, 8),
               decoration: BoxDecoration(
-                color: colors.surfaceCream,
+                gradient: BulkaButtonSurface.ivoryGradient,
                 borderRadius: BorderRadius.circular(32),
                 border: Border.all(
                   color: colors.cardBorder,
                   width: BulkaStrokes.hairline,
                 ),
+                boxShadow: BulkaButtonSurface.softShadow,
               ),
               child: Row(
                 children: [

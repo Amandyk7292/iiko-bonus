@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Copy, KeyRound, LoaderCircle, ShieldAlert } from 'lucide-react';
+import { CheckCircle2, Copy, KeyRound, LoaderCircle, ShieldAlert } from './BulkaIcons';
 import { api, type BranchPosCredentialSecret, type BranchPosCredentialStatus } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { useFeedback } from './Feedback';

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { BellRing, LoaderCircle, Send } from 'lucide-react';
+import { BellRing, LoaderCircle, Send } from '../components/BulkaIcons';
 import { useFeedback } from '../components/Feedback';
 import { api, type LocalizedText } from '../lib/api';
 import { useI18n, type Locale } from '../lib/i18n';

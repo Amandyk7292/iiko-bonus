@@ -1,4 +1,4 @@
-import { Bell, Send } from 'lucide-react';
+import { Bell, Send } from './BulkaIcons';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { api, type StaffPushDevice } from '../lib/api';
 import { useI18n } from '../lib/i18n';

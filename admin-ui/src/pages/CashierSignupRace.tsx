@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, Download, QrCode, RefreshCw, Search, Trophy, Users, Wallet } from 'lucide-react';
+import { Copy, Download, QrCode, RefreshCw, Search, Trophy, Users, Wallet } from '../components/BulkaIcons';
 import Modal from '../components/Modal';
 import { request } from '../lib/api';
 import { useI18n } from '../lib/i18n';

@@ -69,6 +69,12 @@
       input.type = visible ? 'text' : 'password';
       button.setAttribute('aria-pressed', String(visible));
       button.setAttribute('aria-label', visible ? 'Скрыть пароль' : 'Показать пароль');
+      button
+        .querySelector('use')
+        ?.setAttribute(
+          'href',
+          '/assets/brand/bulka-icons.svg?v=bulka-premium-1#' + (visible ? 'EyeOff' : 'Eye'),
+        );
     });
   });
   $('check-again').addEventListener('click', validateLink);

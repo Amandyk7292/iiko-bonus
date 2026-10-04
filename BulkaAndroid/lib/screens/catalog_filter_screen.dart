@@ -329,88 +329,89 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                                 inMutuallyExclusiveGroup: isSingleChoice,
                                 label: _optionLabel(option),
                                 excludeSemantics: true,
-                                child: InkWell(
-                                  onTap: () => _toggleFilter(option),
-                                  child: AnimatedContainer(
-                                    duration: BulkaMotion.duration(
-                                      context,
-                                      const Duration(milliseconds: 180),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  borderRadius: BorderRadius.circular(
+                                    BulkaRadii.control,
+                                  ),
+                                  child: InkWell(
+                                    onTap: () => _toggleFilter(option),
+                                    borderRadius: BorderRadius.circular(
+                                      BulkaRadii.control,
                                     ),
-                                    curve: Curves.easeOutCubic,
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? colors.brandGold.withValues(
-                                              alpha: 0.12,
-                                            )
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                      horizontal: 8,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            _optionLabel(option),
-                                            style: TextStyle(
-                                              fontSize: BulkaTypeScale.body,
-                                              color: isSelected
-                                                  ? scheme.onSurface
-                                                  : colors.mutedText,
-                                              fontWeight: isSelected
-                                                  ? FontWeight.w600
-                                                  : FontWeight.w400,
-                                            ),
-                                          ),
+                                    child: BulkaButtonSurface(
+                                      ink: true,
+                                      tone: isSelected
+                                          ? BulkaButtonTone.choice
+                                          : BulkaButtonTone.secondary,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                          horizontal: 8,
                                         ),
-                                        const SizedBox(width: 16),
-                                        Container(
-                                          width: 22,
-                                          height: 22,
-                                          decoration: BoxDecoration(
-                                            shape: isSingleChoice
-                                                ? BoxShape.circle
-                                                : BoxShape.rectangle,
-                                            color: isSingleChoice
-                                                ? Colors.white
-                                                : isSelected
-                                                ? _bulkaYellow
-                                                : Colors.white,
-                                            borderRadius: isSingleChoice
-                                                ? null
-                                                : BorderRadius.circular(6),
-                                            border: Border.all(
-                                              color: isSelected
-                                                  ? colors.brandBrown
-                                                  : colors.cardBorder,
-                                              width: isSelected ? 2 : 1.5,
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                _optionLabel(option),
+                                                style: TextStyle(
+                                                  fontSize: BulkaTypeScale.body,
+                                                  color: isSelected
+                                                      ? Colors.white
+                                                      : colors.mutedText,
+                                                  fontWeight: isSelected
+                                                      ? FontWeight.w600
+                                                      : FontWeight.w400,
+                                                ),
+                                              ),
                                             ),
-                                          ),
-                                          child: isSelected
-                                              ? isSingleChoice
-                                                    ? Center(
-                                                        child: Container(
-                                                          width: 10,
-                                                          height: 10,
-                                                          decoration:
-                                                              BoxDecoration(
+                                            const SizedBox(width: 16),
+                                            Container(
+                                              width: 22,
+                                              height: 22,
+                                              decoration: BoxDecoration(
+                                                shape: isSingleChoice
+                                                    ? BoxShape.circle
+                                                    : BoxShape.rectangle,
+                                                color: isSingleChoice
+                                                    ? Colors.white
+                                                    : isSelected
+                                                    ? _bulkaYellow
+                                                    : Colors.white,
+                                                borderRadius: isSingleChoice
+                                                    ? null
+                                                    : BorderRadius.circular(6),
+                                                border: Border.all(
+                                                  color: isSelected
+                                                      ? colors.brandBrown
+                                                      : colors.cardBorder,
+                                                  width: isSelected ? 2 : 1.5,
+                                                ),
+                                              ),
+                                              child: isSelected
+                                                  ? isSingleChoice
+                                                        ? Center(
+                                                            child: Container(
+                                                              width: 10,
+                                                              height: 10,
+                                                              decoration: BoxDecoration(
                                                                 color: colors
                                                                     .brandBrown,
                                                                 shape: BoxShape
                                                                     .circle,
                                                               ),
-                                                        ),
-                                                      )
-                                                    : const Icon(
-                                                        Icons.check_rounded,
-                                                        size: 15,
-                                                        color: _textDark,
-                                                      )
-                                              : null,
+                                                            ),
+                                                          )
+                                                        : const Icon(
+                                                            Icons.check_rounded,
+                                                            size: 15,
+                                                            color: _textDark,
+                                                          )
+                                                  : null,
+                                            ),
+                                          ],
                                         ),
-                                      ],
+                                      ),
                                     ),
                                   ),
                                 ),

@@ -9,7 +9,7 @@ import {
   ShoppingBag,
   Volume2,
   VolumeX,
-} from 'lucide-react';
+} from './BulkaIcons';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from '../lib/router';
 import { api, type AdminScopeLocation } from '../lib/api';

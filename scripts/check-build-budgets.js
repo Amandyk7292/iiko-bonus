@@ -52,15 +52,16 @@ if (adminDirectory) {
     javascriptGzip.reduce((sum, size) => sum + size, 0),
     // UI audit fixes (draft guards, persisted filters and load recovery)
     // measure 449,528 B after shared guard/input deduplication.
-    // Allow 1,032 B headroom; retain the largest-chunk/CSS limits.
+    // Allow 1,032 B headroom; retain the largest-chunk limit.
     // Exporters load only on download and keep their separate budgets below.
     450_560,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   assertBudget('Admin deferred price-label PDF gzip', Math.max(0, ...priceLabelPdfGzip), 185_000);
   assertBudget('Admin deferred price-label Corel gzip', Math.max(0, ...priceLabelCorelGzip), 2_000);
-  // Shared workspace styling measures 32,045 B at f031c12 (about 2% margin).
-  assertBudget('Admin largest CSS gzip', Math.max(0, ...styleGzip), 33_000);
+  // Shared premium control states measure 33,956 B; keep 544 B headroom.
+  // Replacing the stock icon library reduces core JS to 440,418 B.
+  assertBudget('Admin largest CSS gzip', Math.max(0, ...styleGzip), 34_500);
 }
 
 const flutterDirectory = option('--flutter');
@@ -70,10 +71,10 @@ if (flutterDirectory) {
   if (!fs.existsSync(mainFile)) {
     failures.push(`Flutter entry is missing: ${mainFile}`);
   } else {
-    // Live staff QR scanning and compact consent measure 6,706,864 B raw /
-    // 1,827,789 B gzip. Keep 1,636 B raw / 1,211 B gzip headroom.
+    // Shared premium surfaces measure 6,710,200 B raw / 1,828,867 B gzip.
+    // Keep 800 B raw headroom and the existing compressed-size limit.
     // The QR decoder remains deferred with a separate total budget below.
-    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_708_500);
+    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_711_000);
     assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_829_000);
   }
   const deferredChunks = filesUnder(directory).filter((file) => /\.part\.js$/.test(file));

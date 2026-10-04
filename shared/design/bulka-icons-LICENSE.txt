@@ -1,0 +1,36 @@
+Bulka Atelier Icons
+
+The original vector geometry in bulka-icons.json and the generated BulkaIcons
+and BulkaCupertinoIcons fonts and SVG sprite are dedicated to the public domain
+under CC0 1.0 Universal.
+
+https://creativecommons.org/publicdomain/zero/1.0/
+
+The icon drawings were created for this project. They are not copied from
+Material Icons, Lucide, or another third-party icon collection. Existing
+Material IconData codepoints and component aliases only identify corresponding
+application functions; they do not supply the artwork.
+
+The Bulka name and recognizable third-party service names remain the respective
+owners' trademarks. This dedication does not grant trademark rights.
+
+Canonical geometry: shared/design/bulka-icons.json
+Generator: scripts/generate-bulka-ui-icons.py
+Dependencies: Python 3.10+, scripts/bulka-icon-generator-requirements.txt
+
+Generate:
+  python scripts/generate-bulka-ui-icons.py
+
+Verify the committed assets reproduce exactly:
+  python scripts/generate-bulka-ui-icons.py --check
+
+Optional visual review sheet:
+  python scripts/generate-bulka-ui-icons.py --contact-sheet outputs/icons.svg
+
+Flutter declares the app fonts with compatibility families MaterialIcons and
+packages/cupertino_icons/CupertinoIcons. Their artwork remains Bulka's own.
+Material aliases and Cupertino aliases are separate codepoint namespaces.
+
+The generator is offline and deterministic. It preserves the 24-unit drawing
+grid, rounds stroke ends and joins, converts strokes to font outlines, and
+keeps the checked/unchecked, filled/outline, and enabled/off meanings distinct.

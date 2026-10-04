@@ -17,7 +17,7 @@ export default defineConfig({
             return 'staff-orders';
           }
           if (id.includes('/src/lib/i18n')) return 'i18n';
-          if (id.includes('/lucide-react/')) return 'icons';
+          if (id.includes('/components/BulkaIcons.tsx')) return 'icons';
         },
       },
     },

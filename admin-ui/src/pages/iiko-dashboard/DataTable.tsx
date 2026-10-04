@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDownUp, Columns3, Search } from 'lucide-react';
+import { ArrowDownUp, Columns3, Search } from '../../components/BulkaIcons';
 import { useI18n } from '../../lib/i18n';
 import type { Report } from './model';
 

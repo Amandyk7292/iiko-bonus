@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCw, Search, Tablet, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, Search, Tablet, X } from '../components/BulkaIcons';
 import PageState from '../components/PageState';
 import { useI18n } from '../lib/i18n';
 import { useSearchParams } from '../lib/router';

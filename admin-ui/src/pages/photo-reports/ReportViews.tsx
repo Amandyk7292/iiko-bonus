@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Clock3, QrCode } from 'lucide-react';
+import { Check, ChevronRight, Clock3, QrCode } from '../../components/BulkaIcons';
 import {
   kinds,
   reportKey,

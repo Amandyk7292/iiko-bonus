@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Save, Smartphone } from 'lucide-react';
+import { Save, Smartphone } from '../components/BulkaIcons';
 import PageState from '../components/PageState';
 import { useFeedback } from '../components/Feedback';
 import { api } from '../lib/api';

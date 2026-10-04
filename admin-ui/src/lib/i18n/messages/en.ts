@@ -2,6 +2,8 @@ import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 import deliveryResolution from '../delivery-resolution';
 const en: Record<string, string> = {
+  'common.previous': 'Previous page',
+  'common.next': 'Next page',
   ...dashboard.en,
   ...referralReport.en,
   'bonus.referralTitle': 'Invite friends',

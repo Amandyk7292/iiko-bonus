@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ClipboardList, LoaderCircle } from 'lucide-react';
+import { ClipboardList, LoaderCircle } from '../components/BulkaIcons';
 import Modal from '../components/GuardedModal';
 import { useFeedback } from '../components/Feedback';
 import { request } from '../lib/api';

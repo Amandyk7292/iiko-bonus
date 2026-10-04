@@ -8,15 +8,13 @@ class _FamilyPanel extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: EdgeInsets.all(padding),
     decoration: BoxDecoration(
-      color: context.bulkaColors.surfaceCream,
+      gradient: BulkaButtonSurface.ivoryGradient,
       borderRadius: BorderRadius.circular(24),
-      boxShadow: [
-        BoxShadow(
-          color: context.bulkaColors.brandBrown.withValues(alpha: 0.05),
-          blurRadius: 24,
-          offset: const Offset(0, 8),
-        ),
-      ],
+      border: Border.all(
+        color: context.bulkaColors.cardBorder,
+        width: BulkaStrokes.hairline,
+      ),
+      boxShadow: BulkaButtonSurface.softShadow,
     ),
     child: child,
   );
@@ -31,20 +29,37 @@ class _FamilyAvatar extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     width: size,
     height: size,
+    padding: const EdgeInsets.all(8),
     alignment: Alignment.center,
     decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      color: context.bulkaColors.brandGold.withValues(
-        alpha: child ? 0.3 : 0.14,
+      borderRadius: BorderRadius.circular(17),
+      gradient: child
+          ? BulkaButtonSurface.goldGradient
+          : BulkaButtonSurface.ivoryGradient,
+      border: Border.all(
+        color: const Color(0xFFE2C995),
+        width: BulkaStrokes.hairline,
       ),
+      boxShadow: BulkaButtonSurface.softShadow,
     ),
     child: child
-        ? Icon(Icons.face_rounded, size: size * 0.56)
-        : Text(
-            name.trim().isEmpty
-                ? 'B'
-                : name.trim().characters.first.toUpperCase(),
-            style: TextStyle(fontFamily: _headingFont, fontSize: size * 0.42),
+        ? Icon(
+            Icons.face_rounded,
+            size: size * 0.56,
+            color: context.bulkaColors.brandBrown,
+          )
+        : FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              name.trim().isEmpty
+                  ? 'B'
+                  : name.trim().characters.first.toUpperCase(),
+              style: TextStyle(
+                fontFamily: _headingFont,
+                fontSize: size * 0.42,
+                color: context.bulkaColors.brandBrown,
+              ),
+            ),
           ),
   );
 }

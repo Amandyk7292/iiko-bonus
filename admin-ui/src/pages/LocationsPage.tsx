@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Building2, Clock3, LoaderCircle, MapPin, Pencil, Plus, RefreshCw } from 'lucide-react';
+import { Building2, Clock3, LoaderCircle, MapPin, Pencil, Plus, RefreshCw } from '../components/BulkaIcons';
 import Modal from '../components/GuardedModal';
 import PageState from '../components/PageState';
 import YandexLocationMap, { type MapPointDetails } from '../components/YandexLocationMap';

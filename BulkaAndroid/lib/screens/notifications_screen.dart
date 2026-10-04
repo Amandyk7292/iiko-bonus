@@ -616,18 +616,15 @@ class _NotificationTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
-    final scheme = Theme.of(context).colorScheme;
     return Semantics(
       button: true,
       selected: selected,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 50),
         child: Material(
-          color: selected
-              ? scheme.secondaryContainer
-              : scheme.surface.withValues(alpha: .94),
-          elevation: selected ? 2 : 1,
-          shadowColor: const Color(0x26532814),
+          color: Colors.transparent,
+          elevation: 1,
+          shadowColor: const Color(0x12532814),
           clipBehavior: Clip.antiAlias,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(BulkaRadii.control),
@@ -638,34 +635,42 @@ class _NotificationTab extends StatelessWidget {
           ),
           child: InkWell(
             onTap: onTap,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
-                  child: Text(
-                    label,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: _bulkaBrown,
-                      fontSize: BulkaTypeScale.body,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (selected)
-                  Positioned(
-                    bottom: 6,
-                    child: Container(
-                      width: 26,
-                      height: 3,
-                      decoration: BoxDecoration(
-                        color: colors.brandBrown,
-                        borderRadius: BorderRadius.circular(BulkaRadii.pill),
+            child: BulkaButtonSurface(
+              ink: true,
+              tone: selected
+                  ? BulkaButtonTone.choice
+                  : BulkaButtonTone.secondary,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
+                    child: Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: selected ? Colors.white : _bulkaBrown,
+                        fontSize: BulkaTypeScale.body,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w600,
                       ),
                     ),
                   ),
-              ],
+                  if (selected)
+                    Positioned(
+                      bottom: 6,
+                      child: Container(
+                        width: 26,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: selected ? Colors.white : colors.brandBrown,
+                          borderRadius: BorderRadius.circular(BulkaRadii.pill),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),

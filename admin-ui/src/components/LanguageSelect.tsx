@@ -1,4 +1,4 @@
-import { Languages } from 'lucide-react';
+import { Languages } from './BulkaIcons';
 import { useI18n, type Locale } from '../lib/i18n';
 import SelectControl from './SelectControl';
 

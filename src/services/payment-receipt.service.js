@@ -526,6 +526,7 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
   <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260908-transparent" />
   <title>${copy.title} ${escapeHtml(receipt.document_number)} — Bulka</title>
   <link rel="stylesheet" href="/assets/legal/payment-receipt.css?v=20260909" />
+  <link rel="stylesheet" href="/assets/brand/bulka-controls.css?v=bulka-premium-1" />
   <script src="/assets/legal/payment-receipt.js?v=20260907" defer></script>
 </head>
 <body>
@@ -533,7 +534,7 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
   <img class="receipt-logo" src="/taplink/assets/brand/bulka_logo.png" alt="Bulka" width="105" height="62" />
   <header class="receipt-header">
     <div><h1>${copy.title}</h1><p>${copy.orderNumber} #${escapeHtml(receipt.order_number)}</p></div>
-    <a class="receipt-close" href="/orders" aria-label="${ui.close}">×</a>
+    <a class="receipt-close" href="/orders" aria-label="${ui.close}"><svg class="bulka-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#X" /></svg></a>
   </header>
   <article class="receipt-paper" aria-label="${copy.title}">
     <dl class="receipt-meta">
@@ -562,7 +563,7 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
   </article>
   <nav class="languages" aria-label="${copy.languageAria}">${languageLinks}</nav>
   <nav class="actions" aria-label="${copy.actionsAria}">
-    <button id="share-receipt" type="button">${ui.share}</button>
+    <button id="share-receipt" class="primary" type="button">${ui.share}</button>
     <p id="share-status" role="status"></p>
   </nav>
 </main>

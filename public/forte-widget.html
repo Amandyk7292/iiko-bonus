@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="/assets/forte-widget.css?v=5" />
     <script defer src="https://js.fortebank.com/widget/be_gateway.js"></script>
     <script defer src="/assets/forte-widget.js?v=5"></script>
+    <link rel="stylesheet" href="/assets/brand/bulka-controls.css?v=bulka-premium-1" />
   </head>
   <body>
     <div class="payment-backdrop">
@@ -18,7 +19,21 @@
         <div class="phone-screen">
           <header class="payment-header">
             <button class="close-button" id="close-payment" type="button" aria-label="Закрыть">
-              <span aria-hidden="true">×</span>
+              <svg
+                class="bulka-icon"
+                viewBox="0 0 24 24"
+                width="22"
+                height="22"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#X" />
+              </svg>
             </button>
             <img
               class="bulka-logo"
@@ -32,7 +47,14 @@
           </header>
 
           <div class="secure-strip">
-            <span class="lock" aria-hidden="true">▣</span>
+            <svg
+              class="bulka-icon secure-icon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#LockKeyhole" />
+            </svg>
             <span id="secure-label">Защищённая страница банка</span>
           </div>
 
@@ -41,7 +63,7 @@
               <div class="spinner" aria-hidden="true"></div>
               <h1 id="state-title">Открываем безопасную оплату</h1>
               <p id="state-message">Не закрывайте страницу. Данные карты обрабатывает ForteBank.</p>
-              <button class="back-button" id="back-to-orders" type="button" hidden>
+              <button class="back-button primary" id="back-to-orders" type="button" hidden>
                 Вернуться к заказам
               </button>
             </section>

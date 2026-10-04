@@ -179,7 +179,7 @@ it('creates a custom product from the compact editor and reveals required fields
 it('does not rewrite an unchanged sticker assignment after visiting appearance', async () => {
   const user = await openEditor();
   await user.click(screen.getByRole('tab', { name: 'Оформление' }));
-  await screen.findByRole('button', { name: '✓ Хит' });
+  await screen.findByRole('button', { name: 'Хит' });
   await user.click(screen.getByRole('button', { name: 'Сохранить' }));
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   expect(mocks.request.mock.calls.some((call) => call[1]?.method === 'PUT')).toBe(false);

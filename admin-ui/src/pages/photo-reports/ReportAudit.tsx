@@ -1,4 +1,4 @@
-import { Check, CircleHelp, Clock3, Tablet, X } from 'lucide-react';
+import { Check, CircleHelp, Clock3, Tablet, X } from '../../components/BulkaIcons';
 import type { PhotoCopy, Report } from './model';
 
 export default function ReportAudit({ report, copy }: { report: Report; copy: PhotoCopy }) {

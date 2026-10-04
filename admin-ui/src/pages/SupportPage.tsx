@@ -10,7 +10,7 @@ import {
   Search,
   Send,
   UserCheck,
-} from 'lucide-react';
+} from '../components/BulkaIcons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigationBlocker, useSearchParams } from '../lib/router';
 import PageState from '../components/PageState';

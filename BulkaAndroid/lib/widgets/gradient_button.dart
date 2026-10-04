@@ -42,28 +42,17 @@ class GradientButton extends StatelessWidget {
           minWidth: double.infinity,
           minHeight: height,
         ),
-        child: AnimatedContainer(
-          duration: BulkaMotion.duration(context, BulkaMotion.fast),
-          curve: BulkaMotion.standardCurve,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(
-              color: disabled
-                  ? Colors.transparent
-                  : borderColor ?? Colors.white.withValues(alpha: 0.42),
-            ),
-            color: disabled ? null : _bulkaYellow,
-            gradient: disabled
-                ? const LinearGradient(
-                    colors: [Color(0xFFE0E0E0), Color(0xFFBDBDBD)],
-                  )
-                : gradient ?? _bulkaGlassGradient,
-            boxShadow: disabled ? null : shadows ?? BulkaShadows.primaryAction,
-          ),
+        child: BulkaButtonSurface(
+          disabled: disabled,
+          radius: borderRadius,
+          gradient: gradient,
+          borderColor: borderColor,
+          shadows: shadows ?? BulkaButtonSurface.softShadow,
           child: FilledButton(
             onPressed: effectiveOnPressed,
             style: FilledButton.styleFrom(
               backgroundColor: Colors.transparent,
+              disabledBackgroundColor: Colors.transparent,
               shadowColor: Colors.transparent,
               foregroundColor: foregroundColor,
               padding:
@@ -85,7 +74,7 @@ class GradientButton extends StatelessWidget {
                       width: 24,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.5,
-                        color: foregroundColor,
+                        color: _bulkaBrown.withValues(alpha: 0.65),
                       ),
                     )
                   : KeyedSubtree(
@@ -93,7 +82,10 @@ class GradientButton extends StatelessWidget {
                       child: DefaultTextStyle(
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: foregroundColor,
+                          fontFamily: _headingFont,
+                          color: disabled
+                              ? _bulkaBrown.withValues(alpha: 0.45)
+                              : foregroundColor,
                           fontSize: BulkaTypeScale.titleSmall,
                           fontWeight: FontWeight.w500,
                         ),

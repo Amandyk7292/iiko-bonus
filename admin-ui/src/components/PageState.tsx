@@ -1,4 +1,4 @@
-import { AlertCircle, Inbox, LoaderCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, Inbox, LoaderCircle, RefreshCw } from './BulkaIcons';
 import { useI18n } from '../lib/i18n';
 
 interface PageStateProps {

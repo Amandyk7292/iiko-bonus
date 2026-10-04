@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Check, LoaderCircle, X } from 'lucide-react';
+import { Check, LoaderCircle, X } from './BulkaIcons';
 import { uploadMenuPhoto, type MenuPhotoTarget } from '../lib/menu-photo-api';
 
 export type MenuPhotoJob = MenuPhotoTarget & {

@@ -1,4 +1,4 @@
-import { Copy } from 'lucide-react';
+import { Copy } from '../../components/BulkaIcons';
 import ProductEditorModal from './ProductEditorModal';
 import { FulfillmentTypeFields, ProductFactsFields } from './menu-page.shared';
 import type { MenuPageController } from './use-menu-page-controller';

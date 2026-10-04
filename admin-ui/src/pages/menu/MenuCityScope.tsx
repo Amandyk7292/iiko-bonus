@@ -1,4 +1,4 @@
-import { Building2, CheckCircle2, CircleAlert, Cloud, MapPin } from 'lucide-react';
+import { Building2, CheckCircle2, CircleAlert, Cloud, MapPin } from '../../components/BulkaIcons';
 import type { AdminScopeLocation } from '../../lib/api';
 
 export interface MenuProfileStatus {

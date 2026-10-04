@@ -8,6 +8,32 @@ process.env.BULKA_PUBLIC_APP_DIR = path.join(__dirname, 'fixtures', 'flutter-app
 process.env.BULKA_ADMIN_UI_DIR = path.join(__dirname, 'fixtures', 'admin-ui');
 const app = require('../src/app');
 
+test('shared Bulka artwork uses correct content types and missing assets stay 404', async (t) => {
+  const server = http.createServer(app);
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  t.after(() => server.close());
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  for (const [filename, type] of [
+    ['bulka-icons.svg', /image\/svg\+xml/],
+    ['bulka-controls.css', /text\/css/],
+  ]) {
+    const response = await fetch(`${origin}/assets/brand/${filename}`);
+    assert.equal(response.status, 200, filename);
+    assert.match(response.headers.get('content-type'), type);
+    assert.match(response.headers.get('cache-control'), /must-revalidate/);
+    assert.equal(
+      await response.text(),
+      fs.readFileSync(path.join('public/assets/brand', filename), 'utf8'),
+    );
+  }
+  const missing = await fetch(`${origin}/assets/brand/missing-artwork.svg`);
+  assert.equal(missing.status, 404);
+  assert.doesNotMatch(await missing.text(), /flutter_bootstrap/);
+});
+
 test('health check stays independent from external services', async (t) => {
   const server = http.createServer(app);
   await new Promise((resolve, reject) => {

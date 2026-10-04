@@ -1,4 +1,4 @@
-import { LoaderCircle, Save } from 'lucide-react';
+import { LoaderCircle, Save } from '../../components/BulkaIcons';
 import Modal from '../../components/Modal';
 import { categoryLabels } from '../whatsapp-page.helpers';
 import type { WhatsAppPageController } from './use-whatsapp-page-controller';

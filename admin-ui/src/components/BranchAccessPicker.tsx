@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react';
-import { Building2, Search } from 'lucide-react';
+import { Building2, Search } from './BulkaIcons';
 import SelectControl from './SelectControl';
 import { useI18n } from '../lib/i18n';
 

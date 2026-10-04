@@ -1,5 +1,5 @@
 import BulkPriceLabels from '../../components/BulkPriceLabels';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw } from '../../components/BulkaIcons';
 
 export type MenuWorkspaceTab = 'products' | 'categories' | 'custom';
 

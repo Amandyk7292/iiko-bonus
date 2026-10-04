@@ -24,6 +24,7 @@ const EXEMPT_SITE_PREFIXES = [
   '/maps',
   '/payment-receipts',
   '/assets/legal',
+  '/assets/brand',
   '/internal',
   '/taplink',
 ];
@@ -86,7 +87,7 @@ function renderAccessPage({ clientIp, unavailable = false }) {
   <body>
     <main aria-labelledby="page-title">
       <div class="icon" aria-hidden="true">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3v8Z"/><path d="M9 12l2 2 4-4"/></svg>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#ShieldCheck" /></svg>
       </div>
       <h1 id="page-title">${title}</h1>
       <p>${description}</p>

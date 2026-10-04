@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download, SlidersHorizontal } from 'lucide-react';
+import { Download, SlidersHorizontal } from '../../components/BulkaIcons';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,

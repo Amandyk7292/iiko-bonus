@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Eye, EyeOff, LoaderCircle, Pencil, Plus } from 'lucide-react';
+import { Eye, EyeOff, LoaderCircle, Pencil, Plus } from '../components/BulkaIcons';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import { useFeedback } from '../components/Feedback';

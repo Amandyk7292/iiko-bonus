@@ -5,7 +5,7 @@ import {
   RefreshCw,
   Search,
   Star,
-} from 'lucide-react';
+} from '../components/BulkaIcons';
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from '../lib/router';
 import PageState from '../components/PageState';

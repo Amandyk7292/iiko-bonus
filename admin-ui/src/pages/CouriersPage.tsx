@@ -10,7 +10,7 @@ import {
   Plus,
   RefreshCw,
   ShieldCheck,
-} from 'lucide-react';
+} from '../components/BulkaIcons';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import { useFeedback } from '../components/Feedback';

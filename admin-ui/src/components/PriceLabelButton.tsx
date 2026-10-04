@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Printer } from 'lucide-react';
+import { Printer } from './BulkaIcons';
 import { loadPriceLabelSettings } from '../lib/price-label-settings';
 import PriceLabelModal from './PriceLabelModal';
 import {

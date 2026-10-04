@@ -133,8 +133,13 @@ class _CartQuantityStepper extends StatelessWidget {
     return Container(
       constraints: const BoxConstraints(minHeight: 48),
       decoration: BoxDecoration(
-        color: _bulkaYellow,
+        gradient: BulkaButtonSurface.goldGradient,
         borderRadius: BorderRadius.circular(BulkaRadii.control),
+        border: Border.all(
+          color: const Color(0xFFE2C995),
+          width: BulkaStrokes.hairline,
+        ),
+        boxShadow: BulkaButtonSurface.softShadow,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

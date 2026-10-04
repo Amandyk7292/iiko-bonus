@@ -10,7 +10,7 @@ import {
   Search,
   ShieldCheck,
   UserRound,
-} from 'lucide-react';
+} from './BulkaIcons';
 import {
   useCallback,
   useEffect,

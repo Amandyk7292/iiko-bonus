@@ -107,7 +107,7 @@ ThemeData staffTheme() {
         shape: shape,
         minimumSize: const Size(48, 48),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-      ),
+      ).copyWith(backgroundBuilder: _bulkaChoiceButtonBackground),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
@@ -117,7 +117,7 @@ ThemeData staffTheme() {
         backgroundColor: Colors.white,
         minimumSize: const Size(48, 48),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      ),
+      ).copyWith(backgroundBuilder: _bulkaSecondaryButtonBackground),
     ),
   );
 }

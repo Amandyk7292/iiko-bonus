@@ -1,3 +1,4 @@
+import { Check, Pencil } from '../../components/BulkaIcons';
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { request } from '../../lib/api';
 import type { ProductBadge as Badge } from './menu-page.shared';
@@ -177,7 +178,7 @@ export default function ProductBadges({
                     )
                   }
                 >
-                  {selected.includes(b.id) ? '✓ ' : ''}
+                  {selected.includes(b.id) && <Check aria-hidden="true" size={16} />}
                   {b.label}
                 </button>
                 <button
@@ -193,7 +194,7 @@ export default function ProductBadges({
                     setForeground(b.foreground);
                   }}
                 >
-                  ✎
+                  <Pencil aria-hidden="true" size={17} />
                 </button>
               </span>
             ))}

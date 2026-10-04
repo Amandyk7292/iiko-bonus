@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download } from 'lucide-react';
+import { Download } from '../../components/BulkaIcons';
 import { useI18n } from '../../lib/i18n';
 import { dashboardApi, exportReport } from './api';
 import { comparisonRange, errorKey, validRange, type Query, type Report } from './model';

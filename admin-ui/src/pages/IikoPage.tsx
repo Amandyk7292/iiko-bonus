@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, RefreshCw, Store } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, RefreshCw, Store } from '../components/BulkaIcons';
 import PageState from '../components/PageState';
 import { api } from '../lib/api';
 import { useI18n } from '../lib/i18n';

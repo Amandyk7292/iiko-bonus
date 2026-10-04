@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LoaderCircle, QrCode } from 'lucide-react';
+import { LoaderCircle, QrCode } from './BulkaIcons';
 import { downloadProductQr } from '../lib/product-qr';
 
 export default function ProductQrButton({ id, name }: { id: string; name: string }) {

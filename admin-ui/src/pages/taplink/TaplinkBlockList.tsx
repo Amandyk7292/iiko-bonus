@@ -10,7 +10,7 @@ import {
   Link2,
   Plus,
   Trash2,
-} from 'lucide-react';
+} from '../../components/BulkaIcons';
 import { useFeedback } from '../../components/Feedback';
 import type { TaplinkBlock, TaplinkLocale } from '../../lib/api-types';
 import { useI18n } from '../../lib/i18n';

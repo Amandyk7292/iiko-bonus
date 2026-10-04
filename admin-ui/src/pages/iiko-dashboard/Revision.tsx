@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search } from '../../components/BulkaIcons';
 import { useI18n } from '../../lib/i18n';
 import { loadControls } from './load-controls';
 import { errorKey, type Query } from './model';

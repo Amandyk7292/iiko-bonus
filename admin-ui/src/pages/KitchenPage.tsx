@@ -15,7 +15,7 @@ import {
   Volume2,
   VolumeX,
   WifiOff,
-} from 'lucide-react';
+} from '../components/BulkaIcons';
 import Modal from '../components/Modal';
 import DeliveryResolutionNotice, {
   hasUnresolvedDelivery,

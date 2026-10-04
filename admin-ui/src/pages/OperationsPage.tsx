@@ -9,7 +9,7 @@ import {
   RefreshCw,
   ShoppingBag,
   Truck,
-} from 'lucide-react';
+} from '../components/BulkaIcons';
 import { Link } from '../lib/router';
 import PageState from '../components/PageState';
 import { useAdminRealtime } from '../lib/admin-realtime';

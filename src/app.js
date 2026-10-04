@@ -273,7 +273,7 @@ app.get('/sitemap.xml', (_req, res) => {
 });
 
 const adminStaticHeaders = (res, filePath) => {
-  if (/index\.html$|flutter_service_worker\.js$/.test(filePath)) {
+  if (/index\.html$|flutter_service_worker\.js$|[\\/]assets[\\/]brand[\\/]/.test(filePath)) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   } else {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
@@ -520,6 +520,17 @@ app.use(
 );
 
 // Serve the Flutter build at the domain root as the canonical web app.
+// Shared controls also serve standalone pages; never return the SPA for missing artwork.
+app.use(
+  '/assets/brand',
+  express.static(path.join(process.cwd(), 'public/assets/brand'), {
+    index: false,
+    fallthrough: false,
+    setHeaders: (res) => {
+      res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+    },
+  }),
+);
 app.use(
   '/assets/launch',
   express.static(path.join(process.cwd(), 'public/assets/launch'), {

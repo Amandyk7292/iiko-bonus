@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Printer } from 'lucide-react';
+import { Printer } from './BulkaIcons';
 import Modal from './Modal';
 import { getAdminBranchScope, request } from '../lib/api';
 import {

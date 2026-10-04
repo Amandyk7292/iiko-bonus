@@ -84,6 +84,9 @@ test('only public website routes are protected', () => {
   assert.equal(isProtectedSitePath('/sitemap.xml'), false);
   assert.equal(isProtectedSitePath('/payment-receipts/receipt-id'), false);
   assert.equal(isProtectedSitePath('/assets/legal/payment-receipt.css'), false);
+  assert.equal(isProtectedSitePath('/assets/brand/bulka-icons.svg'), false);
+  assert.equal(isProtectedSitePath('/assets/brand/bulka-controls.css'), false);
+  assert.equal(isProtectedSitePath('/assets/brand-private/customer-data'), true);
   assert.equal(isProtectedSitePath('/privacy'), false);
   assert.equal(isProtectedSitePath('/courier'), false);
   assert.equal(isProtectedSitePath('/taplink'), false);

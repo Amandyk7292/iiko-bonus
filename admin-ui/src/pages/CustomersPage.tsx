@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Download, Gift, LoaderCircle, Pencil, RefreshCw, Search, Trash2 } from 'lucide-react';
+import {
+  Download,
+  Gift,
+  LoaderCircle,
+  Pencil,
+  RefreshCw,
+  Search,
+  Trash2,
+  ArrowLeft,
+  ArrowRight,
+} from '../components/BulkaIcons';
 import { useSearchParams } from '../lib/router';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
@@ -573,10 +583,11 @@ export default function CustomersPage({ user }: CustomersPageProps) {
               <button
                 type="button"
                 className="btn-outline px-4"
+                aria-label={t('common.previous')}
                 onClick={() => setPage((value) => Math.max(1, value - 1))}
                 disabled={page === 1 || loading}
               >
-                ←
+                <ArrowLeft aria-hidden="true" size={18} />
               </button>
               <span className="tabular">
                 {page} / {Math.ceil(total / pageSize)}
@@ -584,10 +595,11 @@ export default function CustomersPage({ user }: CustomersPageProps) {
               <button
                 type="button"
                 className="btn-outline px-4"
+                aria-label={t('common.next')}
                 onClick={() => setPage((value) => value + 1)}
                 disabled={page >= Math.ceil(total / pageSize) || loading}
               >
-                →
+                <ArrowRight aria-hidden="true" size={18} />
               </button>
             </div>
           )}

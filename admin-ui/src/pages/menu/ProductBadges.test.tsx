@@ -14,7 +14,7 @@ it('can recover a failed load without closing the product editor', async () => {
   render(<ProductBadges productId="bread" />);
   expect(await screen.findByRole('alert')).toHaveTextContent('Оформление временно недоступно');
   await user.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
-  expect(await screen.findByRole('button', { name: '✓ Хит' })).toBeEnabled();
+  expect(await screen.findByRole('button', { name: 'Хит' })).toBeEnabled();
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 });
 it('reuses an existing badge instead of creating a new one for each product', async () => {
@@ -64,7 +64,7 @@ it('switches between heart and round stickers without replacing text badges and 
   const user = userEvent.setup();
   await user.click(await screen.findByRole('button', { name: 'Менің таңдауым (сердце)' }));
   expect(screen.getByLabelText('Предпросмотр стикера на товаре')).toBeVisible();
-  expect(screen.getByRole('button', { name: '✓ Хит' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Хит' })).toHaveAttribute('aria-pressed', 'true');
   await user.click(screen.getByRole('button', { name: 'Сохранить оформление товара' }));
   await waitFor(() =>
     expect(request).toHaveBeenCalledWith(

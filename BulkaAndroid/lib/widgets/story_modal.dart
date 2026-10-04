@@ -169,7 +169,7 @@ class PromoModalViewer extends StatelessWidget {
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFDCAE68),
-                        foregroundColor: Colors.white,
+                        foregroundColor: _bulkaBrown,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(BulkaRadii.card),

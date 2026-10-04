@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Download } from 'lucide-react';
+import { Download } from '../../components/BulkaIcons';
 import { useI18n } from '../../lib/i18n';
 import { ApiError } from '../../lib/api';
 import Modal from '../../components/Modal';

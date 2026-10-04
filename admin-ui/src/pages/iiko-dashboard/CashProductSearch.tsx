@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search } from '../../components/BulkaIcons';
 import { loadControls } from './load-controls';
 
 export type CashProduct = { id: string; name: string };

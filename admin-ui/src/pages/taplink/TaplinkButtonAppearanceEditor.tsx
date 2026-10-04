@@ -1,4 +1,4 @@
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw } from '../../components/BulkaIcons';
 import type {
   TaplinkButtonEffect,
   TaplinkButtonStyle,

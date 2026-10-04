@@ -7,7 +7,8 @@
     <meta name="theme-color" content="#ffbd16" />
     <title>Фотоотчёт точки · Bulka</title>
     <link rel="stylesheet" href="/branch-reports/report.css" />
-    <script src="/branch-reports/report.js" defer></script>
+    <script src="/branch-reports/report.js?v=bulka-premium-1" defer></script>
+    <link rel="stylesheet" href="/assets/brand/bulka-controls.css?v=bulka-premium-1" />
   </head>
   <body>
     <main>
@@ -27,9 +28,20 @@
         <h1 id="device-branch">Планшет точки</h1>
         <div class="device-heading">
           <span class="device-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-              <rect x="5" y="2" width="14" height="20" rx="2.5" />
-              <path d="M10 18h4" />
+            <svg
+              class="bulka-icon"
+              viewBox="0 0 24 24"
+              width="30"
+              height="30"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#Tablet" />
             </svg>
           </span>
           <h2 id="device-status" role="status">Проверяем подключение…</h2>
@@ -60,28 +72,94 @@
         <div id="categories">
           <button class="report-kind" type="button" data-kind="hall">
             <span class="kind-icon" aria-hidden="true"
-              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-                <rect x="3" y="3" width="18" height="18" rx="3" />
-                <path d="M9 3v18M15 3v18M3 9h18M3 15h18" /></svg></span
+              ><svg
+                class="bulka-icon"
+                viewBox="0 0 24 24"
+                width="30"
+                height="30"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#Store" /></svg></span
             ><span
               ><strong>Фотоотчёт зала</strong><small id="hall-status">Ещё не отправлен</small></span
-            ><span aria-hidden="true">›</span>
+            ><svg
+              class="bulka-icon"
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#ChevronRight" />
+            </svg>
           </button>
           <button class="report-kind" type="button" data-kind="baker">
             <span class="kind-icon" aria-hidden="true"
-              ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-                <path
-                  d="M7 14H5a4 4 0 0 1 0-8 4 4 0 0 1 7-2 4 4 0 0 1 7 2 4 4 0 0 1 0 8h-2M7 11v10h10V11M7 17h10"
-                /></svg></span
+              ><svg
+                class="bulka-icon"
+                viewBox="0 0 24 24"
+                width="30"
+                height="30"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#ChefHat" /></svg></span
             ><span
               ><strong>Фотоотчёт пекаря</strong
               ><small id="baker-status">Ещё не отправлен</small></span
-            ><span aria-hidden="true">›</span>
+            ><svg
+              class="bulka-icon"
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#ChevronRight" />
+            </svg>
           </button>
         </div>
       </section>
       <section id="capture" class="panel" hidden>
-        <button id="back" class="secondary" type="button">← К выбору отчёта</button>
+        <button id="back" class="secondary" type="button">
+          <svg
+            class="bulka-icon"
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.75"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#ArrowLeft" />
+          </svg>
+          К выбору отчёта
+        </button>
         <h1 id="capture-title"></h1>
         <p id="capture-date" class="date"></p>
         <div id="camera-area">
@@ -100,7 +178,23 @@
         </div>
       </section>
       <section id="success" class="panel success" hidden>
-        <div aria-hidden="true">✓</div>
+        <div aria-hidden="true">
+          <svg
+            class="bulka-icon"
+            viewBox="0 0 24 24"
+            width="52"
+            height="52"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.75"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#CheckCircle2" />
+          </svg>
+        </div>
         <h1>Фотоотчёт отправлен</h1>
         <p id="success-detail"></p>
         <button id="next-report" type="button" class="primary">К отчётам точки</button>

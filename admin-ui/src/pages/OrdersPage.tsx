@@ -1,5 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { BadgeCheck, Camera, LoaderCircle, MapPin, RefreshCw, Search } from 'lucide-react';
+import {
+  BadgeCheck,
+  Camera,
+  LoaderCircle,
+  MapPin,
+  RefreshCw,
+  Search,
+  ArrowLeft,
+  ArrowRight,
+} from '../components/BulkaIcons';
 import { useSearchParams } from '../lib/router';
 import PageState from '../components/PageState';
 import Modal from '../components/Modal';
@@ -639,10 +648,11 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
               <button
                 type="button"
                 className="btn-outline px-4"
+                aria-label={t('common.previous')}
                 onClick={() => setPage((value) => Math.max(1, value - 1))}
                 disabled={page === 1 || loading}
               >
-                ←
+                <ArrowLeft aria-hidden="true" size={18} />
               </button>
               <span className="tabular">
                 {page} / {Math.ceil(total / pageSize)}
@@ -650,10 +660,11 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
               <button
                 type="button"
                 className="btn-outline px-4"
+                aria-label={t('common.next')}
                 onClick={() => setPage((value) => value + 1)}
                 disabled={page >= Math.ceil(total / pageSize) || loading}
               >
-                →
+                <ArrowRight aria-hidden="true" size={18} />
               </button>
             </div>
           )}

@@ -305,33 +305,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: InkWell(
                         onTap: _showLanguageBottomSheet,
                         borderRadius: BorderRadius.circular(BulkaRadii.control),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 6,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.language_rounded,
-                                color: colors.brandBrown,
-                                size: 22,
+                        child: BulkaButtonSurface(
+                          ink: true,
+                          tone: BulkaButtonTone.secondary,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 44),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 6,
                               ),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Text(
-                                  _langCode,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.clip,
-                                  style: TextStyle(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.language_rounded,
                                     color: colors.brandBrown,
-                                    fontSize: BulkaTypeScale.body,
-                                    fontWeight: FontWeight.w600,
+                                    size: 22,
                                   ),
-                                ),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      _langCode,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.clip,
+                                      style: TextStyle(
+                                        color: colors.brandBrown,
+                                        fontSize: BulkaTypeScale.body,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
@@ -381,19 +388,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 borderRadius: BorderRadius.circular(BulkaRadii.card),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: colors.surfaceCream,
+                    gradient: BulkaButtonSurface.ivoryGradient,
                     borderRadius: BorderRadius.circular(BulkaRadii.card),
                     border: Border.all(
                       color: colors.cardBorder,
                       width: BulkaStrokes.hairline,
                     ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x0C000000),
-                        blurRadius: 16,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
+                    boxShadow: BulkaButtonSurface.softShadow,
                   ),
                   padding: const EdgeInsets.all(18),
                   child: Row(
@@ -580,31 +581,41 @@ class _ProfileMenuItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
-    return InkWell(
-      onTap: onTap,
+    return Material(
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(BulkaRadii.card),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Row(
-          children: [
-            Icon(icon, color: colors.brandBrown, size: 24),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  color: colors.brandBrown,
-                  fontSize: BulkaTypeScale.body,
-                  fontWeight: FontWeight.w500,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(BulkaRadii.card),
+        child: BulkaButtonSurface(
+          ink: true,
+          tone: BulkaButtonTone.secondary,
+          radius: BulkaRadii.card,
+          borderColor: Colors.transparent,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Row(
+              children: [
+                Icon(icon, color: colors.brandBrown, size: 24),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: colors.brandBrown,
+                      fontSize: BulkaTypeScale.body,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
-              ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: colors.brandBrown.withValues(alpha: 0.55),
+                  size: 22,
+                ),
+              ],
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: colors.brandBrown.withValues(alpha: 0.55),
-              size: 22,
-            ),
-          ],
+          ),
         ),
       ),
     );

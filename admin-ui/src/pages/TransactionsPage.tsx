@@ -1,6 +1,6 @@
 import DateInput from '../components/DateInput';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, Download, Gift, RefreshCw, Search } from 'lucide-react';
+import { ChevronDown, Download, Gift, RefreshCw, Search } from '../components/BulkaIcons';
 import { Link, useSearchParams } from '../lib/router';
 import PageState from '../components/PageState';
 import SelectControl from '../components/SelectControl';

@@ -5,6 +5,8 @@ import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 import faq from '../faq';
 const ru: Record<string, string> = {
+  'common.previous': 'Предыдущая страница',
+  'common.next': 'Следующая страница',
   ...faq.ru,
   'access.role.iikoDashboard': 'Только Dashboard',
   ...settlements,

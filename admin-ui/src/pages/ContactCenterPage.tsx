@@ -19,8 +19,8 @@ import {
   Send,
   Trash2,
   Users,
-  type LucideIcon,
-} from 'lucide-react';
+  type BulkaIconComponent,
+} from '../components/BulkaIcons';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import { useFeedback } from '../components/Feedback';
@@ -42,7 +42,7 @@ const actionOptions: Array<{
   type: ContactActionType;
   iconKey: string;
   labelKey: string;
-  icon: LucideIcon;
+  icon: BulkaIconComponent;
 }> = [
   { type: 'phone', iconKey: 'phone', labelKey: 'contacts.type.phone', icon: Phone },
   {
@@ -75,7 +75,7 @@ const actionOptions: Array<{
   },
 ];
 
-const actionIconByKey: Record<string, LucideIcon> = {
+const actionIconByKey: Record<string, BulkaIconComponent> = {
   phone: Phone,
   whatsapp: MessageCircle,
   telegram: Send,

@@ -1,4 +1,4 @@
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2 } from '../../components/BulkaIcons';
 import type { ReactNode } from 'react';
 import SelectControl from '../../components/SelectControl';
 

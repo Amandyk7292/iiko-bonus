@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { RefreshCw, Tablet } from 'lucide-react';
+import { RefreshCw, Tablet } from '../../components/BulkaIcons';
 import Modal from '../../components/Modal';
 import PageState from '../../components/PageState';
 import { request } from '../../lib/api';

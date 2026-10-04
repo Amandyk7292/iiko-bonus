@@ -1,0 +1,3 @@
+# Offline generator inputs: pin outline/font tooling to reproduce asset bytes.
+fonttools==4.62.1
+shapely==2.1.2

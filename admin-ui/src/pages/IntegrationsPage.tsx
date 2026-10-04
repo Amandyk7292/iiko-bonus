@@ -8,7 +8,7 @@ import {
   ShieldCheck,
   Webhook,
   XCircle,
-} from 'lucide-react';
+} from '../components/BulkaIcons';
 import { useCallback, useEffect, useState } from 'react';
 import PageState from '../components/PageState';
 import { api, type IntegrationHealthService, type PosHealthResponse } from '../lib/api';

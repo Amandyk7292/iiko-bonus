@@ -14,7 +14,7 @@ class _LoyaltyHistoryButton extends StatelessWidget {
     key: const ValueKey('balance-history-button'),
     foregroundColor: _bulkaBrown,
     borderColor: Colors.transparent,
-    shadows: BulkaShadows.raisedCard,
+    shadows: BulkaButtonSurface.softShadow,
     onPressed: onPressed,
     child: Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -356,8 +356,13 @@ class _InlineQrPreviewState extends State<_InlineQrPreview> {
         height: 116,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          gradient: BulkaButtonSurface.ivoryGradient,
           borderRadius: BorderRadius.circular(BulkaRadii.card),
+          border: Border.all(
+            color: const Color(0xFFE2C995),
+            width: BulkaStrokes.hairline,
+          ),
+          boxShadow: BulkaButtonSurface.softShadow,
         ),
         child: _loading
             ? const Center(
@@ -563,7 +568,7 @@ class _StampDot extends StatelessWidget {
       child: Icon(
         Icons.bakery_dining_outlined,
         color: filled
-            ? Colors.white
+            ? _bulkaBrown
             : const Color(0xFFE5E2DD).withValues(alpha: 0.78),
         size: 22,
       ),

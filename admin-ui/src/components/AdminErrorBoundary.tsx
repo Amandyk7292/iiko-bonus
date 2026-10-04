@@ -1,4 +1,4 @@
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw } from './BulkaIcons';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { reloadAdminApplication } from '../lib/chunk-recovery';
 

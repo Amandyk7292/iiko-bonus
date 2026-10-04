@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Package, RefreshCw, Search, Store, X } from 'lucide-react';
+import { Package, RefreshCw, Search, Store, X } from '../components/BulkaIcons';
 import { api } from '../lib/api';
 import { useFeedback } from '../components/Feedback';
 import PageState from '../components/PageState';

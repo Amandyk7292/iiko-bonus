@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowRight, CheckCircle2, Gift, LoaderCircle, Monitor, RefreshCw, Search } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, Gift, LoaderCircle, Monitor, RefreshCw, Search } from '../components/BulkaIcons';
 import { request, type PosHealthResponse } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { Link } from '../lib/router';

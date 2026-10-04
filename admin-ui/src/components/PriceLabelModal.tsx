@@ -1,7 +1,7 @@
 import { create as createQr } from 'qrcode';
 import { productPublicUrl } from '../lib/product-qr';
 import { useMemo, useState, type FormEvent } from 'react';
-import { Printer } from 'lucide-react';
+import { Printer } from './BulkaIcons';
 import Modal from './Modal';
 import {
   buildPriceLabel,

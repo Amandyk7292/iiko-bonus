@@ -25,7 +25,7 @@ import {
   Activity,
   Link2,
   CircleHelp,
-} from 'lucide-react';
+} from './BulkaIcons';
 import { NavLink, useLocation } from '../lib/router';
 import { ADMIN_ALLOWED_PATHS } from '../lib/admin-permissions';
 import { useEffect, useMemo, useRef, useState } from 'react';

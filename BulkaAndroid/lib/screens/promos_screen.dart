@@ -458,13 +458,15 @@ class _PromoTypeTabs extends StatelessWidget {
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: selected ? colors.brandGold : Colors.transparent,
+                      gradient: selected
+                          ? BulkaButtonSurface.chocolateGradient
+                          : BulkaButtonSurface.ivoryGradient,
                       borderRadius: BorderRadius.circular(BulkaRadii.pill),
                       border: Border.all(
                         color: selected
-                            ? colors.brandGold
+                            ? const Color(0xFF8C634D)
                             : const Color(0xFFD9B892),
-                        width: 1.2,
+                        width: BulkaStrokes.hairline,
                       ),
                     ),
                     child: Center(
@@ -475,9 +477,7 @@ class _PromoTypeTabs extends StatelessWidget {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontFamily: _headingFont,
-                          color: selected
-                              ? colors.brandBrown
-                              : colors.mutedText,
+                          color: selected ? Colors.white : colors.mutedText,
                           fontSize: BulkaTypeScale.bodySmall,
                           fontWeight: selected
                               ? FontWeight.w700

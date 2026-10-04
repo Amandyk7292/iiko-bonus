@@ -1,39 +1,131 @@
 <!doctype html>
 <html lang="ru">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#ffbe20">
-  <meta name="robots" content="noindex,nofollow">
-  <title>QR кассира · Bulka</title>
-  <link rel="stylesheet" href="/cashier-qr-assets/style.css">
-  <script type="module" src="/cashier-qr-assets/app.mjs"></script>
-</head>
-<body>
-  <div class="top-band" aria-hidden="true"></div>
-  <main class="page">
-    <header class="header">
-      <a class="brand" href="/" aria-label="Bulka — главная"><img src="/assets/assets/brand/bulka_logo.png" alt="Bulka" width="120" height="52"></a>
-      <h1>QR кассира</h1>
-      <p>Найдите своё имя</p>
-    </header>
-    <section class="directory" aria-label="Кассиры">
-      <form class="filters" role="search">
-        <label class="search-box"><span class="sr-only">ФИО кассира</span><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input id="search" type="search" placeholder="ФИО кассира" autocomplete="off" maxlength="120"></label>
-        <label class="city-box"><span class="sr-only">Город</span><select id="city"><option value="">Все города</option></select></label>
-        <button class="refresh" type="button" id="refresh" aria-label="Обновить список" title="Обновить список"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M19 11a7 7 0 0 0-12-5L4 9m16 6-3 3A7 7 0 0 1 5 13"/></svg></button>
-      </form>
-      <div id="status" class="status" role="status" aria-live="polite">Загружаем кассиров…</div>
-      <div id="list" class="cashier-list"></div>
-    </section>
-  </main>
-  <dialog id="qr-dialog" aria-labelledby="qr-title">
-    <button class="close" id="close-dialog" type="button" aria-label="Закрыть">×</button>
-    <div class="qr-heading"><span class="eyebrow">МОЙ QR · BULKA</span><h2 id="qr-title"></h2><p id="qr-point"></p></div>
-    <div class="qr-frame"><img id="qr-image" alt="Личный QR кассира" width="280" height="280"></div>
-    <p class="qr-error" id="qr-error" role="alert" hidden>Не удалось загрузить QR. Обновите список и попробуйте ещё раз.</p>
-    <a class="save-button" id="save-qr" download>Сохранить QR <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg></a>
-    <button class="link-button" id="copy-qr" type="button">Копировать ссылку</button>
-  </dialog>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffbe20" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>QR кассира · Bulka</title>
+    <link rel="stylesheet" href="/cashier-qr-assets/style.css" />
+    <script type="module" src="/cashier-qr-assets/app.mjs"></script>
+    <link rel="stylesheet" href="/assets/brand/bulka-controls.css?v=bulka-premium-1" />
+  </head>
+  <body>
+    <div class="top-band" aria-hidden="true"></div>
+    <main class="page">
+      <header class="header">
+        <a class="brand" href="/" aria-label="Bulka — главная"
+          ><img src="/assets/assets/brand/bulka_logo.png" alt="Bulka" width="120" height="52"
+        /></a>
+        <h1>QR кассира</h1>
+        <p>Найдите своё имя</p>
+      </header>
+      <section class="directory" aria-label="Кассиры">
+        <form class="filters" role="search">
+          <label class="search-box"
+            ><span class="sr-only">ФИО кассира</span
+            ><svg
+              class="bulka-icon"
+              viewBox="0 0 24 24"
+              width="22"
+              height="22"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#Search" /></svg
+            ><input
+              id="search"
+              type="search"
+              placeholder="ФИО кассира"
+              autocomplete="off"
+              maxlength="120"
+          /></label>
+          <label class="city-box"
+            ><span class="sr-only">Город</span
+            ><select id="city">
+              <option value="">Все города</option>
+            </select></label
+          >
+          <button
+            class="refresh"
+            type="button"
+            id="refresh"
+            aria-label="Обновить список"
+            title="Обновить список"
+          >
+            <svg
+              class="bulka-icon"
+              viewBox="0 0 24 24"
+              width="22"
+              height="22"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#RefreshCw" />
+            </svg>
+          </button>
+        </form>
+        <div id="status" class="status" role="status" aria-live="polite">Загружаем кассиров…</div>
+        <div id="list" class="cashier-list"></div>
+      </section>
+    </main>
+    <dialog id="qr-dialog" aria-labelledby="qr-title">
+      <button class="close" id="close-dialog" type="button" aria-label="Закрыть">
+        <svg
+          class="bulka-icon"
+          viewBox="0 0 24 24"
+          width="22"
+          height="22"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#X" />
+        </svg>
+      </button>
+      <div class="qr-heading">
+        <span class="eyebrow">МОЙ QR · BULKA</span>
+        <h2 id="qr-title"></h2>
+        <p id="qr-point"></p>
+      </div>
+      <div class="qr-frame">
+        <img id="qr-image" alt="Личный QR кассира" width="280" height="280" />
+      </div>
+      <p class="qr-error" id="qr-error" role="alert" hidden>
+        Не удалось загрузить QR. Обновите список и попробуйте ещё раз.
+      </p>
+      <a class="save-button" id="save-qr" download
+        >Сохранить QR
+        <svg
+          class="bulka-icon"
+          viewBox="0 0 24 24"
+          width="22"
+          height="22"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#Download" /></svg
+      ></a>
+      <button class="link-button" id="copy-qr" type="button">Копировать ссылку</button>
+    </dialog>
+  </body>
 </html>

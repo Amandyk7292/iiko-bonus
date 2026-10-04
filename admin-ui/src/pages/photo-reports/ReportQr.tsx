@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download } from 'lucide-react';
+import { Download } from '../../components/BulkaIcons';
 import Modal from '../../components/Modal';
 import PageState from '../../components/PageState';
 import { request } from '../../lib/api';

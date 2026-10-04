@@ -131,8 +131,6 @@ class _CatalogCategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.bulkaColors;
-    final scheme = Theme.of(context).colorScheme;
     return Semantics(
       button: true,
       selected: selected,
@@ -143,29 +141,26 @@ class _CatalogCategoryChip extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(BulkaRadii.control),
-            child: AnimatedContainer(
-              duration: BulkaMotion.duration(context, BulkaMotion.fast),
-              curve: BulkaMotion.standardCurve,
-              height: height,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: selected ? _bulkaYellow : scheme.surface,
-                borderRadius: BorderRadius.circular(BulkaRadii.control),
-                border: Border.all(
-                  color: selected ? _bulkaYellow : colors.cardBorder,
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: selected ? _textDark : scheme.onSurface,
-                    fontSize: BulkaTypeScale.bodySmall,
-                    fontFamily: _descriptionFont,
-                    height: 1.2,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+            child: BulkaButtonSurface(
+              ink: true,
+              tone: selected
+                  ? BulkaButtonTone.choice
+                  : BulkaButtonTone.secondary,
+              child: Container(
+                height: height,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Center(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? Colors.white : _bulkaBrown,
+                      fontSize: BulkaTypeScale.bodySmall,
+                      fontFamily: _descriptionFont,
+                      height: 1.2,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -219,10 +214,10 @@ class _CatalogImageQuantityControl extends StatelessWidget {
               foregroundColor: colors.brandBrown,
               disabledForegroundColor: colors.mutedText,
               minimumSize: const Size(50, 50),
-              side: const BorderSide(color: Colors.white, width: 2),
-              elevation: 6,
-              shadowColor: colors.brandBrown.withValues(alpha: 0.25),
-            ),
+              shape: const CircleBorder(),
+              elevation: 1,
+              shadowColor: colors.brandBrown.withValues(alpha: 0.12),
+            ).copyWith(backgroundBuilder: _bulkaPrimaryButtonBackground),
             icon: Icon(
               stopListed ? Icons.block_rounded : Icons.add_rounded,
               size: 29,
@@ -243,8 +238,11 @@ class _CatalogImageQuantityControl extends StatelessWidget {
           color: _bulkaYellow,
           gradient: _bulkaGlassGradient,
           borderRadius: BorderRadius.circular(BulkaRadii.card),
-          border: Border.all(color: Colors.white, width: 2),
-          boxShadow: BulkaShadows.floatingAction,
+          border: Border.all(
+            color: const Color(0xFFE2C995),
+            width: BulkaStrokes.hairline,
+          ),
+          boxShadow: BulkaButtonSurface.softShadow,
         ),
         child: LayoutBuilder(
           builder: (context, constraints) => Row(

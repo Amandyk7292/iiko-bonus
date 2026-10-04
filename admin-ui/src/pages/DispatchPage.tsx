@@ -16,7 +16,7 @@ import {
   Send,
   Undo2,
   X,
-} from 'lucide-react';
+} from '../components/BulkaIcons';
 import DispatchMap from '../components/DispatchMap';
 import PageState from '../components/PageState';
 import DeliveryAvailabilityNotice from '../components/DeliveryAvailabilityNotice';

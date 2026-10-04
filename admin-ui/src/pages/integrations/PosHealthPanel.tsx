@@ -11,7 +11,7 @@ import {
   ServerCog,
   ShieldAlert,
   XCircle,
-} from 'lucide-react';
+} from '../../components/BulkaIcons';
 import { useEffect, useMemo, useState } from 'react';
 import Modal from '../../components/Modal';
 import { api, type PosHealthResponse, type PosReconciliationCase } from '../../lib/api';

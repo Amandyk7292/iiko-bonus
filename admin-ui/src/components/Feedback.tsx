@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Info, X } from './BulkaIcons';
 import { useI18n } from '../lib/i18n';
 import { motionDurations, useReducedMotion } from '../lib/motion';
 import { isTopmostModal, lockModalScroll } from '../lib/modal-scroll-lock';

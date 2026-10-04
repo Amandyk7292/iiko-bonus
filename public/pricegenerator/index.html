@@ -11,6 +11,7 @@
     <style id="print-page-settings"></style>
     <script src="/pricegenerator/edit-access.js?v=20260920-1" defer></script>
     <script src="/pricegenerator/app.js?v=20261004-1" defer></script>
+    <link rel="stylesheet" href="/assets/brand/bulka-controls.css?v=bulka-premium-1" />
   </head>
   <body>
     <header class="topbar">
@@ -302,9 +303,15 @@
             <p id="canvas-help">Нажмите блок и перемещайте его по этикетке.</p>
           </div>
           <div class="zoom">
-            <button id="zoom-out" type="button" aria-label="Уменьшить масштаб">−</button
+            <button id="zoom-out" type="button" aria-label="Уменьшить масштаб">
+              <svg class="bulka-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#Minus" />
+              </svg></button
             ><output id="zoom-value">100%</output
-            ><button id="zoom-in" type="button" aria-label="Увеличить масштаб">+</button
+            ><button id="zoom-in" type="button" aria-label="Увеличить масштаб">
+              <svg class="bulka-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#Plus" />
+              </svg></button
             ><button id="zoom-actual" type="button" aria-label="Масштаб один к одному">1:1</button>
           </div>
         </div>

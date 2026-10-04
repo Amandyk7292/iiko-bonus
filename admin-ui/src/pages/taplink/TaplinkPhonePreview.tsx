@@ -8,7 +8,7 @@ import {
   Phone,
   RotateCcw,
   Send,
-} from 'lucide-react';
+} from '../../components/BulkaIcons';
 import type {
   TaplinkDocument,
   TaplinkGradientDirection,

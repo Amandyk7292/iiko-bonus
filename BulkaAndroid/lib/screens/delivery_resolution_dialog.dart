@@ -165,6 +165,7 @@ class _DeliveryResolutionDialogState extends State<DeliveryResolutionDialog> {
         fontWeight: FontWeight.w700,
       ),
       backgroundColor: destructive ? _errorRed : null,
+      foregroundColor: destructive ? Colors.white : null,
     ),
     child: _saving
         ? const SizedBox.square(

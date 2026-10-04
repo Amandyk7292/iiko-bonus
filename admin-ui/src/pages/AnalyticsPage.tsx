@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, RefreshCw, Users } from 'lucide-react';
+import { ArrowRight, RefreshCw, Users } from '../components/BulkaIcons';
 import { Link } from '../lib/router';
 import {
   ArcElement,

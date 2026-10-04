@@ -8,6 +8,7 @@ import 'print_batch_status.dart';
 import 'label_document.dart';
 import 'product.dart';
 import 'label_template.dart';
+import 'premium_theme.dart';
 
 void main() => runApp(const BulkaPrinterApp());
 
@@ -17,20 +18,7 @@ class BulkaPrinterApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     title: 'Bulka — печать этикеток',
-    theme: ThemeData(
-      fontFamily: 'Segoe UI',
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xffffb300),
-        primary: const Color(0xff782b0e),
-      ),
-      scaffoldBackgroundColor: const Color(0xfffffbf4),
-      useMaterial3: true,
-      inputDecorationTheme: const InputDecorationTheme(
-        border: OutlineInputBorder(),
-        filled: true,
-        fillColor: Colors.white,
-      ),
-    ),
+    theme: buildPrinterTheme(),
     home: const PrinterHome(),
   );
 }
@@ -538,11 +526,20 @@ class _PrinterHomeState extends State<PrinterHome> {
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 width: 72,
+                constraints: const BoxConstraints(minHeight: 48),
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
                   border: Border.all(color: const Color(0xffd9bc86)),
                   borderRadius: BorderRadius.circular(12),
-                  color: Colors.white,
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xfffffffd),
+                      Color(0xfffffaef),
+                      Color(0xfff5ebd8),
+                    ],
+                  ),
                 ),
                 child: Text(
                   '$_copies',

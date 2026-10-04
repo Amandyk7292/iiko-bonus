@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronRight, RefreshCw } from '../../components/BulkaIcons';
 import Modal from '../../components/Modal';
 import { useI18n } from '../../lib/i18n';
 import { dashboardApi } from './api';

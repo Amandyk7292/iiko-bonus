@@ -73,19 +73,20 @@ router.get('/maps/yandex', (req, res) => {
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260908-transparent">
   <title>${copy[0]}</title>
+  <link rel="stylesheet" href="/assets/brand/bulka-controls.css?v=bulka-premium-1">
   <style nonce="${nonce}">
     html,body,#map{width:100%;height:100%;margin:0;overflow:hidden;background:#fff}
     body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
     #error{display:none;position:absolute;z-index:20;inset:16px auto auto 16px;max-width:calc(100% - 32px);padding:12px 14px;border-radius:14px;background:#fff;color:#6a351d;box-shadow:0 12px 36px rgba(60,34,23,.18);font-size:14px}
     #controls{position:absolute;z-index:40;right:16px;bottom:76px;display:flex;flex-direction:column;gap:9px;pointer-events:none}
-    .map-control{width:50px;height:50px;padding:0;border:0;border-radius:50%;display:grid;place-items:center;background:#fff;color:#532814;box-shadow:0 8px 24px rgba(60,34,23,.22);pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+    .map-control{width:50px;height:50px;padding:0;border:0;border-radius:50%;display:grid;place-items:center;background:var(--bulka-ivory-finish);color:#532814;border:1px solid #e6d7bf;box-shadow:0 8px 24px rgba(60,34,23,.22);pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
     .map-control:active{transform:scale(.96)}
-    .map-control svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:2.25;stroke-linecap:round;stroke-linejoin:round}
-    #locate{width:58px;height:58px;background:#532814;color:#fff}
+    .map-control svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+    #locate{width:58px;height:58px;background:var(--bulka-cocoa-finish);color:#fff8e7}
     @font-face{font-family:BulkaMontserrat;src:url("/app/assets/assets/fonts/Montserrat-Medium-subset.ttf") format("truetype");font-weight:500;font-display:swap}
-    #city-picker{display:none;position:absolute;z-index:45;top:12px;left:50%;transform:translateX(-50%);max-width:calc(100% - 100px);min-width:180px;height:44px;padding:0 18px;border:0;box-shadow:0 5px 18px rgba(83,40,20,.16);border-radius:24px;background:#ffd758;color:#532814;font:500 17px BulkaMontserrat,system-ui,-apple-system,"Segoe UI",sans-serif;align-items:center;justify-content:center;gap:10px;cursor:pointer;touch-action:manipulation}
+    #city-picker{display:none;position:absolute;z-index:45;top:12px;left:50%;transform:translateX(-50%);max-width:calc(100% - 100px);min-width:180px;height:44px;padding:0 18px;border:0;box-shadow:0 5px 18px rgba(83,40,20,.16);border-radius:24px;background:var(--bulka-primary-finish);border:1px solid #dba337;color:#492512;font:500 17px BulkaMontserrat,system-ui,-apple-system,"Segoe UI",sans-serif;align-items:center;justify-content:center;gap:10px;cursor:pointer;touch-action:manipulation}
     #city-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    #city-picker svg{flex:none;width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2}
+    #city-picker svg{flex:none;width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.75}
     .directory #controls{right:12px;bottom:16px;gap:10px}
     .directory .map-control{position:relative;width:38px;height:38px;box-shadow:0 4px 14px rgba(60,34,23,.16)}
     .directory .map-control::after{content:"";position:absolute;inset:-3px;border-radius:50%}
@@ -102,12 +103,12 @@ router.get('/maps/yandex', (req, res) => {
 </head>
 <body>
   <div id="map" aria-label="${copy[0]}"></div>
-  <button id="city-picker" type="button" aria-haspopup="dialog"><span id="city-label"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+  <button id="city-picker" type="button" aria-haspopup="dialog"><span id="city-label"></span><svg class="bulka-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#ChevronDown" /></svg></button>
   <div id="error" role="alert">${copy[5]}</div>
   <div id="controls" aria-label="${copy[1]}">
-    <button id="zoom-in" class="map-control" type="button" aria-label="${copy[2]}"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-    <button id="zoom-out" class="map-control" type="button" aria-label="${copy[3]}"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
-    ${hideLocate ? '' : `<button id="locate" class="map-control" type="button" aria-label="${copy[4]}"><svg viewBox="0 0 24 24"><path d="m20 4-7.4 16-2.1-6.5L4 11.4 20 4Z"/></svg></button>`}
+    <button id="zoom-in" class="map-control" type="button" aria-label="${copy[2]}"><svg class="bulka-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#Plus" /></svg></button>
+    <button id="zoom-out" class="map-control" type="button" aria-label="${copy[3]}"><svg class="bulka-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#Minus" /></svg></button>
+    ${hideLocate ? '' : `<button id="locate" class="map-control" type="button" aria-label="${copy[4]}"><svg class="bulka-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><use href="/assets/brand/bulka-icons.svg?v=bulka-premium-1#Navigation" /></svg></button>`}
   </div>
   <script nonce="${nonce}">
     (() => {

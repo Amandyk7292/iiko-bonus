@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Eye, EyeOff, LoaderCircle, LockKeyhole, MessageCircle, Phone } from 'lucide-react';
+import { Eye, EyeOff, LoaderCircle, LockKeyhole, MessageCircle, Phone } from './components/BulkaIcons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from './lib/router';
 import {
   ApiError,

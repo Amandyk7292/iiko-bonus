@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight } from '../../components/BulkaIcons';
 import { useI18n } from '../../lib/i18n';
 import { offsetDate, today, validRange } from './model';
 import './date-range.css';

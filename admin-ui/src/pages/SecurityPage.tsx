@@ -7,7 +7,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   UserRoundCog,
-} from 'lucide-react';
+} from '../components/BulkaIcons';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import SelectControl from '../components/SelectControl';
