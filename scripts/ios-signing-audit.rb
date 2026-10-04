@@ -32,12 +32,40 @@ module IosSigningAudit
   class AuditError < StandardError
     attr_reader :details
 
-    def initialize(code, path: nil, status: nil)
+    def initialize(code, path: nil, status: nil, apple_errors: [])
       @details = { code: code }
       @details[:path] = path if path
       @details[:status] = status if status
+      @details[:appleErrors] = apple_errors unless apple_errors.empty?
       super(code)
     end
+  end
+
+  def self.apple_errors(body, redactions: [])
+    return [] unless body.is_a?(String) && body.bytesize <= 65_536
+
+    errors = JSON.parse(body).fetch('errors', [])
+    return [] unless errors.is_a?(Array)
+
+    errors.first(5).map do |error|
+      next unless error.is_a?(Hash)
+
+      safe = %w[code title detail].to_h do |field|
+        value = error[field]
+        next [field, nil] unless value.is_a?(String)
+
+        text = value.encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
+        redactions.compact.reject(&:empty?).each { |secret| text = text.gsub(secret, '[REDACTED]') }
+        text = text.gsub(/-----BEGIN [A-Z0-9 ]+-----.*?-----END [A-Z0-9 ]+-----/m, '[REDACTED]')
+        text = text.gsub(/\bBearer\s+\S+/i, '[REDACTED]')
+        text = text.gsub(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/, '[REDACTED]')
+        text = text.gsub(/[A-Za-z0-9+\/_=-]{100,}/, '[REDACTED]')
+        [field, text.gsub(/[[:cntrl:]]/, ' ').slice(0, 500)]
+      end.compact
+      safe unless safe.empty?
+    end.compact
+  rescue JSON::ParserError, TypeError, NoMethodError
+    []
   end
 
   def self.token(env = ENV, now = Time.now)
@@ -100,8 +128,11 @@ module IosSigningAudit
       request['Accept'] = 'application/json'
       response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10,
                                  read_timeout: 30) { |http| http.request(request) }
-      raise AuditError.new('APPLE_API_ERROR', path: uri.path, status: response.code.to_i) unless
-        response.is_a?(Net::HTTPSuccess)
+      unless response.is_a?(Net::HTTPSuccess)
+        errors = IosSigningAudit.apple_errors(response.body,
+          redactions: [@token, ENV['ASC_PRIVATE_KEY'], ENV['ASC_KEY_ID'], ENV['ASC_ISSUER_ID']])
+        raise AuditError.new('APPLE_API_ERROR', path: uri.path, status: response.code.to_i, apple_errors: errors)
+      end
 
       JSON.parse(response.body)
     end

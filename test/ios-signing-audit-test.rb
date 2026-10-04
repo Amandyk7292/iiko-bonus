@@ -120,6 +120,35 @@ class IosSigningAuditTest < Minitest::Test
     refute_match(/MUST_NOT_LEAK/, JSON.generate(result))
   end
 
+  def test_apple_api_error_preserves_only_bounded_diagnostic_fields
+    body = JSON.generate(errors: [{ code: 'PARAMETER_ERROR.INVALID', title: 'Invalid parameter',
+                                   detail: "limit must be less than 50\n", id: 'UNEXPECTED_ID',
+                                   response: 'RAW_PROFILE_MUST_NOT_LEAK' }] * 8)
+    errors = IosSigningAudit.apple_errors(body)
+    assert_equal 5, errors.length
+    assert_equal({ 'code' => 'PARAMETER_ERROR.INVALID', 'title' => 'Invalid parameter',
+                   'detail' => 'limit must be less than 50 ' }, errors.first)
+    error = IosSigningAudit::AuditError.new('APPLE_API_ERROR', path: '/v1/bundleIds/id/bundleIdCapabilities',
+                                           status: 400, apple_errors: errors)
+    assert_equal errors, error.details[:appleErrors]
+    refute_match(/RAW_PROFILE|UNEXPECTED_ID/, JSON.generate(error.details))
+    assert_equal 500, IosSigningAudit.apple_errors(JSON.generate(errors: [{ detail: 'word ' * 200 }])).first['detail'].length
+  end
+
+  def test_apple_api_error_redacts_credentials_and_ignores_raw_non_json_payloads
+    key = "-----BEGIN PRIVATE KEY-----\nPRIVATE_KEY_BYTES\n-----END PRIVATE KEY-----"
+    jwt = 'eyJhbGciOiJFUzI1NiJ9.eyJpc3MiOiJpc3N1ZXIifQ.c2lnbmF0dXJl'
+    body = JSON.generate(errors: [{ code: 'NOT_AUTHORIZED',
+                                   detail: "Bearer #{jwt}; #{key}; secret-value; #{'A' * 160}" }])
+    errors = IosSigningAudit.apple_errors(body, redactions: ['secret-value'])
+    text = JSON.generate(errors)
+    refute_match(/PRIVATE_KEY_BYTES|secret-value|eyJhbGci|#{'A' * 100}/, text)
+    assert_match(/REDACTED/, text)
+    assert_empty IosSigningAudit.apple_errors("<html>#{key}</html>")
+    assert_empty IosSigningAudit.apple_errors(JSON.generate(errors: 'unexpected'))
+    assert_empty IosSigningAudit.apple_errors('A' * 65_537)
+  end
+
   def test_invalid_pagination_cannot_forward_bearer_to_another_host
     client = IosSigningAudit::Client.new('DUMMY_TOKEN')
     client.define_singleton_method(:read) do |_uri|
