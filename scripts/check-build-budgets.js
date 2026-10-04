@@ -70,11 +70,11 @@ if (flutterDirectory) {
   if (!fs.existsSync(mainFile)) {
     failures.push(`Flutter entry is missing: ${mainFile}`);
   } else {
-    // SMS-link recovery measures 6,688,695 B raw / 1,823,178 B gzip.
-    // Keep 1,305 B raw headroom and the unchanged gzip budget. Its QR decoder is
-    // deferred until scanning and has a separate total budget below.
-    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_690_000);
-    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_824_000);
+    // Live staff QR scanning and compact consent measure 6,706,864 B raw /
+    // 1,827,789 B gzip. Keep 1,636 B raw / 1,211 B gzip headroom.
+    // The QR decoder remains deferred with a separate total budget below.
+    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_708_500);
+    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_829_000);
   }
   const deferredChunks = filesUnder(directory).filter((file) => /\.part\.js$/.test(file));
   // One locally decoded QR chunk measures 56,453 B raw / 19,842 B gzip.
