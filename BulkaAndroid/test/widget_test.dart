@@ -1190,14 +1190,30 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.byType(BulkaNavIcon), findsNWidgets(5));
-    expect(find.byIcon(Icons.bakery_dining_outlined), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is BulkaNavIcon &&
+            widget.kind == BulkaNavIconKind.catalog &&
+            !widget.active,
+      ),
+      findsOneWidget,
+    );
 
     for (final tab in [1, 3, 4]) {
       await tester.tap(find.byKey(ValueKey('nav-$tab')));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull, reason: 'tab $tab overflowed');
       if (tab == 1) {
-        expect(find.byIcon(Icons.bakery_dining), findsOneWidget);
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is BulkaNavIcon &&
+                widget.kind == BulkaNavIconKind.catalog &&
+                widget.active,
+          ),
+          findsOneWidget,
+        );
       }
     }
   });

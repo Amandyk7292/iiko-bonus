@@ -28,6 +28,11 @@ The `packages/cupertino_icons/CupertinoIcons` family similarly loads our origina
 `BulkaCupertinoIcons.ttf` for iOS framework controls; the stock package is not bundled.
 Never add a raw stock font or an uncovered `IconData` codepoint.
 
+The customer requested the previous pastry mark for the bottom Catalog tab.
+That tab draws the original licensed vectors directly; attribution is bundled
+in `BulkaAndroid/assets/brand/catalog-icon-LICENSE.txt`. This scoped exception
+does not replace the shared Bulka font or other pastry icons.
+
 Admin code imports `components/BulkaIcons`, which preserves SVG props, refs and icon
 names while rendering the original sprite. Standalone pages use `/assets/brand/bulka-icons.svg`.
 Missing brand assets must return 404, and shared assets revalidate when the release changes.

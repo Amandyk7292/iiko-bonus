@@ -71,11 +71,11 @@ if (flutterDirectory) {
   if (!fs.existsSync(mainFile)) {
     failures.push(`Flutter entry is missing: ${mainFile}`);
   } else {
-    // Shared premium surfaces measure 6,710,200 B raw / 1,828,867 B gzip.
-    // Keep 800 B raw headroom and the existing compressed-size limit.
+    // Premium surfaces plus the requested isolated legacy Catalog vectors
+    // measure 6,712,646 B raw / 1,829,966 B gzip; retain narrow headroom.
     // The QR decoder remains deferred with a separate total budget below.
-    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_711_000);
-    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_829_000);
+    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_713_500);
+    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_830_250);
   }
   const deferredChunks = filesUnder(directory).filter((file) => /\.part\.js$/.test(file));
   // One locally decoded QR chunk measures 56,453 B raw / 19,842 B gzip.

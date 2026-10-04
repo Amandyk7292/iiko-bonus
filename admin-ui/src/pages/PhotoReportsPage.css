@@ -213,6 +213,9 @@
   margin-top: 2px;
   font-weight: 400;
 }
+.closing-branch-title strong.closing-branch-disconnected {
+  color: var(--sagi-danger, #a7352f);
+}
 .closing-qr-button {
   min-height: 44px;
   flex-shrink: 0;

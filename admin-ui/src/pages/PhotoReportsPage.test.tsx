@@ -30,6 +30,124 @@ const renderPage = (role = 'owner') =>
   );
 
 describe('branch closing report calendar', () => {
+  it.each(['day', 'calendar'])(
+    'marks only known zero-tablet branches in the %s view',
+    async (view) => {
+      window.history.replaceState({}, '', `/admin/photo-reports?view=${view}`);
+      mocks.request.mockResolvedValue({
+        businessDate: date,
+        from: date,
+        to: date,
+        reports: [],
+        branches: [
+          { ...a, approvedDeviceCount: 0 },
+          { ...b, approvedDeviceCount: 2 },
+          { id: 'unknown', name: 'Неизвестная', city: 'Актау', approvedDeviceCount: null },
+          { id: 'legacy', name: 'Без сведений', city: 'Актау' },
+        ],
+      });
+      renderPage('viewer');
+      const disconnected = await screen.findByText(a.name, { selector: 'strong' });
+      expect(disconnected).toHaveClass('closing-branch-disconnected');
+      expect(disconnected).toHaveAttribute('title', 'Планшет не подключён');
+      for (const name of [b.name, 'Неизвестная', 'Без сведений'])
+        expect(screen.getByText(name, { selector: 'strong' })).not.toHaveClass(
+          'closing-branch-disconnected',
+        );
+      expect(
+        mocks.request.mock.calls.some(([path]) => path.startsWith('/photo-reports/devices')),
+      ).toBe(false);
+    },
+  );
+
+  it('does not label a branch disconnected during reload or after a failed calendar refresh', async () => {
+    let rejectRefresh!: (reason: Error) => void;
+    mocks.request
+      .mockResolvedValueOnce({
+        businessDate: date,
+        from: date,
+        to: date,
+        reports: [],
+        branches: [{ ...a, approvedDeviceCount: 0 }],
+      })
+      .mockImplementation(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectRefresh = reject;
+          }),
+      );
+    const user = userEvent.setup();
+    renderPage();
+    expect(await screen.findByText(a.name, { selector: 'strong' })).toHaveClass(
+      'closing-branch-disconnected',
+    );
+    await user.click(screen.getByRole('button', { name: 'Обновить' }));
+    await waitFor(() =>
+      expect(screen.getByText(a.name, { selector: 'strong' })).not.toHaveClass(
+        'closing-branch-disconnected',
+      ),
+    );
+    await act(async () => rejectRefresh(new Error('Нет связи')));
+    await screen.findByRole('alert');
+    expect(screen.getByText(a.name, { selector: 'strong' })).not.toHaveClass(
+      'closing-branch-disconnected',
+    );
+    expect(screen.getByText(a.name, { selector: 'strong' })).not.toHaveAttribute('title');
+  });
+
+  it('reloads tablet counts after approval, revocation and a tablet-list refresh', async () => {
+    let status: 'pending' | 'active' | 'revoked' = 'pending';
+    const device = () => ({
+      id: 'tablet-a',
+      branchId: a.id,
+      branchName: a.name,
+      city: a.city,
+      name: status === 'pending' ? null : 'Планшет зала',
+      status,
+      createdAt: date + 'T10:00:00Z',
+      approvedAt: status === 'pending' ? null : date + 'T10:03:00Z',
+      lastSeenAt: null,
+      expiresAt: status === 'pending' ? new Date(Date.now() + 300000).toISOString() : null,
+    });
+    mocks.request.mockImplementation((path: string) => {
+      if (path.endsWith('/approve') || path.endsWith('/revoke')) {
+        status = path.endsWith('/approve') ? 'active' : 'revoked';
+        return Promise.resolve({ success: true, device: device() });
+      }
+      if (path.startsWith('/photo-reports/devices?'))
+        return Promise.resolve({ success: true, devices: [device()] });
+      return Promise.resolve({
+        businessDate: date,
+        from: date,
+        to: date,
+        reports: [],
+        branches: [{ ...a, approvedDeviceCount: status === 'active' ? 1 : 0 }],
+      });
+    });
+    const user = userEvent.setup();
+    renderPage();
+    const title = await screen.findByText(a.name, { selector: '.closing-branch-title strong' });
+    expect(title).toHaveClass('closing-branch-disconnected');
+    await user.click(screen.getByRole('button', { name: 'Планшеты' }));
+    const tablets = within(screen.getByRole('dialog', { name: 'Планшеты' }));
+    await user.selectOptions(tablets.getByLabelText('Город'), 'city:Актау');
+    await user.selectOptions(tablets.getByLabelText('Точка'), a.id);
+    await user.type(await tablets.findByLabelText('Название планшета'), 'Планшет зала');
+    await user.type(tablets.getByLabelText('Код с планшета'), '001234');
+    await user.click(tablets.getByRole('button', { name: 'Подключить планшет' }));
+    await waitFor(() => expect(title).not.toHaveClass('closing-branch-disconnected'));
+    await user.click(tablets.getByRole('button', { name: 'Отключить' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Отключить планшет?' })).getByRole('button', {
+        name: 'Отключить планшет',
+      }),
+    );
+    await waitFor(() => expect(title).toHaveClass('closing-branch-disconnected'));
+    status = 'active'; // Another authorized administrator has reconnected the tablet.
+    await user.click(tablets.getByRole('button', { name: 'Обновить планшеты' }));
+    await waitFor(() => expect(title).not.toHaveClass('closing-branch-disconnected'));
+  });
+
   it('restores shared filters and the selected report after a reload and preserves unrelated parameters', async () => {
     window.history.replaceState(
       {},

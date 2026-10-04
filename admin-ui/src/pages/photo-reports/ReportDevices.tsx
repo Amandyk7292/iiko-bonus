@@ -134,7 +134,7 @@ function DeviceCard({
   );
 }
 
-function DeviceList({ branch, copy }: { branch: Branch; copy: PhotoCopy }) {
+function DeviceList({ branch, copy, onChanged }: { branch: Branch; copy: PhotoCopy; onChanged?: () => void }) {
   const [devices, setDevices] = useState<ReportDevice[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -166,6 +166,7 @@ function DeviceList({ branch, copy }: { branch: Branch; copy: PhotoCopy }) {
         throw new Error(copy.text('Не удалось загрузить планшеты этой точки.', 'Бұл нүктенің планшеттерін жүктеу мүмкін болмады.'));
       setDevices(result.devices);
       setNow(Date.now());
+      onChanged?.();
     }).catch((caught: unknown) => {
       if (!controller.signal.aborted)
         setError(caught instanceof Error ? caught.message : copy.text('Не удалось загрузить планшеты.', 'Планшеттер жүктелмеді.'));
@@ -173,7 +174,7 @@ function DeviceList({ branch, copy }: { branch: Branch; copy: PhotoCopy }) {
       if (!controller.signal.aborted) setLoading(false);
     });
     return () => controller.abort();
-  }, [branch.id, revision, copy]);
+  }, [branch.id, revision, copy, onChanged]);
   useEffect(() => () => mutation.current?.abort(), []);
   useEffect(() => {
     const poll = () => { if (!document.hidden) refresh(); };
@@ -213,6 +214,7 @@ function DeviceList({ branch, copy }: { branch: Branch; copy: PhotoCopy }) {
       setDevices((current) => current?.map((item) => item.id === device.id ? result.device : item) ?? [result.device]);
       setNow(Date.now());
       setConfirm(null);
+      onChanged?.();
     } catch (caught) {
       if (!controller.signal.aborted) {
         setMutationError(caught instanceof Error ? caught.message : copy.text('Не удалось сохранить изменения.', 'Өзгерістер сақталмады.'));
@@ -281,7 +283,7 @@ function DeviceList({ branch, copy }: { branch: Branch; copy: PhotoCopy }) {
   );
 }
 
-function DevicesBody({ branches, copy }: { branches: Branch[]; copy: PhotoCopy }) {
+function DevicesBody({ branches, copy, onChanged }: { branches: Branch[]; copy: PhotoCopy; onChanged?: () => void }) {
   const [cityKey, setCityKey] = useState('');
   const [branchId, setBranchId] = useState('');
   const cities = [...new Set(branches.map((item) => item.city.trim()))].sort((first, second) => first.localeCompare(second));
@@ -324,15 +326,15 @@ function DevicesBody({ branches, copy }: { branches: Branch[]; copy: PhotoCopy }
           </select>
         </div>
       </div>
-      {branch ? <DeviceList key={branch.id} branch={branch} copy={copy} /> : <div className="closing-device-intro"><Tablet size={30} aria-hidden="true" /><p>{copy.text('Выберите город и точку.', 'Қала мен нүктені таңдаңыз.')}</p></div>}
+      {branch ? <DeviceList key={branch.id} branch={branch} copy={copy} onChanged={onChanged} /> : <div className="closing-device-intro"><Tablet size={30} aria-hidden="true" /><p>{copy.text('Выберите город и точку.', 'Қала мен нүктені таңдаңыз.')}</p></div>}
     </div>
   );
 }
 
-export default function ReportDevices({ open, branches, onClose, copy }: { open: boolean; branches: Branch[]; onClose: () => void; copy: PhotoCopy }) {
+export default function ReportDevices({ open, branches, onClose, onChanged, copy }: { open: boolean; branches: Branch[]; onClose: () => void; onChanged?: () => void; copy: PhotoCopy }) {
   return (
     <Modal open={open} onClose={onClose} title={copy.text('Планшеты', 'Планшеттер')} size="lg">
-      {open && <DevicesBody branches={branches} copy={copy} />}
+      {open && <DevicesBody branches={branches} copy={copy} onChanged={onChanged} />}
     </Modal>
   );
 }

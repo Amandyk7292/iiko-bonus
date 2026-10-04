@@ -13,6 +13,7 @@ const {
   resolveLink,
 } = require('./branch-photo-report-access.service');
 const { requireDevice, touchDevice } = require('./branch-photo-devices.service');
+const { approvedDeviceCounts } = require('./branch-photo-device-summary.service');
 
 const PURPOSE = 'branch-closing-qr';
 const businessDate = (now = new Date()) =>
@@ -62,13 +63,21 @@ async function calendar(admin, { end = businessDate(), days = 14 } = {}, { db = 
     if (page.length < 1000) break;
   }
   const historicalIds = new Set(reports.map((r) => r.branch_id));
+  const visibleBranches = (branches || []).filter((b) => b.active || historicalIds.has(b.id));
+  const deviceCounts = await approvedDeviceCounts(
+    visibleBranches.map((b) => b.id),
+    { db },
+  );
   return {
     businessDate: businessDate(),
     from,
     to: end,
     retentionDays: 3,
     cutoffHour: 4,
-    branches: (branches || []).filter((b) => b.active || historicalIds.has(b.id)).map(branchDto),
+    branches: visibleBranches.map((b) => ({
+      ...branchDto(b),
+      approvedDeviceCount: deviceCounts?.get(b.id) ?? null,
+    })),
     reports: reports.map(reportDto),
   };
 }

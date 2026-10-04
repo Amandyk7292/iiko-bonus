@@ -127,6 +127,7 @@ export default function PhotoReportsPage({ role = 'viewer' }: { role?: string })
     date: data?.to ?? end,
     copy,
     canIssueQr,
+    tabletStatusKnown: !loading && !error,
     onQr: setQrBranch,
     onSelect: setSelection,
   };
@@ -392,6 +393,7 @@ export default function PhotoReportsPage({ role = 'viewer' }: { role?: string })
           open={devicesOpen}
           branches={data?.branches ?? []}
           onClose={() => setDevicesOpen(false)}
+          onChanged={refresh}
           copy={copy}
         />
       )}

@@ -15,6 +15,7 @@ interface ViewProps {
   date: string;
   copy: PhotoCopy;
   canIssueQr: boolean;
+  tabletStatusKnown?: boolean;
   onQr: (branch: Branch) => void;
   onSelect: (selection: Selection) => void;
 }
@@ -23,11 +24,22 @@ function BranchTitle({
   copy,
   canIssueQr,
   onQr,
-}: Pick<ViewProps, 'copy' | 'canIssueQr' | 'onQr'> & { branch: Branch }) {
+  tabletStatusKnown,
+}: Pick<ViewProps, 'copy' | 'canIssueQr' | 'onQr' | 'tabletStatusKnown'> & { branch: Branch }) {
+  const disconnected = tabletStatusKnown && branch.approvedDeviceCount === 0;
+  const tabletHint = disconnected
+    ? copy.text('Планшет не подключён', 'Планшет қосылмаған')
+    : undefined;
   return (
     <div className="closing-branch-title">
       <div>
-        <strong>{branch.name}</strong>
+        <strong
+          className={disconnected ? 'closing-branch-disconnected' : undefined}
+          title={tabletHint}
+        >
+          {branch.name}
+        </strong>
+        {disconnected && <span className="sr-only">{tabletHint}</span>}
         <small>
           {branch.city}
           {branch.active === false ? copy.text(' · Неактивна', ' · Белсенді емес') : ''}

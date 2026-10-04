@@ -8,6 +8,7 @@ export interface Branch {
   name: string;
   city: string;
   active?: boolean;
+  approvedDeviceCount?: number | null;
   roundTheClock?: boolean;
   photoDayShiftStart?: string;
   photoNightShiftStart?: string;
