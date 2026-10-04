@@ -255,6 +255,7 @@ extension _LoginScreenForms on _LoginScreenState {
               minimumSize: const Size(44, 44),
               padding: EdgeInsets.zero,
               textStyle: const TextStyle(
+                fontFamily: _descriptionFont,
                 fontSize: BulkaTypeScale.bodySmall,
                 fontWeight: FontWeight.w500,
                 height: 1.3,
@@ -320,7 +321,11 @@ extension _LoginScreenForms on _LoginScreenState {
                       foregroundColor: Theme.of(context).colorScheme.onSurface,
                       minimumSize: const Size(44, 48),
                       padding: const EdgeInsets.symmetric(horizontal: 8),
-                      textStyle: const TextStyle(fontSize: 13, height: 1.3),
+                      textStyle: const TextStyle(
+                        fontFamily: _descriptionFont,
+                        fontSize: 13,
+                        height: 1.3,
+                      ),
                     ),
                     child: Row(
                       children: [

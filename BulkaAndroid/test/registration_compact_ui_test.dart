@@ -92,6 +92,17 @@ void main() {
     await _openProfile(tester, onRegister: () => registrations++);
     expect(tester.widget<Checkbox>(find.byKey(_consentKey)).value, isFalse);
     expect(find.byKey(_documentsKey), findsNothing);
+    final bundledFont = buildBulkaTheme().textTheme.bodySmall!.fontFamily;
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(_conditionsKey))
+          .style!
+          .textStyle!
+          .resolve({})!
+          .fontFamily,
+      bundledFont,
+      reason: 'Consent must remain readable without remote fallback fonts',
+    );
     await tester.ensureVisible(find.byKey(_conditionsKey));
     await tester.tap(find.byKey(_conditionsKey));
     await tester.pumpAndSettle();
@@ -100,6 +111,16 @@ void main() {
       final link = find.byKey(ValueKey('registration-legal-$page'));
       expect(tester.widget<TextButton>(link).onPressed, isNotNull);
       expect(tester.getSize(link).height, greaterThanOrEqualTo(44));
+      expect(
+        tester
+            .widget<TextButton>(link)
+            .style!
+            .textStyle!
+            .resolve({})!
+            .fontFamily,
+        bundledFont,
+        reason: 'Legal links must use a font included in the app bundle',
+      );
     }
     await tester.tap(find.byKey(const ValueKey('registration-legal-close')));
     await tester.pumpAndSettle();
