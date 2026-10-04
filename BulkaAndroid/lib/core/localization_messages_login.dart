@@ -190,10 +190,12 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'en': 'Forgot your password?',
   },
   'auth_recovery_subtitle': {
-    'ru': 'Укажите номер аккаунта. Мы подтвердим его через WhatsApp.',
-    'kk': 'Аккаунт нөмірін көрсетіңіз. Оны WhatsApp арқылы растаймыз.',
+    'ru':
+        'Укажите номер аккаунта. Мы отправим SMS со ссылкой для смены пароля.',
+    'kk':
+        'Аккаунт нөмірін енгізіңіз. Құпиясөзді өзгерту сілтемесін SMS арқылы жібереміз.',
     'en':
-        'Enter the account phone number. We will confirm it through WhatsApp.',
+        'Enter your account phone number. We will send an SMS link to reset your password.',
   },
   'auth_password_label': {'ru': 'Пароль', 'kk': 'Құпиясөз', 'en': 'Password'},
   'auth_password_confirm': {
@@ -233,9 +235,37 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'en': 'Confirm phone',
   },
   'auth_recovery_button': {
-    'ru': 'Получить код',
-    'kk': 'Код алу',
-    'en': 'Get code',
+    'ru': 'Получить ссылку по SMS',
+    'kk': 'Сілтемені SMS арқылы алу',
+    'en': 'Get SMS link',
+  },
+  'auth_recovery_link_title': {
+    'ru': 'Проверьте SMS',
+    'kk': 'SMS-ті тексеріңіз',
+    'en': 'Check your SMS',
+  },
+  'auth_recovery_link_sent': {
+    'ru':
+        'Если этот номер зарегистрирован в Bulka, на него придёт SMS со ссылкой. Откройте её, чтобы задать новый пароль.',
+    'kk':
+        'Егер бұл нөмір Bulka-да тіркелген болса, оған сілтемесі бар SMS келеді. Жаңа құпиясөз орнату үшін сілтемені ашыңыз.',
+    'en':
+        'If this number is registered with Bulka, you will receive an SMS link. Open it to set a new password.',
+  },
+  'auth_recovery_link_expiry': {
+    'ru': 'Ссылка действует 15 минут и используется один раз.',
+    'kk': 'Сілтеме 15 минут жарамды және бір рет қолданылады.',
+    'en': 'The link expires after 15 minutes and can be used once.',
+  },
+  'auth_recovery_link_resend': {
+    'ru': 'Отправить ссылку повторно',
+    'kk': 'Сілтемені қайта жіберу',
+    'en': 'Resend link',
+  },
+  'error_recovery_link': {
+    'ru': 'Не удалось отправить ссылку. Повторите.',
+    'kk': 'Сілтемені жіберу мүмкін болмады. Қайталаңыз.',
+    'en': 'Could not send the link. Please try again.',
   },
   'auth_forgot_password': {
     'ru': 'Забыли пароль?',

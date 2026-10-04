@@ -464,7 +464,7 @@ extension _LoginScreenForms on _LoginScreenState {
             ? 'auth_registration_title'.tr
             : 'auth_recovery_title'.tr,
         subtitle: isLogin
-            ? 'auth_login_subtitle'.tr
+            ? null
             : isRegistration
             ? 'auth_registration_subtitle'.tr
             : 'auth_recovery_subtitle'.tr,

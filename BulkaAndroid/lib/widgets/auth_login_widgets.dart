@@ -98,15 +98,11 @@ class _AuthLoginMethodSelector extends StatelessWidget {
 }
 
 class _AuthStepHeader extends StatelessWidget {
-  const _AuthStepHeader({
-    this.step,
-    required this.title,
-    required this.subtitle,
-  });
+  const _AuthStepHeader({this.step, required this.title, this.subtitle});
 
   final String? step;
   final String title;
-  final String subtitle;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -141,15 +137,17 @@ class _AuthStepHeader extends StatelessWidget {
             fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          subtitle,
-          style: TextStyle(
-            color: context.bulkaColors.mutedText,
-            fontSize: BulkaTypeScale.body,
-            height: 1.45,
+        if (subtitle != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            subtitle!,
+            style: TextStyle(
+              color: context.bulkaColors.mutedText,
+              fontSize: BulkaTypeScale.body,
+              height: 1.45,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }

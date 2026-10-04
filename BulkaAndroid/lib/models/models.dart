@@ -21,6 +21,8 @@ class OtpRequestResult {
 
   bool get isAutomatic => deliveryMode == 'automatic';
 
+  bool get isSmsLink => deliveryMode == 'sms_link' && channel == 'sms';
+
   bool get isSuccess => error == null;
 }
 

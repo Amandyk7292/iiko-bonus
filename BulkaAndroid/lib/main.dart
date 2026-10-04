@@ -171,6 +171,7 @@ part 'screens/home_screen.dart';
 part 'screens/home_feed_controller.dart';
 part 'screens/login_screen.dart';
 part 'screens/login_actions.dart';
+part 'screens/login_recovery_link.dart';
 part 'screens/login_forms.dart';
 part 'screens/login_otp_widgets.dart';
 part 'screens/checkout_payment_widgets.dart';

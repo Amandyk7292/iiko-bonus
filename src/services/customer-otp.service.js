@@ -27,6 +27,13 @@ async function startCustomerOtp(
   if (!['customer_login', 'customer_registration', 'customer_password_reset'].includes(purpose)) {
     throw otpError('Некорректный запрос кода.', 400, 'OTP_INVALID_REQUEST');
   }
+  if (purpose === 'customer_password_reset') {
+    throw otpError(
+      'Восстановление пароля выполняется по ссылке из SMS.',
+      400,
+      'PASSWORD_RESET_SMS_LINK_REQUIRED',
+    );
+  }
   if (
     purpose === 'customer_registration' &&
     automaticOtpSupported !== true &&

@@ -1331,63 +1331,53 @@ void main() {
     expect(find.text('Завершение регистрации'), findsOneWidget);
   });
 
-  testWidgets(
-    'legacy account recovery verifies WhatsApp and sets a new password',
-    (tester) async {
-      String? resetPhone;
-      String? resetCode;
-      String? resetPassword;
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: buildBulkaTheme(),
-          home: LoginScreen(
-            onLogin: (_, _) async => null,
-            onStartRegistration: (_, _, _) async => const OtpRequestResult(),
-            onVerifyRegistration: (_, _) async => null,
-            onStartPasswordReset: (_, _) async => const OtpRequestResult(),
-            onResetPassword: (phone, code, password) async {
-              resetPhone = phone;
-              resetCode = code;
-              resetPassword = password;
-              return null;
-            },
-          ),
+  testWidgets('legacy WhatsApp recovery never opens OTP or resets password', (
+    tester,
+  ) async {
+    String? resetPhone;
+    String? resetCode;
+    String? resetPassword;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: LoginScreen(
+          onLogin: (_, _) async => null,
+          onStartRegistration: (_, _, _) async => const OtpRequestResult(),
+          onVerifyRegistration: (_, _) async => null,
+          onStartPasswordReset: (_, _) async => const OtpRequestResult(),
+          onResetPassword: (phone, code, password) async {
+            resetPhone = phone;
+            resetCode = code;
+            resetPassword = password;
+            return null;
+          },
         ),
-      );
+      ),
+    );
 
-      await tester.enterText(
-        find.byKey(const ValueKey('auth-phone-field')),
-        '7077654321',
-      );
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('forgot-password-button')),
-      );
-      await tester.tap(find.byKey(const ValueKey('forgot-password-button')));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Получить код'));
-      await tester.tap(find.text('Получить код'));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const ValueKey('auth-otp-field')),
-        '4321',
-      );
-      await tester.enterText(
-        find.byKey(const ValueKey('auth-password-field')),
-        'Renewed2026',
-      );
-      await tester.enterText(
-        find.byKey(const ValueKey('auth-confirm-password-field')),
-        'Renewed2026',
-      );
-      await tester.ensureVisible(find.text('Сохранить новый пароль'));
-      await tester.tap(find.text('Сохранить новый пароль'));
-      await tester.pump();
-
-      expect(resetPhone, '+77077654321');
-      expect(resetCode, '4321');
-      expect(resetPassword, 'Renewed2026');
-    },
-  );
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-phone-field')),
+      '7077654321',
+    );
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('forgot-password-button')),
+    );
+    await tester.tap(find.byKey(const ValueKey('forgot-password-button')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Получить ссылку по SMS'));
+    await tester.tap(find.text('Получить ссылку по SMS'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Не удалось отправить ссылку. Повторите.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('WhatsApp'), findsNothing);
+    expect(find.byKey(const ValueKey('auth-otp-field')), findsNothing);
+    expect(find.byKey(const ValueKey('auth-password-field')), findsNothing);
+    expect(resetPhone, isNull);
+    expect(resetCode, isNull);
+    expect(resetPassword, isNull);
+  });
 
   testWidgets('keeps the branded splash during minimum boot time', (
     tester,

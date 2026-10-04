@@ -220,18 +220,9 @@ test('password login succeeds without OTP and keeps failures generic', async () 
   }
 });
 
-test('legacy account can start recovery and registration grants are one-time', async () => {
+test('registration credential grants remain one-time', async () => {
   const { tables, client } = fakeDatabase();
   const customer = { id: 'customer-3', phone: '+77001112233', name: 'Дана' };
-  const reset = await startCustomerPasswordReset(
-    { phone: customer.phone, requestToken: 'ResetAbc23456' },
-    { db: client, findCustomer: async () => customer },
-  );
-  assert.equal(reset.phone, customer.phone);
-  assert.equal(
-    tables.whatsapp_sessions.get('token_ResetAbc23456').data.purpose,
-    AUTH_PURPOSES.passwordReset,
-  );
 
   const passwordHash = await bcrypt.hash('Grant2026', 10);
   const grantId = await createRegistrationCredentialGrant(
@@ -248,19 +239,35 @@ test('legacy account can start recovery and registration grants are one-time', a
   );
 });
 
-test('password recovery start does not reveal whether an account exists', async () => {
+test('password recovery start uses SMS links without invoking the old WhatsApp flow', async () => {
   const { tables, client } = fakeDatabase();
+  const linkDb = {
+    ...client,
+    rpc: async (name) => ({
+      data: name === 'reserve_customer_password_reset_link' ? { status: 'reserved' } : true,
+      error: null,
+    }),
+  };
+  let sent;
   const reset = await startCustomerPasswordReset(
     { phone: '+7 700 999 99 99', requestToken: 'UnknownAbc2345' },
-    { db: client, findCustomer: async () => null },
+    {
+      db: linkDb,
+      env: { AUTOCALL_API_TOKEN: 'autocall-test-only-placeholder' },
+      findCustomer: async () => null,
+      requestOtp: async () => assert.fail('Recovery must never request a WhatsApp OTP'),
+      sendSms: async (message) => {
+        sent = message;
+        return { messageId: 'accepted' };
+      },
+    },
   );
-  assert.equal(reset.phone, '+77009999999');
-  assert.equal(reset.customer, null);
-  assert.match(reset.whatsappUrl, /^https:\/\/wa\.me\//);
-  assert.equal(
-    tables.whatsapp_sessions.get('token_UnknownAbc2345').data.purpose,
-    AUTH_PURPOSES.passwordReset,
-  );
+  assert.equal(reset.deliveryMode, 'sms_link');
+  assert.equal(reset.channel, 'sms');
+  assert.equal(reset.customer, undefined);
+  assert.equal(reset.whatsappUrl, undefined);
+  assert.equal(sent.phone, '+77009999999');
+  assert.equal(tables.whatsapp_sessions.size, 0);
 });
 
 test('password authentication migrations stay mirrored and revoke old refresh sessions', () => {
@@ -280,7 +287,7 @@ test('password authentication migrations stay mirrored and revoke old refresh se
   assert.match(migration, /revoke all on table public\.customer_credentials/i);
 });
 
-test('registration and recovery pass purpose-bound credentials to automatic delivery', async () => {
+test('registration still passes purpose-bound credentials to automatic OTP delivery', async () => {
   const { tables, client } = fakeDatabase();
   const sent = [];
   const requestOtp = async (payload, options) => {
@@ -301,14 +308,5 @@ test('registration and recovery pass purpose-bound credentials to automatic deli
   assert.equal(sent[0].purpose, AUTH_PURPOSES.registration);
   assert.equal(sent[0].automaticOtpSupported, true);
   assert.equal(await bcrypt.compare('Register2026', sent[0].passwordHash), true);
-  const reset = await startCustomerPasswordReset(
-    { phone: '+77001234567', requestToken: 'RecoveryToken2345', automaticOtpSupported: true },
-    { db: client, findCustomer: async () => null, requestOtp },
-  );
-  assert.equal(reset.deliveryMode, 'automatic');
-  assert.equal(sent[1].purpose, AUTH_PURPOSES.passwordReset);
-  assert.equal(sent[1].automaticOtpSupported, true);
-  assert.equal(sent[1].passwordHash, undefined);
-  assert.equal(reset.customer, null);
   assert.equal(tables.whatsapp_sessions.size, 0, 'automatic delivery does not create bot requests');
 });

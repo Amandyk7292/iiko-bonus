@@ -118,8 +118,13 @@ class CustomerSessionService {
     };
   }
 
-  async issueCustomerSession(customer, req) {
-    const refresh = await this.createRefreshToken(customer.id, req);
+  async issueCustomerSession(customer, req, { authVersion } = {}) {
+    if (authVersion != null && authVersion !== (await this.credentialVersion(customer.id))) {
+      throw sessionError('Customer credentials have changed');
+    }
+    // Keep the version proved by password authentication. Never upgrade an
+    // in-flight old-password login to a version created by a concurrent reset.
+    const refresh = await this.createRefreshToken(customer.id, req, { authVersion });
     return this.sessionPayload(customer, refresh);
   }
 

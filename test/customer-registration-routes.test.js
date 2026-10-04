@@ -261,9 +261,15 @@ test('production registration handler preserves verified password grants across 
   );
 
   await t.test(
-    'established customers retain generic WhatsApp login and password recovery',
-    async () => {
+    'established customers retain WhatsApp login while recovery fails closed without AutoCall configuration',
+    async (t) => {
       reset();
+      const previousToken = process.env.AUTOCALL_API_TOKEN;
+      process.env.AUTOCALL_API_TOKEN = '';
+      t.after(() => {
+        if (previousToken === undefined) delete process.env.AUTOCALL_API_TOKEN;
+        else process.env.AUTOCALL_API_TOKEN = previousToken;
+      });
       state.customer = { id: customerId, phone, name: 'Алия', balance: 0, total_spent: 0 };
       for (const version of [undefined, 2]) {
         const result = await authRequest('request-otp', {
@@ -289,9 +295,9 @@ test('production registration handler preserves verified password grants across 
         phone,
         token: 'LegacyRecovery23456',
       });
-      assert.equal(recovery.status, 200);
-      assert.equal((await recovery.json()).channel, 'whatsapp');
-      assert.equal(state.challengeWrites[2].data.purpose, 'customer_password_reset');
+      assert.equal(recovery.status, 503);
+      assert.equal((await recovery.json()).code, 'PASSWORD_RESET_LINK_UNAVAILABLE');
+      assert.equal(state.challengeWrites.length, 2);
       assert.deepEqual(state.rpcCalls, []);
       assert.equal(state.created, 0);
     },

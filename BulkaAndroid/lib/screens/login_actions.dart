@@ -41,6 +41,10 @@ extension _LoginScreenActions on _LoginScreenState {
 
   Future<void> _startPhoneConfirmation() async {
     if (_phoneController.text.length != 10 || _loading) return;
+    if (_flow == _CustomerAuthFlow.passwordReset) {
+      await _requestRecoveryLink();
+      return;
+    }
     if (_flow == _CustomerAuthFlow.registration) {
       final passwordError = _passwordValidationError(confirm: true);
       if (passwordError != null) {

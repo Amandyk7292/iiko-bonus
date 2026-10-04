@@ -259,6 +259,37 @@ const recoveryRequest = {
   },
 };
 
+test('a password login authenticated before reset cannot gain the new credential version', async () => {
+  const h = createHarness();
+  const customer = { id: h.customerId, phone: '+77001234567' };
+  const verifiedAuthVersion = await h.service.credentialVersion(h.customerId);
+  h.database.customer_credentials.get(h.customerId).auth_version = 4;
+  await assert.rejects(
+    h.service.issueCustomerSession(customer, recoveryRequest, {
+      authVersion: verifiedAuthVersion,
+    }),
+    /credentials have changed/,
+  );
+  assert.equal(h.database.customer_refresh_tokens.size, 0);
+
+  // Reset also wins if it commits after the early check but before insertion.
+  h.database.customer_credentials.get(h.customerId).auth_version = verifiedAuthVersion;
+  const createRefresh = h.service.createRefreshToken.bind(h.service);
+  h.service.createRefreshToken = async (...args) => {
+    h.database.customer_credentials.get(h.customerId).auth_version = 4;
+    return createRefresh(...args);
+  };
+  await assert.rejects(
+    h.service.issueCustomerSession(customer, recoveryRequest, {
+      authVersion: verifiedAuthVersion,
+    }),
+    /credentials have changed/,
+  );
+  const stored = [...h.database.customer_refresh_tokens.values()][0];
+  assert.equal(stored.auth_version, verifiedAuthVersion);
+  await assert.rejects(h.service.customerForSession(stored), /credentials have changed/);
+});
+
 test('persistent customer session survives years without extending the access JWT', async (t) => {
   const previous = process.env.CUSTOMER_REFRESH_TOKEN_DAYS;
   delete process.env.CUSTOMER_REFRESH_TOKEN_DAYS;

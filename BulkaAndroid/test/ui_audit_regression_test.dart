@@ -274,51 +274,48 @@ void main() {
     final button = find.byType(GradientButton);
     await _tap(tester, button, settle: false);
     await _tap(tester, find.text('Вернуться ко входу'));
-    pending.complete(const OtpRequestResult());
+    pending.complete(
+      const OtpRequestResult(deliveryMode: 'sms_link', channel: 'sms'),
+    );
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('auth-otp-field')), findsNothing);
     expect(find.byKey(const ValueKey('create-account-button')), findsOneWidget);
   });
 
   testWidgets(
-    'password reset submission prevents misleading cancellation and unlocks after error',
+    'SMS-link resend failure unlocks retry without starting password mutation',
     (tester) async {
       _viewport(tester);
-      final pending = Completer<String?>();
-      await tester.pumpWidget(_login(reset: (_, _, _) => pending.future));
+      final pending = Completer<OtpRequestResult>();
+      var calls = 0;
+      await tester.pumpWidget(
+        _login(
+          recover: (_, _) => ++calls == 1
+              ? Future.value(
+                  const OtpRequestResult(
+                    deliveryMode: 'sms_link',
+                    channel: 'sms',
+                  ),
+                )
+              : pending.future,
+        ),
+      );
       await _tap(tester, find.byKey(const ValueKey('forgot-password-button')));
       await tester.enterText(
         find.byKey(const ValueKey('auth-phone-field')),
         '7012345678',
       );
       await _tap(tester, find.byType(GradientButton));
-      final otpInput = find.descendant(
-        of: find.byKey(const ValueKey('auth-otp-field')),
-        matching: find.byType(EditableText),
-      );
-      await tester.enterText(otpInput, '1234');
-      await tester.enterText(
-        find.byKey(const ValueKey('auth-password-field')),
-        'Reset2026',
-      );
-      await tester.enterText(
-        find.byKey(const ValueKey('auth-confirm-password-field')),
-        'Reset2026',
-      );
-      await _tap(tester, find.byType(GradientButton), settle: false);
-      final changePhone = find.widgetWithText(TextButton, 'Изменить номер');
-      expect(tester.widget<TextButton>(changePhone).onPressed, isNull);
-      expect(
-        tester
-            .widget<TextField>(
-              find.byKey(const ValueKey('auth-password-field')),
-            )
-            .enabled,
-        false,
-      );
-      pending.complete('bad code');
+      final resend = find.byKey(const ValueKey('recovery-link-resend-button'));
+      await _tap(tester, resend, settle: false);
+      expect(tester.widget<TextButton>(resend).onPressed, isNull);
+      expect(find.byKey(const ValueKey('auth-password-field')), findsNothing);
+      expect(find.byKey(const ValueKey('auth-otp-field')), findsNothing);
+      pending.complete(const OtpRequestResult(error: 'send failure'));
       await tester.pumpAndSettle();
-      expect(find.text('bad code'), findsOneWidget);
+      expect(find.text('send failure'), findsOneWidget);
+      expect(tester.widget<TextButton>(resend).onPressed, isNotNull);
+      final changePhone = find.widgetWithText(TextButton, 'Изменить номер');
       expect(tester.widget<TextButton>(changePhone).onPressed, isNotNull);
       await _tap(tester, changePhone);
       expect(find.byKey(const ValueKey('auth-phone-field')), findsOneWidget);

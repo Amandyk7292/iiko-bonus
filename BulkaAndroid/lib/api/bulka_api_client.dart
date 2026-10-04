@@ -258,11 +258,12 @@ class BulkaApiClient {
     required String phone,
     required String token,
   }) async {
-    final json = await _post('/api/auth/password-reset/start', {
-      'phone': phone,
-      'token': token,
-      'otpDeliveryVersion': 2,
-    }, timeout: const Duration(seconds: 30));
+    final json = await _post(
+      '/api/auth/password-reset/start',
+      {'phone': phone, 'token': token, 'otpDeliveryVersion': 2},
+      timeout: const Duration(seconds: 30),
+      refreshOnUnauthorized: false,
+    );
     return _otpRequestResult(json);
   }
 

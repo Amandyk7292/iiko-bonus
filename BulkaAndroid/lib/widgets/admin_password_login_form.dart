@@ -86,10 +86,7 @@ class _AdminPasswordLoginFormState extends State<_AdminPasswordLoginForm> {
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
             )
           else
-            _AuthStepHeader(
-              title: 'auth_login_title'.tr,
-              subtitle: 'auth_admin_subtitle'.tr,
-            ),
+            _AuthStepHeader(title: 'auth_login_title'.tr),
           const SizedBox(height: 22),
           StaffTouchField(
             fieldKey: const ValueKey('auth-admin-username'),

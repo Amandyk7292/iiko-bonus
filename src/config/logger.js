@@ -2,6 +2,24 @@ const pino = require('pino');
 
 const isTest = process.env.NODE_ENV === 'test';
 
+function redactResetSecrets(value, seen = new WeakMap()) {
+  if (typeof value === 'string') {
+    return value.replace(/(\/reset-password#reset=)[a-f0-9]{64}/g, '$1[REDACTED]');
+  }
+  if (!value || typeof value !== 'object') return value;
+  if (seen.has(value)) return seen.get(value);
+  if (value instanceof Date || Buffer.isBuffer(value)) return value;
+  const copy = Array.isArray(value) ? [] : value instanceof Error ? new Error(value.message) : {};
+  seen.set(value, copy);
+  for (const key of Object.getOwnPropertyNames(value)) {
+    if (Array.isArray(value) && key === 'length') continue;
+    copy[key] = ['resetToken', 'reset_token', 'reset_url'].includes(key)
+      ? '[REDACTED]'
+      : redactResetSecrets(value[key], seen);
+  }
+  return copy;
+}
+
 const logger = pino({
   level: isTest ? 'silent' : process.env.LOG_LEVEL || 'info',
   base: {
@@ -9,11 +27,22 @@ const logger = pino({
     environment: process.env.NODE_ENV || 'development',
   },
   timestamp: pino.stdTimeFunctions.isoTime,
+  hooks: {
+    logMethod(args, method) {
+      return method.apply(
+        this,
+        args.map((value) => redactResetSecrets(value)),
+      );
+    },
+  },
   redact: {
     paths: [
       'authorization',
       'cookie',
       'token',
+      'resetToken',
+      '*.resetToken',
+      'req.body.resetToken',
       'password',
       'secret',
       'apiKey',
@@ -59,6 +88,17 @@ const logger = pino({
     err: pino.stdSerializers.err,
   },
 });
+
+// Pino deliberately resets the bindings formatter for child loggers. Sanitize
+// bindings before serialization so secrets are also absent from their context.
+const createChildLogger = logger.child;
+logger.child = function child(bindings, options) {
+  return createChildLogger.call(this, redactResetSecrets(bindings), options);
+};
+const setLoggerBindings = logger.setBindings;
+logger.setBindings = function setBindings(bindings) {
+  return setLoggerBindings.call(this, redactResetSecrets(bindings));
+};
 
 const redactLegacyText = (value) =>
   String(value)

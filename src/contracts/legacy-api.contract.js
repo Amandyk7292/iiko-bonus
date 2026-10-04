@@ -54,6 +54,12 @@ const customerPasswordResetCompleteBodySchema = z
     password: newPasswordSchema,
   })
   .strict();
+const customerPasswordResetLinkValidateBodySchema = z
+  .object({ resetToken: z.string().max(128) })
+  .strict();
+const customerPasswordResetLinkCompleteBodySchema = z
+  .object({ resetToken: z.string().max(128), password: z.string().max(4096) })
+  .strict();
 const customerOtpRequestBodySchema = z
   .object({
     phone: phoneSchema,
@@ -106,6 +112,8 @@ module.exports = {
   customerOtpRequestBodySchema,
   customerOtpVerifyBodySchema,
   customerPasswordResetCompleteBodySchema,
+  customerPasswordResetLinkCompleteBodySchema,
+  customerPasswordResetLinkValidateBodySchema,
   customerPasswordResetStartBodySchema,
   customerRegistrationStartBodySchema,
   customerSessionBodySchema,

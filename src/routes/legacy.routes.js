@@ -47,11 +47,13 @@ const {
   getCustomerCredential,
   isEstablishedCustomer,
   normalizeCustomerPhone,
-  resetCustomerPassword,
   startCustomerPasswordReset,
   startCustomerRegistration,
-  validateNewPassword,
 } = require('../services/customer-password-auth.service');
+const {
+  completeCustomerPasswordResetLink,
+  validateCustomerPasswordResetLink,
+} = require('../services/customer-password-reset-link.service');
 const {
   categoryNameKey,
   effectiveProductCategory,
@@ -76,6 +78,8 @@ const {
   customerOtpRequestBodySchema,
   customerOtpVerifyBodySchema,
   customerPasswordResetCompleteBodySchema,
+  customerPasswordResetLinkCompleteBodySchema,
+  customerPasswordResetLinkValidateBodySchema,
   customerPasswordResetStartBodySchema,
   customerRegistrationStartBodySchema,
   customerSessionBodySchema,
@@ -127,7 +131,7 @@ async function getCustomerTierSnapshot(customer) {
   };
 }
 
-async function buildAuthenticatedCustomerPayload(customer, req, res) {
+async function buildAuthenticatedCustomerPayload(customer, req, res, { authVersion } = {}) {
   const sessionCustomer = customer;
   customer = await require('../services/family.service').family.profile(customer);
   const [tierSnapshot, transactionResult, issuedSession] = await Promise.all([
@@ -138,7 +142,7 @@ async function buildAuthenticatedCustomerPayload(customer, req, res) {
       .eq('customer_id', customer.family?.ownerCustomerId || customer.id)
       .order('timestamp', { ascending: false })
       .limit(20),
-    issueCustomerSession(sessionCustomer, req),
+    issueCustomerSession(sessionCustomer, req, { authVersion }),
   ]);
   const { tier, vipThreshold, isVip, cashbackPercent } = tierSnapshot;
   const transactions = transactionResult.data;
@@ -179,7 +183,9 @@ function sendCustomerAuthError(res, error) {
   if (
     (status >= 400 && status < 500) ||
     (status === 503 &&
-      (error?.code?.startsWith('OTP_') || error?.code === 'STAFF_DIRECTORY_UNAVAILABLE'))
+      (error?.code?.startsWith('OTP_') ||
+        error?.code?.startsWith('PASSWORD_RESET_') ||
+        error?.code === 'STAFF_DIRECTORY_UNAVAILABLE'))
   ) {
     return res.status(status).json({
       success: false,
@@ -225,8 +231,8 @@ router.post(
   validateRequest({ body: customerLoginBodySchema }),
   async (req, res) => {
     try {
-      const { customer } = await authenticateCustomerPassword(req.body || {});
-      res.json(await buildAuthenticatedCustomerPayload(customer, req, res));
+      const { customer, authVersion } = await authenticateCustomerPassword(req.body || {});
+      res.json(await buildAuthenticatedCustomerPayload(customer, req, res, { authVersion }));
     } catch (error) {
       sendCustomerAuthError(res, error);
     }
@@ -265,11 +271,8 @@ router.post(
       });
       res.json({
         success: true,
-        whatsappPhone: result.whatsappPhone,
-        whatsappUrl: result.whatsappUrl,
         deliveryMode: result.deliveryMode,
         channel: result.channel,
-        codeLength: result.codeLength,
         expiresInSeconds: result.expiresInSeconds,
         retryAfterSeconds: result.retryAfterSeconds,
       });
@@ -283,40 +286,35 @@ router.post(
   '/api/auth/password-reset/complete',
   authRateLimit,
   validateRequest({ body: customerPasswordResetCompleteBodySchema }),
+  (_req, res) =>
+    res.status(410).json({
+      success: false,
+      error: 'Восстановление пароля выполняется по ссылке из SMS.',
+      code: 'PASSWORD_RESET_SMS_LINK_REQUIRED',
+    }),
+);
+
+router.post(
+  '/api/auth/password-reset/validate-link',
+  authRateLimit,
+  validateRequest({ body: customerPasswordResetLinkValidateBodySchema }),
   async (req, res) => {
     try {
-      const phone = normalizeCustomerPhone(req.body?.phone);
-      validateNewPassword(req.body?.password);
-      const code = String(req.body?.code || '').trim();
-      if (!/^(?:\d{4}|\d{6})$/.test(code)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid confirmation code',
-          code: 'INVALID_OTP',
-        });
-      }
-      const consumed = await otpStore.consume(phone, code);
-      const failure = sendOtpFailure(res, consumed);
-      if (failure) return failure;
-      if (consumed.payload?.purpose !== AUTH_PURPOSES.passwordReset) {
-        return res.status(400).json({
-          success: false,
-          error: 'Confirmation code cannot be used for password recovery',
-          code: 'WRONG_OTP_PURPOSE',
-        });
-      }
-
-      const customer = await getCustomerByPhone(phone);
-      const credential = customer ? await getCustomerCredential(customer.id) : null;
-      if (!customer || (!credential && !isEstablishedCustomer(customer))) {
-        return res.status(404).json({
-          success: false,
-          error: 'Customer account was not found',
-          code: 'ACCOUNT_NOT_FOUND',
-        });
-      }
-      await resetCustomerPassword({ customerId: customer.id, password: req.body.password });
-      res.json(await buildAuthenticatedCustomerPayload(customer, req, res));
+      res.set('Cache-Control', 'no-store');
+      res.json(await validateCustomerPasswordResetLink(req.body));
+    } catch (error) {
+      sendCustomerAuthError(res, error);
+    }
+  },
+);
+router.post(
+  '/api/auth/password-reset/complete-link',
+  authRateLimit,
+  validateRequest({ body: customerPasswordResetLinkCompleteBodySchema }),
+  async (req, res) => {
+    try {
+      res.set('Cache-Control', 'no-store');
+      res.json(await completeCustomerPasswordResetLink(req.body));
     } catch (error) {
       sendCustomerAuthError(res, error);
     }

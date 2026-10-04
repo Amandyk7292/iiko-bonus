@@ -94,14 +94,9 @@ test('old clients retain four-digit confirmation outside AutoCall registration',
   for (const [purpose, deliveryEnv] of [
     ['customer_registration', env],
     ['customer_login', autocallEnv],
-    ['customer_password_reset', autocallEnv],
     [
       'customer_login',
       { ...autocallEnv, CUSTOMER_OTP_PROVIDER: 'unknown', AUTOCALL_API_TOKEN: '' },
-    ],
-    [
-      'customer_password_reset',
-      { ...autocallEnv, CUSTOMER_OTP_PROVIDER: 'whatsapp_cloud', WHATSAPP_CLOUD_ACCESS_TOKEN: '' },
     ],
   ]) {
     const result = await startCustomerOtp(
@@ -523,11 +518,10 @@ test('AutoCall accepts a completed campaign only with proof of delivery of the e
   }
 });
 
-test('registration override uses AutoCall SMS while login and recovery retain the configured WhatsApp provider', async () => {
+test('registration override uses AutoCall SMS while login retains the configured WhatsApp provider', async () => {
   for (const [purpose, recipient, expectedProvider, expectedChannel] of [
     ['customer_registration', phone, 'autocall_sms', 'sms'],
     ['customer_login', '+77001234568', 'ycloud_whatsapp', 'whatsapp'],
-    ['customer_password_reset', '+77001234569', 'ycloud_whatsapp', 'whatsapp'],
   ]) {
     let code;
     const result = await startCustomerOtp(
@@ -553,6 +547,23 @@ test('registration override uses AutoCall SMS while login and recovery retain th
     assert.equal(verified.status, 'success');
     assert.equal(verified.payload.purpose, purpose);
   }
+});
+
+test('password recovery cannot create or send a legacy or automatic OTP', async () => {
+  for (const automaticOtpSupported of [false, true]) {
+    await assert.rejects(
+      startCustomerOtp(
+        { ...request, purpose: 'customer_password_reset', automaticOtpSupported },
+        {
+          db,
+          env: autocallEnv,
+          sendOtp: async () => assert.fail('Password recovery uses an SMS link only'),
+        },
+      ),
+      { code: 'PASSWORD_RESET_SMS_LINK_REQUIRED' },
+    );
+  }
+  assert.equal((await pg.query('select count(*)::int as n from whatsapp_sessions')).rows[0].n, 0);
 });
 
 test('AutoCall configuration is registration-only and invalid registration secrets do not affect login or reserve quota', async () => {

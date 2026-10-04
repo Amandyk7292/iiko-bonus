@@ -56,6 +56,16 @@ const registrationPolicy = {
 };
 const staticDocumentPolicies = new Map([
   [
+    '/reset-password',
+    {
+      ...staticDocumentPolicy('public/reset-password/index.html'),
+      frameAncestors: ["'none'"],
+      baseUri: ["'none'"],
+      formAction: ["'none'"],
+      imgSrc: ["'self'"],
+    },
+  ],
+  [
     '/branch-reports',
     { ...staticDocumentPolicy('public/branch-reports/index.html'), frameAncestors: ["'none'"] },
   ],
@@ -76,6 +86,10 @@ const staticDocumentPolicies = new Map([
   ],
   ['/account-deletion', staticDocumentPolicy('public/legal/account-deletion.html')],
 ]);
+staticDocumentPolicies.set(
+  '/reset-password/index.html',
+  staticDocumentPolicies.get('/reset-password'),
+);
 // The camera form aliases use the same restrictive document policy.
 staticDocumentPolicies.set('/branch-reports/', staticDocumentPolicies.get('/branch-reports'));
 staticDocumentPolicies.set(

@@ -1174,7 +1174,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
           ? result
           : OtpRequestResult(error: 'error_session_changed'.tr);
     } catch (error) {
-      return OtpRequestResult(error: _userError(error, 'error_send_code'));
+      return OtpRequestResult(error: _userError(error, 'error_recovery_link'));
     }
   }
 

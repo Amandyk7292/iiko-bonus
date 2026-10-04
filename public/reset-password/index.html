@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#fffaf2" />
+    <title>Новый пароль · Bulka</title>
+    <link rel="icon" href="/favicon.png" />
+    <link rel="stylesheet" href="/reset-password/style.css" />
+    <script src="/reset-password/app.js" defer></script>
+  </head>
+  <body>
+    <main class="card" aria-labelledby="title">
+      <img class="logo" src="/taplink/assets/brand/bulka_logo.png" alt="Bulka" width="144" />
+      <h1 id="title">Новый пароль</h1>
+      <p id="status" class="message" role="status">Проверяем ссылку…</p>
+      <form id="reset-form" hidden novalidate>
+        <div class="field">
+          <label for="password">Новый пароль</label>
+          <div class="input-wrap">
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="new-password"
+              minlength="8"
+              maxlength="72"
+              required
+              aria-describedby="password-hint error"
+            />
+            <button
+              class="reveal"
+              type="button"
+              data-input="password"
+              aria-label="Показать пароль"
+              aria-pressed="false"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                aria-hidden="true"
+              >
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
+          </div>
+          <small id="password-hint">От 8 символов, буквы и цифры</small>
+        </div>
+        <div class="field">
+          <label for="confirmation">Повторите пароль</label>
+          <div class="input-wrap">
+            <input
+              id="confirmation"
+              name="confirmation"
+              type="password"
+              autocomplete="new-password"
+              maxlength="72"
+              required
+              aria-describedby="error"
+            />
+            <button
+              class="reveal"
+              type="button"
+              data-input="confirmation"
+              aria-label="Показать пароль"
+              aria-pressed="false"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                aria-hidden="true"
+              >
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <p id="error" class="error" role="alert" hidden></p>
+        <button id="save" class="primary" type="submit">Сохранить пароль</button>
+      </form>
+      <a id="retry" class="secondary" href="/profile" hidden>Вернуться ко входу</a>
+      <a id="login" class="primary" href="/profile" hidden>Войти</a>
+      <button id="check-again" class="secondary" type="button" hidden>Проверить ещё раз</button>
+      <noscript
+        ><p class="message">Включите JavaScript и откройте ссылку из SMS ещё раз.</p></noscript
+      >
+    </main>
+  </body>
+</html>

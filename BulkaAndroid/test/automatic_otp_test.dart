@@ -213,7 +213,7 @@ void main() {
   }
 
   testWidgets(
-    'automatic SMS recovery accepts a six-digit code and a new password',
+    'SMS-link recovery waits for browser reset without accepting an OTP',
     (tester) async {
       String? recoveredCode;
       await tester.pumpWidget(
@@ -224,9 +224,8 @@ void main() {
             onStartRegistration: (_, _, _) async => const OtpRequestResult(),
             onVerifyRegistration: (_, _) async => null,
             onStartPasswordReset: (_, _) async => const OtpRequestResult(
-              deliveryMode: 'automatic',
+              deliveryMode: 'sms_link',
               channel: 'sms',
-              codeLength: 6,
               retryAfterSeconds: 60,
             ),
             onResetPassword: (_, code, _) async {
@@ -245,25 +244,14 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('forgot-password-button')));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Получить код'));
-      await tester.tap(find.text('Получить код'));
+      await tester.ensureVisible(find.text('Получить ссылку по SMS'));
+      await tester.tap(find.text('Получить ссылку по SMS'));
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const ValueKey('auth-otp-field')),
-        '123456',
-      );
-      await tester.enterText(
-        find.byKey(const ValueKey('auth-password-field')),
-        'NewPassword2026',
-      );
-      await tester.enterText(
-        find.byKey(const ValueKey('auth-confirm-password-field')),
-        'NewPassword2026',
-      );
-      await tester.ensureVisible(find.text('Сохранить новый пароль'));
-      await tester.tap(find.text('Сохранить новый пароль'));
-      await tester.pumpAndSettle();
-      expect(recoveredCode, '123456');
+      expect(find.text('Проверьте SMS'), findsOneWidget);
+      expect(find.byKey(const ValueKey('auth-otp-field')), findsNothing);
+      expect(find.byKey(const ValueKey('auth-password-field')), findsNothing);
+      expect(find.textContaining('WhatsApp'), findsNothing);
+      expect(recoveredCode, isNull);
       await tester.pumpWidget(const SizedBox());
     },
   );

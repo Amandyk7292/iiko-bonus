@@ -133,27 +133,11 @@ async function startCustomerRegistration(
   return { phone, ...contact };
 }
 
-async function startCustomerPasswordReset(
-  { phone: rawPhone, requestToken: rawRequestToken, automaticOtpSupported = false },
-  { db = supabase, findCustomer = getCustomerByPhone, requestOtp = startCustomerOtp } = {},
-) {
-  const phone = normalizeCustomerPhone(rawPhone);
-  const requestToken = validateRequestToken(rawRequestToken);
-  const customer = await findCustomer(phone);
-  const credential = customer ? await getCustomerCredential(customer.id, { db }) : null;
-
-  // Keep the public response and confirmation flow identical for
-  // existing and unknown numbers. Only someone who controls the phone can
-  // complete the OTP step, where account eligibility is checked again.
-  const contact = await requestOtp(
-    { phone, requestToken, purpose: AUTH_PURPOSES.passwordReset, automaticOtpSupported },
-    { db },
+async function startCustomerPasswordReset(params, dependencies = {}) {
+  return require('./customer-password-reset-link.service').startCustomerPasswordResetLink(
+    params,
+    dependencies,
   );
-  return {
-    phone,
-    customer: customer && (credential || isEstablishedCustomer(customer)) ? customer : null,
-    ...contact,
-  };
 }
 
 async function authenticateCustomerPassword(

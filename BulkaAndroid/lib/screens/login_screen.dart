@@ -68,6 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   _CustomerAuthFlow _flow = _CustomerAuthFlow.login;
   bool _otpStep = false;
+  bool _recoveryLinkSent = false;
   bool _registerStep = false;
   bool _loading = false;
   int _authRequestRevision = 0;
@@ -110,6 +111,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _update(() {
       _flow = flow;
       _otpStep = false;
+      _recoveryLinkSent = false;
       _registerStep = false;
       _cashierInviteToken = null;
       _cashierInviteChecking = false;
@@ -133,6 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _update(() {
       _loading = false;
       _otpStep = false;
+      _recoveryLinkSent = false;
       _otpRetrySeconds = 0;
       _error = null;
       _otpController.clear();
@@ -249,6 +252,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                             setState(() => _loading = loading);
                                           }
                                         },
+                                      )
+                                    : _recoveryLinkSent
+                                    ? Column(
+                                        key: const ValueKey('recovery-link'),
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: _recoveryLinkStep(context),
                                       )
                                     : _otpStep
                                     ? Column(
