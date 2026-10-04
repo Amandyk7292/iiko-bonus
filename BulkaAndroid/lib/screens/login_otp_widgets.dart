@@ -106,6 +106,7 @@ extension _LoginOtpWidgets on _LoginScreenState {
             );
             return Pinput(
               key: const ValueKey('auth-otp-field'),
+              enabled: !_loading,
               length: _otpCodeLength,
               controller: _otpController,
               separatorBuilder: (_) => const SizedBox(width: separatorWidth),
@@ -234,18 +235,9 @@ extension _LoginOtpWidgets on _LoginScreenState {
       ),
       const SizedBox(height: 14),
       TextButton(
-        onPressed: () {
-          _otpRetryTimer?.cancel();
-          _update(() {
-            _otpStep = false;
-            _error = null;
-            _otpController.clear();
-            if (_flow == _CustomerAuthFlow.passwordReset) {
-              _passwordController.clear();
-              _confirmPasswordController.clear();
-            }
-          });
-        },
+        onPressed: _loading && _flow == _CustomerAuthFlow.passwordReset
+            ? null
+            : _changeOtpPhone,
         child: Text(
           'change_phone_btn'.tr,
           style: const TextStyle(color: _bulkaBrown),

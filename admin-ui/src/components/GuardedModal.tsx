@@ -1,13 +1,18 @@
-import { useEffect, useRef, useState, type ComponentProps } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type MouseEvent } from 'react';
 import Modal from './Modal';
 import { useI18n } from '../lib/i18n';
 import { useNavigationBlocker, useNavigate } from '../lib/router';
 /** Editing dialogs retain drafts until the user explicitly discards them. */
-export default function GuardedModal(props: ComponentProps<typeof Modal>) {
+export default function GuardedModal({
+  dirty: controlledDirty,
+  dismissDisabled = false,
+  ...props
+}: ComponentProps<typeof Modal> & { dirty?: boolean; dismissDisabled?: boolean }) {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const [dirty, setDirty] = useState(false),
+  const [observedDirty, setDirty] = useState(false),
     [confirm, setConfirm] = useState(false);
+  const dirty = controlledDirty ?? observedDirty;
   const pending = useRef<string | null>(null),
     allowNavigation = useRef(false);
   useEffect(() => {
@@ -27,31 +32,42 @@ export default function GuardedModal(props: ComponentProps<typeof Modal>) {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty, props.open]);
-  useNavigationBlocker(dirty && props.open, (next) => {
+  useNavigationBlocker((dirty || dismissDisabled) && props.open, (next) => {
     if (allowNavigation.current) return true;
+    if (dismissDisabled) return false;
     pending.current = next.pathname + next.search + next.hash;
     setConfirm(true);
     return false;
   });
   const close = () => {
+    if (dismissDisabled) return;
     if (dirty) setConfirm(true);
     else props.onClose();
   };
+  const captureClick = (event: MouseEvent<HTMLDivElement>) => {
+    const element = event.target as HTMLElement;
+    if (element.closest('[role=option], [data-unsaved-change]')) setDirty(true);
+    const button = element.closest('button');
+    if (
+      button &&
+      (button.hasAttribute('data-modal-dismiss') ||
+        button.textContent?.trim() === t('common.cancel'))
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    }
+  };
   return (
     <>
-      <Modal {...props} onClose={close}>
+      <Modal
+        {...props}
+        onClose={close}
+        footer={props.footer && <div onClickCapture={captureClick}>{props.footer}</div>}
+      >
         <div
           onChangeCapture={() => setDirty(true)}
-          onClickCapture={(e) => {
-            const element = e.target as HTMLElement;
-            if (element.closest('[role=option]')) setDirty(true);
-            const button = element.closest('button');
-            if (button?.textContent?.trim() === t('common.cancel')) {
-              e.preventDefault();
-              e.stopPropagation();
-              close();
-            }
-          }}
+          onClickCapture={captureClick}
           onKeyDownCapture={(e) => {
             if (
               ['Enter', 'ArrowUp', 'ArrowDown'].includes(e.key) &&
@@ -88,6 +104,7 @@ export default function GuardedModal(props: ComponentProps<typeof Modal>) {
             <button
               type="button"
               className="btn-classic"
+              disabled={dismissDisabled}
               onClick={() => {
                 const next = pending.current;
                 pending.current = null;

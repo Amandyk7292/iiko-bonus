@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   Eye,
   EyeOff,
@@ -16,12 +16,14 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import Modal from '../components/Modal';
+import GuardedModal from '../components/GuardedModal';
 import BranchAccessPicker, { type AccessBranch } from '../components/BranchAccessPicker';
 import PageState from '../components/PageState';
 import SelectControl from '../components/SelectControl';
 import { useFeedback } from '../components/Feedback';
 import { api, type AdminUser, type OnlineOrderingConfig } from '../lib/api';
 import { useI18n } from '../lib/i18n';
+import { useUnsavedChanges } from '../lib/use-unsaved-changes';
 
 interface AccessProfile {
   username: string;
@@ -68,8 +70,10 @@ const isPhoneProfile = (username: string) => /^\+7\d{10}$/.test(username);
 const emptyOnlineOrdering = (): OnlineOrderingConfig => ({ disabled: false });
 
 export default function AccessPage({ user }: { user?: AdminUser | null }) {
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
   const { t } = useI18n();
+  const translate = useRef(t);
+  translate.current = t;
   const roleLabels = Object.fromEntries(
     Object.entries(roleLabelKeys).map(([role, key]) => [role, t(key)]),
   );
@@ -100,6 +104,17 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
   const [disableOrderingConfirmOpen, setDisableOrderingConfirmOpen] = useState(false);
   const [profileQuery, setProfileQuery] = useState('');
   const [expandedProfile, setExpandedProfile] = useState<string | null>(null);
+  const savedProfiles = useRef(new Map<string, AccessProfile>());
+  const savedOrdering = useRef(false);
+  const pendingActive = useRef(new Set<string>());
+  const [activePending, setActivePending] = useState<string[]>([]);
+  const [activeErrors, setActiveErrors] = useState<Record<string, string>>({});
+  const profileDirty = profiles.some((profile) => {
+    const saved = savedProfiles.current.get(profile.username);
+    return saved && JSON.stringify({ ...profile, active: saved.active }) !== JSON.stringify(saved);
+  });
+  const pageDirty = profileDirty || onlineOrdering.disabled !== savedOrdering.current;
+  useUnsavedChanges(pageDirty, Boolean(saving) || savingOnlineOrdering || activePending.length > 0);
 
   const visibleProfiles = profiles.filter((profile) => {
     const query = profileQuery.trim().toLocaleLowerCase('ru-RU');
@@ -109,8 +124,10 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
       .some((value) => String(value).toLocaleLowerCase('ru-RU').includes(query));
   });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preserveDrafts = false) => {
     setLoading(true);
+    const previousSaved = new Map(savedProfiles.current);
+    const previousOrdering = savedOrdering.current;
     try {
       const [access, branches, onlineOrderingResponse] = await Promise.all([
         api.getAccessProfiles(),
@@ -121,32 +138,55 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
       const existing = new Map<string, AccessProfile>(
         (access.profiles ?? []).map((profile: AccessProfile) => [profile.username, profile]),
       );
-      setProfiles(
-        configuredUsers.map(
-          (username) =>
-            existing.get(username) ?? {
-              username,
-              role: username === 'admin' ? 'owner' : 'viewer',
-              display_name: '',
-              branch_ids: [],
-              active: true,
-              authMethod: username === 'admin' ? 'environment' : undefined,
-            },
-        ),
+      const loadedProfiles = configuredUsers.map<AccessProfile>(
+        (username) =>
+          existing.get(username) ?? {
+            username,
+            role: username === 'admin' ? 'owner' : 'viewer',
+            display_name: '',
+            branch_ids: [],
+            active: true,
+            authMethod: username === 'admin' ? 'environment' : undefined,
+          },
+      );
+      savedProfiles.current = new Map(loadedProfiles.map((profile) => [profile.username, profile]));
+      setProfiles((current) =>
+        loadedProfiles.map((loaded) => {
+          if (!preserveDrafts) return loaded;
+          const draft = current.find((profile) => profile.username === loaded.username);
+          const saved = previousSaved.get(loaded.username);
+          if (!draft || !saved) return loaded;
+          return {
+            ...loaded,
+            display_name:
+              draft.display_name !== saved.display_name ? draft.display_name : loaded.display_name,
+            role: draft.role !== saved.role ? draft.role : loaded.role,
+            branch_ids:
+              JSON.stringify(draft.branch_ids) !== JSON.stringify(saved.branch_ids)
+                ? draft.branch_ids
+                : loaded.branch_ids,
+          };
+        }),
       );
       setConfigured(configuredUsers);
       setLocations(branches.locations ?? []);
-      setOnlineOrdering(onlineOrderingResponse.config ?? emptyOnlineOrdering());
+      setOnlineOrdering((current) =>
+        preserveDrafts && current.disabled !== previousOrdering
+          ? current
+          : (onlineOrderingResponse.config ?? emptyOnlineOrdering()),
+      );
+      savedOrdering.current = Boolean(onlineOrderingResponse.config?.disabled);
+      setActiveErrors({});
       setError('');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : t('access.loadError'));
+      setError(caught instanceof Error ? caught.message : translate.current('access.loadError'));
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => {
-    void load();
+    void load(true);
   }, [load]);
 
   const patchProfile = (username: string, data: Partial<AccessProfile>) => {
@@ -173,6 +213,7 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
     try {
       const response = await api.updateOnlineOrdering(onlineOrdering);
       setOnlineOrdering(response.config);
+      savedOrdering.current = response.config.disabled;
       toast(
         response.config.disabled
           ? t('access.onlineOrderingOffState')
@@ -186,6 +227,7 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
   };
 
   const save = async (profile: AccessProfile) => {
+    if (saving || pendingActive.current.has(profile.username)) return;
     setSaving(profile.username);
     try {
       await api.updateAccessProfile(profile.username, {
@@ -194,12 +236,57 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
         branchIds: profile.branch_ids || [],
         active: profile.active !== false,
       });
+      savedProfiles.current.set(profile.username, {
+        ...profile,
+        branch_ids: [...profile.branch_ids],
+      });
       toast(t('access.permissionsSaved', { name: profile.display_name || profile.username }));
     } catch (caught) {
       toast(caught instanceof Error ? caught.message : t('access.permissionsSaveError'), 'error');
     } finally {
       setSaving('');
     }
+  };
+
+  const saveActive = async (profile: AccessProfile, active: boolean) => {
+    if (pendingActive.current.has(profile.username) || saving === profile.username) return;
+    const saved = savedProfiles.current.get(profile.username) ?? profile;
+    pendingActive.current.add(profile.username);
+    setActivePending([...pendingActive.current]);
+    setActiveErrors((current) => ({ ...current, [profile.username]: '' }));
+    patchProfile(profile.username, { active });
+    try {
+      await api.updateAccessProfile(profile.username, {
+        displayName: saved.display_name,
+        role: saved.role,
+        branchIds: saved.branch_ids || [],
+        active,
+      });
+      savedProfiles.current.set(profile.username, { ...saved, active });
+      toast(t('access.permissionsSaved', { name: saved.display_name || profile.username }));
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : t('access.permissionsSaveError');
+      patchProfile(profile.username, { active: saved.active });
+      setActiveErrors((current) => ({ ...current, [profile.username]: message }));
+      toast(message, 'error');
+    } finally {
+      pendingActive.current.delete(profile.username);
+      setActivePending([...pendingActive.current]);
+    }
+  };
+
+  const refresh = async () => {
+    if (
+      pageDirty &&
+      !(await confirm({
+        title: t('common.unsavedTitle'),
+        body: t('common.unsavedBody'),
+        confirmLabel: t('inventory.discardAndContinue'),
+        destructive: true,
+      }))
+    )
+      return;
+    await load();
   };
 
   const createStaff = async (event: FormEvent) => {
@@ -236,7 +323,7 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
       setCreateOpen(false);
       setDraft(emptyDraft());
       setShowCreatePassword(false);
-      await load();
+      await load(true);
     } catch (caught) {
       toast(caught instanceof Error ? caught.message : t('access.staffAddError'), 'error');
     } finally {
@@ -293,6 +380,13 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
           <button
             className="btn-classic px-5 inline-flex items-center gap-2"
             type="button"
+            disabled={
+              loading ||
+              creating ||
+              Boolean(saving) ||
+              savingOnlineOrdering ||
+              activePending.length > 0
+            }
             onClick={() => {
               setDraft(emptyDraft());
               setShowCreatePassword(false);
@@ -305,7 +399,10 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
           <button
             className="btn-outline px-5 inline-flex items-center gap-2"
             type="button"
-            onClick={() => void load()}
+            disabled={
+              loading || Boolean(saving) || savingOnlineOrdering || activePending.length > 0
+            }
+            onClick={() => void refresh()}
           >
             <RefreshCw aria-hidden="true" size={17} />
             {t('common.refresh')}
@@ -445,18 +542,37 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
                   <label className="switch-row">
                     <input
                       type="checkbox"
-                      disabled={selfOwner}
-                      checked={profile.active !== false}
-                      onChange={(event) =>
-                        patchProfile(profile.username, { active: event.target.checked })
+                      disabled={
+                        selfOwner || Boolean(saving) || activePending.includes(profile.username)
                       }
+                      checked={profile.active !== false}
+                      aria-label={`${t('common.active')}: ${profile.display_name || profile.username}`}
+                      aria-describedby={
+                        activeErrors[profile.username]
+                          ? `active-error-${profile.username}`
+                          : undefined
+                      }
+                      onChange={(event) => void saveActive(profile, event.target.checked)}
                     />
                     <span className="switch-control" />
                     <span>
-                      {profile.active !== false ? t('common.active') : t('common.disabled')}
+                      {activePending.includes(profile.username)
+                        ? t('common.saving')
+                        : profile.active !== false
+                          ? t('common.active')
+                          : t('common.disabled')}
                     </span>
                   </label>
                 </header>
+                {activeErrors[profile.username] && (
+                  <p
+                    id={`active-error-${profile.username}`}
+                    className="inline-alert inline-alert-error"
+                    role="alert"
+                  >
+                    {activeErrors[profile.username]}
+                  </p>
+                )}
 
                 {expandedProfile === profile.username && (
                   <div className="access-card-details">
@@ -514,7 +630,8 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
                         className="btn-classic inline-flex items-center gap-2"
                         type="button"
                         disabled={
-                          saving === profile.username ||
+                          Boolean(saving) ||
+                          activePending.includes(profile.username) ||
                           (cashierProfile && profile.branch_ids.length !== 1)
                         }
                         onClick={() => void save(profile)}
@@ -561,15 +678,23 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
         </div>
       </Modal>
 
-      <Modal
+      <GuardedModal
         open={createOpen}
+        dirty={JSON.stringify(draft) !== JSON.stringify(emptyDraft())}
+        dismissDisabled={creating}
         title={t('access.newStaff')}
         description={t('access.newStaffHint')}
         onClose={closeCreate}
         size="lg"
         footer={
           <div className="modal-actions">
-            <button className="btn-outline" type="button" disabled={creating} onClick={closeCreate}>
+            <button
+              data-modal-dismiss
+              className="btn-outline"
+              type="button"
+              disabled={creating}
+              onClick={closeCreate}
+            >
               {t('common.cancel')}
             </button>
             <button
@@ -758,10 +883,12 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
             {draft.mode === 'cashier' ? t('access.cashierLoginHint') : t('access.loginHint')}
           </div>
         </form>
-      </Modal>
+      </GuardedModal>
 
-      <Modal
+      <GuardedModal
         open={Boolean(passwordProfile)}
+        dirty={Boolean(newPassword)}
+        dismissDisabled={resettingPassword}
         title={t('access.resetPassword')}
         description={t('access.resetPasswordHint', {
           name: passwordProfile?.display_name || passwordProfile?.username || '',
@@ -829,7 +956,7 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
             </button>
           </div>
         </form>
-      </Modal>
+      </GuardedModal>
     </div>
   );
 }

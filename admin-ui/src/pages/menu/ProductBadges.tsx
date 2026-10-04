@@ -158,6 +158,7 @@ export default function ProductBadges({
                 <button
                   type="button"
                   aria-pressed={selected.includes(b.id)}
+                  data-unsaved-change
                   style={{
                     background: b.background,
                     color: b.foreground,

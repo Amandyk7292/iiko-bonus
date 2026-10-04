@@ -859,19 +859,47 @@
           }
         }
         async function request(path, options = {}) {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 20000);
+          const abort = () => controller.abort();
+          options.signal?.addEventListener('abort', abort, { once: true });
+          if (options.signal?.aborted) controller.abort();
           const headers = {
             ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
             ...(options.headers || {}),
           };
-          const response = await fetch(path, { ...options, credentials: 'same-origin', headers });
-          const body = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            const error = new Error(body.error || 'Не удалось выполнить запрос');
-            error.status = response.status;
-            error.code = body.code;
+          try {
+            const response = await fetch(path, {
+              ...options,
+              credentials: 'same-origin',
+              headers,
+              signal: controller.signal,
+            });
+            const body = await response.json().catch((error) => {
+              if (!response.ok && !controller.signal.aborted) return {};
+              throw error;
+            });
+            if (!response.ok) {
+              const error = new Error(body.error || 'Не удалось выполнить запрос');
+              error.status = response.status;
+              error.code = body.code;
+              throw error;
+            }
+            return body;
+          } catch (error) {
+            if (
+              controller.signal.aborted ||
+              error.name === 'AbortError' ||
+              error instanceof TypeError
+            )
+              throw new Error('Нет связи. Проверьте интернет и повторите.');
+            if (error instanceof SyntaxError)
+              throw new Error('Сервер временно недоступен. Повторите запрос.');
             throw error;
+          } finally {
+            clearTimeout(timeout);
+            options.signal?.removeEventListener('abort', abort);
           }
-          return body;
         }
         function showLogin(message = '') {
           appView.classList.add('hidden');

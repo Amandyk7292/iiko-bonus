@@ -136,173 +136,220 @@ class _QrDialogState extends State<QrDialog> with WidgetsBindingObserver {
       ),
       backgroundColor: scheme.surface,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'my_qr'.tr,
-                  style: TextStyle(
-                    fontFamily: _headingFont,
-                    color: scheme.onSurface,
-                    fontWeight: FontWeight.w700,
-                    fontSize: BulkaTypeScale.body,
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {
-                    BulkaMotion.lightImpact();
-                    Navigator.of(context).pop();
-                  },
-                  style: IconButton.styleFrom(
-                    backgroundColor: colors.surfaceCream,
-                    foregroundColor: colors.brandBrown,
-                  ),
-                  tooltip: 'close_tooltip'.tr,
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Semantics(
-              image: true,
-              label: '${'my_qr'.tr}. ${'qr_update_in'.tr} $minutes:$seconds',
-              child: ExcludeSemantics(
-                child: BulkaHero(
-                  tag: widget.heroTag,
-                  child: Container(
-                    width: 216,
-                    height: 216,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(BulkaRadii.card),
-                      border: Border.all(
-                        color: _almond.withValues(alpha: 0.45),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _cocoa.withValues(alpha: 0.12),
-                          blurRadius: 22,
-                          offset: const Offset(0, 12),
-                        ),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child: _token == null && !_failed
-                        ? const CircularProgressIndicator(color: _bulkaYellow)
-                        : _failed
-                        ? Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.qr_code_2_rounded,
-                                color: _caramel,
-                                size: 64,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'qr_unavailable'.tr,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: _errorRed,
-                                  fontSize: BulkaTypeScale.caption,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  _failedWindow = null;
-                                  _failed = false;
-                                  unawaited(_tick());
-                                },
-                                child: Text('retry_btn'.tr),
-                              ),
-                            ],
-                          )
-                        : Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              QrImageView(
-                                data: _token!,
-                                size: 200,
-                                backgroundColor: Colors.white,
-                                errorCorrectionLevel: QrErrorCorrectLevel.H,
-                                eyeStyle: const QrEyeStyle(
-                                  eyeShape: QrEyeShape.square,
-                                  color: Color(0xFF4E2C1E),
-                                ),
-                                dataModuleStyle: const QrDataModuleStyle(
-                                  dataModuleShape: QrDataModuleShape.circle,
-                                  color: Color(0xFF4E2C1E),
-                                ),
-                              ),
-                              Container(
-                                width: 38,
-                                height: 38,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 3,
-                                  ),
-                                ),
-                                child: ClipOval(
-                                  child: Image.asset(
-                                    'assets/brand/qr_logo.png',
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Scroll the secondary actions instead of shrinking a scannable QR.
+            final qrSize = min(
+              216.0,
+              min(
+                max(0.0, constraints.maxWidth - 44),
+                max(180.0, constraints.maxHeight - 44),
               ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: colors.brandGold.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(BulkaRadii.control),
-              ),
+            );
+            return Padding(
+              padding: const EdgeInsets.all(22),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'qr_update_in'.tr,
-                    style: TextStyle(
-                      color: colors.mutedText,
-                      fontSize: BulkaTypeScale.caption,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'my_qr'.tr,
+                          style: TextStyle(
+                            fontFamily: _headingFont,
+                            color: scheme.onSurface,
+                            fontWeight: FontWeight.w700,
+                            fontSize: BulkaTypeScale.body,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          BulkaMotion.lightImpact();
+                          Navigator.of(context).pop();
+                        },
+                        style: IconButton.styleFrom(
+                          backgroundColor: colors.surfaceCream,
+                          foregroundColor: colors.brandBrown,
+                        ),
+                        tooltip: 'close_tooltip'.tr,
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '$minutes:$seconds',
-                    style: TextStyle(
-                      fontFamily: _headingFont,
-                      color: scheme.onSurface,
-                      fontSize: BulkaTypeScale.titleLarge,
-                      fontWeight: FontWeight.w700,
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      key: const ValueKey('customer-qr-scroll'),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Semantics(
+                            image: true,
+                            label:
+                                '${'my_qr'.tr}. ${'qr_update_in'.tr} $minutes:$seconds',
+                            child: ExcludeSemantics(
+                              child: BulkaHero(
+                                tag: widget.heroTag,
+                                child: Container(
+                                  key: const ValueKey('customer-qr-code'),
+                                  width: qrSize,
+                                  height: qrSize,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(
+                                      BulkaRadii.card,
+                                    ),
+                                    border: Border.all(
+                                      color: _almond.withValues(alpha: 0.45),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: _cocoa.withValues(alpha: 0.12),
+                                        blurRadius: 22,
+                                        offset: const Offset(0, 12),
+                                      ),
+                                    ],
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: _token == null && !_failed
+                                      ? const CircularProgressIndicator(
+                                          color: _bulkaYellow,
+                                        )
+                                      : _failed
+                                      ? SingleChildScrollView(
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                Icons.qr_code_2_rounded,
+                                                color: _caramel,
+                                                size: 64,
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                'qr_unavailable'.tr,
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(
+                                                  color: _errorRed,
+                                                  fontSize:
+                                                      BulkaTypeScale.caption,
+                                                ),
+                                              ),
+                                              TextButton(
+                                                onPressed: () {
+                                                  _failedWindow = null;
+                                                  _failed = false;
+                                                  unawaited(_tick());
+                                                },
+                                                child: Text('retry_btn'.tr),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      : Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            QrImageView(
+                                              data: _token!,
+                                              size: qrSize - 24,
+                                              backgroundColor: Colors.white,
+                                              errorCorrectionLevel:
+                                                  QrErrorCorrectLevel.H,
+                                              eyeStyle: const QrEyeStyle(
+                                                eyeShape: QrEyeShape.square,
+                                                color: Color(0xFF4E2C1E),
+                                              ),
+                                              dataModuleStyle:
+                                                  const QrDataModuleStyle(
+                                                    dataModuleShape:
+                                                        QrDataModuleShape
+                                                            .circle,
+                                                    color: Color(0xFF4E2C1E),
+                                                  ),
+                                            ),
+                                            Container(
+                                              width: qrSize * 38 / 216,
+                                              height: qrSize * 38 / 216,
+                                              decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: Colors.white,
+                                                  width: 3,
+                                                ),
+                                              ),
+                                              child: ClipOval(
+                                                child: Image.asset(
+                                                  'assets/brand/qr_logo.png',
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colors.brandGold.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(
+                                BulkaRadii.control,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  'qr_update_in'.tr,
+                                  style: TextStyle(
+                                    color: colors.mutedText,
+                                    fontSize: BulkaTypeScale.caption,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '$minutes:$seconds',
+                                  style: TextStyle(
+                                    fontFamily: _headingFont,
+                                    color: scheme.onSurface,
+                                    fontSize: BulkaTypeScale.titleLarge,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          _PrimaryButton(
+                            text: isApple
+                                ? 'add_apple_wallet'.tr
+                                : 'add_google_wallet'.tr,
+                            icon: Icons.account_balance_wallet_rounded,
+                            color: const Color(0xFF1F1F1F),
+                            textColor: Colors.white,
+                            onPressed: _openWallet,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 20),
-            _PrimaryButton(
-              text: isApple ? 'add_apple_wallet'.tr : 'add_google_wallet'.tr,
-              icon: Icons.account_balance_wallet_rounded,
-              color: const Color(0xFF1F1F1F),
-              textColor: Colors.white,
-              onPressed: _openWallet,
-            ),
-          ],
+            );
+          },
         ),
       ),
     );

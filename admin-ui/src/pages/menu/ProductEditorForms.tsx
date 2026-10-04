@@ -128,6 +128,7 @@ export function IikoProductEditor({ controller }: { controller: MenuPageControll
             {form.price !== (product?.price ?? 0) && (
               <button
                 type="button"
+                data-unsaved-change
                 className="btn-outline"
                 onClick={() => setForm((current) => ({ ...current, price: product?.price ?? 0 }))}
               >

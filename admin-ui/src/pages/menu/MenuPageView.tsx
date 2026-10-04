@@ -282,7 +282,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                       </h3>
                       <MenuIncompleteDescription product={p} override={override} />
                       {groupName && (
-                        <p className="text-[11px] text-gray-400 mt-0.5 truncate">{groupName}</p>
+                        <p className="text-xs text-gray-600 mt-0.5 truncate">{groupName}</p>
                       )}
                       <p className="mt-1 text-[10px] font-medium text-gray-500">
                         {fulfillmentSummary(override?.fulfillment_types)}

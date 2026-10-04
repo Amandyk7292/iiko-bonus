@@ -48,20 +48,23 @@ extension _LoginScreenActions on _LoginScreenState {
         return;
       }
     }
+    final revision = ++_authRequestRevision;
+    final flow = _flow;
+    final phone = _fullPhone;
     _update(() {
       _loading = true;
       _error = null;
     });
     final token = _newRequestToken();
 
-    final result = _flow == _CustomerAuthFlow.registration
+    final result = flow == _CustomerAuthFlow.registration
         ? await widget.onStartRegistration(
-            _fullPhone,
+            phone,
             _passwordController.text,
             token,
           )
-        : await widget.onStartPasswordReset(_fullPhone, token);
-    if (!mounted) return;
+        : await widget.onStartPasswordReset(phone, token);
+    if (!mounted || revision != _authRequestRevision || flow != _flow) return;
     _update(() => _loading = false);
     if (result.isSuccess) {
       final phoneHint = result.whatsappPhone?.trim();
@@ -111,6 +114,7 @@ extension _LoginScreenActions on _LoginScreenState {
 
   Future<void> _verifyRegistration() async {
     if (_otpController.text.length != _otpCodeLength || _loading) return;
+    final revision = ++_authRequestRevision;
     _update(() {
       _loading = true;
       _error = null;
@@ -119,7 +123,7 @@ extension _LoginScreenActions on _LoginScreenState {
       _fullPhone,
       _otpController.text,
     );
-    if (!mounted) return;
+    if (!mounted || revision != _authRequestRevision) return;
     if (error == null) {
       _otpRetryTimer?.cancel();
       _update(() {
@@ -142,6 +146,7 @@ extension _LoginScreenActions on _LoginScreenState {
       _update(() => _error = passwordError);
       return;
     }
+    final revision = ++_authRequestRevision;
     _update(() {
       _loading = true;
       _error = null;
@@ -151,32 +156,10 @@ extension _LoginScreenActions on _LoginScreenState {
       _otpController.text,
       _passwordController.text,
     );
-    if (!mounted) return;
+    if (!mounted || revision != _authRequestRevision) return;
     _update(() {
       _loading = false;
       _error = error;
-    });
-  }
-
-  void _selectFlow(_CustomerAuthFlow flow) {
-    _otpRetryTimer?.cancel();
-    _update(() {
-      _flow = flow;
-      _otpStep = false;
-      _registerStep = false;
-      _cashierInviteToken = null;
-      _cashierInviteChecking = false;
-      _loading = false;
-      _error = null;
-      _otpController.clear();
-      _passwordController.clear();
-      _confirmPasswordController.clear();
-      _otpWhatsappUri = null;
-      _otpDeliveryPhone = null;
-      _otpDeliveryHasLink = false;
-      _otpIsAutomatic = false;
-      _otpCodeLength = 4;
-      _otpRetrySeconds = 0;
     });
   }
 

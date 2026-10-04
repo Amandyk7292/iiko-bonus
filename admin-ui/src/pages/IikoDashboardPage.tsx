@@ -131,6 +131,14 @@ export default function IikoDashboardPage({ readOnly = false }: { readOnly?: boo
   const [department, setDepartment] = useState(initialUrlState.department);
   const [supplier, setSupplier] = useState(initialUrlState.supplier);
   const [departments, setDepartments] = useState<string[]>([]);
+  const departmentCache = useRef(new Map<string, string[]>());
+  const [departmentRequest, setDepartmentRequest] = useState({
+    serverId: '',
+    loading: false,
+    error: '',
+    loaded: false,
+  });
+  const [departmentRevision, setDepartmentRevision] = useState(0);
   const usesDepartments = departmentTabs.has(tab);
   const usesPoints = tab === 'productSales' || tab === 'topDishes';
   const [overview, setOverview] = useState<OverviewData>();
@@ -147,10 +155,14 @@ export default function IikoDashboardPage({ readOnly = false }: { readOnly?: boo
     }
   });
   const selectedServer = servers.find((server) => server.id === serverId);
+  const currentDepartments =
+    departmentRequest.serverId === serverId
+      ? departments
+      : (departmentCache.current.get(serverId) ?? []);
   const visibleDepartments =
     tab === 'productSales'
-      ? retailDepartmentsForCity(selectedServer?.city || 'aktau', departments)
-      : departments;
+      ? retailDepartmentsForCity(selectedServer?.city || 'aktau', currentDepartments)
+      : currentDepartments;
   const rangeValid = validRange(from, to);
   useEffect(() => {
     if (
@@ -260,18 +272,28 @@ export default function IikoDashboardPage({ readOnly = false }: { readOnly?: boo
   useEffect(() => {
     if (!selectedServer?.configured || !usesDepartments) return;
     const controller = new AbortController();
-    setDepartments([]);
+    setDepartments(departmentCache.current.get(serverId) ?? []);
+    setDepartmentRequest({ serverId, loading: true, error: '', loaded: false });
     void dashboardApi
       .departments(serverId, controller.signal)
       .then((data) => {
-        if (!controller.signal.aborted)
-          setDepartments(
-            [...new Set(data.departments.map((row) => row.name).filter(Boolean))].sort(),
-          );
+        if (controller.signal.aborted) return;
+        const names = [...new Set(data.departments.map((row) => row.name).filter(Boolean))].sort();
+        departmentCache.current.set(serverId, names);
+        setDepartments(names);
+        setDepartmentRequest({ serverId, loading: false, error: '', loaded: true });
       })
-      .catch(() => {});
+      .catch((caught) => {
+        if (!controller.signal.aborted)
+          setDepartmentRequest({
+            serverId,
+            loading: false,
+            error: errorKey(caught),
+            loaded: false,
+          });
+      });
     return () => controller.abort();
-  }, [serverId, selectedServer?.configured, usesDepartments]);
+  }, [serverId, selectedServer?.configured, usesDepartments, departmentRevision]);
   useEffect(() => {
     setOverview(undefined);
     setExportQuery(undefined);
@@ -380,17 +402,24 @@ export default function IikoDashboardPage({ readOnly = false }: { readOnly?: boo
             <span>{t(usesPoints ? 'id.point' : 'id.department')}</span>
             <select
               aria-label={t(usesPoints ? 'id.point' : 'id.department')}
+              aria-describedby={departmentRequest.error ? 'department-load-error' : undefined}
+              aria-busy={departmentRequest.loading}
               value={department}
               onChange={(event) => {
                 setDepartment(event.target.value);
                 setSupplier('');
               }}
-              disabled={tab === 'balances' || tab === 'settings'}
+              disabled={
+                tab === 'balances' ||
+                tab === 'settings' ||
+                (departmentRequest.loading && !currentDepartments.length)
+              }
             >
               <option value="">{t(usesPoints ? 'id.allPoints' : 'id.all')}</option>
               {department && !visibleDepartments.includes(department) && (
                 <option value={department}>
-                  {department} — {t('id.departmentUnavailable')}
+                  {department}
+                  {departmentRequest.loaded ? ` — ${t('id.departmentUnavailable')}` : ''}
                 </option>
               )}
               {visibleDepartments.map((name) => (
@@ -418,12 +447,27 @@ export default function IikoDashboardPage({ readOnly = false }: { readOnly?: boo
               aria-label={t('id.refresh')}
               title={t('id.refresh')}
               disabled={loading}
-              onClick={() => setRefresh((value) => value + 1)}
+              onClick={() => {
+                setRefresh((value) => value + 1);
+                setDepartmentRevision((value) => value + 1);
+              }}
             >
               <RefreshCw size={17} className={loading ? 'spin' : ''} />
             </button>
           </div>
         </div>
+        {usesDepartments && departmentRequest.serverId === serverId && departmentRequest.error && (
+          <div id="department-load-error" className="inline-alert inline-alert-error" role="alert">
+            <span>{t('id.departmentsError')}</span>
+            <button
+              type="button"
+              className="btn-outline"
+              onClick={() => setDepartmentRevision((value) => value + 1)}
+            >
+              {t('common.retry')}
+            </button>
+          </div>
+        )}
         <details className="id-period-disclosure" ref={periodDisclosure}>
           <summary>
             <CalendarRange size={17} />

@@ -158,6 +158,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
         avatarKey: _selectedAvatarKey == 'custom' ? null : _selectedAvatarKey,
       );
 
+      if (!mounted) return;
       _showInfoMessage('profile_saved'.tr);
       widget.onBack();
       unawaited(_refreshProfileInBackground());
@@ -236,7 +237,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   }
 
   void _handleBack() {
-    if (!_isAvatarSaving) {
+    if (!_isLoading && !_isAvatarSaving) {
       widget.onBack();
     }
   }
@@ -439,7 +440,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     );
                   }),
                 ],
-                onChanged: _citiesLoading || _cities.isEmpty
+                onChanged: _isLoading || _citiesLoading || _cities.isEmpty
                     ? null
                     : (value) {
                         setState(() {
@@ -488,6 +489,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
         const SizedBox(height: 8),
         TextField(
           controller: _birthDateController,
+          enabled: !_isLoading,
           keyboardType: TextInputType.number,
           onChanged: _onBirthDateChanged,
           style: TextStyle(
@@ -521,8 +523,10 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          spacing: 12,
+          runSpacing: 8,
           children: [
             Text(
               label,
@@ -538,6 +542,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
         const SizedBox(height: 8),
         TextField(
           controller: controller,
+          enabled: !_isLoading,
           readOnly: readOnly,
           onTap: onTap,
           keyboardType: keyboardType,
@@ -573,11 +578,14 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     final isSelected = _selectedGender == value;
     return Semantics(
       button: true,
+      enabled: !_isLoading,
       selected: isSelected,
       inMutuallyExclusiveGroup: true,
       label: title,
       child: InkWell(
-        onTap: () => setState(() => _selectedGender = value),
+        onTap: _isLoading
+            ? null
+            : () => setState(() => _selectedGender = value),
         borderRadius: BorderRadius.circular(BulkaRadii.control),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
@@ -613,12 +621,14 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     : null,
               ),
               const SizedBox(width: 8),
-              ExcludeSemantics(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: BulkaTypeScale.body,
-                    color: Color(0xFF6D3317),
+              Flexible(
+                child: ExcludeSemantics(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: BulkaTypeScale.body,
+                      color: Color(0xFF6D3317),
+                    ),
                   ),
                 ),
               ),
@@ -647,12 +657,14 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     key: const ValueKey('personal-data-back'),
                     icon: Icon(
                       Icons.arrow_back_ios_new_rounded,
-                      color: _isAvatarSaving
+                      color: _isLoading || _isAvatarSaving
                           ? scheme.onSurface.withValues(alpha: 0.38)
                           : colors.brandBrown,
                       size: 20,
                     ),
-                    onPressed: _isAvatarSaving ? null : _handleBack,
+                    onPressed: _isLoading || _isAvatarSaving
+                        ? null
+                        : _handleBack,
                     tooltip: 'back_tooltip'.tr,
                   ),
                   Expanded(
@@ -769,32 +781,60 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _buildGenderOption('gender_male'.tr, 'male'),
-                        const SizedBox(width: 32),
-                        _buildGenderOption('gender_female'.tr, 'female'),
-                      ],
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final male = _buildGenderOption(
+                          'gender_male'.tr,
+                          'male',
+                        );
+                        final female = _buildGenderOption(
+                          'gender_female'.tr,
+                          'female',
+                        );
+                        if (constraints.maxWidth < 360 ||
+                            MediaQuery.textScalerOf(context).scale(1) > 1.2) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [male, female],
+                          );
+                        }
+                        return Row(
+                          children: [
+                            Expanded(child: male),
+                            const SizedBox(width: 24),
+                            Expanded(child: female),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 24),
 
                     // Name and Last Name
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildTextField(
-                            'name_label'.tr,
-                            _nameController,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildTextField(
-                            'surname_label'.tr,
-                            _lastNameController,
-                          ),
-                        ),
-                      ],
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final name = _buildTextField(
+                          'name_label'.tr,
+                          _nameController,
+                        );
+                        final surname = _buildTextField(
+                          'surname_label'.tr,
+                          _lastNameController,
+                        );
+                        if (constraints.maxWidth < 360 ||
+                            MediaQuery.textScalerOf(context).scale(1) > 1.2) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [name, surname],
+                          );
+                        }
+                        return Row(
+                          children: [
+                            Expanded(child: name),
+                            const SizedBox(width: 16),
+                            Expanded(child: surname),
+                          ],
+                        );
+                      },
                     ),
 
                     // Date of Birth
@@ -884,7 +924,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     );
     return PopScope<void>(
       key: const ValueKey('personal-data-pop-scope'),
-      canPop: !_isAvatarSaving,
+      canPop: !_isLoading && !_isAvatarSaving,
       child: scaffold,
     );
   }

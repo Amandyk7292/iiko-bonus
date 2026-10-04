@@ -17,13 +17,15 @@ extension _LoginScreenForms on _LoginScreenState {
               Icons.arrow_back_ios_new_rounded,
               color: context.bulkaColors.brandBrown,
             ),
-            onPressed: () {
-              _update(() {
-                _registerStep = false;
-                _cashierInviteChecking = false;
-                _error = null;
-              });
-            },
+            onPressed: _loading
+                ? null
+                : () {
+                    _update(() {
+                      _registerStep = false;
+                      _cashierInviteChecking = false;
+                      _error = null;
+                    });
+                  },
             tooltip: 'back_tooltip'.tr,
           ),
         ),
@@ -40,7 +42,7 @@ extension _LoginScreenForms on _LoginScreenState {
               children: [
                 if (widget.onClose != null)
                   IconButton(
-                    onPressed: widget.onClose,
+                    onPressed: _loading ? null : widget.onClose,
                     tooltip: 'close_tooltip'.tr,
                     icon: const Icon(Icons.close_rounded),
                   ),
@@ -475,6 +477,7 @@ extension _LoginScreenForms on _LoginScreenState {
       TextField(
         key: const ValueKey('auth-phone-field'),
         controller: _phoneController,
+        enabled: !_loading,
         keyboardType: TextInputType.phone,
         autofillHints: const [AutofillHints.telephoneNumberNational],
         maxLength: 10,
@@ -630,6 +633,7 @@ extension _LoginScreenForms on _LoginScreenState {
         confirm ? 'auth-confirm-password-field' : 'auth-password-field',
       ),
       controller: controller,
+      enabled: !_loading,
       obscureText: !visible,
       enableSuggestions: false,
       autocorrect: false,

@@ -281,7 +281,6 @@ class _StaffKitchenState extends State<StaffKitchen>
     if (staffHasUnresolvedDelivery(order)) return;
     final id = '${order['id']}';
     if (!widget.canEdit ||
-        !widget.canReviewDelivery ||
         (status == 'cancelled' && !widget.canCancel) ||
         _saving.contains(id)) {
       return;
@@ -437,6 +436,7 @@ class _StaffKitchenState extends State<StaffKitchen>
   ) async {
     final id = '${order['id']}';
     if (!widget.canEdit ||
+        !widget.canReviewDelivery ||
         !staffNeedsPickupApproval(order) ||
         _saving.contains(id)) {
       return;

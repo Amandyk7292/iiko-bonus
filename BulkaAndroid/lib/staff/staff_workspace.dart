@@ -610,7 +610,7 @@ class _StaffWorkspaceState extends State<StaffWorkspace> {
                         key: ValueKey('kitchen:${widget.api.scopeKey}'),
                         api: widget.api,
                         canEdit: _role != 'viewer',
-                        canCancel: !['viewer', 'cashier'].contains(_role),
+                        canCancel: staffCanRefundOrders(_role),
                       ),
                       'dashboard' when _dashboardAllowed => StaffDashboard(
                         key: ValueKey('dashboard:${widget.api.scopeKey}'),

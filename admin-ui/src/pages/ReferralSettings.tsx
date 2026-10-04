@@ -2,9 +2,9 @@ import { useI18n } from '../lib/i18n';
 
 export interface ReferralPolicy {
   enabled: boolean;
-  inviter_bonus: number;
-  friend_bonus: number;
-  min_first_order: number;
+  inviter_bonus: number | string;
+  friend_bonus: number | string;
+  min_first_order: number | string;
   max_invites_per_day: number;
   max_rewards_per_month: number;
   max_reward_amount_per_month: number;
@@ -14,13 +14,15 @@ export interface ReferralPolicy {
 export default function ReferralSettings({
   value,
   onChange,
+  disabled = false,
 }: {
   value: ReferralPolicy;
   onChange: (value: ReferralPolicy) => void;
+  disabled?: boolean;
 }) {
   const { t, locale } = useI18n();
   return (
-    <fieldset className="form-section">
+    <fieldset className="form-section" disabled={disabled}>
       <legend>{t('bonus.referralTitle')}</legend>
       <label className="switch-row">
         <input
@@ -46,7 +48,7 @@ export default function ReferralSettings({
               step="0.01"
               required
               value={value[key]}
-              onChange={(event) => onChange({ ...value, [key]: Number(event.target.value) })}
+              onChange={(event) => onChange({ ...value, [key]: event.target.value })}
             />
           </div>
         ))}

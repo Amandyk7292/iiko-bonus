@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Обновление Bulka 1.13.1</title>
+  <style>body{font:16px/1.6 Arial,sans-serif;max-width:740px;margin:36px auto;padding:0 20px;background:#fffbf3;color:#593019}h1{font-size:30px}h2{font-size:22px;margin-top:30px}a{color:#814719}.download{display:inline-block;background:#ffbd12;color:#35180b;text-decoration:none;font-weight:bold;padding:13px 20px;border-radius:12px}.note{padding:16px 20px;border-radius:14px;background:#fff0c7}li{margin:10px 0}</style>
+</head>
+<body>
+  <h1>Обновление Bulka 1.13.1</h1>
+  <p>На небольших экранах этапы заказов переключаются крупными кнопками. Каждый список занимает всю ширину окна, включая выданные заказы. На широком экране остаются четыре колонки.</p>
+  <h2>Обновление через кассу</h2>
+  <ol>
+    <li>Откройте «Плагины → Проверить обновления Bulka» или «Доставка → Проверить обновления».</li>
+    <li>Нажмите «Скачать и установить».</li>
+    <li>Когда пакет готов, закройте iiko обычным способом. Дождитесь сообщения «Обновление установлено».</li>
+    <li>Снова запустите iiko. Настройки и привязка кассы сохраняются.</li>
+  </ol>
+  <p class="note">Не запускайте iiko до завершения установки. Время закрытия выбирает кассир.</p>
+  <h2>Установка вручную</h2>
+  <p><a class="download" href="/downloads/BulkaPlugin-1.13.1-update.zip">Скачать пакет 1.13.1</a></p>
+  <ol>
+    <li>Закройте iikoFront и сохраните копию папки плагина.</li>
+    <li>Распакуйте архив в папку Bulka: замените DLL, Manifest.xml и BulkaPluginUpdater.exe.</li>
+    <li>Сохраните действующий .dll.config и локальные данные. Запустите iiko.</li>
+  </ol>
+  <p>Если Windows запрещает запись в папку плагина, установку выполняет администратор компьютера.</p>
+  <h2>Если обновление прервалось</h2>
+  <p>При ошибке замены установщик восстанавливает прежние файлы. Если компьютер выключился во время установки, используйте «Восстановить» в установщике. Не удаляйте папку подготовки до завершения восстановления.</p>
+  <p>Установщик проверяет подпись Bulka, контрольные суммы и совместимость пакета. Архив не содержит конфигурацию, привязку или журнал чеков.</p>
+  <p>Пакет рассчитан на iikoFront 9.4 / V9Preview7 и .NET Framework 4.7.2, x86/x64. Для Windows 7 требуется SP1. Совместимость с другими версиями iiko и конкретным оборудованием требует проверки.</p>
+  <p><a href="/docs/iiko-plugin-installation.html">Установка на новую кассу</a></p>
+</body>
+</html>

@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { LoaderCircle } from 'lucide-react';
-import Modal from '../../components/Modal';
+import Modal from '../../components/GuardedModal';
 import ProductBadges, { type ProductBadgesHandle } from './ProductBadges';
 import ProductInventoryUnit, { type ProductInventoryUnitHandle } from './ProductInventoryUnit';
 import './ProductEditorModal.css';
@@ -77,9 +77,16 @@ export default function ProductEditorModal({
       title={productId ? 'Редактирование товара' : 'Новый товар'}
       description={name || undefined}
       onClose={() => !locked && onClose()}
+      dismissDisabled={locked}
       footer={
         <div className="modal-actions">
-          <button type="button" className="btn-outline" disabled={locked} onClick={onClose}>
+          <button
+            type="button"
+            data-modal-dismiss
+            className="btn-outline"
+            disabled={locked}
+            onClick={onClose}
+          >
             Отмена
           </button>
           <button type="submit" form={`${id}-form`} className="btn-classic" disabled={locked}>

@@ -78,6 +78,7 @@ export default function ProductStickerPicker({
           type="button"
           className={`product-sticker-choice ${!selectedId ? 'is-selected' : ''}`}
           aria-pressed={!selectedId}
+          data-unsaved-change
           onClick={() => onSelect(null)}
         >
           Без стикера
@@ -88,6 +89,7 @@ export default function ProductStickerPicker({
             type="button"
             aria-label={badge.label}
             aria-pressed={badge.id === selectedId}
+            data-unsaved-change
             onClick={() => onSelect(badge.id)}
             className={`product-sticker-choice ${badge.id === selectedId ? 'is-selected' : ''}`}
           >

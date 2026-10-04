@@ -70,6 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _otpStep = false;
   bool _registerStep = false;
   bool _loading = false;
+  int _authRequestRevision = 0;
   bool _adminLogin = false;
   bool _childLogin = false;
   bool _passwordVisible = false;
@@ -101,6 +102,45 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_error != null && _error != previousError) {
       unawaited(BulkaMotion.error());
     }
+  }
+
+  void _selectFlow(_CustomerAuthFlow flow) {
+    _authRequestRevision++;
+    _otpRetryTimer?.cancel();
+    _update(() {
+      _flow = flow;
+      _otpStep = false;
+      _registerStep = false;
+      _cashierInviteToken = null;
+      _cashierInviteChecking = false;
+      _loading = false;
+      _error = null;
+      _otpController.clear();
+      _passwordController.clear();
+      _confirmPasswordController.clear();
+      _otpWhatsappUri = null;
+      _otpDeliveryPhone = null;
+      _otpDeliveryHasLink = false;
+      _otpIsAutomatic = false;
+      _otpCodeLength = 4;
+      _otpRetrySeconds = 0;
+    });
+  }
+
+  void _changeOtpPhone() {
+    _authRequestRevision++;
+    _otpRetryTimer?.cancel();
+    _update(() {
+      _loading = false;
+      _otpStep = false;
+      _otpRetrySeconds = 0;
+      _error = null;
+      _otpController.clear();
+      if (_flow == _CustomerAuthFlow.passwordReset) {
+        _passwordController.clear();
+        _confirmPasswordController.clear();
+      }
+    });
   }
 
   String get _fullPhone => '+7${_phoneController.text}';

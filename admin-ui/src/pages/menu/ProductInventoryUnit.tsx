@@ -89,6 +89,7 @@ const ProductInventoryUnit = forwardRef<
                   key={value}
                   type="button"
                   aria-pressed={unit === value}
+                  data-unsaved-change
                   className={unit === value ? 'is-active' : undefined}
                   disabled={!stored.canEdit}
                   onClick={() => {

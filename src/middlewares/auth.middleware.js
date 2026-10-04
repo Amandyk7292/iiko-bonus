@@ -663,6 +663,18 @@ const adminMutationRoleMiddleware = (req, res, next) => {
       code: 'CASHIER_ACTION_FORBIDDEN',
     });
   }
+  if (
+    req.method === 'PATCH' &&
+    area === 'kitchen' &&
+    /^\/?kitchen\/[^/]+\/status$/.test(restrictedPath) &&
+    req.body?.status === 'cancelled' &&
+    ['operator', 'editor'].includes(req.admin.role)
+  ) {
+    return res.status(403).json({
+      error: 'Недостаточно прав для отмены заказа и возврата оплаты',
+      code: 'KITCHEN_CANCELLATION_FORBIDDEN',
+    });
+  }
   if (!readOnly && !['admin', 'owner'].includes(req.admin.role) && req.admin.branchIds?.length) {
     const requestedBranch = String(
       req.body?.branchId || req.params?.branchId || req.query?.branchId || '',

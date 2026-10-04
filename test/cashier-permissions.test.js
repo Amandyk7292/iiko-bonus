@@ -14,7 +14,7 @@ const BRANCH_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_BRANCH_ID = '22222222-2222-4222-8222-222222222222';
 const ORDER_ID = '33333333-3333-4333-8333-333333333333';
 
-const runMutationGuard = ({ method, path, body = {} }) => {
+const runMutationGuard = ({ method, path, body = {}, role = 'cashier' }) => {
   let nextCalled = false;
   let responseStatus = 200;
   let responseBody = null;
@@ -24,7 +24,7 @@ const runMutationGuard = ({ method, path, body = {} }) => {
     body,
     params: {},
     query: {},
-    admin: { role: 'cashier', branchIds: [BRANCH_ID] },
+    admin: { role, branchIds: [BRANCH_ID] },
   };
   const res = {
     status(value) {
@@ -90,14 +90,16 @@ test('cashier can edit city-prefixed stock IDs without admitting encoded path se
 });
 
 test('cashier can use kitchen and cancel orders but cannot change other order fields', () => {
-  assert.equal(
-    runMutationGuard({
-      method: 'PATCH',
-      path: `/kitchen/${ORDER_ID}/status`,
-      body: { status: 'ready' },
-    }).nextCalled,
-    true,
-  );
+  for (const status of ['preparing', 'ready', 'handed_over']) {
+    assert.equal(
+      runMutationGuard({
+        method: 'PATCH',
+        path: `/kitchen/${ORDER_ID}/status`,
+        body: { status },
+      }).nextCalled,
+      true,
+    );
+  }
   assert.equal(
     runMutationGuard({
       method: 'PATCH',
@@ -121,6 +123,55 @@ test('cashier can use kitchen and cancel orders but cannot change other order fi
     assert.equal(result.nextCalled, false);
     assert.equal(result.responseStatus, 403);
     assert.equal(result.responseBody.code, 'CASHIER_ACTION_FORBIDDEN');
+  }
+});
+
+for (const role of ['operator', 'editor']) {
+  test(`${role} can advance kitchen orders but cannot trigger cancellation refunds`, () => {
+    for (const status of ['preparing', 'ready', 'handed_over']) {
+      assert.equal(
+        runMutationGuard({
+          role,
+          method: 'PATCH',
+          path: `/kitchen/${ORDER_ID}/status`,
+          body: { status },
+        }).nextCalled,
+        true,
+      );
+    }
+    for (const path of [
+      `/kitchen/${ORDER_ID}/status`,
+      `/kitchen/${ORDER_ID}/status/`,
+      `/kitchen/%33${ORDER_ID.slice(1)}/status`,
+    ]) {
+      const result = runMutationGuard({
+        role,
+        method: 'PATCH',
+        path,
+        body: { status: 'cancelled', cancellationReason: 'Нет товара' },
+      });
+      assert.equal(result.nextCalled, false, path);
+      assert.equal(result.responseStatus, 403);
+      assert.equal(result.responseBody.code, 'KITCHEN_CANCELLATION_FORBIDDEN');
+    }
+    assert.equal(
+      runMutationGuard({ role, method: 'GET', path: `/kitchen/${ORDER_ID}/status` }).nextCalled,
+      true,
+    );
+  });
+}
+
+test('owner, admin and branch manager retain kitchen cancellation permission', () => {
+  for (const role of ['owner', 'admin', 'branch_manager']) {
+    assert.equal(
+      runMutationGuard({
+        role,
+        method: 'PATCH',
+        path: `/kitchen/${ORDER_ID}/status`,
+        body: { status: 'cancelled', cancellationReason: 'Нет товара' },
+      }).nextCalled,
+      true,
+    );
   }
 });
 

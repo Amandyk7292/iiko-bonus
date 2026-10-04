@@ -31,7 +31,11 @@
           registrationToken = '';
           throw new Error('Подтверждение истекло. Запросите новый код.');
         }
-        throw new Error('Не удалось завершить запрос. Проверьте код или повторите позже.');
+        throw new Error(
+          body === undefined
+            ? 'Не удалось загрузить точку. Повторите загрузку.'
+            : 'Не удалось завершить запрос. Проверьте код или повторите позже.',
+        );
       }
       return data;
     } catch (error) {
@@ -48,14 +52,14 @@
     if (busy) return;
     busy = true;
     $('error').hidden = true;
-    for (const id of ['start', 'verify', 'change']) $(id).disabled = true;
+    for (const id of ['start', 'verify', 'change', 'retry-branch']) $(id).disabled = true;
     try {
       await action();
     } catch (error) {
       showError(error.message);
     } finally {
       busy = false;
-      for (const id of ['start', 'verify', 'change']) $(id).disabled = false;
+      for (const id of ['start', 'verify', 'change', 'retry-branch']) $(id).disabled = false;
     }
   }
   function clearPending() {
@@ -136,8 +140,17 @@
     $('code').value = '';
     $('phone').focus();
   });
-  void run(async () => {
-    const data = await request('/api/branch-invites/' + branch);
+  async function loadBranch() {
+    $('retry-branch').hidden = true;
+    $('branch').textContent = 'Загружаем точку…';
+    let data;
+    try {
+      data = await request('/api/branch-invites/' + branch);
+    } catch (error) {
+      $('branch').textContent = 'Точку пока не удалось загрузить.';
+      $('retry-branch').hidden = false;
+      throw error;
+    }
     $('branch').textContent = [data.branch.city, data.branch.name].filter(Boolean).join(' · ');
     $('phone-form').hidden = false;
     try {
@@ -150,5 +163,7 @@
     } catch {
       clearPending();
     }
-  });
+  }
+  $('retry-branch').addEventListener('click', () => void run(loadBranch));
+  void run(loadBranch);
 })();

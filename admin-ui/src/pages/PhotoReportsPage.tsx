@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw, Search, Tablet, X } from 'lucide-react';
 import PageState from '../components/PageState';
 import { useI18n } from '../lib/i18n';
+import { useSearchParams } from '../lib/router';
 import {
   currentBusinessDate,
   datesBetween,
@@ -20,18 +21,74 @@ import ReportQr from './photo-reports/ReportQr';
 import ReportDevices from './photo-reports/ReportDevices';
 import './PhotoReportsPage.css';
 
+const validPhotoDate = (value: string | null, max: string) =>
+  Boolean(
+    value &&
+    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    !Number.isNaN(Date.parse(`${value}T12:00:00Z`)) &&
+    new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value &&
+    value <= max,
+  );
+
 export default function PhotoReportsPage({ role = 'viewer' }: { role?: string }) {
   const { t } = useI18n();
   const copy = usePhotoCopy();
   const { text } = copy;
-  const { view, setView } = usePhotoView();
-  const [end, setEnd] = useState(currentBusinessDate);
-  const [days, setDays] = useState(14);
+  const [params, setParams] = useSearchParams();
+  const { view: responsiveView } = usePhotoView();
+  const view = ['day', 'calendar'].includes(params.get('view') ?? '')
+    ? (params.get('view') as 'day' | 'calendar')
+    : responsiveView;
+  const today = currentBusinessDate();
+  const end = validPhotoDate(params.get('date'), today) ? params.get('date')! : today;
+  const days = [7, 14, 31].includes(Number(params.get('days'))) ? Number(params.get('days')) : 14;
+  const updateQuery = (values: Record<string, string | null>, replace = false) => {
+    const next = new URLSearchParams(params);
+    Object.entries(values).forEach(([key, value]) =>
+      value ? next.set(key, value) : next.delete(key),
+    );
+    setParams(next, { replace });
+  };
+  const setEnd = (value: string) => {
+    if (validPhotoDate(value, today)) updateQuery({ date: value });
+  };
+  const setDays = (value: number) => updateQuery({ days: String(value) });
+  const setView = (value: 'day' | 'calendar') => updateQuery({ view: value });
   const { data, loading, error, refresh } = usePhotoCalendar(end, view === 'day' ? 1 : days);
-  const [city, setCity] = useState('');
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('all');
-  const [selection, setSelection] = useState<Selection | null>(null);
+  const city = params.get('city') ?? '';
+  const search = params.get('search') ?? '';
+  const status = ['all', 'missing', 'complete', 'hall', 'baker'].includes(
+    params.get('status') ?? '',
+  )
+    ? params.get('status')!
+    : 'all';
+  const setCity = (value: string) => updateQuery({ city: value });
+  const setSearch = (value: string) => updateQuery({ search: value }, true);
+  const setStatus = (value: string) => updateQuery({ status: value === 'all' ? null : value });
+  const selectedBranch = data?.branches.find((branch) => branch.id === params.get('branch'));
+  const selectedDate = params.get('reportDate');
+  const selectedKind = params.get('kind');
+  const selectedShift = params.get('shift');
+  const selection: Selection | null =
+    selectedBranch &&
+    validPhotoDate(selectedDate, today) &&
+    (selectedKind === 'hall' || selectedKind === 'baker')
+      ? {
+          branch: selectedBranch,
+          date: selectedDate!,
+          kind: selectedKind,
+          ...(['daily', 'day', 'night'].includes(selectedShift ?? '')
+            ? { shift: selectedShift as Selection['shift'] }
+            : {}),
+        }
+      : null;
+  const setSelection = (value: Selection | null) =>
+    updateQuery({
+      branch: value?.branch.id ?? null,
+      reportDate: value?.date ?? null,
+      kind: value?.kind ?? null,
+      shift: value?.shift ?? null,
+    });
   const [qrBranch, setQrBranch] = useState<Branch | null>(null);
   const [devicesOpen, setDevicesOpen] = useState(false);
   const canIssueQr = ['owner', 'admin', 'branch_manager'].includes(role);
@@ -62,9 +119,7 @@ export default function PhotoReportsPage({ role = 'viewer' }: { role?: string })
   );
   const maxDate = data?.businessDate ?? currentBusinessDate();
   const resetFilters = () => {
-    setCity('');
-    setSearch('');
-    setStatus('all');
+    updateQuery({ city: null, search: null, status: null });
   };
   const viewProps = {
     branches,

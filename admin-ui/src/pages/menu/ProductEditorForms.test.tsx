@@ -23,6 +23,8 @@ vi.mock('../../components/MenuPhotoUploads', () => ({
 vi.mock('../../lib/admin-realtime', () => ({ useAdminRealtimeEvents: vi.fn() }));
 vi.mock('../../lib/router', () => ({
   useSearchParams: () => [new URLSearchParams(), mocks.setParams],
+  useNavigate: () => vi.fn(),
+  useNavigationBlocker: vi.fn(),
 }));
 
 const product = { id: 'donuts', name: 'Мини пончики', price: 800, description: 'Состав: мука' };
@@ -129,6 +131,31 @@ it('does not fetch or overwrite appearance when only changing the price', async 
     expect(mocks.setProductOverride).toHaveBeenCalledWith('donuts', { custom_price: 900 }),
   );
   expect(mocks.request).not.toHaveBeenCalled();
+});
+
+it('guards appearance-only drafts on Escape and footer cancel until the user discards', async () => {
+  const user = await openEditor();
+  await user.click(screen.getByRole('tab', { name: 'Оформление' }));
+  await user.click(await screen.findByRole('button', { name: 'Менің таңдауым (сердце)' }));
+  await user.keyboard('{Escape}');
+  expect(screen.getByRole('dialog', { name: 'common.unsavedTitle' })).toBeVisible();
+  await user.click(
+    screen
+      .getByRole('dialog', { name: 'common.unsavedTitle' })
+      .querySelector('button.btn-outline')!,
+  );
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog', { name: 'common.unsavedTitle' })).not.toBeInTheDocument(),
+  );
+  expect(screen.getByRole('button', { name: 'Менің таңдауым (сердце)' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await user.click(screen.getByRole('button', { name: 'Отмена' }));
+  await user.click(screen.getByRole('button', { name: 'inventory.discardAndContinue' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  expect(mocks.setProductOverride).not.toHaveBeenCalled();
+  expect(mocks.request.mock.calls.some((call) => call[1]?.method === 'PUT')).toBe(false);
 });
 
 it('creates a custom product from the compact editor and reveals required fields before saving', async () => {

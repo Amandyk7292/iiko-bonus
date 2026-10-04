@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../lib/i18n';
 import PhotoReportsPage from './PhotoReportsPage';
+import { BrowserRouter } from '../lib/router';
 
 const mocks = vi.hoisted(() => ({ request: vi.fn(), realtime: vi.fn() }));
 vi.mock('../lib/api', () => ({ request: mocks.request }));
@@ -21,13 +22,74 @@ const report = {
 };
 const renderPage = (role = 'owner') =>
   render(
-    <I18nProvider>
-      <PhotoReportsPage role={role} />
-    </I18nProvider>,
+    <BrowserRouter>
+      <I18nProvider>
+        <PhotoReportsPage role={role} />
+      </I18nProvider>
+    </BrowserRouter>,
   );
 
 describe('branch closing report calendar', () => {
+  it('restores shared filters and the selected report after a reload and preserves unrelated parameters', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      `/admin/photo-reports?date=${date}&view=calendar&days=7&city=${encodeURIComponent('Актау')}&search=19&status=hall&extra=keep`,
+    );
+    const user = userEvent.setup();
+    const page = renderPage();
+    await screen.findByText('Точек с такими условиями нет');
+    expect(screen.getByLabelText('Город')).toHaveValue('Актау');
+    expect(screen.getByLabelText('Показать')).toHaveValue('7');
+    expect(screen.getByLabelText('Точка')).toHaveValue('19');
+    await user.click(
+      within(screen.getByRole('group', { name: 'Статус точек' })).getByRole('button', {
+        name: 'Все',
+      }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: /Актау · 19А · Зал .*Отправлен · 3 фото/ }),
+    );
+    await screen.findByRole('dialog');
+    expect(new URLSearchParams(window.location.search).get('branch')).toBe(a.id);
+    expect(new URLSearchParams(window.location.search).get('extra')).toBe('keep');
+    page.unmount();
+    renderPage();
+    const detail = await screen.findByRole('dialog');
+    expect(await within(detail).findByText('Отчёт отправлен')).toBeVisible();
+    await user.click(within(detail).getByRole('button', { name: 'Пекарь' }));
+    expect(new URLSearchParams(window.location.search).get('kind')).toBe('baker');
+    await user.click(within(detail).getByRole('button', { name: 'Закрыть' }));
+    expect(new URLSearchParams(window.location.search).has('branch')).toBe(false);
+    expect(screen.getByLabelText('Точка')).toHaveValue('19');
+  });
+
+  it('ignores malformed dates, periods and selection values and restores browser history', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/admin/photo-reports?date=2026-02-30&days=9000&view=broken&status=broken&branch=branch-a&reportDate=invalid&kind=hall',
+    );
+    renderPage();
+    await screen.findByRole('button', { name: /Актау · 19А · Зал .*Отправлен · 3 фото/ });
+    expect(screen.getByLabelText('Дата отчёта')).toHaveValue(date);
+    expect(screen.getByLabelText('Показать')).toHaveValue('14');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await act(async () => {
+      window.history.replaceState(
+        {},
+        '',
+        `/admin/photo-reports?date=${date}&view=day&city=${encodeURIComponent('Астана')}`,
+      );
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    expect(screen.getByLabelText('Город')).toHaveValue('Астана');
+    expect(screen.getByRole('button', { name: 'За день' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByLabelText('Показать')).not.toBeInTheDocument();
+  });
+
   beforeEach(() => {
+    window.history.replaceState({}, '', '/admin/photo-reports');
     localStorage.setItem('adminLocale', 'ru');
     mocks.realtime.mockClear();
     mocks.request.mockReset().mockImplementation((path: string) => {
@@ -167,7 +229,9 @@ describe('branch closing report calendar', () => {
     renderPage(role);
     await screen.findByRole('button', { name: /Актау · 19А · Зал/ });
     expect(screen.queryByRole('button', { name: 'Планшеты' })).not.toBeInTheDocument();
-    expect(mocks.request.mock.calls.some(([path]) => path.startsWith('/photo-reports/devices'))).toBe(false);
+    expect(
+      mocks.request.mock.calls.some(([path]) => path.startsWith('/photo-reports/devices')),
+    ).toBe(false);
   });
 
   it.each(['owner', 'admin', 'branch_manager'])('offers tablet management for %s', async (role) => {
@@ -179,9 +243,23 @@ describe('branch closing report calendar', () => {
   it('preserves actual audit checks and tablet name when report photos are deleted', async () => {
     const user = userEvent.setup();
     const original = mocks.request.getMockImplementation()!;
-    mocks.request.mockImplementation((path: string) => path.startsWith('/photo-reports/branches/')
-      ? Promise.resolve({ branch: a, date, reports: [{ ...report, deviceId: 'tablet-a', deviceName: 'Планшет зала', checks: { deviceAuthorized: true, branchMatched: false, imagesValidated: true }, photos: [] }] })
-      : original(path));
+    mocks.request.mockImplementation((path: string) =>
+      path.startsWith('/photo-reports/branches/')
+        ? Promise.resolve({
+            branch: a,
+            date,
+            reports: [
+              {
+                ...report,
+                deviceId: 'tablet-a',
+                deviceName: 'Планшет зала',
+                checks: { deviceAuthorized: true, branchMatched: false, imagesValidated: true },
+                photos: [],
+              },
+            ],
+          })
+        : original(path),
+    );
     renderPage();
     await user.click(await screen.findByRole('button', { name: /Актау · 19А · Зал/ }));
     const audit = within(await screen.findByRole('region', { name: 'Проверки при отправке' }));
@@ -189,7 +267,10 @@ describe('branch closing report calendar', () => {
     expect(audit.getByText('Планшет подключён').parentElement).toHaveTextContent('Да');
     expect(audit.getByText('Филиал совпадает').parentElement).toHaveTextContent('Нет');
     expect(audit.getByText('Формат фото').parentElement).toHaveTextContent('Да');
-    expect(audit.getByText(/17:00/).closest('time')).toHaveAttribute('dateTime', report.submittedAt);
+    expect(audit.getByText(/17:00/).closest('time')).toHaveAttribute(
+      'dateTime',
+      report.submittedAt,
+    );
     expect(screen.getByText('Срок хранения фото истёк')).toBeVisible();
   });
 

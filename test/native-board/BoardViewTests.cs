@@ -23,13 +23,33 @@ internal static class BoardViewTests
                 Comment = i == 0 ? "Упакуйте, пожалуйста, отдельно" : null,
             } }
         }).ToList() };
+        var automaticView = new OrderBoardWindow("19а ЖК Жасыл дала", IntPtr.Zero, true, true);
+        automaticView.Update(model);
+        Layout((FrameworkElement)automaticView.Content, 819, 614);
+        Click((FrameworkElement)automaticView.Content, "Выданы · 1");
+        // Manual stage navigation must suppress automatic closing and stage resets.
+        Check((bool)typeof(OrderBoardWindow).GetField("used", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(automaticView), "manual stage navigation preserves an automatic popup for review");
+        automaticView.Close();
         view.Update(model);
         model.Columns[3].Orders[0].AutomaticReceipt=true;
         model.Columns[3].Orders[0].PosReceiptDue=true;
         model.Columns[3].Orders[0].ReceiptError="Ожидается внешний тип оплаты Bulka онлайн";
         view.Update(model);
         var root = (FrameworkElement)view.Content;
+        Layout(root, 819, 614);
+        var horizontalBoard = Controls<ScrollViewer>(root).Single(s => s.HorizontalScrollBarVisibility == ScrollBarVisibility.Auto);
+        Check(horizontalBoard.ScrollableWidth < 1, "125% scaled register fits without horizontal scrolling");
+        Check(VisibleButtons(root).Count(b => Label(b).Contains(" · 1")) == 4, "all four stages have visible touch selectors");
+        Check(VisibleButtons(root).Where(b => Label(b).Contains(" · 1")).All(b => b.ActualHeight >= 48), "stage selectors are touch sized");
+        Click(root, "Выданы · 1");
+        Check(Controls<TextBlock>(root).Any(t => t.Text == "№100045" && EffectivelyVisible(t)), "issued orders are reachable on a small register");
+        Check(!Controls<TextBlock>(root).Any(t => t.Text == "№100042" && EffectivelyVisible(t)), "narrow board shows only the selected stage");
+        var directory = args.Length > 0 ? args[0] : "."; Directory.CreateDirectory(directory);
+        Render(root, Path.Combine(directory, "pos-board-819-issued.png"), 819, 614);
+        Click(root, "Новые · 1");
         Layout(root, 1280, 800);
+        Check(Controls<TextBlock>(root).Count(t => t.Text.StartsWith("№10004") && EffectivelyVisible(t)) == 4, "wide board restores all four columns");
+        Check(!VisibleButtons(root).Any(b => Label(b).Contains(" · 1")), "wide board does not show unnecessary stage selectors");
         var calls = new List<string>(); view.ActionRequested += (order, action) => calls.Add(order.Id + ":" + action);
         Click(root, "Принять заказ");
         Check(calls.SequenceEqual(new[] { "order-0:accept" }), "accept by card identity");
@@ -43,7 +63,6 @@ internal static class BoardViewTests
         view.SetError("Нет связи. Изменение не подтверждено.");
         Check(Buttons(root).Where(b => Label(b) == "Принять заказ").All(b => !b.IsEnabled), "offline actions disabled");
         view.Update(model);
-        var directory = args.Length > 0 ? args[0] : "."; Directory.CreateDirectory(directory);
         Render(root, Path.Combine(directory, "pos-board-1280.png"), 1280, 800);
         Render(root, Path.Combine(directory, "pos-board-1024.png"), 1024, 768);
         var searches = new List<string>(); view.SearchRequested += searches.Add;
@@ -95,7 +114,19 @@ internal static class BoardViewTests
         Render(root, Path.Combine(directory, "pos-board-delivery-replacement.png"), 1024, 768);
         view.Close(); Console.WriteLine("PASS: acceptance, duplicate taps, rejection confirmation, code-free handover, offline actions; rendered 1280 and 1024.");
         Console.WriteLine("PASS: number search, stale response isolation, invalid input and clear.");
+        Console.WriteLine("PASS: compact register stage navigation and wide layout restoration.");
     }
+    private static bool EffectivelyVisible(DependencyObject element)
+    {
+        for (var current = element; current != null; current = LogicalTreeHelper.GetParent(current))
+        {
+            // Headless renders never show the containing OS window.
+            if (current is Window) break;
+            if (current is UIElement ui && ui.Visibility != Visibility.Visible) return false;
+        }
+        return true;
+    }
+    private static IEnumerable<Button> VisibleButtons(DependencyObject root) => Buttons(root).Where(EffectivelyVisible);
     private static void Check(bool valid, string name) { if (!valid) throw new Exception(name); }
     private static string Label(Button button) => (button.Content as TextBlock)?.Text ?? "";
     private static IEnumerable<Button> Buttons(DependencyObject root)
@@ -117,6 +148,8 @@ internal static class BoardViewTests
     {
         root.Width = width - 36; root.Height = height - 36;
         root.Measure(new Size(width, height)); root.Arrange(new Rect(0, 0, width, height)); root.UpdateLayout();
+        root.Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Render, new Action(() => { }));
+        root.UpdateLayout();
     }
     private static void Render(FrameworkElement root, string path, int width, int height)
     {

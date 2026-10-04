@@ -50,12 +50,11 @@ if (adminDirectory) {
   assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
-    // Approved tablets and retained report audits add 3,172 B to e021cc3e:
-    // 446,493 B total. They stay in the deferred PhotoReportsPage chunk.
-    // Allow 1,507 B headroom;
-    // retain the largest-chunk/CSS limits.
+    // UI audit fixes (draft guards, persisted filters and load recovery)
+    // measure 449,528 B after shared guard/input deduplication.
+    // Allow 1,032 B headroom; retain the largest-chunk/CSS limits.
     // Exporters load only on download and keep their separate budgets below.
-    448_000,
+    450_560,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   assertBudget('Admin deferred price-label PDF gzip', Math.max(0, ...priceLabelPdfGzip), 185_000);

@@ -1,5 +1,6 @@
 const ru = {
   'id.departmentUnavailable': 'нет в справочнике',
+  'id.departmentsError': 'Не удалось обновить список точек и подразделений',
   'id.invoices': 'Накладные',
   'id.revision': 'Ревизия',
   'id.cashReport': 'Отчёт по кассе',
@@ -185,6 +186,7 @@ const ru = {
 type Keys = keyof typeof ru;
 const kk: Record<Keys, string> = {
   'id.departmentUnavailable': 'анықтамалықта жоқ',
+  'id.departmentsError': 'Нүктелер мен бөлімшелер тізімі жаңартылмады',
   'id.invoices': 'Жүкқұжаттар',
   'id.revision': 'Түгендеу',
   'id.cashReport': 'Касса есебі',
@@ -369,6 +371,7 @@ const kk: Record<Keys, string> = {
 };
 const en: Record<Keys, string> = {
   'id.departmentUnavailable': 'not in directory',
+  'id.departmentsError': 'Could not refresh points and departments',
   'id.invoices': 'Invoices',
   'id.revision': 'Inventory audit',
   'id.cashReport': 'Cash register report',

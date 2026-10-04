@@ -28,9 +28,10 @@ import {
 } from 'lucide-react';
 import { NavLink, useLocation } from '../lib/router';
 import { ADMIN_ALLOWED_PATHS } from '../lib/admin-permissions';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '../lib/i18n';
 import { useAdminRealtime } from '../lib/admin-realtime';
+import { lockModalScroll } from '../lib/modal-scroll-lock';
 
 const sections = [
   {
@@ -107,6 +108,10 @@ export default function Sidebar({
   const { t } = useI18n();
   const { summary } = useAdminRealtime();
   const location = useLocation();
+  const drawer = useRef<HTMLElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   const [isDesktop, setIsDesktop] = useState(
     () => window.matchMedia('(min-width: 1024px)').matches,
   );
@@ -153,6 +158,51 @@ export default function Sidebar({
     if (activeSection) setOpenSection(activeSection);
   }, [activeSection]);
 
+  useEffect(() => {
+    if (isDesktop || !isOpen) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const main = document.getElementById('main-content');
+    const wasInert = main?.hasAttribute('inert') ?? false;
+    main?.setAttribute('inert', '');
+    const unlock = lockModalScroll();
+    closeButton.current?.focus();
+    const keyboard = (event: KeyboardEvent) => {
+      if (document.querySelector('.modal-backdrop')) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeRef.current?.();
+      }
+      if (event.key !== 'Tab') return;
+      const items = Array.from(
+        drawer.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not(:disabled), [tabindex="0"]',
+        ) ?? [],
+      ).filter(
+        (item) =>
+          !item.closest('[inert]') &&
+          !item.classList.contains('sidebar-collapse') &&
+          getComputedStyle(item).display !== 'none',
+      );
+      const first = items[0];
+      const last = items.at(-1);
+      const active = document.activeElement;
+      if (
+        !drawer.current?.contains(active) ||
+        (event.shiftKey ? active === first : active === last)
+      ) {
+        event.preventDefault();
+        (event.shiftKey ? last : first)?.focus();
+      }
+    };
+    document.addEventListener('keydown', keyboard);
+    return () => {
+      document.removeEventListener('keydown', keyboard);
+      unlock();
+      if (!wasInert) main?.removeAttribute('inert');
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [isDesktop, isOpen]);
+
   return (
     <>
       <button
@@ -160,9 +210,12 @@ export default function Sidebar({
         className={`sidebar-overlay ${isOpen ? 'sidebar-overlay-visible' : ''}`}
         onClick={onClose}
         aria-label={t('nav.closeMenu')}
-        tabIndex={isOpen ? 0 : -1}
+        tabIndex={-1}
       />
       <aside
+        ref={drawer}
+        role={!isDesktop && isOpen ? 'dialog' : undefined}
+        aria-modal={!isDesktop && isOpen ? true : undefined}
         className={`sagi-sidebar ${isOpen ? 'sidebar-open' : ''} ${collapsed ? 'sidebar-collapsed' : ''}`}
         aria-label={t('nav.main')}
         aria-hidden={(isDesktop && collapsed) || (!isDesktop && !isOpen)}
@@ -188,6 +241,7 @@ export default function Sidebar({
           <button
             type="button"
             onClick={onClose}
+            ref={closeButton}
             className="icon-button sidebar-close"
             aria-label={t('nav.closeMenu')}
             title={t('nav.closeMenu')}

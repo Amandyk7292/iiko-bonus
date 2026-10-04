@@ -6,11 +6,11 @@
     <meta name="robots" content="noindex,nofollow" />
     <title>Конструктор этикеток Bulka</title>
     <link rel="icon" href="/favicon.png" />
-    <link rel="stylesheet" href="/pricegenerator/style.css?v=20260920-1" />
+    <link rel="stylesheet" href="/pricegenerator/style.css?v=20261004-1" />
     <link rel="stylesheet" href="/pricegenerator/edit-access.css?v=20260920-1" />
     <style id="print-page-settings"></style>
     <script src="/pricegenerator/edit-access.js?v=20260920-1" defer></script>
-    <script src="/pricegenerator/app.js?v=20260922-1" defer></script>
+    <script src="/pricegenerator/app.js?v=20261004-1" defer></script>
   </head>
   <body>
     <header class="topbar">
@@ -39,10 +39,10 @@
           Сохранить шаблон
         </button>
         <button class="button secondary" id="test-print" type="button">Пробная печать</button>
-        <button class="button secondary admin-only" id="print-sheet" type="button">
+        <button class="button secondary admin-only" id="print-sheet" type="button" disabled>
           Печать листа
         </button>
-        <button class="button primary" id="print-xprinter" type="button">
+        <button class="button primary" id="print-xprinter" type="button" disabled>
           Печать выбранного на XPrinter
         </button>
       </div>
@@ -92,11 +92,20 @@
           <div class="row two">
             <label>Товар для просмотра<select id="product-select"></select></label>
             <label
-              >Копий для печати<input id="copies" type="number" min="1" max="999" value="1" /><small
+              >Копий для печати<input
+                id="copies"
+                type="number"
+                min="1"
+                max="999"
+                step="1"
+                value="1"
+                required
+                aria-describedby="copies-hint copies-error" /><small
+                id="copies-hint"
                 class="field-hint"
-                >Сколько одинаковых этикеток напечатать</small
-              ></label
-            >
+                >От 1 до 999, всего не более 999 этикеток за раз</small
+              ><small id="copies-error" class="field-error" role="alert" hidden></small
+            ></label>
           </div>
           <div class="row two">
             <label>Дата изготовления<input id="made-date" type="date" /></label>
@@ -293,9 +302,10 @@
             <p id="canvas-help">Нажмите блок и перемещайте его по этикетке.</p>
           </div>
           <div class="zoom">
-            <button id="zoom-out" type="button">−</button><output id="zoom-value">100%</output
-            ><button id="zoom-in" type="button">+</button
-            ><button id="zoom-actual" type="button">1:1</button>
+            <button id="zoom-out" type="button" aria-label="Уменьшить масштаб">−</button
+            ><output id="zoom-value">100%</output
+            ><button id="zoom-in" type="button" aria-label="Увеличить масштаб">+</button
+            ><button id="zoom-actual" type="button" aria-label="Масштаб один к одному">1:1</button>
           </div>
         </div>
         <div class="canvas-scroll">
@@ -325,6 +335,10 @@
           ><span>Поиск</span
           ><input id="search-products" type="search" placeholder="Название или штрихкод"
         /></label>
+        <p id="product-load-status" role="status">Загружаем товары…</p>
+        <button id="retry-products" class="secondary-action" type="button" hidden>
+          Повторить загрузку товаров
+        </button>
         <label class="check admin-only archived-toggle"
           ><input id="show-archived" type="checkbox" /> Показать архив</label
         >

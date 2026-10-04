@@ -85,9 +85,10 @@
     isAdmin: false,
     city: initialCity,
     products: [],
+    productsReady: false,
     selectedProduct: 0,
     selected: 'barcode',
-    zoom: 1,
+    zoom: Math.min(1, Math.max(0.5, (window.innerWidth - 80) / ((saved?.label?.width || 70) * 6))),
     layout: saved?.layout || structuredClone(defaults),
     label: saved?.label || {
       width: 70,
@@ -179,6 +180,16 @@
       /[&<>"']/g,
       (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
     );
+  function localCalendarDate(date = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Oral',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const part = (type) => parts.find((value) => value.type === type).value;
+    return `${part('year')}-${part('month')}-${part('day')}`;
+  }
   function formatDate(date) {
     const year = String(date.getFullYear());
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -269,10 +280,9 @@
   function product() {
     return (
       state.products[state.selectedProduct] || {
-        name: 'Хот дог',
-        composition:
-          'Құрамы: хот-дог бөлкесі, сосиска, кетчуп, сарымсақ соусы, қияр, ірімшік соусы. Состав: булочка для хот-дога, сосиска, кетчуп, чесночный соус, свежий огурец, сырный соус.',
-        price: '600',
+        name: 'Пробная этикетка — не для товара',
+        composition: 'Образец для проверки размера и калибровки принтера.',
+        price: '0',
         expiry: '1',
         barcode: '2101430000016',
       }
@@ -467,6 +477,13 @@
           `<article class="product-row ${i === state.selectedProduct ? 'active' : ''}${p.archived ? ' archived' : ''}" data-index="${i}"><strong>${esc(p.name || 'Без названия')}${p.archived ? '<em class="archive-badge">В архиве</em>' : ''}${dirtyProductIds.has(p.id) ? '<em class="unsaved-badge">Не сохранено</em>' : ''}</strong><small><span>${esc(p.barcode)}</span><span>${esc(p.price)} ₸</span></small>${state.isAdmin && i === state.selectedProduct ? `<div class="product-editor"><label><span>Название товара</span><input data-edit="name" value="${esc(p.name)}" placeholder="Например: Синнабон"></label><label><span>Цена, ₸</span><input data-edit="price" type="number" min="0" step="1" value="${esc(p.price)}" placeholder="Например: 535"></label><label><span>Штрихкод</span><input data-edit="barcode" inputmode="numeric" maxlength="13" value="${esc(p.barcode)}" placeholder="13 цифр"></label><div class="expiry-row"><label><span>Срок годности</span><input data-edit="expiry" type="number" min="0" max="87600" step="1" value="${esc(p.expiry)}" placeholder="Например: 3"></label><label><span>Единица</span><select data-edit="expiryUnit"><option value="days"${p.expiryUnit !== 'hours' ? ' selected' : ''}>Дней</option><option value="hours"${p.expiryUnit === 'hours' ? ' selected' : ''}>Часов</option></select></label></div><small class="editor-hint">Например: 12 часов, 24 часа или 3 дня</small><label><span>Состав на казахском и русском</span><textarea data-edit="composition" rows="5" placeholder="Құрамы: ...&#10;Состав: ...">${esc(p.composition)}</textarea></label><div class="product-editor-actions"><button type="button" data-save-product>${dirtyProductIds.size ? 'Сохранить изменения' : 'Сохранено'}</button><button type="button" data-duplicate-product>Дублировать</button><button type="button" class="danger" data-archive-product>${p.archived ? 'Восстановить' : 'В архив'}</button></div></div>` : ''}</article>`,
       )
       .join('');
+    updatePrintAvailability();
+  }
+  function updatePrintAvailability() {
+    const selected = state.products[state.selectedProduct];
+    $('print-xprinter').disabled = !state.productsReady || !selected || selected.archived;
+    $('print-sheet').disabled =
+      !state.productsReady || !state.products.some((item) => !item.archived);
   }
   function selectProduct(index) {
     state.selectedProduct = Number(index) || 0;
@@ -583,14 +600,37 @@
     });
   }
   async function preparePrint(mode) {
+    printRoot.replaceChildren();
+    const selected = state.products[state.selectedProduct];
+    if (
+      mode !== 'test' &&
+      (!state.productsReady || (mode === 'roll' && (!selected || selected.archived)))
+    )
+      return notice(
+        'Сначала загрузите и выберите активный товар. Для проверки принтера используйте «Пробная печать».',
+        true,
+      );
+    const copies = mode === 'test' ? 1 : Number($('copies').value);
+    if (mode !== 'test' && (!Number.isInteger(copies) || copies < 1 || copies > 999)) {
+      $('copies-error').textContent = 'Введите целое количество копий от 1 до 999.';
+      $('copies-error').hidden = false;
+      $('copies').setAttribute('aria-invalid', 'true');
+      $('copies').focus();
+      return notice('Проверьте количество копий.', true);
+    }
     syncSettings();
     const rollMode = mode === 'roll' || mode === 'test';
     const sourceProducts = rollMode ? [product()] : state.products.filter((item) => !item.archived);
-    const products = sourceProducts.flatMap((p) =>
-      Array.from({ length: mode === 'test' ? 1 : Math.max(1, number('copies', 1)) }, () => p),
-    );
+    if (sourceProducts.length * copies > 999) {
+      $('copies-error').textContent =
+        'За раз можно напечатать не более 999 этикеток. Уменьшите количество копий или товаров.';
+      $('copies-error').hidden = false;
+      $('copies').setAttribute('aria-invalid', 'true');
+      $('copies').focus();
+      return notice('Общий тираж превышает 999 этикеток.', true);
+    }
+    const products = sourceProducts.flatMap((p) => Array.from({ length: copies }, () => p));
     if (!products.length) return notice('Нет товаров для печати.', true);
-    printRoot.replaceChildren();
     const printSettings = $('print-page-settings');
     if (rollMode) {
       printSettings.textContent = `@media print{@page{size:${state.label.width}mm ${state.label.height}mm;margin:0!important}html,body{width:${state.label.width}mm!important;height:${state.label.height}mm!important;min-width:0!important;margin:0!important;padding:0!important;overflow:hidden!important}#print-root{width:${state.label.width}mm!important;height:auto!important;margin:0!important;padding:0!important}.print-page{width:${state.label.width}mm!important;height:${state.label.height}mm!important;margin:0!important;padding:0!important;overflow:hidden!important}.print-label{width:${state.label.width}mm!important;height:${state.label.height}mm!important;margin:0!important;transform:translate(${state.label.offsetX || 0}mm,${state.label.offsetY || 0}mm)}.test-print .print-label{outline:.3mm solid #000!important;outline-offset:-.3mm}}`;
@@ -638,25 +678,35 @@
         : `Подготовлено этикеток: ${products.length}. В окне печати выберите масштаб 100%.`,
     );
     const accepted = await confirmPrint(
-      `<dl><dt>Товар</dt><dd>${mode === 'sheet' ? `Все активные товары (${products.length})` : esc(product().name)}</dd><dt>Копий</dt><dd>${products.length}</dd><dt>Размер</dt><dd>${state.label.width} × ${state.label.height} мм</dd><dt>Дата</dt><dd>${esc($('made-date').value)} ${esc($('made-time').value)}</dd><dt>Калибровка</dt><dd>X: ${state.label.offsetX || 0} мм, Y: ${state.label.offsetY || 0} мм</dd></dl>`,
+      `${mode === 'test' ? '<p>Пробная печать: одна этикетка для проверки принтера.</p>' : ''}<dl><dt>Товар</dt><dd>${mode === 'sheet' ? `Все активные товары (${products.length})` : esc(product().name)}</dd><dt>Копий</dt><dd>${products.length}</dd><dt>Размер</dt><dd>${state.label.width} × ${state.label.height} мм</dd><dt>Дата</dt><dd>${esc($('made-date').value)} ${esc($('made-time').value)}</dd><dt>Калибровка</dt><dd>X: ${state.label.offsetX || 0} мм, Y: ${state.label.offsetY || 0} мм</dd></dl>`,
     );
     if (accepted) setTimeout(() => window.print(), 80);
   }
   async function loadDefaults() {
+    state.productsReady = false;
+    updatePrintAvailability();
+    $('retry-products').hidden = true;
+    $('product-load-status').hidden = false;
+    $('product-load-status').textContent = 'Загружаем товары…';
     try {
       const savedResponse = await fetch(`/api/pricegenerator/products${cityQuery()}`);
       const savedData = await savedResponse.json();
-      if (!savedResponse.ok) throw new Error(savedData.error || 'Ошибка загрузки');
+      if (!savedResponse.ok || savedData.success === false)
+        throw new Error(savedData.error || 'Ошибка загрузки');
       if (Array.isArray(savedData.products)) state.products = savedData.products;
       else if (state.city === 'aktau') {
         const response = await fetch('/pricegenerator/products.json');
+        if (!response.ok) throw new Error('Ошибка загрузки');
         state.products = await response.json();
       } else state.products = [];
+      if (!Array.isArray(state.products)) throw new Error('Некорректный список товаров');
       state.products = state.products.map((item) => ({
         ...item,
         expiryUnit: item.expiryUnit || 'days',
         archived: Boolean(item.archived),
       }));
+      state.productsReady = true;
+      $('product-load-status').hidden = true;
       const firstActive = state.products.findIndex((item) => !item.archived);
       selectProduct(firstActive >= 0 ? firstActive : 0);
       if (!state.products.length)
@@ -667,10 +717,21 @@
       historyIndex = -1;
       recordHistory();
     } catch {
-      notice('Не удалось загрузить исходный список.', true);
+      state.products = [];
+      renderProducts();
+      renderStage();
+      $('product-load-status').textContent =
+        'Не удалось загрузить товары. Проверьте интернет и повторите.';
+      $('retry-products').hidden = false;
+      notice('Товары не загружены. Обычная печать недоступна.', true);
     }
   }
-  $('made-date').value = new Date().toISOString().slice(0, 10);
+  $('made-date').value = localCalendarDate();
+  $('retry-products').addEventListener('click', loadDefaults);
+  $('copies').addEventListener('input', () => {
+    $('copies-error').hidden = true;
+    $('copies').removeAttribute('aria-invalid');
+  });
   $('city-select').value = state.city;
   $('city-select').addEventListener('change', (event) => {
     const city = event.target.value;
@@ -711,6 +772,7 @@
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Ошибка импорта');
       state.products = data.products;
+      state.productsReady = true;
       dirtyProductIds.clear();
       for (const item of state.products) dirtyProductIds.add(item.id);
       selectProduct(0);
@@ -795,6 +857,8 @@
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Ошибка сохранения');
+    state.productsReady = true;
+    updatePrintAvailability();
     notice(successMessage);
   }
   async function saveProducts() {

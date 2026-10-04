@@ -44,6 +44,49 @@ beforeEach(() => {
 });
 afterEach(() => window.history.replaceState(null, '', '/'));
 
+it('exposes directory errors and retries without resetting the selected report filter', async () => {
+  mocks.departments.mockRejectedValueOnce(new Error('offline'));
+  window.history.replaceState(
+    null,
+    '',
+    window.location.href + '&department=' + encodeURIComponent('Основной цех'),
+  );
+  render(
+    <I18nProvider>
+      <IikoDashboardPage />
+    </I18nProvider>,
+  );
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Не удалось обновить список точек и подразделений',
+  );
+  expect(screen.getByTestId('actual-filter')).toHaveTextContent('Основной цех');
+  expect(screen.queryByRole('option', { name: /нет в справочнике/ })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+  await screen.findByRole('option', { name: 'Основной цех' });
+  await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  expect(mocks.departments).toHaveBeenCalledTimes(2);
+});
+
+it('retains the last successful directory when refresh fails, then recovers locally', async () => {
+  render(
+    <I18nProvider>
+      <IikoDashboardPage />
+    </I18nProvider>,
+  );
+  await screen.findByRole('option', { name: 'Основной цех' });
+  fireEvent.change(screen.getByRole('combobox', { name: 'Подразделение' }), {
+    target: { value: 'Основной цех' },
+  });
+  mocks.departments.mockRejectedValueOnce(new Error('offline'));
+  fireEvent.click(screen.getByRole('button', { name: 'Обновить' }));
+  await screen.findByRole('alert');
+  expect(screen.getByRole('option', { name: 'Основной цех' })).toBeInTheDocument();
+  expect(screen.getByRole('combobox', { name: 'Подразделение' })).toHaveValue('Основной цех');
+  fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+  await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  expect(mocks.departments).toHaveBeenCalledTimes(3);
+});
+
 it('labels an absent department explicitly while preserving a shared filter', async () => {
   window.history.replaceState(
     null,

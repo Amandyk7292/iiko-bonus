@@ -21,6 +21,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private readonly ScrollViewer[] scrolls = new ScrollViewer[4];
         private readonly TextBlock[] counts = new TextBlock[4];
         private readonly StackPanel[] pagination = new StackPanel[4];
+        private readonly Border[] boardPanels = new Border[4];
+        private readonly Button[] stageButtons = new Button[4];
+        private readonly Grid boardColumns;
+        private readonly System.Windows.Controls.Primitives.UniformGrid stageSwitcher;
+        private int selectedStage;
+        private bool compactBoard;
+        private double boardWidth;
         private readonly string[] rendered = new string[4];
         private readonly HashSet<string> pending = new HashSet<string>();
         private readonly TextBlock notice;
@@ -93,6 +100,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition());
             var header = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
             var controls = new StackPanel { Orientation = Orientation.Horizontal };
@@ -152,23 +160,56 @@ namespace Resto.Front.Api.IikoBonusPlugin
             searchBar.Children.Add(searchInput); Grid.SetRow(searchBar, 1); root.Children.Add(searchBar);
             notice = Text("Загружаем заказы…", 17, bold: true); notice.Margin = new Thickness(0);
             var noticeContent = new DockPanel();
-            newOrdersButton = Button("Показать новые заказы", () => { searchInput.Text = ""; SubmitSearch(); scrolls[0].ScrollToTop(); });
+            newOrdersButton = Button("Показать новые заказы", () => { searchInput.Text = ""; SubmitSearch(); SelectStage(0); scrolls[0].ScrollToTop(); });
             newOrdersButton.Visibility = Visibility.Collapsed;
             DockPanel.SetDock(newOrdersButton, Dock.Right); noticeContent.Children.Add(newOrdersButton);
             noticeContent.Children.Add(notice);
             noticeBox = new Border { Padding = new Thickness(14, 10, 14, 10), Margin = new Thickness(0, 0, 0, 14),
                 CornerRadius = new CornerRadius(10), Background = Brush("#FFF5DF"), Child = noticeContent };
             Grid.SetRow(noticeBox, 2); root.Children.Add(noticeBox);
-            var columns = new Grid { MinWidth = 940 };
+            stageSwitcher = new System.Windows.Controls.Primitives.UniformGrid {
+                Columns = 4, Margin = new Thickness(0, 0, 0, 10), Visibility = Visibility.Collapsed };
+            boardColumns = new Grid();
             for (var i = 0; i < 4; i++)
             {
-                columns.ColumnDefinitions.Add(new ColumnDefinition());
-                var column = BuildColumn(i); Grid.SetColumn(column, i); columns.Children.Add(column);
+                var index = i;
+                stageButtons[i] = Button(Titles[i], () => { used = true; SelectStage(index); });
+                System.Windows.Automation.AutomationProperties.SetName(stageButtons[i], "Показать: " + Titles[i]);
+                stageSwitcher.Children.Add(stageButtons[i]);
+                boardColumns.ColumnDefinitions.Add(new ColumnDefinition());
+                boardPanels[i] = BuildColumn(i);
+                Grid.SetColumn(boardPanels[i], i); boardColumns.Children.Add(boardPanels[i]);
             }
+            Grid.SetRow(stageSwitcher, 3); root.Children.Add(stageSwitcher);
             var horizontal = new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = columns };
-            horizontal.SizeChanged += (_, __) => columns.Width = Math.Max(940, horizontal.ActualWidth);
-            Grid.SetRow(horizontal, 3); root.Children.Add(horizontal); Content = root;
+                VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, PanningMode = PanningMode.HorizontalOnly,
+                Content = boardColumns };
+            horizontal.SizeChanged += (_, __) => LayoutBoard(horizontal.ActualWidth);
+            Grid.SetRow(horizontal, 4); root.Children.Add(horizontal); Content = root;
+        }
+        private void SelectStage(int stage)
+        {
+            selectedStage = stage;
+            LayoutBoard(boardWidth);
+        }
+        private void LayoutBoard(double width)
+        {
+            if (width <= 0) return;
+            boardWidth = width;
+            compactBoard = width < 940;
+            stageSwitcher.Visibility = compactBoard ? Visibility.Visible : Visibility.Collapsed;
+            boardColumns.Width = width;
+            for (var i = 0; i < 4; i++)
+            {
+                boardColumns.ColumnDefinitions[i].Width = compactBoard && i != 0
+                    ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+                boardPanels[i].Visibility = !compactBoard || i == selectedStage ? Visibility.Visible : Visibility.Collapsed;
+                boardPanels[i].Margin = new Thickness(compactBoard || i == 0 ? 0 : 8, 0, 0, 0);
+                Grid.SetColumn(boardPanels[i], compactBoard ? 0 : i);
+                stageButtons[i].Background = Brush(i == selectedStage ? Accent[i] : "#FFF3D6");
+                stageButtons[i].Foreground = i == selectedStage ? Brushes.White : Brush("#603B20");
+                System.Windows.Automation.AutomationProperties.SetItemStatus(stageButtons[i], i == selectedStage ? "Выбран" : "");
+            }
         }
         private void SubmitSearch()
         {
@@ -181,7 +222,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
             normalizingSearch = true; searchInput.Text = value; normalizingSearch = false;
             activeSearch = value; snapshot = null; lastError = null; connected = false; confirmation = null;
             if (value.Length == 0) newOrdersOutsideSearch = false;
-            for (var i = 0; i < 4; i++) { cards[i].Children.Clear(); pagination[i].Children.Clear(); counts[i].Text = "—"; rendered[i] = null; }
+            for (var i = 0; i < 4; i++) {
+                cards[i].Children.Clear(); pagination[i].Children.Clear(); counts[i].Text = "—";
+                ((TextBlock)stageButtons[i].Content).Text = Titles[i] + " · —"; rendered[i] = null;
+            }
             Render(); SearchRequested?.Invoke(value);
         }
         internal void AlertNewOrder()
@@ -192,6 +236,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             Topmost = true;
             Activate();
             System.Media.SystemSounds.Exclamation.Play();
+            if (automatic && !used && activeSearch.Length == 0) SelectStage(0);
             scrolls[0].ScrollToTop();
         }
         private Button Button(string label, Action action, bool primary = false)
@@ -245,6 +290,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             {
                 var column = snapshot.Columns.First(c => c.Stage == BoardColumn.Stages[i]);
                 counts[i].Text = column.Total.ToString();
+                ((TextBlock)stageButtons[i].Content).Text = Titles[i] + " · " + column.Total;
                 // Rebuild only changed columns and retain their scroll position.
                 var signature = string.Join("|", column.Orders.Select(o => o.Id + o.Number + o.Phone + o.Customer + o.Comment + o.ScheduledAt + o.Amount + o.PosReceiptDue + o.AutomaticReceipt + o.ReceiptError + o.CourierName + o.CourierPhone + o.CourierVehicle +
                     o.OrderType + o.DeliveryResolution?.Id + o.DeliveryResolution?.Status + o.DeliveryResolution?.PickupTime +
