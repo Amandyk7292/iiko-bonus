@@ -207,6 +207,7 @@ function validateRuntimeConfig() {
     .filter(([name, minLength]) => String(process.env[name] || '').length < minLength)
     .map(([name]) => name);
   missing.push(...loyaltyPosConfigurationErrors(process.env));
+  missing.push(...require('./photo-telegram').photoTelegramConfigurationErrors(process.env));
   if (apiSecret.length < 32) missing.push('API_SECRET');
   if (process.env.ADMIN_JWT_SECRET && String(process.env.ADMIN_JWT_SECRET).length < 32) {
     missing.push('ADMIN_JWT_SECRET(32+ characters)');

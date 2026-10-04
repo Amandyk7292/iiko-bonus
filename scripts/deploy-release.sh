@@ -367,11 +367,11 @@ NODE
 }
 
 reload_production() {
-  if env HOST=127.0.0.1 pm2 reload iiko-bonus --update-env; then
+  if env HOST=127.0.0.1 pm2 reload iiko-bonus --update-env --kill-timeout 25000; then
     return 0
   fi
   echo 'PM2 reload was unavailable; falling back to a guarded restart.' >&2
-  env HOST=127.0.0.1 pm2 restart iiko-bonus --update-env
+  env HOST=127.0.0.1 pm2 restart iiko-bonus --update-env --kill-timeout 25000
 }
 
 start_staging_release() {

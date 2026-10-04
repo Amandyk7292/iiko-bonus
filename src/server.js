@@ -9,6 +9,11 @@ const {
   activatePendingBonusesSafe,
 } = require('./services/customer.service');
 const { startPolling: startTelegramBot } = require('./services/telegram.service');
+const {
+  startPolling: startPhotoTelegramBot,
+  stopPolling: stopPhotoTelegramBot,
+} = require('./services/branch-photo-telegram-bot.service');
+const { shouldRunPhotoTelegram } = require('./config/photo-telegram');
 const { getSettings } = require('./services/settings.service');
 const { shouldRunBots } = require('./config/env');
 const forteService = require('./services/forte.service');
@@ -43,6 +48,19 @@ const RESERVATION_RECONCILIATION_INTERVAL_MS = 60 * 1000;
 if (!process.env.VERCEL) {
   const runWorkers = process.env.RUN_BACKGROUND_WORKERS === 'true';
   const runBots = shouldRunBots();
+  const photoTelegramEnabled = shouldRunPhotoTelegram();
+  let photoTelegramTimer;
+  let photoTelegramStartupTimer;
+  let photoTelegramDigestWorker;
+  let photoTelegramDigestTask;
+  let shuttingDown = false;
+  registerWorker('branch-photo-telegram-digest', {
+    enabled: photoTelegramEnabled,
+    intervalMs: 30000,
+    maxRunMs: 120000,
+    critical: false,
+    alertOnFailure: true,
+  });
   const outgoingEnabled = runWorkers && process.env.RUN_IIKO_OUTGOING_SYNC !== 'false';
   registerWorker('iiko-outgoing-stock', {
     enabled: outgoingEnabled,
@@ -351,6 +369,31 @@ if (!process.env.VERCEL) {
     require('./services/menu-warmup.service').startMenuWarmup();
     logger.info({ event: 'server_started', host: HOST, port: Number(PORT) }, 'Server started');
 
+    if (photoTelegramEnabled) {
+      Promise.resolve()
+        .then(() => startPhotoTelegramBot())
+        .catch(() => {
+          logger.error({ event: 'photo_telegram_init_failed' }, 'Photo report bot failed to start');
+        });
+      photoTelegramDigestWorker =
+        require('./services/branch-photo-digest.service').createDigestWorker();
+      const runDigest = () => {
+        if (shuttingDown || photoTelegramDigestTask) return;
+        const task = runMonitoredWorker('branch-photo-telegram-digest', () =>
+          photoTelegramDigestWorker.tick(),
+        );
+        photoTelegramDigestTask = task;
+        const clearTask = () => {
+          if (photoTelegramDigestTask === task) photoTelegramDigestTask = undefined;
+        };
+        void task.then(clearTask, clearTask);
+      };
+      photoTelegramStartupTimer = setTimeout(runDigest, 5000);
+      photoTelegramStartupTimer.unref?.();
+      photoTelegramTimer = setInterval(runDigest, 30000);
+      photoTelegramTimer.unref?.();
+    }
+
     if (runBots) {
       try {
         startTelegramBot();
@@ -379,11 +422,23 @@ if (!process.env.VERCEL) {
     }
   });
 
-  let shuttingDown = false;
   const shutdown = (signal) => {
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info({ event: 'server_shutdown_started', signal }, 'Server shutdown started');
+    clearTimeout(photoTelegramStartupTimer);
+    clearInterval(photoTelegramTimer);
+    photoTelegramDigestWorker?.stop();
+    const photoTelegramStopped = photoTelegramEnabled
+      ? Promise.allSettled([
+          Promise.resolve().then(() => stopPhotoTelegramBot()),
+          photoTelegramDigestTask,
+        ]).then((results) => {
+          if (results.some((result) => result.status === 'rejected')) {
+            logger.warn({ event: 'photo_telegram_stop_failed' }, 'Photo report bot stop failed');
+          }
+        })
+      : Promise.resolve();
 
     const forceTimer = setTimeout(
       () => {
@@ -393,11 +448,12 @@ if (!process.env.VERCEL) {
         );
         process.exit(1);
       },
-      Number(process.env.SHUTDOWN_GRACE_MS || 10_000),
+      Math.max(Number(process.env.SHUTDOWN_GRACE_MS || 10_000), photoTelegramEnabled ? 20_000 : 0),
     );
     forceTimer.unref?.();
 
-    server.close((error) => {
+    server.close(async (error) => {
+      await photoTelegramStopped;
       clearTimeout(forceTimer);
       if (error) {
         logger.error({ err: error, event: 'server_shutdown_failed', signal }, 'Shutdown failed');
