@@ -17,18 +17,34 @@ class LocationCacheRepository {
   static const _maximumAge = Duration(days: 7);
   final BulkaApiClient api;
 
-  Future<CachedLocations> load() async {
+  Future<CachedLocations> load({
+    void Function(CachedLocations)? onCached,
+  }) async {
+    if (onCached != null) {
+      final cached = await _readCache();
+      if (cached != null) {
+        try {
+          onCached(cached);
+        } catch (_) {
+          // A preview is optional; its failure must never prevent revalidation.
+        }
+      }
+    }
     try {
       final locations = await api.getFulfillmentLocations();
       final now = DateTime.now();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        _key,
-        jsonEncode({
-          'cachedAt': now.toUtc().toIso8601String(),
-          'locations': locations.map((item) => item.toJson()).toList(),
-        }),
-      );
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          _key,
+          jsonEncode({
+            'cachedAt': now.toUtc().toIso8601String(),
+            'locations': locations.map((item) => item.toJson()).toList(),
+          }),
+        );
+      } catch (_) {
+        // Optional local storage must not hide a successful network response.
+      }
       return CachedLocations(
         locations: locations,
         fromCache: false,
@@ -42,10 +58,11 @@ class LocationCacheRepository {
   }
 
   Future<CachedLocations?> _readCache() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key);
-    if (raw == null || raw.isEmpty) return null;
+    SharedPreferences? prefs;
     try {
+      prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_key);
+      if (raw == null || raw.isEmpty) return null;
       final value = _asMap(jsonDecode(raw));
       final cachedAt = DateTime.tryParse(
         _asString(value['cachedAt']),
@@ -69,7 +86,11 @@ class LocationCacheRepository {
         cachedAt: cachedAt,
       );
     } catch (_) {
-      await prefs.remove(_key);
+      try {
+        await prefs?.remove(_key);
+      } catch (_) {
+        // A damaged/unavailable cache is dispensable, including its cleanup.
+      }
       return null;
     }
   }

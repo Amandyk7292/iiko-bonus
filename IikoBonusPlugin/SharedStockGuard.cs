@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -63,9 +64,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private readonly object gate = new object();
         private readonly string path = Path.Combine(LoyaltyFlow.DataDirectoryPath,"BulkaSharedStock.json");
         private Dictionary<string,GuardRequest> requests=new Dictionary<string,GuardRequest>();
+        private volatile ConcurrentDictionary<string,bool> receiptLinks=new ConcurrentDictionary<string,bool>();
+        private readonly ConcurrentDictionary<string,IOrder> observedOrders=new ConcurrentDictionary<string,IOrder>();
         private readonly Timer timer;
         private bool storageHealthy = true;
-        private int busy;
+        private int busy, observing, disposed;
         private string status = "Общий учёт: ожидает настройки филиала";
         private readonly bool enabledAtStartup;
         internal bool Enabled => enabledAtStartup || (PosPairing.Current?.SharedStockEnabled ?? false);
@@ -87,6 +90,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 requests=DurableJsonFile.ReadValidated<Dictionary<string,GuardRequest>>(path,
                     entries=>entries.All(pair=>pair.Value!=null && Guid.TryParse(pair.Key,out _) && pair.Key==pair.Value.ReceiptId
                         && pair.Value.Items!=null && pair.Value.Items.All(item=>item!=null && Guid.TryParse(item.ProductId,out _) && item.Quantity>0)),false);
+                receiptLinks=new ConcurrentDictionary<string,bool>(requests.Select(pair=>
+                    new KeyValuePair<string,bool>(pair.Key,pair.Value.OnlineNumber.HasValue)));
                 if(!File.Exists(path) && Enabled) Save();
                 storageHealthy=true;
                 return true;
@@ -102,7 +107,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         internal bool IsLinked(IOrder order)
         {
             if(OnlineReceiptSync.OrderId(order)!=null) return true;
-            lock(gate) return order!=null && requests.TryGetValue(order.Id.ToString(),out var request) && request.OnlineNumber.HasValue;
+            return order!=null && receiptLinks.TryGetValue(order.Id.ToString(),out var linked) && linked;
         }
         private void Save()
         {
@@ -274,7 +279,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         }
         private void Tick(object state)
         {
-            if(!Enabled || Interlocked.CompareExchange(ref busy,1,0)!=0) return;
+            if(Volatile.Read(ref disposed)!=0 || !Enabled || Interlocked.CompareExchange(ref busy,1,0)!=0) return;
             try
             {
                 lock(gate)
@@ -313,6 +318,6 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 Save();
             }
         }
-        public void Dispose() { timer.Dispose(); }
+        public void Dispose() { Interlocked.Exchange(ref disposed,1); timer.Dispose(); }
     }
 }

@@ -71,12 +71,13 @@ if (flutterDirectory) {
   if (!fs.existsSync(mainFile)) {
     failures.push(`Flutter entry is missing: ${mainFile}`);
   } else {
-    // Performance release plus persisted reset cooldown: 6,721,959 B raw /
-    // 1,832,636 B gzip. Relative to the prior release this is +9,313 B raw /
-    // +2,670 B gzip (0.15% transfer growth); retain narrow headroom.
+    // Interrupted-motion handling and scoped in-flight reads with mutation
+    // barriers measure 6,725,501 B raw / 1,835,093 B gzip: +3,542 B raw /
+    // +2,457 B gzip (0.13% transfer growth) from the performance release.
+    // Retain narrow headroom; native artwork adds no startup request on web.
     // The QR decoder remains deferred with a separate total budget below.
-    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_723_000);
-    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_833_200);
+    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_726_500);
+    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_835_600);
   }
   const deferredChunks = filesUnder(directory).filter((file) => /\.part\.js$/.test(file));
   // One locally decoded QR chunk measures 56,453 B raw / 19,842 B gzip.

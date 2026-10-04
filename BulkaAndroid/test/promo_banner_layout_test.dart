@@ -320,23 +320,43 @@ void main() {
     },
   );
 
-  testWidgets('startup surface has no competing logo or spinner', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: SplashScreen(text: 'Loading Bulka')),
-    );
-    expect(
-      tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
-      const Color(0xFFFFB329),
-    );
-    expect(find.byType(Image), findsNothing);
-    expect(find.byType(CircularProgressIndicator), findsNothing);
-    expect(find.text('Loading Bulka'), findsNothing);
-    await tester.pump(const Duration(seconds: 3));
-    expect(find.byType(Image), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'startup surface uses native artwork without extra logo or spinner',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: SplashScreen(text: 'Loading Bulka')),
+      );
+      expect(
+        tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
+        const Color(0xFFFFB329),
+      );
+      final artworkCount = kIsWeb ? findsNothing : findsOneWidget;
+      expect(find.byType(Image), artworkCount);
+      expect(find.byType(NativeLaunchArtwork), artworkCount);
+      if (!kIsWeb) {
+        final image = tester.widget<Image>(find.byType(Image));
+        expect(
+          (image.image as AssetImage).assetName,
+          NativeLaunchArtwork.asset,
+        );
+        expect(image.fit, BoxFit.cover);
+        expect(
+          tester
+              .widget<NativeLaunchArtwork>(find.byType(NativeLaunchArtwork))
+              .holdFirstFrame,
+          isFalse,
+          reason: 'Reusable loading screens must never defer ready frames.',
+        );
+      }
+      expect(find.byType(Icon), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(find.text('Loading Bulka'), findsNothing);
+      await tester.pump(const Duration(seconds: 3));
+      expect(find.byType(Image), artworkCount);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('story viewer uses one spinner without a loading logo', (
     tester,

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -86,7 +87,7 @@ internal static class Program
         PluginContext.Initialize(services,()=>{},Proxy.Make<ILog>(call=>null));
         http=new FakeHttp{Reply=request=>throw new Exception("Unexpected HTTP: "+request.RequestUri)};
         typeof(LoyaltyFlow).GetField("_httpClient",Static).SetValue(null,new HttpClient(http));
-        StockPendingTelemetry();UnknownOrders();GiftAuthenticationRecovery();JournalRecovery();PreparePayments();ActiveJournalRecovery();FamilyPayments();
+        StockPendingTelemetry();SharedStockCallbacks();UnknownOrders();GiftAuthenticationRecovery();JournalRecovery();PreparePayments();ActiveJournalRecovery();FamilyPayments();
         Check(http.Calls>0,"network scenarios used intercepted production HttpClient");
         Console.WriteLine("PASS: "+assertions+" production-plugin reliability assertions; no actual HTTP/POS.");
         PluginContext.Uninitialize();
@@ -114,6 +115,210 @@ internal static class Program
         Check((int)pending.GetValue(guard)==2,"stock telemetry counts unacknowledged holds and closed receipts only");
         requestType.GetProperty("Acknowledged").SetValue(requests["closed"],true);
         Check((int)pending.GetValue(guard)==1,"server acknowledgement immediately clears stock pending telemetry");
+    }
+    private static void SharedStockCallbacks()
+    {
+        var guardType=Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.SharedStockGuard",true);
+        var requestType=Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.GuardRequest",true);
+        var guard=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(guardType);
+        guardType.GetField("gate",Instance).SetValue(guard,new object());
+        guardType.GetField("enabledAtStartup",Instance).SetValue(guard,true);
+        guardType.GetField("observedOrders",Instance).SetValue(guard,new ConcurrentDictionary<string,IOrder>());
+        var path=Path.Combine(data,"BulkaSharedStockCallbacks.json");
+        guardType.GetField("path",Instance).SetValue(guard,path);
+        var receipt=Guid.NewGuid();
+        var request=Activator.CreateInstance(requestType,true);
+        requestType.GetProperty("ReceiptId").SetValue(request,receipt.ToString());
+        requestType.GetProperty("TerminalId").SetValue(request,Guid.NewGuid().ToString());
+        requestType.GetProperty("OnlineNumber").SetValue(request,(long?)100042);
+        requestType.GetProperty("AuthorizationConfirmed").SetValue(request,true);
+        requestType.GetProperty("Items").SetValue(request,Activator.CreateInstance(requestType.GetProperty("Items").PropertyType));
+        var entries=(System.Collections.IDictionary)Activator.CreateInstance(guardType.GetField("requests",Instance).FieldType);
+        entries.Add(receipt.ToString(),request);
+        Action persist=()=>{using(var file=File.Create(path))new DataContractJsonSerializer(entries.GetType()).WriteObject(file,entries);};
+        persist();
+        Check((bool)guardType.GetMethod("TryLoadLedger",Instance).Invoke(guard,null),"callback fixture loads production ledger and link index without timers");
+        var deleted=(IOrder)Proxy.Props(typeof(IOrder),new Dictionary<string,object>{{"Id",receipt},{"Status",OrderStatus.Deleted}});
+        var unrelated=(IOrder)Proxy.Props(typeof(IOrder),new Dictionary<string,object>{{"Id",Guid.NewGuid()},{"Status",OrderStatus.New}});
+        var observe=guardType.GetMethod("Observe",Instance);
+        var linked=guardType.GetMethod("IsLinked",Instance);
+        var entered=new ManualResetEventSlim();var release=new ManualResetEventSlim();
+        var calls=http.Calls;
+        http.Reply=incoming=>{
+            if(!incoming.RequestUri.AbsolutePath.EndsWith("/inventory/finish"))throw new Exception("Unexpected callback HTTP");
+            entered.Set();
+            if(!release.Wait(TimeSpan.FromSeconds(5)))throw new TimeoutException("Test release did not arrive");
+            return Response(HttpStatusCode.OK,"{\"status\":\"voided\"}");
+        };
+        try
+        {
+            var callback=Task.Run(()=>observe.Invoke(guard,new object[]{deleted}));
+            Check(entered.Wait(2000),"background outcome reaches intercepted blocking HTTP");
+            Check(callback.Wait(500),"order notification returns while finish HTTP is still blocked");
+            Check(File.ReadAllText(path).Contains("\"state\":\"voided\""),"outcome is durable before uncertain finish response");
+            var lookup=Task.Run(()=>(bool)linked.Invoke(guard,new object[]{deleted}));
+            Check(lookup.Wait(500)&&lookup.Result,"linked order lookup remains immediate during blocked finish HTTP");
+            var edit=Task.Run(()=>observe.Invoke(guard,new object[]{unrelated}));
+            Check(edit.Wait(500),"unrelated open-order notification does not wait for stock HTTP");
+            for(var i=0;i<20;i++)observe.Invoke(guard,new object[]{deleted});
+        }
+        finally {release.Set();}
+        Check(SpinWait.SpinUntil(()=>(int)guardType.GetField("observing",Instance).GetValue(guard)==0,2000),"coalesced outcome worker drains after response");
+        entries=(System.Collections.IDictionary)guardType.GetField("requests",Instance).GetValue(guard);
+        Check((bool)requestType.GetProperty("Acknowledged").GetValue(entries[receipt.ToString()])&&http.Calls==calls+1,
+            "duplicate notifications acknowledge one durable finish without repeat requests");
+
+        entries[receipt.ToString()]=request;persist();
+        guardType.GetMethod("TryLoadLedger",Instance).Invoke(guard,null);
+        var stockGate=guardType.GetField("gate",Instance).GetValue(guard);
+        var closed=(IOrder)Proxy.Props(typeof(IOrder),new Dictionary<string,object>{{"Id",receipt},{"Status",OrderStatus.Closed}});
+        http.Reply=incoming=>Response(HttpStatusCode.OK,"{\"status\":\"voided\"}");
+        calls=http.Calls;
+        Monitor.Enter(stockGate);
+        try
+        {
+            observe.Invoke(guard,new object[]{deleted});
+            guardType.GetMethod("ReconcileOutcome",Instance).Invoke(guard,new object[]{closed});
+        }
+        finally {Monitor.Exit(stockGate);}
+        Check(SpinWait.SpinUntil(()=>(int)guardType.GetField("observing",Instance).GetValue(guard)==0,2000),"queued outcome drains after a competing scan owns the gate");
+        Check(File.ReadAllText(path).Contains("\"state\":\"voided\"")&&http.Calls==calls+1,
+            "periodic scan preserves the first queued terminal snapshot without a second finish");
+
+        requestType.GetProperty("AuthorizationConfirmed").SetValue(request,false);
+        requestType.GetProperty("Acknowledged").SetValue(request,false);
+        entries[receipt.ToString()]=request;persist();
+        guardType.GetMethod("TryLoadLedger",Instance).Invoke(guard,null);
+        http.Reply=incoming=>Response(HttpStatusCode.OK,"{\"status\":\"absent\"}");
+        guardType.GetMethod("ResolvePendingLink",Instance).Invoke(guard,new object[]{receipt.ToString()});
+        Check(!(bool)linked.Invoke(guard,new object[]{deleted}),"server-confirmed absent link immediately clears lock-free index");
+        http.Reply=incoming=>Response(HttpStatusCode.OK,"{\"status\":\"reserved\"}");
+        guardType.GetMethod("Authorize",Instance).Invoke(guard,new[]{request});
+        Check((bool)linked.Invoke(guard,new object[]{deleted}),"new authorized online hold immediately updates lock-free index");
+
+        var importedReceipt=Guid.NewGuid();var productId=Guid.NewGuid();var onlineId=Guid.NewGuid();
+        var imported=(IOrder)Proxy.Props(typeof(IOrder),new Dictionary<string,object>{{"Id",importedReceipt},{"Status",OrderStatus.New}});
+        var importOperations=Proxy.Make<IOperationService>(call=>{
+            if(call.MethodName=="TryGetProductById")return Proxy.Props(((MethodInfo)call.MethodBase).ReturnType,new Dictionary<string,object>{{"Id",productId}});
+            if(call.MethodName=="GetHostTerminal")return Proxy.Props(((MethodInfo)call.MethodBase).ReturnType,new Dictionary<string,object>{{"Id",Guid.NewGuid()}});
+            if(call.MethodName=="CreateEditSession")throw new InvalidOperationException("Intercepted import failure after pending save");
+            throw new InvalidOperationException("Unexpected import SDK call: "+call.MethodName);
+        });
+        http.Reply=incoming=>{
+            if(!incoming.RequestUri.AbsolutePath.EndsWith("/orders/receipt-draft"))throw new Exception("Unexpected import HTTP");
+            return Response(HttpStatusCode.OK,"{\"id\":\""+onlineId+"\",\"items\":[{\"key\":\"line-1\",\"productId\":\""+productId+
+                "\",\"name\":\"Product\",\"quantity\":1,\"price\":100,\"lineTotal\":100}],\"merchandiseTotal\":100}");
+        };
+        Action<IOrder,bool> failImport=(order,remember)=>{
+            try {guardType.GetMethod("ImportReceipt",Instance).Invoke(guard,new object[]{order,100043L,importOperations,remember});}
+            catch(TargetInvocationException error) when(error.InnerException is InvalidOperationException
+                && error.InnerException.Message=="Intercepted import failure after pending save")
+            {Check(true,"production import reaches intercepted SDK failure after pending intent");return;}
+            throw new Exception("Expected intercepted import failure");
+        };
+        failImport(imported,true);
+        Check((bool)linked.Invoke(guard,new object[]{imported}),"failed pending online import stays linked before Authorize and restart");
+        entries=(System.Collections.IDictionary)guardType.GetField("requests",Instance).GetValue(guard);
+        Check(entries.Contains(importedReceipt.ToString())&&!(bool)requestType.GetProperty("AuthorizationConfirmed").GetValue(entries[importedReceipt.ToString()])
+            &&File.ReadAllText(path).Contains(importedReceipt.ToString()),"failed import preserves durable unconfirmed intent");
+        calls=http.Calls;
+        http.Reply=incoming=>{
+            if(!incoming.RequestUri.AbsolutePath.EndsWith("/inventory/receipt"))throw new Exception("Unconfirmed failed import must only look up its receipt");
+            return Response(HttpStatusCode.OK,"{\"status\":\"absent\"}");
+        };
+        var deletedImport=(IOrder)Proxy.Props(typeof(IOrder),new Dictionary<string,object>{{"Id",importedReceipt},{"Status",OrderStatus.Deleted}});
+        observe.Invoke(guard,new object[]{deletedImport});
+        Check(SpinWait.SpinUntil(()=>(int)guardType.GetField("observing",Instance).GetValue(guard)==0,2000),"failed-import terminal callback drains through normal recovery");
+        Check(http.Calls==calls+1&&(bool)requestType.GetProperty("Acknowledged").GetValue(entries[importedReceipt.ToString()]),
+            "failed-import deletion remains eligible and acknowledges only confirmed absent server reservation");
+        var automaticReceipt=Guid.NewGuid();
+        var automatic=(IOrder)Proxy.Props(typeof(IOrder),new Dictionary<string,object>{{"Id",automaticReceipt},{"Status",OrderStatus.New}});
+        http.Reply=incoming=>Response(HttpStatusCode.OK,"{\"id\":\""+onlineId+"\",\"items\":[{\"key\":\"line-1\",\"productId\":\""+productId+
+            "\",\"name\":\"Product\",\"quantity\":1,\"price\":100,\"lineTotal\":100}],\"merchandiseTotal\":100}");
+        failImport(automatic,false);
+        Check(!(bool)linked.Invoke(guard,new object[]{automatic})&&!entries.Contains(automaticReceipt.ToString()),
+            "automatic remember=false import does not create a shared-stock link or intent");
+
+        requestType.GetProperty("Acknowledged").SetValue(request,false);
+        requestType.GetProperty("State").SetValue(request,null);
+        entries[receipt.ToString()]=request;
+        guardType.GetMethod("Save",Instance).Invoke(guard,null);
+        var finishBodies=new List<string>();
+        http.Reply=incoming=>{
+            if(!incoming.RequestUri.AbsolutePath.EndsWith("/inventory/finish"))throw new Exception("Unexpected retry HTTP");
+            finishBodies.Add(incoming.Content.ReadAsStringAsync().GetAwaiter().GetResult());
+            return finishBodies.Count==1 ? Response(HttpStatusCode.ServiceUnavailable,"{\"error\":\"Intercepted finish outage\"}")
+                : Response(HttpStatusCode.OK,"{\"status\":\"voided\"}");
+        };
+        observe.Invoke(guard,new object[]{deleted});
+        Check(SpinWait.SpinUntil(()=>(int)guardType.GetField("observing",Instance).GetValue(guard)==0,2000),"failed finish leaves the background worker retryable");
+        System.Collections.IDictionary durable;
+        using(var file=File.OpenRead(path))durable=(System.Collections.IDictionary)new DataContractJsonSerializer(entries.GetType()).ReadObject(file);
+        Check(finishBodies.Count==1&&!(bool)requestType.GetProperty("Acknowledged").GetValue(durable[receipt.ToString()])
+            &&(string)requestType.GetProperty("State").GetValue(durable[receipt.ToString()])=="voided",
+            "failed finish retains the same durable receipt outcome without acknowledgment");
+        var scanOperations=Proxy.Make<IOperationService>(call=>call.MethodName=="GetOrders" ? new[]{deleted}
+            : throw new InvalidOperationException("Unexpected scan SDK call: "+call.MethodName));
+        guardType.GetMethod("ObserveIndependently",Instance).Invoke(guard,new object[]{scanOperations});
+        Check(finishBodies.Count==2&&finishBodies[0]==finishBodies[1]&&(bool)requestType.GetProperty("Acknowledged").GetValue(request),
+            "next periodic SDK scan retries identical receipt ID and outcome successfully");
+        guardType.GetMethod("ObserveIndependently",Instance).Invoke(guard,new object[]{scanOperations});
+        Check(finishBodies.Count==2,"acknowledged periodic retry never sends finish again");
+
+        requestType.GetProperty("Acknowledged").SetValue(request,false);
+        requestType.GetProperty("State").SetValue(request,null);
+        guardType.GetMethod("Save",Instance).Invoke(guard,null);
+        var beforeDispose=File.ReadAllText(path);
+        guardType.GetField("timer",Instance).SetValue(guard,new Timer(_=>{},null,Timeout.Infinite,Timeout.Infinite));
+        http.Reply=incoming=>Response(HttpStatusCode.OK,"{\"status\":\"voided\"}");
+        var dispose=guardType.GetMethod("Dispose",BindingFlags.Public|BindingFlags.Instance);
+        var waiting=new ManualResetEventSlim();Thread waitingThread=null;Task blockedWork=null;
+        Monitor.Enter(stockGate);
+        try
+        {
+            observe.Invoke(guard,new object[]{deleted});
+            blockedWork=Task.Run(()=>{
+                waitingThread=Thread.CurrentThread;waiting.Set();
+                guardType.GetMethod("ReconcileOutcome",Instance).Invoke(guard,new object[]{deleted});
+            });
+            Check(waiting.Wait(2000)&&SpinWait.SpinUntil(()=>(waitingThread.ThreadState&ThreadState.WaitSleepJoin)!=0,2000),
+                "queued reconciliation is waiting for the occupied financial gate");
+            calls=http.Calls;dispose.Invoke(guard,null);
+        }
+        finally {Monitor.Exit(stockGate);}
+        Check(blockedWork.Wait(2000)&&SpinWait.SpinUntil(()=>(int)guardType.GetField("observing",Instance).GetValue(guard)==0,2000),
+            "disposed waiting reconciliation exits after financial gate releases");
+        Check(http.Calls==calls&&File.ReadAllText(path)==beforeDispose&&!(bool)requestType.GetProperty("Acknowledged").GetValue(request),
+            "disposing before gate acquisition starts no new HTTP or durable outcome mutation");
+        calls=http.Calls;observe.Invoke(guard,new object[]{deleted});
+        Check(http.Calls==calls,"disposed guard does not queue another outcome");
+
+        var runningGuard=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(guardType);
+        guardType.GetField("gate",Instance).SetValue(runningGuard,new object());
+        guardType.GetField("enabledAtStartup",Instance).SetValue(runningGuard,true);
+        guardType.GetField("observedOrders",Instance).SetValue(runningGuard,new ConcurrentDictionary<string,IOrder>());
+        guardType.GetField("timer",Instance).SetValue(runningGuard,new Timer(_=>{},null,Timeout.Infinite,Timeout.Infinite));
+        var runningPath=Path.Combine(data,"BulkaSharedStockRunning.json");
+        guardType.GetField("path",Instance).SetValue(runningGuard,runningPath);
+        using(var file=File.Create(runningPath))new DataContractJsonSerializer(entries.GetType()).WriteObject(file,entries);
+        guardType.GetMethod("TryLoadLedger",Instance).Invoke(runningGuard,null);
+        var runningEntered=new ManualResetEventSlim();var runningRelease=new ManualResetEventSlim();
+        http.Reply=incoming=>{
+            runningEntered.Set();
+            if(!runningRelease.Wait(TimeSpan.FromSeconds(5)))throw new TimeoutException("Running finish release did not arrive");
+            return Response(HttpStatusCode.OK,"{\"status\":\"voided\"}");
+        };
+        try
+        {
+            observe.Invoke(runningGuard,new object[]{deleted});
+            Check(runningEntered.Wait(2000),"running finish has begun before plugin disposal");
+            dispose.Invoke(runningGuard,null);
+        }
+        finally {runningRelease.Set();}
+        Check(SpinWait.SpinUntil(()=>(int)guardType.GetField("observing",Instance).GetValue(runningGuard)==0,2000),"already-running finish completes safely after disposal");
+        using(var file=File.OpenRead(runningPath))durable=(System.Collections.IDictionary)new DataContractJsonSerializer(entries.GetType()).ReadObject(file);
+        Check((bool)requestType.GetProperty("Acknowledged").GetValue(durable[receipt.ToString()]),
+            "disposal never aborts an already-running durable finish acknowledgment midway");
     }
     private static void UnknownOrders()
     {

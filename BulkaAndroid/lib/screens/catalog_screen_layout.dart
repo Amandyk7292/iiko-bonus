@@ -14,7 +14,9 @@ extension _CatalogScreenLayout on _CatalogScreenState {
         !needsBakery &&
         grouped &&
         feed.categoryOffsets.isNotEmpty;
-    _catalogHeaderExtent = _catalogToolsHeight(showCategories);
+    final reserveCategories =
+        !needsBakery && grouped && (_isLoading || showCategories);
+    _catalogHeaderExtent = _catalogToolsHeight(reserveCategories);
     final favoritesEmpty = _favoritesOnly && !hasSearch && !_filterActive;
     final canReset = hasSearch || _favoritesOnly || _filterActive;
 
@@ -50,6 +52,7 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                 height: _catalogHeaderExtent,
                 child: _buildCatalogToolsHeader(
                   showCategorySelector: showCategories,
+                  loadingCategories: reserveCategories && !showCategories,
                 ),
               ),
             ),

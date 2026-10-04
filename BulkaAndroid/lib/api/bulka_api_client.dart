@@ -50,6 +50,19 @@ class BulkaApiClient {
   final http.Client _client;
   final Map<String, _FaqCacheEntry> _faqCache = {};
   final Map<String, Future<List<FaqItem>>> _faqRequests = {};
+  final Map<
+    ({
+      String path,
+      int revision,
+      int generation,
+      String language,
+      String? token,
+      Duration timeout,
+    }),
+    Future<http.Response>
+  >
+  _readRequests = {};
+  int _readGeneration = 0;
   final bool _usesCookieSessionTransport;
   final Future<String> Function()? _sessionRecoveryKey;
   int _sessionRevision = 0;
@@ -409,6 +422,18 @@ class BulkaApiClient {
   }
 
   Future<Map<String, dynamic>> uploadCustomerAvatar({
+    required List<int> bytes,
+    required String fileName,
+    required String mimeType,
+  }) => _withReadBarrier(
+    () => _uploadCustomerAvatar(
+      bytes: bytes,
+      fileName: fileName,
+      mimeType: mimeType,
+    ),
+  );
+
+  Future<Map<String, dynamic>> _uploadCustomerAvatar({
     required List<int> bytes,
     required String fileName,
     required String mimeType,
@@ -1373,6 +1398,13 @@ class BulkaApiClient {
   Future<String> uploadSupportAttachment({
     required List<int> bytes,
     required String fileName,
+  }) => _withReadBarrier(
+    () => _uploadSupportAttachment(bytes: bytes, fileName: fileName),
+  );
+
+  Future<String> _uploadSupportAttachment({
+    required List<int> bytes,
+    required String fileName,
   }) async {
     final request = http.MultipartRequest(
       'POST',
@@ -1631,6 +1663,13 @@ class BulkaApiClient {
   }
 
   Future<String> uploadCakeReference({
+    required List<int> bytes,
+    required String fileName,
+  }) => _withReadBarrier(
+    () => _uploadCakeReference(bytes: bytes, fileName: fileName),
+  );
+
+  Future<String> _uploadCakeReference({
     required List<int> bytes,
     required String fileName,
   }) async {
@@ -1958,6 +1997,38 @@ class BulkaApiClient {
     return _request('GET', path);
   }
 
+  Future<http.Response> _read(
+    Uri uri,
+    Map<String, String> headers,
+    Duration timeout,
+  ) {
+    final key = (
+      path: uri.toString(),
+      revision: _sessionRevision,
+      generation: _readGeneration,
+      language: headers['Accept-Language'] ?? '',
+      token: headers['Authorization'],
+      timeout: timeout,
+    );
+    final pending = _readRequests[key];
+    if (pending != null) return pending;
+    final request = _client.get(uri, headers: headers).timeout(timeout);
+    _readRequests[key] = request;
+    void remove() {
+      if (identical(_readRequests[key], request)) _readRequests.remove(key);
+    }
+
+    // Share only the transport. Each caller still decodes an independent JSON
+    // tree and passes its own session guards, including after auth refresh.
+    unawaited(
+      request.then<void>(
+        (_) => remove(),
+        onError: (Object _, StackTrace _) => remove(),
+      ),
+    );
+    return request;
+  }
+
   Future<Map<String, dynamic>> _post(
     String path,
     Map<String, dynamic> body, {
@@ -2005,6 +2076,38 @@ class BulkaApiClient {
     bool allowRefresh = true,
     bool refreshOnUnauthorized = true,
     Duration timeout = const Duration(seconds: 15),
+  }) {
+    Future<Map<String, dynamic>> send() => _sendRequest(
+      method,
+      path,
+      body: body,
+      bearerToken: bearerToken,
+      allowRefresh: allowRefresh,
+      refreshOnUnauthorized: refreshOnUnauthorized,
+      timeout: timeout,
+    );
+    return method == 'GET' ? send() : _withReadBarrier(send);
+  }
+
+  Future<T> _withReadBarrier<T>(Future<T> Function() operation) async {
+    // Reads started before/during any write must never satisfy a new read after
+    // it. Advance on both boundaries, even for unknown/failed write outcomes.
+    _readGeneration++;
+    try {
+      return await operation();
+    } finally {
+      _readGeneration++;
+    }
+  }
+
+  Future<Map<String, dynamic>> _sendRequest(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+    String? bearerToken,
+    bool allowRefresh = true,
+    bool refreshOnUnauthorized = true,
+    Duration timeout = const Duration(seconds: 15),
   }) async {
     if (isFamilyChildSession &&
         (path.startsWith('/api/customer/') ||
@@ -2023,7 +2126,7 @@ class BulkaApiClient {
       final headers = _headers(bearerToken: bearerToken, json: body != null);
       final encodedBody = body == null ? null : jsonEncode(body);
       return switch (method) {
-        'GET' => _client.get(uri, headers: headers),
+        'GET' => _read(uri, headers, timeout),
         'POST' => _client.post(uri, headers: headers, body: encodedBody),
         'PUT' => _client.put(uri, headers: headers, body: encodedBody),
         'PATCH' => _client.patch(uri, headers: headers, body: encodedBody),

@@ -79,7 +79,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Plugin updater build failed.' }
 $buildDirectory = Join-Path $projectDirectory "bin\$Configuration"
 Push-Location $root
 try {
-    foreach ($suite in @('native-board/BoardViewTests', 'native-discounts/DiscountTests', 'native-loyalty/OfflineLoyaltyTests', 'native-diagnostics/DiagnosticsTests', 'native-update-package/NativeUpdatePackageTests', 'native-updater/UpdaterTests')) {
+    foreach ($suite in @('native-board/BoardViewTests', 'native-discounts/DiscountTests', 'native-loyalty/OfflineLoyaltyTests', 'native-diagnostics/DiagnosticsTests', 'native-update-package/NativeUpdatePackageTests', 'native-updater/UpdaterTests', 'native-reliability/PluginReliabilityTests')) {
         dotnet build "test/$suite.csproj" -c $Configuration
         if ($LASTEXITCODE -ne 0) { throw "Required plugin suite build failed: $suite" }
         $suiteDirectory = Split-Path "test/$suite" -Parent

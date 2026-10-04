@@ -430,7 +430,7 @@ void main() {
 
     expect(
       find.byKey(const ValueKey('catalog-category-skeleton-strip')),
-      findsNothing,
+      findsOneWidget,
     );
     expect(
       find.byKey(const ValueKey('catalog-skeleton-categories')),
@@ -439,6 +439,10 @@ void main() {
     final loadingCardSize = tester.getSize(
       find.byKey(const ValueKey('catalog-skeleton-category-0')),
     );
+    final banner = find.byKey(
+      const ValueKey('catalog-fulfillment-banner-pickup'),
+    );
+    final loadingBannerTop = tester.getTopLeft(banner).dy;
 
     menuResponse.complete(_menuResponse('pickup'));
     await tester.pumpAndSettle();
@@ -450,6 +454,7 @@ void main() {
       find.byKey(const ValueKey('catalog-product-image-pickup-product')),
     );
     expect(loadingCardSize.width, closeTo(loadedCardSize.width, 0.01));
+    expect(tester.getTopLeft(banner).dy, closeTo(loadingBannerTop, 0.01));
     expect(tester.takeException(), isNull);
   });
 

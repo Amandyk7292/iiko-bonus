@@ -431,10 +431,17 @@ class _MainShellState extends State<MainShell> {
 }
 
 class _PersistentTabSwitcher extends StatefulWidget {
-  const _PersistentTabSwitcher({required this.index, required this.children});
+  const _PersistentTabSwitcher({
+    required this.index,
+    required this.children,
+    this.initiallyMountedSlots = const {},
+    this.alwaysTickingSlots = const {},
+  });
 
   final int index;
   final List<Widget> children;
+  final Set<int> initiallyMountedSlots;
+  final Set<int> alwaysTickingSlots;
 
   @override
   State<_PersistentTabSwitcher> createState() => _PersistentTabSwitcherState();
@@ -442,8 +449,14 @@ class _PersistentTabSwitcher extends StatefulWidget {
 
 class _PersistentTabSwitcherState extends State<_PersistentTabSwitcher>
     with SingleTickerProviderStateMixin {
-  late final Set<int> _visited = {widget.index};
+  late final Set<int> _visited = {
+    widget.index,
+    ...widget.initiallyMountedSlots,
+  };
   late final AnimationController _transition;
+  late Map<int, Animation<Offset>> _positions = {
+    widget.index: const AlwaysStoppedAnimation(Offset.zero),
+  };
 
   @override
   void initState() {
@@ -455,44 +468,52 @@ class _PersistentTabSwitcherState extends State<_PersistentTabSwitcher>
     )..addStatusListener(_finishTransition);
   }
 
-  int? _outgoingIndex;
-  Animation<Offset> _incoming = const AlwaysStoppedAnimation(Offset.zero);
-  Animation<Offset> _outgoing = const AlwaysStoppedAnimation(Offset.zero);
-
   void _finishTransition(AnimationStatus status) {
     if (status == AnimationStatus.completed &&
-        _outgoingIndex != null &&
+        _positions.length > 1 &&
         mounted) {
-      setState(() => _outgoingIndex = null);
+      setState(_settle);
     }
+  }
+
+  void _settle() {
+    _positions = {widget.index: const AlwaysStoppedAnimation(Offset.zero)};
+    _transition.value = 1;
   }
 
   @override
   void didUpdateWidget(covariant _PersistentTabSwitcher oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _visited.add(widget.index);
+    _visited.addAll({widget.index, ...widget.initiallyMountedSlots});
     if (oldWidget.index == widget.index) return;
     if (BulkaMotion.reduced(context)) {
-      _outgoingIndex = null;
-      _transition.value = 1;
-      _incoming = const AlwaysStoppedAnimation(Offset.zero);
+      _settle();
       return;
     }
-    final direction = widget.index > oldWidget.index ? 1.0 : -1.0;
-    final outgoingStart = _incoming.value;
-    final incomingStart = widget.index == _outgoingIndex
-        ? _outgoing.value
-        : Offset(direction, 0);
-    _outgoingIndex = oldWidget.index;
+    // Retain every still-painted tab when a third tap interrupts the slide.
+    // Snapshot positions before resetting the controller, so even reversals
+    // start at the current pixels rather than exposing an empty screen region.
+    final starts = {
+      for (final entry in _positions.entries) entry.key: entry.value.value,
+    };
+    // An interrupted destination may already be on the opposite side from
+    // its logical index. Keep the outgoing content on its other side so the
+    // viewport stays covered until that destination reaches the center.
+    final incomingStart = starts[widget.index]?.dx;
+    final direction = incomingStart != null && incomingStart != 0
+        ? incomingStart.sign
+        : widget.index > oldWidget.index
+        ? 1.0
+        : -1.0;
+    starts.putIfAbsent(widget.index, () => Offset(direction, 0));
     final curve = _transition.drive(CurveTween(curve: Curves.easeInOutCubic));
-    _incoming = Tween<Offset>(
-      begin: incomingStart,
-      end: Offset.zero,
-    ).animate(curve);
-    _outgoing = Tween<Offset>(
-      begin: outgoingStart,
-      end: Offset(-direction, 0),
-    ).animate(curve);
+    _positions = {
+      for (final entry in starts.entries)
+        entry.key: Tween<Offset>(
+          begin: entry.value,
+          end: entry.key == widget.index ? Offset.zero : Offset(-direction, 0),
+        ).animate(curve),
+    };
     _transition.forward(from: 0);
   }
 
@@ -500,9 +521,7 @@ class _PersistentTabSwitcherState extends State<_PersistentTabSwitcher>
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (BulkaMotion.reduced(context)) {
-      _outgoingIndex = null;
-      _transition.value = 1;
-      _incoming = const AlwaysStoppedAnimation(Offset.zero);
+      _settle();
     }
   }
 
@@ -525,19 +544,15 @@ class _PersistentTabSwitcherState extends State<_PersistentTabSwitcher>
 
   Widget _buildTabSlot(int slotIndex) {
     final active = slotIndex == widget.index;
-    final outgoing = slotIndex == _outgoingIndex;
     return Offstage(
       key: ValueKey('tab-slot-$slotIndex'),
-      offstage: !active && !outgoing,
+      offstage: !_positions.containsKey(slotIndex),
       child: SlideTransition(
         key: ValueKey('tab-slide-$slotIndex'),
-        position: active
-            ? _incoming
-            : outgoing
-            ? _outgoing
-            : const AlwaysStoppedAnimation(Offset.zero),
+        position:
+            _positions[slotIndex] ?? const AlwaysStoppedAnimation(Offset.zero),
         child: TickerMode(
-          enabled: active,
+          enabled: active || widget.alwaysTickingSlots.contains(slotIndex),
           child: ExcludeSemantics(
             excluding: !active,
             child: ExcludeFocus(

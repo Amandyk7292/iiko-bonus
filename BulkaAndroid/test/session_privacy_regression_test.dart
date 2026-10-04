@@ -153,10 +153,17 @@ void main() {
         }),
       )..setSession(accessToken: 'old-access', refreshToken: 'old-refresh');
       final first = api.getCustomerLoyalty();
+      final joined = api.getCustomerLoyalty();
       await _waitFor(() => oldRequests == 1);
-      await api.getCustomerLoyalty();
+      // An independent endpoint refreshes while the identical loyalty reads
+      // share the still-pending response from the expired token.
+      await api.getPersonalAccount();
+      expect(oldRequests, 2);
+      expect(rotations, 1);
+      expect(api.accessToken, 'new-access');
+      expect(lateResponse.isCompleted, isFalse);
       lateResponse.complete(http.Response('{}', 401));
-      await first;
+      await Future.wait([first, joined]);
       expect(rotations, 1);
       expect(api.accessToken, 'new-access');
       api.dispose();

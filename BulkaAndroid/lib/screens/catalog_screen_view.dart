@@ -14,7 +14,10 @@ extension _CatalogScreenView on _CatalogScreenState {
   double _catalogToolsHeight(bool categories) =>
       _catalogSearchHeight + 12 + (categories ? _catalogCategoryHeight + 8 : 0);
 
-  Widget _buildCatalogToolsHeader({required bool showCategorySelector}) {
+  Widget _buildCatalogToolsHeader({
+    required bool showCategorySelector,
+    bool loadingCategories = false,
+  }) {
     final colors = context.bulkaColors;
     final scheme = Theme.of(context).colorScheme;
     final categories = _catalogFeedLayout?.categoryOffsets.keys.toList() ?? [];
@@ -153,6 +156,28 @@ extension _CatalogScreenView on _CatalogScreenState {
                       ),
                   ],
                 ),
+              ),
+            ),
+          )
+        else if (loadingCategories)
+          ExcludeSemantics(
+            child: Padding(
+              key: const ValueKey('catalog-category-skeleton-strip'),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Row(
+                children: [
+                  _CatalogSkeletonBox(
+                    width: 68,
+                    height: _catalogCategoryHeight,
+                    radius: 24,
+                  ),
+                  const SizedBox(width: 8),
+                  _CatalogSkeletonBox(
+                    width: 120,
+                    height: _catalogCategoryHeight,
+                    radius: 24,
+                  ),
+                ],
               ),
             ),
           ),

@@ -1778,7 +1778,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
           ),
           theme: buildBulkaTheme(),
           themeMode: ThemeMode.light,
-          home: _AppStage(child: _buildHome()),
+          home: BulkaAppStage(child: _buildHome()),
         );
       },
     );
@@ -1855,8 +1855,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 }
 
-class _AppStage extends StatelessWidget {
-  const _AppStage({required this.child});
+class BulkaAppStage extends StatelessWidget {
+  const BulkaAppStage({required this.child, super.key});
 
   final Widget child;
 
@@ -1888,7 +1888,7 @@ class SplashScreen extends StatelessWidget {
         container: true,
         liveRegion: true,
         label: text,
-        child: const SizedBox.expand(),
+        child: kIsWeb ? const SizedBox.expand() : const NativeLaunchArtwork(),
       ),
     );
   }

@@ -69,7 +69,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 Items=draft.Items.GroupBy(i=>i.ProductId).Select(g=>new GuardItem {ProductId=g.Key,Quantity=g.Sum(i=>i.Quantity)})
                     .OrderBy(i=>i.ProductId).ToList()
             };
-            if(remember) { requests[pending.ReceiptId]=pending; Save(); }
+            if(remember) {
+                requests[pending.ReceiptId]=pending;
+                receiptLinks[pending.ReceiptId]=pending.OnlineNumber.HasValue;
+                Save();
+            }
             if(existing.Count<draft.Items.Count)
             {
                 var edit=os.CreateEditSession();

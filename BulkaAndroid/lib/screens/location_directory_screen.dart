@@ -94,6 +94,7 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
   String _city = '';
   String _filter = 'all';
   bool _loading = true;
+  bool _refreshingLocations = false;
   bool _failed = false;
   bool _usingCachedLocations = false;
   DateTime? _locationsCachedAt;
@@ -112,7 +113,7 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
       widget.api,
       {'locations'},
       () => _load(silent: true),
-      busy: () => _loading,
+      busy: () => _refreshingLocations,
       active: () => mounted && (_visibleTab || _sheetOpen),
     );
     unawaited(_load());
@@ -153,38 +154,67 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
       .toList();
 
   Future<void> _load({bool silent = false}) async {
+    if (_refreshingLocations) return;
+    _refreshingLocations = true;
+    final api = widget.api;
     if (!silent) {
       setState(() {
-        _loading = true;
+        _loading = _branches.isEmpty;
         _failed = false;
       });
     }
     try {
-      final result = await LocationCacheRepository(api: widget.api).load();
-      final branches = result.locations;
-      final prefs = await SharedPreferences.getInstance();
-      if (!mounted) return;
-      setState(() {
-        _branches = branches.where((b) => b.active).toList();
-        final saved = _city.isNotEmpty
-            ? _city
-            : prefs.getString('directory_city');
-        _city = _cities.contains(saved) ? saved! : _cities.firstOrNull ?? '';
-        _loading = false;
-        _failed = false;
-        _usingCachedLocations = result.fromCache;
-        _locationsCachedAt = result.cachedAt;
-        if (!silent || saved != _city) _focusCity();
-      });
-      _branchUpdates.value++;
+      SharedPreferences? prefs;
+      try {
+        prefs = await SharedPreferences.getInstance();
+      } catch (_) {
+        // Saved city/cache is optional; the directory still loads from the API.
+      }
+      final result = await LocationCacheRepository(api: api).load(
+        onCached: _branches.isEmpty
+            ? (cached) {
+                if (mounted && identical(api, widget.api)) {
+                  _adoptLocations(cached, prefs, silent: false, preview: true);
+                }
+              }
+            : null,
+      );
+      if (!mounted || !identical(api, widget.api)) return;
+      _adoptLocations(result, prefs, silent: silent || _branches.isNotEmpty);
     } catch (_) {
-      if (mounted && !silent) {
+      if (mounted && identical(api, widget.api) && !silent) {
         setState(() {
           _loading = false;
           _failed = true;
         });
       }
+    } finally {
+      _refreshingLocations = false;
     }
+  }
+
+  void _adoptLocations(
+    CachedLocations result,
+    SharedPreferences? prefs, {
+    required bool silent,
+    bool preview = false,
+  }) {
+    setState(() {
+      _branches = result.locations.where((b) => b.active).toList();
+      final storedCity = prefs?.get('directory_city');
+      final saved = _city.isNotEmpty
+          ? _city
+          : storedCity is String
+          ? storedCity
+          : null;
+      _city = _cities.contains(saved) ? saved! : _cities.firstOrNull ?? '';
+      _loading = false;
+      _failed = false;
+      _usingCachedLocations = result.fromCache && !preview;
+      _locationsCachedAt = result.cachedAt;
+      if (!silent || saved != _city) _focusCity();
+    });
+    _branchUpdates.value++;
   }
 
   void _focusCity() {

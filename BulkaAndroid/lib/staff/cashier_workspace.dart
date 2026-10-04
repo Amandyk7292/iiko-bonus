@@ -22,9 +22,7 @@ class CashierWorkspace extends StatefulWidget {
   State<CashierWorkspace> createState() => _CashierWorkspaceState();
 }
 
-class _CashierWorkspaceState extends State<CashierWorkspace>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _transition;
+class _CashierWorkspaceState extends State<CashierWorkspace> {
   StaffNativePush? _push;
   int _tab = 0;
   bool _reportsOpened = false;
@@ -44,11 +42,6 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
   @override
   void initState() {
     super.initState();
-    _transition = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 220),
-      value: 1,
-    );
     _tab = widget.kitchenRequest > 0 ? 1 : 0;
     if (widget.user['role'] != 'cashier') return;
     unawaited(_loadScope());
@@ -225,49 +218,37 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
             ? const Center(child: CircularProgressIndicator())
             : _error != null
             ? _StaffError(message: _error!, onRetry: _loadScope)
-            : FadeTransition(
-                opacity: _transition,
-                child: IndexedStack(
-                  index: _tab,
-                  children: [
-                    TickerMode(
-                      enabled: _tab == 0,
-                      child: StaffOrders(
-                        key: ValueKey('cashier-orders:${widget.api.scopeKey}'),
-                        api: widget.api,
-                        role: 'cashier',
-                      ),
-                    ),
-                    // Keep the kitchen mounted while viewing orders so its live feed
-                    // and foreground alarm continue until paid orders are accepted.
-                    StaffKitchen(
-                      key: ValueKey('cashier-kitchen:${widget.api.scopeKey}'),
+            : _PersistentTabSwitcher(
+                index: _tab,
+                initiallyMountedSlots: const {0, 1, 2},
+                alwaysTickingSlots: const {1},
+                children: [
+                  StaffOrders(
+                    key: ValueKey('cashier-orders:${widget.api.scopeKey}'),
+                    api: widget.api,
+                    role: 'cashier',
+                  ),
+                  // Keep the kitchen mounted while viewing orders so its live feed
+                  // and foreground alarm continue until paid orders are accepted.
+                  StaffKitchen(
+                    key: ValueKey('cashier-kitchen:${widget.api.scopeKey}'),
+                    api: widget.api,
+                    canEdit: true,
+                    onCounters: _updateCounts,
+                  ),
+                  CashierCatalog(
+                    key: ValueKey('cashier-catalog:${widget.api.scopeKey}'),
+                    api: widget.api,
+                    pendingPreorders: _counts['preorders'] ?? 0,
+                  ),
+                  if (_reportsOpened)
+                    CashierReports(
+                      key: ValueKey('cashier-reports:${widget.api.scopeKey}'),
                       api: widget.api,
-                      canEdit: true,
-                      onCounters: _updateCounts,
-                    ),
-                    TickerMode(
-                      enabled: _tab == 2,
-                      child: CashierCatalog(
-                        key: ValueKey('cashier-catalog:${widget.api.scopeKey}'),
-                        api: widget.api,
-                        pendingPreorders: _counts['preorders'] ?? 0,
-                      ),
-                    ),
-                    if (_reportsOpened)
-                      TickerMode(
-                        enabled: _tab == 3,
-                        child: CashierReports(
-                          key: ValueKey(
-                            'cashier-reports:${widget.api.scopeKey}',
-                          ),
-                          api: widget.api,
-                        ),
-                      )
-                    else
-                      const SizedBox.shrink(),
-                  ],
-                ),
+                    )
+                  else
+                    const SizedBox.shrink(),
+                ],
               ),
         bottomNavigationBar: DecoratedBox(
           decoration: const BoxDecoration(
@@ -282,11 +263,6 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
                 _tab = index;
                 if (index == 3) _reportsOpened = true;
               });
-              if (MediaQuery.disableAnimationsOf(context)) {
-                _transition.value = 1;
-              } else {
-                _transition.forward(from: 0);
-              }
             },
             destinations: [
               NavigationDestination(
@@ -332,7 +308,6 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
 
   @override
   void dispose() {
-    _transition.dispose();
     _push?.dispose();
     super.dispose();
   }

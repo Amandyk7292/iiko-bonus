@@ -178,7 +178,10 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
 flutter_native_splash:
-  color: "#FFB329"
+  # Android resources share this PNG in drawable-nodpi, without density scaling.
+  # Android 12 keeps the transparent system icon and uses the artwork in Flutter.
+  background_image: assets/brand/bulka-launch.png
+  background_image_dark: assets/brand/bulka-launch.png
   web: false
   android_12:
     color: "#FFB329"
