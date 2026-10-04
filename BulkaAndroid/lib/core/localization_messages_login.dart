@@ -27,9 +27,9 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'en': 'Remove staff member',
   },
   'cashier_qr_invalid': {
-    'ru': 'QR не распознан. Сфотографируйте QR сотрудника ещё раз.',
-    'kk': 'QR танылмады. Қызметкердің QR кодын қайта түсіріңіз.',
-    'en': 'QR not recognised. Take another photo of the staff QR.',
+    'ru': 'Это не QR сотрудника Bulka.',
+    'kk': 'Бұл Bulka қызметкерінің QR коды емес.',
+    'en': 'This is not a Bulka staff QR.',
   },
   'cashier_qr_unavailable': {
     'ru': 'QR сотрудника недоступен. Попробуйте снова или уберите его.',
@@ -40,6 +40,51 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'ru': 'Не удалось открыть камеру. Разрешите доступ в настройках.',
     'kk': 'Камера ашылмады. Параметрлерде рұқсат беріңіз.',
     'en': 'Could not open the camera. Allow camera access in settings.',
+  },
+  'cashier_scanner_title': {
+    'ru': 'QR сотрудника',
+    'kk': 'Қызметкердің QR коды',
+    'en': 'Staff QR',
+  },
+  'cashier_scanner_hint': {
+    'ru': 'Наведите камеру на QR',
+    'kk': 'Камераны QR кодына бағыттаңыз',
+    'en': 'Point the camera at the QR',
+  },
+  'cashier_scanner_loading': {
+    'ru': 'Открываем камеру…',
+    'kk': 'Камера ашылуда…',
+    'en': 'Opening camera…',
+  },
+  'cashier_scanner_denied': {
+    'ru': 'Разрешите доступ к камере в настройках браузера.',
+    'kk': 'Браузер параметрлерінде камераға рұқсат беріңіз.',
+    'en': 'Allow camera access in your browser settings.',
+  },
+  'cashier_scanner_unavailable': {
+    'ru': 'Камера недоступна. Попробуйте ещё раз.',
+    'kk': 'Камера қолжетімсіз. Қайталап көріңіз.',
+    'en': 'Camera unavailable. Try again.',
+  },
+  'cashier_scanner_retry': {
+    'ru': 'Повторить',
+    'kk': 'Қайталау',
+    'en': 'Try again',
+  },
+  'cashier_scanner_paused': {
+    'ru': 'Камера остановлена',
+    'kk': 'Камера тоқтатылды',
+    'en': 'Camera paused',
+  },
+  'cashier_scanner_invalid': {
+    'ru': 'Нужен QR сотрудника Bulka',
+    'kk': 'Bulka қызметкерінің QR коды қажет',
+    'en': 'Scan a Bulka staff QR',
+  },
+  'cashier_scanner_close': {
+    'ru': 'Закрыть сканер',
+    'kk': 'Сканерді жабу',
+    'en': 'Close scanner',
   },
   // Login screen
   'login_brand_title': {
@@ -87,6 +132,25 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'ru': 'Ознакомился (-лась) и подтверждаю принятие условий',
     'kk': 'Шарттармен таныстым және қабылдаймын',
     'en': 'I have read and agree to the terms',
+  },
+  'reg_invite_code_compact': {
+    'ru': 'Код приглашения',
+    'kk': 'Шақыру коды',
+    'en': 'Invitation code',
+  },
+  'reg_terms_compact': {
+    'ru': 'Принимаю условия',
+    'kk': 'Шарттарды қабылдаймын',
+    'en': 'I accept the terms',
+  },
+  'reg_terms_link': {'ru': 'условия', 'kk': 'шарттар', 'en': 'terms'},
+  'reg_legal_documents': {'ru': 'Условия', 'kk': 'Шарттар', 'en': 'Terms'},
+  'reg_offer_short': {'ru': 'Оферта', 'kk': 'Оферта', 'en': 'Offer'},
+  'reg_terms_short': {'ru': 'Условия', 'kk': 'Шарттар', 'en': 'Terms'},
+  'reg_privacy_short': {
+    'ru': 'Конфиденциальность',
+    'kk': 'Құпиялылық',
+    'en': 'Privacy',
   },
   'reg_next_btn': {'ru': 'Далее', 'kk': 'Жалғастыру', 'en': 'Continue'},
   'reg_err_name': {

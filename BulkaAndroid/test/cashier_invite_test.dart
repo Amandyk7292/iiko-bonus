@@ -138,8 +138,9 @@ Future<void> submitProfile(WidgetTester tester) async {
   final name = find.widgetWithText(TextField, 'Имя');
   await tester.ensureVisible(name);
   await tester.enterText(name, 'Покупатель');
-  await tester.ensureVisible(find.byType(CheckboxListTile));
-  await tester.tap(find.byType(CheckboxListTile));
+  final consent = find.byKey(const ValueKey('registration-consent'));
+  await tester.ensureVisible(consent);
+  await tester.tap(consent);
   await tester.ensureVisible(find.text('Далее'));
   await tester.tap(find.text('Далее'));
   await tester.pumpAndSettle();

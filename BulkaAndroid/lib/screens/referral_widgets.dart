@@ -272,14 +272,13 @@ class _ReferralRegistrationFieldState
 
   @override
   Widget build(BuildContext context) => TextField(
+    key: const ValueKey('registration-referral-code'),
     controller: _controller,
     textCapitalization: TextCapitalization.characters,
     autocorrect: false,
     maxLength: 14,
     decoration: InputDecoration(
-      labelText: 'referral_registration_label'.tr,
-      helperText: 'referral_registration_hint'.tr,
-      helperMaxLines: 3,
+      labelText: 'reg_invite_code_compact'.tr,
       counterText: '',
     ),
     onChanged: (value) {

@@ -26,6 +26,7 @@ class _CashierRegistrationFieldState extends State<_CashierRegistrationField> {
   String? _error;
   bool _busy = false;
   int _revision = 0;
+  ValueNotifier<bool>? _scanCancelled;
 
   @override
   void initState() {
@@ -37,8 +38,15 @@ class _CashierRegistrationFieldState extends State<_CashierRegistrationField> {
   @override
   void dispose() {
     _revision++;
+    _scanCancelled?.value = true;
     PendingCashierInvite.tokenNotifier.removeListener(_pendingChanged);
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _CashierRegistrationField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled) _scanCancelled?.value = true;
   }
 
   void _pendingChanged() {
@@ -78,7 +86,10 @@ class _CashierRegistrationFieldState extends State<_CashierRegistrationField> {
       if (!mounted || revision != _revision) return;
       if (cashier.token != token) throw ApiException('cashier_qr_invalid'.tr);
       // Persist only after the server confirms who owns this invitation.
-      await PendingCashierInvite.setToken(token);
+      await PendingCashierInvite.setToken(
+        token,
+        isCurrent: () => mounted && revision == _revision,
+      );
       if (!mounted || revision != _revision) return;
       widget.onChanged(token);
       setState(() => _cashier = cashier);
@@ -99,6 +110,21 @@ class _CashierRegistrationFieldState extends State<_CashierRegistrationField> {
       !const bool.fromEnvironment('BULKA_IOS_QR_CAMERA_AVAILABLE');
 
   Future<String?> _captureQr() async {
+    if (kIsWeb) {
+      final cancelled = ValueNotifier(false);
+      _scanCancelled = cancelled;
+      try {
+        return await Navigator.of(context).push<String>(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => CashierQrScanner(cancelled: cancelled),
+          ),
+        );
+      } finally {
+        if (identical(_scanCancelled, cancelled)) _scanCancelled = null;
+        cancelled.dispose();
+      }
+    }
     // Older iOS releases have no camera usage description. Their existing
     // photo picker is safe; a future native build can opt into camera support.
     final file = await ImagePicker().pickImage(
@@ -121,6 +147,7 @@ class _CashierRegistrationFieldState extends State<_CashierRegistrationField> {
 
   Future<void> _scan() async {
     if (_busy || !widget.enabled) return;
+    FocusManager.instance.primaryFocus?.unfocus();
     final revision = ++_revision;
     widget.onBusyChanged(true);
     setState(() {
@@ -129,7 +156,9 @@ class _CashierRegistrationFieldState extends State<_CashierRegistrationField> {
     });
     try {
       final raw = await (widget.onScan ?? _captureQr)();
-      if (!mounted || revision != _revision || raw == null) return;
+      if (!mounted || !widget.enabled || revision != _revision || raw == null) {
+        return;
+      }
       final uri = Uri.tryParse(raw.trim());
       final token = uri == null ? null : PendingCashierInvite.tokenFromUri(uri);
       if (token == null) throw ApiException('cashier_qr_invalid'.tr);

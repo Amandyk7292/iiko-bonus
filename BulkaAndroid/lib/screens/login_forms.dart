@@ -141,7 +141,6 @@ extension _LoginScreenForms on _LoginScreenState {
                 _buildRegTextField(
                   controller: _emailController,
                   label: 'reg_email_hint'.tr,
-                  helperText: 'reg_email_helper'.tr,
                   errorText: _error == 'invalid_email'.tr ? _error : null,
                   keyboardType: TextInputType.emailAddress,
                   autofillHints: const [AutofillHints.email],
@@ -162,53 +161,7 @@ extension _LoginScreenForms on _LoginScreenState {
                   },
                 ),
                 const SizedBox(height: 20),
-                CheckboxListTile(
-                  value: _termsAccepted,
-                  onChanged: (value) {
-                    _update(() => _termsAccepted = value ?? false);
-                  },
-                  title: Text(
-                    'reg_terms_checkbox'.tr,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurface,
-                      fontSize: BulkaTypeScale.bodySmall,
-                      height: 1.3,
-                    ),
-                  ),
-                  controlAffinity: ListTileControlAffinity.leading,
-                  contentPadding: EdgeInsets.zero,
-                  visualDensity: VisualDensity.compact,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(BulkaRadii.control),
-                  ),
-                ),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 4,
-                  children: [
-                    TextButton(
-                      onPressed: () => launchUrl(
-                        bulkaLegalPageUri('public-offer'),
-                        mode: LaunchMode.platformDefault,
-                      ),
-                      child: Text('legal_public_offer'.tr),
-                    ),
-                    TextButton(
-                      onPressed: () => launchUrl(
-                        bulkaLegalPageUri('terms'),
-                        mode: LaunchMode.platformDefault,
-                      ),
-                      child: Text('legal_terms'.tr),
-                    ),
-                    TextButton(
-                      onPressed: () => launchUrl(
-                        bulkaLegalPageUri('privacy'),
-                        mode: LaunchMode.platformDefault,
-                      ),
-                      child: Text('legal_privacy'.tr),
-                    ),
-                  ],
-                ),
+                _buildRegistrationConsent(context),
                 if (_error != null) ...[
                   const SizedBox(height: 16),
                   Container(
@@ -274,6 +227,115 @@ extension _LoginScreenForms on _LoginScreenState {
     );
   }
 
+  Widget _buildRegistrationConsent(BuildContext context) {
+    return Row(
+      children: [
+        Semantics(
+          label: 'reg_terms_compact'.tr,
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Checkbox(
+              key: const ValueKey('registration-consent'),
+              value: _termsAccepted,
+              onChanged: _loading
+                  ? null
+                  : (value) => _update(() => _termsAccepted = value ?? false),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextButton(
+            key: const ValueKey('registration-conditions'),
+            onPressed: () => _showRegistrationConditions(context),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              alignment: Alignment.centerLeft,
+              minimumSize: const Size(44, 44),
+              padding: EdgeInsets.zero,
+              textStyle: const TextStyle(
+                fontSize: BulkaTypeScale.bodySmall,
+                fontWeight: FontWeight.w500,
+                height: 1.3,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+            child: Text('reg_terms_compact'.tr),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showRegistrationConditions(BuildContext context) =>
+      showModalBottomSheet<void>(
+        context: context,
+        useSafeArea: true,
+        isScrollControlled: true,
+        showDragHandle: true,
+        sheetAnimationStyle: BulkaMotion.sheetStyle(context),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        barrierLabel: 'close_tooltip'.tr,
+        builder: (context) => SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            key: const ValueKey('registration-legal-documents'),
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'reg_legal_documents'.tr,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                      ),
+                    ),
+                    IconButton(
+                      key: const ValueKey('registration-legal-close'),
+                      tooltip: 'close_tooltip'.tr,
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                for (final document in const [
+                  (page: 'public-offer', label: 'reg_offer_short'),
+                  (page: 'terms', label: 'reg_terms_short'),
+                  (page: 'privacy', label: 'reg_privacy_short'),
+                ])
+                  TextButton(
+                    key: ValueKey('registration-legal-${document.page}'),
+                    onPressed: () => launchUrl(
+                      bulkaLegalPageUri(document.page),
+                      mode: LaunchMode.platformDefault,
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.onSurface,
+                      minimumSize: const Size(44, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      textStyle: const TextStyle(fontSize: 13, height: 1.3),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(document.label.tr)),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.chevron_right_rounded, size: 20),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+
   Widget _buildGenderOption(String value, String label) {
     final selected = _selectedGender == value;
     final colors = context.bulkaColors;
@@ -321,7 +383,6 @@ extension _LoginScreenForms on _LoginScreenState {
   Widget _buildRegTextField({
     required TextEditingController controller,
     required String label,
-    String? helperText,
     String? errorText,
     TextInputType? keyboardType,
     Iterable<String>? autofillHints,
@@ -337,11 +398,7 @@ extension _LoginScreenForms on _LoginScreenState {
         color: Theme.of(context).colorScheme.onSurface,
         fontSize: BulkaTypeScale.body,
       ),
-      decoration: InputDecoration(
-        labelText: label,
-        helperText: helperText,
-        errorText: errorText,
-      ),
+      decoration: InputDecoration(labelText: label, errorText: errorText),
     );
   }
 
@@ -371,7 +428,6 @@ extension _LoginScreenForms on _LoginScreenState {
       ),
       decoration: InputDecoration(
         labelText: 'reg_dob_hint'.tr,
-        helperText: 'birthdate_example'.tr,
         suffixIcon: const Icon(Icons.calendar_today_rounded, size: 20),
       ),
     );
@@ -387,7 +443,6 @@ extension _LoginScreenForms on _LoginScreenState {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: 'reg_phone_label'.tr,
-          helperText: 'reg_phone_helper'.tr,
           suffixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
         ),
         child: Text(

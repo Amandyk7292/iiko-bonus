@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -25,6 +26,21 @@ class PendingCashierInvite {
   static const key = 'pendingCashierInviteV1';
   static const lifetime = Duration(days: 30);
   static final tokenNotifier = ValueNotifier<String?>(null);
+  static int _mutationRevision = 0;
+  static Future<void>? _mutations;
+
+  static Future<T> _serialize<T>(Future<T> Function() operation) async {
+    final previous = _mutations;
+    final gate = Completer<void>();
+    _mutations = gate.future;
+    try {
+      if (previous != null) await previous;
+      return await operation();
+    } finally {
+      gate.complete();
+      if (identical(_mutations, gate.future)) _mutations = null;
+    }
+  }
 
   static String? validToken(String? value) {
     final token = value?.trim().toLowerCase();
@@ -58,51 +74,81 @@ class PendingCashierInvite {
     await setToken(token);
   }
 
-  static Future<String?> read({DateTime? now}) async {
-    final prefs = await SharedPreferences.getInstance();
-    try {
-      final raw = prefs.getString(key);
-      if (raw == null) return tokenNotifier.value = null;
-      final data = jsonDecode(raw) as Map<String, dynamic>;
-      final token = validToken(data['token'] as String?);
-      final capturedAt = DateTime.tryParse(data['capturedAt'] as String? ?? '');
-      final current = (now ?? DateTime.now()).toUtc();
-      if (token == null ||
-          capturedAt == null ||
-          capturedAt.isAfter(current) ||
-          current.difference(capturedAt) >= lifetime ||
-          prefs.getString('phone') != null) {
-        await clear();
+  static Future<String?> read({DateTime? now}) {
+    final revision = _mutationRevision;
+    return _serialize(() async {
+      final prefs = await SharedPreferences.getInstance();
+      // SharedPreferences updates its cache before its platform write resolves.
+      // Wait for committed mutations before publishing any invitation.
+      if (revision != _mutationRevision) return null;
+      try {
+        final raw = prefs.getString(key);
+        if (raw == null) return tokenNotifier.value = null;
+        final data = jsonDecode(raw) as Map<String, dynamic>;
+        final token = validToken(data['token'] as String?);
+        final capturedAt = DateTime.tryParse(
+          data['capturedAt'] as String? ?? '',
+        );
+        final current = (now ?? DateTime.now()).toUtc();
+        if (token == null ||
+            capturedAt == null ||
+            capturedAt.isAfter(current) ||
+            current.difference(capturedAt) >= lifetime ||
+            prefs.getString('phone') != null) {
+          await prefs.remove(key);
+          if (revision == _mutationRevision) tokenNotifier.value = null;
+          return null;
+        }
+        return tokenNotifier.value = token;
+      } catch (_) {
+        await prefs.remove(key);
+        if (revision == _mutationRevision) tokenNotifier.value = null;
         return null;
       }
-      return tokenNotifier.value = token;
-    } catch (_) {
-      await clear();
-      return null;
-    }
+    });
   }
 
-  static Future<void> setToken(String token, {DateTime? now}) async {
+  static Future<void> setToken(
+    String token, {
+    DateTime? now,
+    bool Function()? isCurrent,
+  }) async {
     final normalized = validToken(token);
     if (normalized == null) throw ArgumentError.value(token, 'token');
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getString('phone') != null) {
-      await clear();
-      return;
-    }
-    await prefs.setString(
-      key,
-      jsonEncode({
-        'token': normalized,
-        'capturedAt': (now ?? DateTime.now()).toUtc().toIso8601String(),
-      }),
-    );
-    tokenNotifier.value = normalized;
+    final revision = ++_mutationRevision;
+    bool current() =>
+        revision == _mutationRevision && (isCurrent?.call() ?? true);
+    return _serialize(() async {
+      final prefs = await SharedPreferences.getInstance();
+      if (!current()) return;
+      if (prefs.getString('phone') != null) {
+        await prefs.remove(key);
+        if (current()) tokenNotifier.value = null;
+        return;
+      }
+      await prefs.setString(
+        key,
+        jsonEncode({
+          'token': normalized,
+          'capturedAt': (now ?? DateTime.now()).toUtc().toIso8601String(),
+        }),
+      );
+      // Writes and removals are serialized: this cleanup cannot erase a newer
+      // invitation even when an older platform write finishes after cancel.
+      if (!current() || prefs.getString('phone') != null) {
+        await prefs.remove(key);
+        return;
+      }
+      tokenNotifier.value = normalized;
+    });
   }
 
-  static Future<void> clear() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(key);
-    tokenNotifier.value = null;
+  static Future<void> clear() {
+    final revision = ++_mutationRevision;
+    return _serialize(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(key);
+      if (revision == _mutationRevision) tokenNotifier.value = null;
+    });
   }
 }

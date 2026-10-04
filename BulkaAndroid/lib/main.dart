@@ -53,6 +53,7 @@ import 'core/url_navigation.dart';
 import 'core/network_recovery.dart';
 import 'core/referral_link.dart';
 import 'core/cashier_invite.dart';
+import 'core/cashier_live_camera.dart';
 import 'core/cashier_qr_decoder.dart' deferred as cashier_qr;
 import 'core/referral_device_identity.dart';
 import 'core/walking_rewards_native.dart';
@@ -75,6 +76,8 @@ part 'api/walking_rewards_api.dart';
 part 'widgets/walking_rewards_card.dart';
 part 'screens/referral_widgets.dart';
 part 'screens/cashier_invite_widgets.dart';
+part 'screens/cashier_qr_scanner.dart';
+part 'screens/cashier_qr_scanner_view.dart';
 part 'api/staff_api_client.dart';
 part 'core/staff_account_session.dart';
 
