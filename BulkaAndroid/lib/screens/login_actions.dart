@@ -66,8 +66,19 @@ extension _LoginScreenActions on _LoginScreenState {
         : await widget.onStartPasswordReset(phone, token);
     if (!mounted || revision != _authRequestRevision || flow != _flow) return;
     _update(() => _loading = false);
+    if (flow == _CustomerAuthFlow.registration &&
+        result.isSuccess &&
+        (!result.isAutomatic ||
+            result.channel != 'sms' ||
+            result.codeLength != 6)) {
+      _changeOtpPhone();
+      _update(() => _error = 'error_send_code'.tr);
+      return;
+    }
     if (result.isSuccess) {
-      final phoneHint = result.whatsappPhone?.trim();
+      final phoneHint = flow == _CustomerAuthFlow.registration
+          ? null
+          : result.whatsappPhone?.trim();
       _update(() {
         _otpStep = true;
         _otpController.clear();
@@ -79,7 +90,10 @@ extension _LoginScreenActions on _LoginScreenState {
         _otpCodeLength = result.codeLength == 6 ? 6 : 4;
       });
       _scheduleOtpRetry(result.isAutomatic ? result.retryAfterSeconds : 0);
-      final rawUrl = result.isAutomatic ? null : result.whatsappUrl?.trim();
+      final rawUrl =
+          flow == _CustomerAuthFlow.registration || result.isAutomatic
+          ? null
+          : result.whatsappUrl?.trim();
       final uri = rawUrl == null || rawUrl.isEmpty
           ? null
           : Uri.tryParse(rawUrl);

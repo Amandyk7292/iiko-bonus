@@ -27,8 +27,19 @@ async function startCustomerOtp(
   if (!['customer_login', 'customer_registration', 'customer_password_reset'].includes(purpose)) {
     throw otpError('Некорректный запрос кода.', 400, 'OTP_INVALID_REQUEST');
   }
-  // Older clients can only enter four digits and still open the bot.
-  // Keep their confirmation flow usable during a gradual client rollout.
+  if (
+    purpose === 'customer_registration' &&
+    automaticOtpSupported !== true &&
+    customerOtpProvider(env, purpose) === 'autocall_sms'
+  ) {
+    throw otpError(
+      'Обновите приложение Bulka или перезагрузите страницу, чтобы подтвердить номер по SMS.',
+      400,
+      'OTP_CLIENT_UPDATE_REQUIRED',
+    );
+  }
+  // Other older clients can only enter four digits and still open the bot.
+  // Preserve their existing flow without validating unused provider credentials.
   const config =
     automaticOtpSupported === true
       ? otpProviderConfig(env, purpose)

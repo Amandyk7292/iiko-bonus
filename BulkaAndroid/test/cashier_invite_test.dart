@@ -82,7 +82,10 @@ Future<void> registrationForm(WidgetTester tester) async {
   await tester.ensureVisible(find.text('Подтвердить номер'));
   await tester.tap(find.text('Подтвердить номер'));
   await tester.pumpAndSettle();
-  await tester.enterText(find.byKey(const ValueKey('auth-otp-field')), '1234');
+  await tester.enterText(
+    find.byKey(const ValueKey('auth-otp-field')),
+    '123456',
+  );
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 400));
 }
@@ -105,7 +108,11 @@ Widget loginApp({
   home: LoginScreen(
     startRegistration: startRegistration,
     onLogin: (_, _) async => null,
-    onStartRegistration: (_, _, _) async => const OtpRequestResult(),
+    onStartRegistration: (_, _, _) async => const OtpRequestResult(
+      deliveryMode: 'automatic',
+      channel: 'sms',
+      codeLength: 6,
+    ),
     onVerifyRegistration: verify ?? (_, _) async => null,
     onStartPasswordReset: (_, _) async => const OtpRequestResult(),
     onResetPassword: (_, _, _) async => null,
@@ -217,9 +224,7 @@ void main() {
         clientRouteNotifier.value = Uri.parse(
           'https://bulka.com.kz/cashier-register?cashier=${scenario.query}',
         );
-        final api = _InvitationShellApi(
-          authenticated: scenario.authenticated,
-        );
+        final api = _InvitationShellApi(authenticated: scenario.authenticated);
         final cart = CartProvider();
         await cart.restored;
         addTearDown(() async {

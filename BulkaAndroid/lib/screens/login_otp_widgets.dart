@@ -9,10 +9,10 @@ extension _LoginOtpWidgets on _LoginScreenState {
         step: isRegistration
             ? 'auth_registration_verify_badge'.tr
             : 'auth_recovery_verify_badge'.tr,
-        title: _otpIsAutomatic
-            ? 'auth_automatic_verify_title'.tr
-            : isRegistration
+        title: isRegistration
             ? 'auth_registration_verify_title'.tr
+            : _otpIsAutomatic
+            ? 'auth_automatic_verify_title'.tr
             : 'auth_recovery_verify_title'.tr,
         subtitle: _otpIsAutomatic
             ? (_otpChannel == 'sms'
@@ -24,7 +24,7 @@ extension _LoginOtpWidgets on _LoginScreenState {
             ? 'whatsapp_phone_instruction'.trArgs({'phone': _otpDeliveryPhone})
             : 'whatsapp_fallback_instruction'.tr,
       ),
-      if (_otpWhatsappUri != null) ...[
+      if (!isRegistration && _otpWhatsappUri != null) ...[
         const SizedBox(height: 4),
         TextButton.icon(
           onPressed: () => _openExternalUrl(

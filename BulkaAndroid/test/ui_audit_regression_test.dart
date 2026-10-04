@@ -113,7 +113,13 @@ Widget _login({
 }) => _app(
   LoginScreen(
     onLogin: (_, _) async => null,
-    onStartRegistration: start ?? (_, _, _) async => const OtpRequestResult(),
+    onStartRegistration:
+        start ??
+        (_, _, _) async => const OtpRequestResult(
+          deliveryMode: 'automatic',
+          channel: 'sms',
+          codeLength: 6,
+        ),
     onVerifyRegistration: verify ?? (_, _) async => null,
     onStartPasswordReset: recover ?? (_, _) async => const OtpRequestResult(),
     onResetPassword: reset ?? (_, _, _) async => null,
@@ -214,7 +220,13 @@ void main() {
             .enabled,
         false,
       );
-      current.complete(const OtpRequestResult(codeLength: 6));
+      current.complete(
+        const OtpRequestResult(
+          deliveryMode: 'automatic',
+          channel: 'sms',
+          codeLength: 6,
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('auth-otp-field')), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -233,7 +245,7 @@ void main() {
       of: find.byKey(const ValueKey('auth-otp-field')),
       matching: find.byType(EditableText),
     );
-    await tester.enterText(otpInput, '1234');
+    await tester.enterText(otpInput, '123456');
     await tester.pump();
     await _tap(tester, find.text('Изменить номер'));
     await tester.enterText(

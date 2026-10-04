@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('four-digit OTP stays inside a 320px viewport', (tester) async {
+  testWidgets('six-digit SMS OTP stays inside a 320px viewport', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(320, 700);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -20,7 +22,11 @@ void main() {
         ),
         home: LoginScreen(
           onLogin: (_, _) async => null,
-          onStartRegistration: (_, _, _) async => const OtpRequestResult(),
+          onStartRegistration: (_, _, _) async => const OtpRequestResult(
+            deliveryMode: 'automatic',
+            channel: 'sms',
+            codeLength: 6,
+          ),
           onVerifyRegistration: (_, _) async => null,
           onStartPasswordReset: (_, _) async => const OtpRequestResult(),
           onResetPassword: (_, _, _) async => null,

@@ -97,7 +97,9 @@ void main() {
 
   for (final channel in ['whatsapp', 'sms']) {
     testWidgets(
-      'automatic $channel registration shows six digits and resends after cooldown',
+      channel == 'sms'
+          ? 'SMS registration shows six digits and resends after cooldown'
+          : 'WhatsApp registration is rejected without claiming SMS delivery',
       (tester) async {
         tester.view.physicalSize = const Size(320, 760);
         tester.view.devicePixelRatio = 1;
@@ -158,15 +160,22 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(sends, 1);
-        expect(find.text('Введите код'), findsOneWidget);
-        expect(
-          find.text(
-            channel == 'sms'
-                ? 'Код отправлен по SMS.'
-                : 'Код отправлен через WhatsApp.',
-          ),
-          findsOneWidget,
-        );
+        if (channel != 'sms') {
+          expect(find.byKey(const ValueKey('auth-otp-field')), findsNothing);
+          expect(find.text('Код отправлен по SMS.'), findsNothing);
+          expect(find.textContaining('WhatsApp'), findsNothing);
+          expect(
+            find.text('Не удалось отправить код. Повторите.'),
+            findsOneWidget,
+          );
+          expect(verifiedCode, isNull);
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+          return;
+        }
+        expect(find.text('Введите код из SMS'), findsOneWidget);
+        expect(find.text('Код отправлен по SMS.'), findsOneWidget);
+        expect(find.textContaining('WhatsApp'), findsNothing);
         expect(find.text('Открыть WhatsApp ещё раз'), findsNothing);
         expect(find.text('Введите 6 цифр из сообщения'), findsOneWidget);
         final resend = find.byKey(const ValueKey('otp-resend-button'));

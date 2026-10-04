@@ -77,7 +77,7 @@ test.beforeEach(async () => {
 });
 test.after(() => pg.close());
 
-test('old clients retain four-digit bot confirmation while automatic delivery is enabled', async () => {
+test('old clients retain four-digit confirmation outside AutoCall registration', async () => {
   let session;
   const legacyDb = {
     from(table) {
@@ -91,9 +91,21 @@ test('old clients retain four-digit bot confirmation while automatic delivery is
       };
     },
   };
-  for (const deliveryEnv of [env, autocallEnv]) {
+  for (const [purpose, deliveryEnv] of [
+    ['customer_registration', env],
+    ['customer_login', autocallEnv],
+    ['customer_password_reset', autocallEnv],
+    [
+      'customer_login',
+      { ...autocallEnv, CUSTOMER_OTP_PROVIDER: 'unknown', AUTOCALL_API_TOKEN: '' },
+    ],
+    [
+      'customer_password_reset',
+      { ...autocallEnv, CUSTOMER_OTP_PROVIDER: 'whatsapp_cloud', WHATSAPP_CLOUD_ACCESS_TOKEN: '' },
+    ],
+  ]) {
     const result = await startCustomerOtp(
-      { ...request, automaticOtpSupported: undefined },
+      { ...request, purpose, automaticOtpSupported: undefined },
       {
         db: legacyDb,
         env: deliveryEnv,
@@ -106,10 +118,39 @@ test('old clients retain four-digit bot confirmation while automatic delivery is
     assert.equal(result.codeLength, 4);
     assert.match(result.whatsappUrl, /^https:\/\/wa\.me\//);
     assert.equal(session.id, `token_${request.requestToken}`);
-    assert.equal(session.data.purpose, request.purpose);
+    assert.equal(session.data.purpose, purpose);
     assert.equal(session.data.passwordHash, request.passwordHash);
   }
   assert.equal((await pg.query('select * from customer_otp_send_limits')).rows.length, 0);
+});
+
+test('AutoCall registration requires an updated client before creating any challenge or reserving SMS quota', async () => {
+  const noWritesDb = {
+    from: () => assert.fail('Unsupported registration must not create a WhatsApp challenge'),
+    rpc: () => assert.fail('Unsupported registration must not reserve SMS quota'),
+  };
+  for (const automaticOtpSupported of [undefined, false]) {
+    for (const token of [autocallEnv.AUTOCALL_API_TOKEN, '', 'bad token']) {
+      await assert.rejects(
+        startCustomerOtp(
+          { ...request, automaticOtpSupported },
+          {
+            db: noWritesDb,
+            env: { ...autocallEnv, AUTOCALL_API_TOKEN: token },
+            sendOtp: () => assert.fail('Unsupported registration must not send an SMS'),
+          },
+        ),
+        {
+          statusCode: 400,
+          code: 'OTP_CLIENT_UPDATE_REQUIRED',
+          message:
+            'Обновите приложение Bulka или перезагрузите страницу, чтобы подтвердить номер по SMS.',
+        },
+      );
+    }
+  }
+  assert.equal((await pg.query('select * from customer_otp_send_limits')).rows.length, 0);
+  assert.equal((await pg.query('select * from whatsapp_sessions')).rows.length, 0);
 });
 
 test('all OTP start contracts accept old clients and only the supported delivery version', () => {
@@ -505,6 +546,9 @@ test('registration override uses AutoCall SMS while login and recovery retain th
     assert.equal(result.deliveryMode, 'automatic');
     assert.equal(result.codeLength, 6);
     assert.equal(result.expiresInSeconds, 300);
+    assert.equal(result.retryAfterSeconds, 60);
+    assert.equal(result.whatsappUrl, null);
+    assert.equal(result.whatsappPhone, null);
     const verified = await consumeCustomerOtp(recipient, code, { db, env: autocallEnv });
     assert.equal(verified.status, 'success');
     assert.equal(verified.payload.purpose, purpose);

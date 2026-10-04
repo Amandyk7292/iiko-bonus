@@ -1254,77 +1254,82 @@ void main() {
     },
   );
 
-  testWidgets(
-    'registration confirms WhatsApp before opening the profile form',
-    (tester) async {
-      String? startedPhone;
-      String? startedPassword;
-      String? verifiedCode;
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: buildBulkaTheme(),
-          home: LoginScreen(
-            onLogin: (_, _) async => null,
-            onStartRegistration: (phone, password, token) async {
-              startedPhone = phone;
-              startedPassword = password;
-              expect(token, hasLength(16));
-              return const OtpRequestResult();
-            },
-            onVerifyRegistration: (_, code) async {
-              verifiedCode = code;
-              return null;
-            },
-            onStartPasswordReset: (_, _) async => const OtpRequestResult(),
-            onResetPassword: (_, _, _) async => null,
-            onRegister:
-                ({
-                  required phone,
-                  required name,
-                  surname,
-                  gender,
-                  birthdate,
-                  email,
-                  cashierInviteToken,
-                }) async => null,
-          ),
+  testWidgets('registration confirms SMS before opening the profile form', (
+    tester,
+  ) async {
+    String? startedPhone;
+    String? startedPassword;
+    String? verifiedCode;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: LoginScreen(
+          onLogin: (_, _) async => null,
+          onStartRegistration: (phone, password, token) async {
+            startedPhone = phone;
+            startedPassword = password;
+            expect(token, hasLength(16));
+            return const OtpRequestResult(
+              deliveryMode: 'automatic',
+              channel: 'sms',
+              codeLength: 6,
+            );
+          },
+          onVerifyRegistration: (_, code) async {
+            verifiedCode = code;
+            return null;
+          },
+          onStartPasswordReset: (_, _) async => const OtpRequestResult(),
+          onResetPassword: (_, _, _) async => null,
+          onRegister:
+              ({
+                required phone,
+                required name,
+                surname,
+                gender,
+                birthdate,
+                email,
+                cashierInviteToken,
+              }) async => null,
         ),
-      );
+      ),
+    );
 
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('create-account-button')),
-      );
-      await tester.tap(find.byKey(const ValueKey('create-account-button')));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const ValueKey('auth-phone-field')),
-        '7012345678',
-      );
-      await tester.enterText(
-        find.byKey(const ValueKey('auth-password-field')),
-        'Register2026',
-      );
-      await tester.enterText(
-        find.byKey(const ValueKey('auth-confirm-password-field')),
-        'Register2026',
-      );
-      await tester.ensureVisible(find.text('Подтвердить номер'));
-      await tester.tap(find.text('Подтвердить номер'));
-      await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('create-account-button')),
+    );
+    await tester.tap(find.byKey(const ValueKey('create-account-button')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-phone-field')),
+      '7012345678',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-password-field')),
+      'Register2026',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-confirm-password-field')),
+      'Register2026',
+    );
+    await tester.ensureVisible(find.text('Подтвердить номер'));
+    await tester.tap(find.text('Подтвердить номер'));
+    await tester.pumpAndSettle();
 
-      expect(startedPhone, '+77012345678');
-      expect(startedPassword, 'Register2026');
-      expect(find.text('Введите код из WhatsApp'), findsOneWidget);
+    expect(startedPhone, '+77012345678');
+    expect(startedPassword, 'Register2026');
+    expect(find.text('Введите код из SMS'), findsOneWidget);
+    expect(find.text('Код отправлен по SMS.'), findsOneWidget);
+    expect(find.textContaining('WhatsApp'), findsNothing);
 
-      await tester.enterText(
-        find.byKey(const ValueKey('auth-otp-field')),
-        '1234',
-      );
-      await tester.pumpAndSettle();
-      expect(verifiedCode, '1234');
-      expect(find.text('Завершение регистрации'), findsOneWidget);
-    },
-  );
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-otp-field')),
+      '123456',
+    );
+    await tester.pumpAndSettle();
+    expect(verifiedCode, '123456');
+    expect(find.text('Завершение регистрации'), findsOneWidget);
+  });
 
   testWidgets(
     'legacy account recovery verifies WhatsApp and sets a new password',

@@ -180,9 +180,9 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'en': 'Create an account',
   },
   'auth_registration_subtitle': {
-    'ru': 'Задайте пароль и один раз подтвердите номер через WhatsApp.',
-    'kk': 'Құпиясөз орнатып, нөмірді WhatsApp арқылы бір рет растаңыз.',
-    'en': 'Set a password and confirm your number once through WhatsApp.',
+    'ru': 'Задайте пароль и подтвердите номер кодом из SMS.',
+    'kk': 'Құпиясөз орнатып, нөмірді SMS кодымен растаңыз.',
+    'en': 'Set a password and confirm your number with an SMS code.',
   },
   'auth_recovery_title': {
     'ru': 'Забыли пароль?',
@@ -274,9 +274,9 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'en': 'New password',
   },
   'auth_registration_verify_title': {
-    'ru': 'Введите код из WhatsApp',
-    'kk': 'WhatsApp кодын енгізіңіз',
-    'en': 'Enter the WhatsApp code',
+    'ru': 'Введите код из SMS',
+    'kk': 'SMS кодын енгізіңіз',
+    'en': 'Enter the SMS code',
   },
   'auth_recovery_verify_title': {
     'ru': 'Подтвердите номер',
