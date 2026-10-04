@@ -64,6 +64,7 @@ class _CartPopularProductCard extends StatelessWidget {
                               )
                             : _NetworkImage(
                                 url: product.imageUrl,
+                                photo: true,
                                 fit: BoxFit.cover,
                               ),
                       ),

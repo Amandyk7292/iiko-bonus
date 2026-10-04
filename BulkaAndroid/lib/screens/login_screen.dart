@@ -17,6 +17,7 @@ class LoginScreen extends StatefulWidget {
     this.onLookupCashierInvite,
     this.onScanCashierInvite,
     this.startRegistration = false,
+    this.passwordResetClock = DateTime.now,
     super.key,
   });
 
@@ -52,12 +53,13 @@ class LoginScreen extends StatefulWidget {
   onLookupCashierInvite;
   final Future<String?> Function()? onScanCashierInvite;
   final bool startRegistration;
+  final DateTime Function() passwordResetClock;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   final _phoneController = TextEditingController();
   final _otpController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -90,10 +92,15 @@ class _LoginScreenState extends State<LoginScreen> {
   int _otpCodeLength = 4;
   int _otpRetrySeconds = 0;
   Timer? _otpRetryTimer;
+  final Map<String, int> _recoveryRetryUntil = {};
+  bool _recoveryRetryLoaded = false;
+  Timer? _recoveryRetryTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_restoreRecoveryRetry());
     if (widget.startRegistration) _flow = _CustomerAuthFlow.registration;
   }
 
@@ -127,6 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _otpCodeLength = 4;
       _otpRetrySeconds = 0;
     });
+    _syncRecoveryRetry();
   }
 
   void _changeOtpPhone() {
@@ -144,9 +152,17 @@ class _LoginScreenState extends State<LoginScreen> {
         _confirmPasswordController.clear();
       }
     });
+    _syncRecoveryRetry();
   }
 
   String get _fullPhone => '+7${_phoneController.text}';
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _syncRecoveryRetry();
+      if (_flow == _CustomerAuthFlow.passwordReset) setState(() {});
+    }
+  }
 
   String get _langCode {
     return AppLang.shortLabel(AppLang.current);
@@ -165,6 +181,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _recoveryRetryTimer?.cancel();
     _otpRetryTimer?.cancel();
     _phoneController.dispose();
     _otpController.dispose();

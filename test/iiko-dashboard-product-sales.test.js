@@ -144,6 +144,36 @@ test('daily report excludes another city, retains zero days and scopes one point
   assert.equal(queries.length, 2);
 });
 
+test('cold daily sales loads product and department metadata together before requesting sales', async () => {
+  const { service, queries } = fixture();
+  let release;
+  let productStarted = false;
+  let departmentsStarted = false;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  service.client.withSession = async (_id, work) =>
+    work(async () => {
+      productStarted = true;
+      await gate;
+      return [koze];
+    });
+  service.departments = async () => {
+    departmentsStarted = true;
+    await gate;
+    return { departments };
+  };
+  const pending = productSales(service, period);
+  await new Promise(setImmediate);
+  assert.equal(productStarted, true);
+  assert.equal(departmentsStarted, true);
+  assert.equal(queries.length, 0);
+  release();
+  const result = await pending;
+  assert.equal(result.summary.quantity, 13);
+  assert.equal(queries.length, 1);
+});
+
 test('period validation rejects malformed requests and export keeps amounts as numbers', async () => {
   for (const patch of [
     { productId: 'bad' },

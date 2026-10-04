@@ -168,11 +168,18 @@ class IikoDashboardService {
   }
   async balances(input) {
     return this.client.withSession(input.serverId, async (request) => {
-      const rows = await request(`v2/reports/balance/stores?timestamp=${input.date}T23:59:59`);
+      // These reads are independent. Keep the shared session alive until every
+      // request settles, including when one fails, before withSession logs out.
+      const results = await Promise.allSettled([
+        request(`v2/reports/balance/stores?timestamp=${input.date}T23:59:59`),
+        request('v2/entities/products/list'),
+        request('corporation/stores'),
+        request('v2/entities/products/group/list'),
+      ]);
+      const failed = results.find((result) => result.status === 'rejected');
+      if (failed) throw failed.reason;
+      const [rows, products, stores, groups] = results.map((result) => result.value);
       if (!Array.isArray(rows)) throw failure('IIKO_REPORT_RESPONSE');
-      const products = await request('v2/entities/products/list');
-      const stores = await request('corporation/stores');
-      const groups = await request('v2/entities/products/group/list');
       if (!Array.isArray(products) || !Array.isArray(stores)) throw failure('IIKO_REPORT_RESPONSE');
       return {
         rows,

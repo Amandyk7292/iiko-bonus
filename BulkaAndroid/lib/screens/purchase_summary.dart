@@ -89,6 +89,7 @@ class _PurchaseSummary extends StatelessWidget {
                             child: SizedBox.square(
                               dimension: 58,
                               child: _NetworkImage(
+                                photo: true,
                                 url: _asString(
                                   item['imageUrl'] ?? item['image_url'],
                                 ),

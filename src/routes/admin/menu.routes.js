@@ -19,7 +19,7 @@ const {
   updateInventory,
 } = require('../../services/inventory.service');
 const { getProductOptions, saveProductOptions } = require('../../services/product-options.service');
-const { optimizeUploadedImage } = require('../../utils/image.util');
+const { optimizeUploadedImage, optimizeMenuPhoto } = require('../../utils/image.util');
 const { localizeCatalogField } = require('../../utils/catalog-localization.util');
 
 const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -29,6 +29,20 @@ const upload = multer({
   fileFilter: (_req, file, callback) =>
     callback(null, allowedImageTypes.has(String(file.mimetype).toLowerCase())),
 });
+
+const parseImageUpload = (req, res, next) => {
+  upload.single('image')(req, res, (error) => {
+    if (!error) return next();
+    const tooLarge = error.code === 'LIMIT_FILE_SIZE';
+    return res.status(tooLarge ? 413 : 400).json({
+      success: false,
+      error: tooLarge
+        ? 'Изображение должно быть не больше 5 МБ'
+        : 'Не удалось загрузить изображение',
+      code: tooLarge ? 'MENU_IMAGE_TOO_LARGE' : 'MENU_IMAGE_UPLOAD_INVALID',
+    });
+  });
+};
 
 const detectImageType = (buffer) => {
   if (buffer?.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))) {
@@ -390,19 +404,27 @@ function registerMenuAdminRoutes(router) {
       '/admin/api/menu/upload-photo',
     ],
     adminAuthMiddleware,
-    upload.single('image'),
+    parseImageUpload,
     validateUploadedImage,
-    (req, res, next) =>
-      validateRequest(
-        req.path === '/admin/api/menu/upload-photo'
+    (req, res, next) => {
+      // Express matches these routes case-insensitively and with a trailing /.
+      // Use one canonical identity for validation, binding and image policy.
+      const uploadPath = req.path.toLowerCase().replace(/\/+$/, '');
+      res.locals.menuImageUploadPath = uploadPath;
+      return validateRequest(
+        uploadPath === '/admin/api/menu/upload-photo'
           ? adminMutationSchemas.menuPhotoUpload
-          : adminMutationSchemas.empty,
-      )(req, res, next),
+          : uploadPath === '/admin/api/menu/upload-image'
+            ? adminMutationSchemas.menuImageUpload
+            : adminMutationSchemas.empty,
+      )(req, res, next);
+    },
     async (req, res) => {
       try {
         if (!req.file) throw new Error('Файл не загружен');
 
-        const target = req.path === '/admin/api/menu/upload-photo' ? req.body : null;
+        const uploadPath = res.locals.menuImageUploadPath;
+        const target = uploadPath === '/admin/api/menu/upload-photo' ? req.body : null;
         if (target) {
           const client = await getIikoClientForBranch(req.admin?.selectedBranchId);
           if (target.profileKey !== client.profileKey) {
@@ -413,7 +435,13 @@ function registerMenuAdminRoutes(router) {
           }
         }
 
-        const optimized = await optimizeUploadedImage(req.file.buffer, req.detectedImageType.mime);
+        const photo =
+          Boolean(target) ||
+          (uploadPath === '/admin/api/menu/upload-image' && req.body.purpose !== 'sticker');
+        const optimized = await (photo ? optimizeMenuPhoto : optimizeUploadedImage)(
+          req.file.buffer,
+          req.detectedImageType.mime,
+        );
         const fileName = `menu_${Date.now()}_${Math.random().toString(36).substring(7)}.${optimized.extension}`;
 
         const { error } = await supabase.storage
@@ -422,6 +450,16 @@ function registerMenuAdminRoutes(router) {
             contentType: optimized.mime,
             cacheControl: '31536000',
             upsert: false,
+            ...(photo && {
+              metadata: {
+                purpose: 'menu-photo',
+                encoding: optimized.encoding,
+                width: optimized.width,
+                height: optimized.height,
+                sourceBytes: req.file.buffer.length,
+                optimizedBytes: optimized.buffer.length,
+              },
+            }),
           });
 
         if (error) throw new Error('Ошибка Supabase Storage: ' + error.message);

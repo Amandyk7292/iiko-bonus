@@ -563,6 +563,7 @@ extension _LoginScreenForms on _LoginScreenState {
             );
           }
           _update(() => _error = null);
+          _syncRecoveryRetry();
         },
         decoration:
             _inputDecoration(
@@ -622,10 +623,15 @@ extension _LoginScreenForms on _LoginScreenState {
             ? 'auth_login_button'.tr
             : isRegistration
             ? 'auth_confirm_whatsapp'.tr
+            : _recoveryRetrySeconds > 0
+            ? _recoveryRetryLabel
             : 'auth_recovery_button'.tr,
         icon: isLogin ? Icons.login_rounded : Icons.verified_user_outlined,
         loading: _loading,
-        onPressed: _phoneController.text.length == 10
+        onPressed:
+            _phoneController.text.length == 10 &&
+                (_flow != _CustomerAuthFlow.passwordReset ||
+                    (_recoveryRetryLoaded && _recoveryRetrySeconds == 0))
             ? isLogin
                   ? _login
                   : _startPhoneConfirmation

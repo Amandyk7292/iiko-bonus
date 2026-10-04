@@ -53,6 +53,7 @@ class _CartProductCard extends StatelessWidget {
                       height: 64,
                       child: _NetworkImage(
                         url: item.imageUrl,
+                        photo: true,
                         fit: BoxFit.cover,
                       ),
                     ),

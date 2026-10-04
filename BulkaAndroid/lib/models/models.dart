@@ -3,6 +3,7 @@ part of '../main.dart';
 class OtpRequestResult {
   const OtpRequestResult({
     this.error,
+    this.errorCode,
     this.whatsappUrl,
     this.whatsappPhone,
     this.deliveryMode,
@@ -12,6 +13,7 @@ class OtpRequestResult {
   });
 
   final String? error;
+  final String? errorCode;
   final String? whatsappUrl;
   final String? whatsappPhone;
   final String? deliveryMode;
@@ -24,6 +26,9 @@ class OtpRequestResult {
   bool get isSmsLink => deliveryMode == 'sms_link' && channel == 'sms';
 
   bool get isSuccess => error == null;
+
+  bool get isPasswordResetRateLimited =>
+      errorCode == 'PASSWORD_RESET_RATE_LIMITED';
 }
 
 class ProfileResponse {

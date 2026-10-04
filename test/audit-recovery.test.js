@@ -159,9 +159,9 @@ function marketingRow(trigger) {
   };
 }
 
-test('quiet hours retain a reminder until morning; a second worker does not resend it', async (t) => {
+test('quiet hours retain a birthday greeting until morning; a second worker does not resend it', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-09-22T20:00:00Z') });
-  const row = marketingRow('inactive');
+  const row = marketingRow('birthday');
   const db = memoryDb({
     marketing_deliveries: [row],
     customers: [{ id: 'customer', preferred_language: 'ru', fcm_token: 'test-token' }],
@@ -183,7 +183,7 @@ test('quiet hours retain a reminder until morning; a second worker does not rese
   assert.equal(sent, 1);
 });
 
-test('a push already queued at night retains tokens and send attempts until morning', async (t) => {
+test('a birthday push already queued at night retains tokens and send attempts until morning', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-09-22T20:00:00Z') });
   const row = {
     id: 'push',
@@ -192,7 +192,7 @@ test('a push already queued at night retains tokens and send attempts until morn
     pending_tokens: ['isolated-test-device'],
     title: 'Reminder',
     body: 'Body',
-    payload: { type: 'marketing_inactive' },
+    payload: { type: 'marketing_birthday' },
     dedupe_key: 'same-event',
     attempt_count: 7,
     max_attempts: 8,
@@ -228,6 +228,19 @@ test('a push already queued at night retains tokens and send attempts until morn
   await deliverPushOutbox(args, { db });
   assert.equal(row.status, 'sent');
   assert.equal(sent, 1);
+});
+
+test('legacy inactive reminders are retired at night and cannot reappear in the morning', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-09-22T20:00:00Z') });
+  const row = marketingRow('inactive');
+  const db = memoryDb({ marketing_deliveries: [row] });
+  const sendPush = async () => assert.fail('An unscheduled legacy reminder must never be sent');
+  assert.equal(await deliverAutomatedMessages(100, { db, sendPush }), 0);
+  assert.equal(row.status, 'skipped');
+  assert.equal(await notificationAllowed('customer', { type: 'marketing_inactive' }), false);
+  t.mock.timers.tick(7 * 3600000);
+  assert.equal(await deliverAutomatedMessages(100, { db, sendPush }), 0);
+  assert.equal(await notificationAllowed('customer', { type: 'marketing_inactive' }), false);
 });
 
 test('opt-out stays disabled and quiet-hours end follows DST and full-day pauses', async (t) => {

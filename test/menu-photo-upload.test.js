@@ -31,6 +31,7 @@ require.cache[require.resolve('../src/services/iiko-city-profile.service')] = {
 require.cache[require.resolve('../src/utils/image.util')] = {
   exports: {
     optimizeUploadedImage: async (buffer) => ({ buffer, mime: 'image/jpeg', extension: 'jpg' }),
+    optimizeMenuPhoto: async (buffer) => ({ buffer, mime: 'image/webp', extension: 'webp' }),
   },
 };
 const service = require('../src/services/menu.service');
@@ -51,7 +52,7 @@ const handler = routes
   )
   .handlers.at(-1);
 const response = () => ({
-  locals: {},
+  locals: { menuImageUploadPath: '/admin/api/menu/upload-photo' },
   statusCode: 200,
   status(code) {
     this.statusCode = code;

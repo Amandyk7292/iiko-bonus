@@ -1174,6 +1174,15 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
           ? result
           : OtpRequestResult(error: 'error_session_changed'.tr);
     } catch (error) {
+      if (error is ApiException &&
+          error.statusCode == 429 &&
+          error.code == 'PASSWORD_RESET_RATE_LIMITED') {
+        return OtpRequestResult(
+          error: 'auth_recovery_limit'.tr,
+          errorCode: error.code,
+          retryAfterSeconds: error.retryAfterSeconds ?? 0,
+        );
+      }
       return OtpRequestResult(error: _userError(error, 'error_recovery_link'));
     }
   }

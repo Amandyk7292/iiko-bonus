@@ -214,6 +214,7 @@ describe('transaction movement display', () => {
     const search = await screen.findByRole('searchbox');
     expect(apiMocks.getTransactions).toHaveBeenCalledWith(
       expect.objectContaining({ page: 2, type: 'deposit' }),
+      expect.any(AbortSignal),
     );
     expect(new URLSearchParams(window.location.search).get('page')).toBe('2');
     search.focus();
@@ -224,6 +225,7 @@ describe('transaction movement display', () => {
     expect(search).toHaveValue('новый поиск');
     expect(apiMocks.getTransactions).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 1, search: 'новый поиск', type: 'deposit' }),
+      expect.any(AbortSignal),
     );
     fireEvent.change(search, { target: { value: 'другой поиск' } });
     expect(search).toHaveValue('другой поиск');

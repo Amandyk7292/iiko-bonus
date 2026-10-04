@@ -71,11 +71,12 @@ if (flutterDirectory) {
   if (!fs.existsSync(mainFile)) {
     failures.push(`Flutter entry is missing: ${mainFile}`);
   } else {
-    // Premium surfaces plus the requested isolated legacy Catalog vectors
-    // measure 6,712,646 B raw / 1,829,966 B gzip; retain narrow headroom.
+    // Performance release plus persisted reset cooldown: 6,721,959 B raw /
+    // 1,832,636 B gzip. Relative to the prior release this is +9,313 B raw /
+    // +2,670 B gzip (0.15% transfer growth); retain narrow headroom.
     // The QR decoder remains deferred with a separate total budget below.
-    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_713_500);
-    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_830_250);
+    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_723_000);
+    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_833_200);
   }
   const deferredChunks = filesUnder(directory).filter((file) => /\.part\.js$/.test(file));
   // One locally decoded QR chunk measures 56,453 B raw / 19,842 B gzip.

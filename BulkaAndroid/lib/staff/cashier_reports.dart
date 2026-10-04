@@ -25,6 +25,7 @@ class _CashierReportsState extends State<CashierReports> {
   String? _error;
   int _request = 0;
   late final StaffLiveRefresh _live;
+  bool _visible = true;
   final _scroll = ScrollController();
   String get _dateKey => _date.toIso8601String().substring(0, 10);
   String _day(DateTime date) =>
@@ -39,7 +40,17 @@ class _CashierReportsState extends State<CashierReports> {
       () => _load(silent: true),
       events: ['inventory.updated'],
       isBusy: () => _loading || _clearing || _submitting || _reviewing,
+      isVisible: () => mounted && _visible,
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.of(context);
+    final wasVisible = _visible;
+    _visible = visible;
+    if (visible && !wasVisible) _live.request();
   }
 
   Future<Map<String, dynamic>> _fetch(int offset, String date) async =>

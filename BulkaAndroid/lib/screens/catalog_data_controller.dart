@@ -469,6 +469,7 @@ extension _CatalogDataController on _CatalogScreenState {
         pixelWidth: pixelSize,
         pixelHeight: pixelSize,
         resizeMode: 'cover',
+        photo: true,
       );
       final provider = networkImageCacheProvider(
         effectiveUrl,

@@ -2,6 +2,7 @@ const { initializeApp, cert } = require('firebase-admin/app');
 const { getMessaging } = require('firebase-admin/messaging');
 const { supabase } = require('../config/supabase');
 const { notificationAllowed } = require('./notification-preferences.service');
+const { inactiveReminderTiming } = require('./inactive-reminder-window');
 const {
   PUSH_OUTBOX_SCHEMA_MISSING_CODES,
   deliverPushOutbox,
@@ -206,6 +207,17 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
       ...normalizePushData(data),
       click_action: 'FLUTTER_NOTIFICATION_CLICK',
     };
+    const reminderTiming =
+      normalizedData.type === 'marketing_inactive' ? inactiveReminderTiming(normalizedData) : null;
+    if (reminderTiming && reminderTiming.state !== 'ready') {
+      return { delivered: false, terminal: true, expired: true, error: 'push/reminder_expired' };
+    }
+    const reminderTtlMs = reminderTiming
+      ? Math.floor((reminderTiming.expiresMs - Date.now()) / 1000) * 1000
+      : null;
+    if (reminderTiming && reminderTtlMs <= 0) {
+      return { delivered: false, terminal: true, expired: true, error: 'push/reminder_expired' };
+    }
     const isOrderStatus = ['order', 'delivery'].includes(normalizedData.type);
     const isStaffOrder = ['staff.order.new', 'staff.order.test'].includes(normalizedData.type);
     const defaultStaffTtlMs =
@@ -249,6 +261,7 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
       android: {
         priority: isOrderStatus ? 'normal' : 'high',
         ...(staffTtlMs ? { ttl: staffTtlMs } : {}),
+        ...(reminderTtlMs ? { ttl: reminderTtlMs } : {}),
         ...(normalizedData.pushDedupeKey
           ? {
               collapseKey:
@@ -285,7 +298,7 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
         },
       },
       apns: {
-        ...(normalizedData.pushDedupeKey || staffTtlMs
+        ...(normalizedData.pushDedupeKey || staffTtlMs || reminderTtlMs
           ? {
               headers: {
                 ...(normalizedData.pushDedupeKey
@@ -304,6 +317,9 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
                       'apns-expiration': String(Math.floor(staffExpiryMs / 1000)),
                     }
                   : {}),
+                ...(reminderTtlMs
+                  ? { 'apns-expiration': String(Math.floor(reminderTiming.expiresMs / 1000)) }
+                  : {}),
               },
             }
           : {}),
@@ -315,6 +331,7 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
         },
       },
       webpush: {
+        ...(reminderTtlMs ? { headers: { TTL: String(reminderTtlMs / 1000) } } : {}),
         notification: {
           icon: '/icons/Icon-192.png',
           badge: '/icons/Icon-192.png',
@@ -390,7 +407,12 @@ async function sendPushToCustomer(customerId, title, body, data = {}, fallbackTo
     }
   } catch (error) {
     // Queue for a later preference check; never turn a database error into consent.
-    if (!['PUSH_PREFERENCES_UNAVAILABLE', 'PUSH_QUIET_HOURS'].includes(error.code)) throw error;
+    if (
+      !['PUSH_PREFERENCES_UNAVAILABLE', 'PUSH_QUIET_HOURS', 'PUSH_REMINDER_WINDOW'].includes(
+        error.code,
+      )
+    )
+      throw error;
     preferenceError = error;
   }
   const tokens = await getCustomerPushTokens(customerId, fallbackToken);
@@ -413,7 +435,8 @@ async function sendPushToCustomer(customerId, title, body, data = {}, fallbackTo
       const schemaUnavailable = PUSH_OUTBOX_SCHEMA_MISSING_CODES.has(
         String(outboxError?.code || ''),
       );
-      if (!schemaUnavailable) throw outboxError;
+      // Daily reminders require durable deduplication, including during schema outages.
+      if (!schemaUnavailable || data.type === 'marketing_inactive') throw outboxError;
       console.error('Push outbox migration is not installed; using immediate delivery.');
     }
     if (queued) {

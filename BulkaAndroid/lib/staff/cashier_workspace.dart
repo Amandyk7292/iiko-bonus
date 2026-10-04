@@ -230,10 +230,13 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
                 child: IndexedStack(
                   index: _tab,
                   children: [
-                    StaffOrders(
-                      key: ValueKey('cashier-orders:${widget.api.scopeKey}'),
-                      api: widget.api,
-                      role: 'cashier',
+                    TickerMode(
+                      enabled: _tab == 0,
+                      child: StaffOrders(
+                        key: ValueKey('cashier-orders:${widget.api.scopeKey}'),
+                        api: widget.api,
+                        role: 'cashier',
+                      ),
                     ),
                     // Keep the kitchen mounted while viewing orders so its live feed
                     // and foreground alarm continue until paid orders are accepted.
@@ -243,15 +246,23 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
                       canEdit: true,
                       onCounters: _updateCounts,
                     ),
-                    CashierCatalog(
-                      key: ValueKey('cashier-catalog:${widget.api.scopeKey}'),
-                      api: widget.api,
-                      pendingPreorders: _counts['preorders'] ?? 0,
+                    TickerMode(
+                      enabled: _tab == 2,
+                      child: CashierCatalog(
+                        key: ValueKey('cashier-catalog:${widget.api.scopeKey}'),
+                        api: widget.api,
+                        pendingPreorders: _counts['preorders'] ?? 0,
+                      ),
                     ),
                     if (_reportsOpened)
-                      CashierReports(
-                        key: ValueKey('cashier-reports:${widget.api.scopeKey}'),
-                        api: widget.api,
+                      TickerMode(
+                        enabled: _tab == 3,
+                        child: CashierReports(
+                          key: ValueKey(
+                            'cashier-reports:${widget.api.scopeKey}',
+                          ),
+                          api: widget.api,
+                        ),
                       )
                     else
                       const SizedBox.shrink(),

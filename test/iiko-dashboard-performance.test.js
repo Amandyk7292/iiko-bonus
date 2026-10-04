@@ -153,3 +153,64 @@ test('identical reports share work and different queries share one schema fetch'
   assert.equal(again.fetchedAt, a.fetchedAt);
   assert.equal(reports, 2);
 });
+
+test('balances starts its independent reads together and preserves their result types', async () => {
+  const gates = Array.from({ length: 4 }, deferred);
+  const paths = [];
+  const values = [
+    [{ product: 'bun', store: 'shop', amount: 4, sum: 1200 }],
+    [{ id: 'bun', name: 'Плюшка', parent: 'bakery', storeBalanceLevels: [] }],
+    [{ id: 'shop', name: '19А' }],
+    [{ id: 'bakery', name: 'Выпечка', parent: null }],
+  ];
+  const service = new IikoDashboardService({
+    withSession: async (serverId, work) => {
+      assert.equal(serverId, 'aktau-chain');
+      return work((path) => {
+        const index = paths.push(path) - 1;
+        return gates[index].promise.then(() => values[index]);
+      });
+    },
+  });
+  const pending = service.balances({ serverId: 'aktau-chain', date: '2026-10-03' });
+  await tick();
+  assert.deepEqual(paths, [
+    'v2/reports/balance/stores?timestamp=2026-10-03T23:59:59',
+    'v2/entities/products/list',
+    'corporation/stores',
+    'v2/entities/products/group/list',
+  ]);
+  gates.forEach((gate) => gate.resolve());
+  const result = await pending;
+  assert.deepEqual(result.rows, values[0]);
+  assert.deepEqual(result.products, values[1]);
+  assert.deepEqual(result.stores, values[2]);
+  assert.deepEqual(result.groups, values[3]);
+  assert.equal(result.serverId, 'aktau-chain');
+});
+
+test('balances waits for all readers on failure before releasing the shared session', async () => {
+  const gate = deferred();
+  let release = false;
+  const failure = new Error('IIKO_REPORT_NETWORK');
+  const service = new IikoDashboardService({
+    withSession: async (_id, work) => {
+      try {
+        return await work((path) =>
+          path.includes('balance/stores') ? Promise.reject(failure) : gate.promise,
+        );
+      } finally {
+        release = true;
+      }
+    },
+  });
+  const pending = assert.rejects(
+    service.balances({ serverId: 'aktau-chain', date: '2026-10-03' }),
+    (error) => error === failure,
+  );
+  await tick();
+  assert.equal(release, false);
+  gate.resolve([]);
+  await pending;
+  assert.equal(release, true);
+});

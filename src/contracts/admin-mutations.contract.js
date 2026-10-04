@@ -1217,6 +1217,9 @@ const adminMutationSchemas = {
       })
       .strict(),
   ),
+  menuImageUpload: withBody(
+    z.object({ purpose: z.enum(['photo', 'sticker']).optional() }).strict(),
+  ),
   menuPhotoUpload: withBody(
     z
       .object({

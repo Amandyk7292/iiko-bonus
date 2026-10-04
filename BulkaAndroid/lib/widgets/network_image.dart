@@ -10,6 +10,7 @@ String optimizedNetworkImageUrl(
   required int pixelWidth,
   required int pixelHeight,
   String resizeMode = 'contain',
+  bool photo = false,
 }) {
   final uri = Uri.tryParse(url);
   if (uri == null ||
@@ -34,6 +35,7 @@ String optimizedNetworkImageUrl(
             'path': objectPath,
             'edge':
                 '${_imagePixelBucket(max(pixelWidth, pixelHeight).toDouble())}',
+            if (photo && objectPath.startsWith('menu_images/')) 'mode': 'photo',
           },
         )
         .toString();
@@ -101,8 +103,12 @@ class _PhotoLoadingIndicator extends StatelessWidget {
   const _PhotoLoadingIndicator();
 
   @override
-  Widget build(BuildContext context) => const Center(
-    child: CupertinoActivityIndicator(radius: 12, color: Color(0xFF782B0E)),
+  Widget build(BuildContext context) => Center(
+    child: CupertinoActivityIndicator(
+      radius: 12,
+      color: const Color(0xFF782B0E),
+      animating: !BulkaMotion.reduced(context),
+    ),
   );
 }
 
@@ -116,6 +122,7 @@ class _NetworkImage extends StatelessWidget {
     this.errorPlaceholder,
     this.onError,
     this.animate = true,
+    this.photo = false,
   });
 
   final String url;
@@ -125,6 +132,7 @@ class _NetworkImage extends StatelessWidget {
   final Widget? errorPlaceholder;
   final VoidCallback? onError;
   final bool animate;
+  final bool photo;
 
   Widget _failedImage() {
     if (onError != null) {
@@ -164,6 +172,7 @@ class _NetworkImage extends StatelessWidget {
           pixelWidth: pixelWidth,
           pixelHeight: pixelHeight,
           resizeMode: fit == BoxFit.cover ? 'cover' : 'contain',
+          photo: photo,
         );
         final transitionDuration = animate
             ? BulkaMotion.duration(context, BulkaMotion.fast)

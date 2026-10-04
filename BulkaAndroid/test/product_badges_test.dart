@@ -1,8 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bulka_bonus/main.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 void main() {
+  testWidgets('a stored PNG sticker uses lossless delivery', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: ProductPhotoSticker(
+            badges: [
+              {
+                'id': 'lossless',
+                'label': 'Наклейка',
+                'imageUrl':
+                    'https://owofrgapcxsmzkdsefai.supabase.co/storage/v1/object/public/menu_images/sticker.png',
+              },
+            ],
+          ),
+        ),
+      ),
+    );
+    final image = tester.widget<CachedNetworkImage>(
+      find.byType(CachedNetworkImage),
+    );
+    final uri = Uri.parse(image.imageUrl);
+    expect(uri.path, '/api/public/image');
+    expect(uri.queryParameters['path'], 'menu_images/sticker.png');
+    expect(uri.queryParameters.containsKey('mode'), isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets(
     'photo sticker is not rendered as a text chip and preserves three text badges',
     (tester) async {

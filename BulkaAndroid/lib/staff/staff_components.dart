@@ -68,6 +68,7 @@ class StaffLiveRefresh with WidgetsBindingObserver {
     this.refresh, {
     this.events = const [],
     this.isBusy,
+    this.isVisible,
   }) {
     WidgetsBinding.instance.addObserver(this);
     _network = networkRecoveryEvents().listen((_) {
@@ -90,6 +91,7 @@ class StaffLiveRefresh with WidgetsBindingObserver {
   final StaffApiClient api;
   final FutureOr<void> Function() refresh;
   final bool Function()? isBusy;
+  final bool Function()? isVisible;
   final List<String> events;
   StreamSubscription<Map<String, dynamic>>? _subscription;
   Timer? _timer, _debounce, _reconnect;
@@ -97,9 +99,11 @@ class StaffLiveRefresh with WidgetsBindingObserver {
   bool _active = true, _disposed = false, _running = false, _pending = false;
   int _connection = 0;
   String? _lastId;
+  void request() => _schedule();
   void _schedule() {
     if (_disposed || !_active) return;
     _pending = true;
+    if (isVisible?.call() == false) return;
     if (_running) return;
     if (_debounce?.isActive == true) return;
     _debounce = Timer(
@@ -110,6 +114,7 @@ class StaffLiveRefresh with WidgetsBindingObserver {
 
   Future<void> _drain() async {
     if (_disposed || !_active || _running) return;
+    if (isVisible?.call() == false) return;
     if (isBusy?.call() == true) {
       _debounce = Timer(
         const Duration(milliseconds: 200),
@@ -119,7 +124,7 @@ class StaffLiveRefresh with WidgetsBindingObserver {
     }
     _running = true;
     try {
-      while (_pending && !_disposed && _active) {
+      while (_pending && !_disposed && _active && isVisible?.call() != false) {
         _pending = false;
         try {
           await refresh();

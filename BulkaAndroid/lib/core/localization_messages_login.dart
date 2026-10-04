@@ -326,6 +326,21 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'kk': 'Сілтемені қайта жіберу',
     'en': 'Resend link',
   },
+  'auth_recovery_limit': {
+    'ru': 'Достигнут лимит SMS. Повторите позже.',
+    'kk': 'SMS лимитіне жетті. Кейінірек қайталаңыз.',
+    'en': 'SMS limit reached. Try again later.',
+  },
+  'auth_recovery_retry_hours': {
+    'ru': 'Повторить через {hours} ч {minutes} мин',
+    'kk': '{hours} сағ {minutes} мин кейін қайталау',
+    'en': 'Try again in {hours}h {minutes}m',
+  },
+  'auth_recovery_retry_minutes': {
+    'ru': 'Повторить через {minutes} мин',
+    'kk': '{minutes} мин кейін қайталау',
+    'en': 'Try again in {minutes}m',
+  },
   'error_recovery_link': {
     'ru': 'Не удалось отправить ссылку. Повторите.',
     'kk': 'Сілтемені жіберу мүмкін болмады. Қайталаңыз.',

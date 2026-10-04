@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowDownUp, Columns3, Search } from '../../components/BulkaIcons';
 import { useI18n } from '../../lib/i18n';
 import type { Report } from './model';
+import { tableRows } from './table-rows';
 
 export default function DataTable({
   report,
@@ -24,27 +25,10 @@ export default function DataTable({
     setVisible(defaultFields || Object.keys(report.columns));
   }, [schemaKey]);
   const fields = Object.keys(report.columns).filter((field) => visible.includes(field));
-  const rows = useMemo(() => {
-    const result = report.rows.filter((row) =>
-      Object.keys(report.columns).some((field) =>
-        String(row[field] ?? '')
-          .toLocaleLowerCase()
-          .includes(search.toLocaleLowerCase()),
-      ),
-    );
-    if (sort.field)
-      result.sort((a, b) => {
-        const av = a[sort.field];
-        const bv = b[sort.field];
-        return (
-          (typeof av === 'number' && typeof bv === 'number'
-            ? av - bv
-            : String(av ?? '').localeCompare(String(bv ?? ''), undefined, { numeric: true })) *
-          sort.direction
-        );
-      });
-    return result;
-  }, [report, search, sort]);
+  const rows = useMemo(
+    () => tableRows(report.rows, Object.keys(report.columns), search, sort),
+    [report, search, sort],
+  );
   const currentPage = Math.min(page, Math.max(0, Math.ceil(rows.length / 50) - 1));
   return (
     <section className="id-table-section">

@@ -268,6 +268,7 @@ class _StaffOrdersState extends State<StaffOrders> {
   bool _loading = true;
   String? _error;
   int _page = 1, _total = 0, _generation = 0;
+  bool _visible = true;
   @override
   void initState() {
     super.initState();
@@ -277,8 +278,18 @@ class _StaffOrdersState extends State<StaffOrders> {
       () => _load(),
       isBusy: () => _loading,
       events: ['order.updated', 'order.created', 'order.customer_arrived'],
+      isVisible: () => mounted && _visible,
     );
     unawaited(_load());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.of(context);
+    final wasVisible = _visible;
+    _visible = visible;
+    if (visible && !wasVisible) _live.request();
   }
 
   Future<void> _load() async {

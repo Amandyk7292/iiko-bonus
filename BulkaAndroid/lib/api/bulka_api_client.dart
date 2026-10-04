@@ -2265,6 +2265,10 @@ class BulkaApiClient {
         statusCode: response.statusCode,
         code: _nullableString(json['code']),
         requestId: responseRequestId,
+        retryAfterSeconds: response.statusCode == 429
+            ? _retryAfterSeconds(json['retryAfterSeconds']) ??
+                  _retryAfterSeconds(response.headers['retry-after'])
+            : null,
       );
     }
     if (responseRequestId != null && !json.containsKey('_requestId')) {
@@ -2292,12 +2296,19 @@ String? _requestIdFrom(Map<String, dynamic> json) {
 }
 
 class ApiException implements Exception {
-  ApiException(this.message, {this.statusCode, this.code, this.requestId});
+  ApiException(
+    this.message, {
+    this.statusCode,
+    this.code,
+    this.requestId,
+    this.retryAfterSeconds,
+  });
 
   final String message;
   final int? statusCode;
   final String? code;
   final String? requestId;
+  final int? retryAfterSeconds;
 
   String? get supportCode {
     final raw = requestId?.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
@@ -2308,4 +2319,10 @@ class ApiException implements Exception {
 
   @override
   String toString() => message;
+}
+
+int? _retryAfterSeconds(Object? value) {
+  final seconds = value is num ? value : num.tryParse('$value');
+  if (seconds == null || !seconds.isFinite || seconds <= 0) return null;
+  return seconds.ceil().clamp(1, 86400);
 }

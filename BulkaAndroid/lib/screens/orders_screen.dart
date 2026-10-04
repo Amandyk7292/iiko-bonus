@@ -106,7 +106,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
   void initState() {
     super.initState();
     _popularLive = _createPopularRefresh();
-    unawaited(_loadFulfillmentLabel());
     appLanguageNotifier.addListener(_ensurePopularProducts);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_prepareCheckoutRestore());

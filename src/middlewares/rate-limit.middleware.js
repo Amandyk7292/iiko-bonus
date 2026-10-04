@@ -7,6 +7,13 @@ const isStaffPushHeartbeatRequest = (req) =>
   req.method === 'POST' &&
   ['/staff/push-heartbeat', '/admin/api/staff/push-heartbeat'].includes(String(req.path || ''));
 
+// originalUrl is stable inside both the /api and /api/public middleware mounts.
+// Match only the read route (including Express's default case/trailing-slash
+// aliases); writes and lookalike paths must still spend the business API quota.
+const isPublicImageRequest = (req) =>
+  ['GET', 'HEAD'].includes(req.method) &&
+  /^\/api\/public\/image\/?$/i.test(String(req.originalUrl || '').split('?')[0]);
+
 const adminRateLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 1200,
@@ -148,6 +155,17 @@ const publicApiRateLimit = rateLimit({
   message: { error: 'Too many requests' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: isPublicImageRequest,
+});
+
+// The catalog has 125 photos: two size variants plus a small browsing margin
+// fit in 300/minute. Cold generation is also bounded to 3 jobs and 32 pending.
+const publicImageRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  message: { error: 'Too many image requests', code: 'PUBLIC_IMAGE_RATE_LIMITED' },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 const globalApiRateLimit = rateLimit({
@@ -156,6 +174,7 @@ const globalApiRateLimit = rateLimit({
   message: { error: 'Too many API requests' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: isPublicImageRequest,
 });
 
 // Basic application-layer flood protection for pages and static assets. This
@@ -188,6 +207,8 @@ module.exports = {
   hasCustomerSessionCredential,
   courierProofRateLimit,
   publicApiRateLimit,
+  publicImageRateLimit,
+  isPublicImageRequest,
   globalApiRateLimit,
   siteRateLimit,
 };

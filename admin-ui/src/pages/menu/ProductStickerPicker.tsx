@@ -44,6 +44,7 @@ export default function ProductStickerPicker({
     try {
       const body = new FormData();
       body.append('image', file);
+      body.append('purpose', 'sticker');
       const uploaded = await request<{ imageUrl: string }>('/menu/upload-image', {
         method: 'POST',
         body,

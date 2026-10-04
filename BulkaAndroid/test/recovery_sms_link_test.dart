@@ -34,6 +34,7 @@ Future<void> _show(
   Future<OtpRequestResult> Function(String, String)? request,
   VoidCallback? close,
   double scale = 1,
+  DateTime Function()? now,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -52,6 +53,7 @@ Future<void> _show(
         onResetPassword: (_, _, _) async =>
             throw StateError('No in-app credential reset'),
         onClose: close,
+        passwordResetClock: now ?? tester.binding.clock.now,
       ),
     ),
   );
@@ -116,6 +118,189 @@ void main() {
       expect(result.isAutomatic, false);
       expect(result.retryAfterSeconds, 60);
       expect(paths, ['/api/auth/password-reset/start']);
+    },
+  );
+
+  for (final entry in <String, Map<String, dynamic>>{
+    'JSON': {'retryAfterSeconds': 86400},
+    'header fallback': {'retryAfterSeconds': 'invalid'},
+    'bounded JSON': {'retryAfterSeconds': 999999},
+  }.entries) {
+    test('recovery 429 preserves ${entry.key} retry metadata', () async {
+      final api = BulkaApiClient(
+        client: MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'error': 'Limit reached',
+              'code': 'PASSWORD_RESET_RATE_LIMITED',
+              ...entry.value,
+            }),
+            429,
+            headers: {'retry-after': '3600'},
+          ),
+        ),
+      );
+      addTearDown(api.dispose);
+      await expectLater(
+        api.startPasswordReset(phone: '+77012345678', token: 'fixture-token'),
+        throwsA(
+          isA<ApiException>()
+              .having((error) => error.statusCode, 'status', 429)
+              .having(
+                (error) => error.code,
+                'code',
+                'PASSWORD_RESET_RATE_LIMITED',
+              )
+              .having(
+                (error) => error.retryAfterSeconds,
+                'retry',
+                entry.key == 'header fallback' ? 3600 : 86400,
+              ),
+        ),
+      );
+    });
+  }
+
+  for (final language in ['ru', 'kk', 'en']) {
+    testWidgets(
+      '$language recovery 429 disables start with hours and survives resume',
+      (tester) async {
+        appLanguageNotifier.value = language;
+        tester.view.physicalSize = const Size(320, 760);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        var now = DateTime.utc(2026, 10, 4);
+        var calls = 0;
+        await _show(
+          tester,
+          scale: 2,
+          now: () => now,
+          request: (_, _) async {
+            calls++;
+            throw ApiException(
+              'server RU error',
+              statusCode: 429,
+              code: 'PASSWORD_RESET_RATE_LIMITED',
+              retryAfterSeconds: 86400,
+            );
+          },
+        );
+        await _recovery(tester);
+        await _tap(tester, find.text('auth_recovery_button'.tr));
+        expect(calls, 1);
+        expect(find.text('auth_recovery_link_sent'.tr), findsNothing);
+        expect(find.text('auth_recovery_limit'.tr), findsOneWidget);
+        expect(
+          find.text(
+            'auth_recovery_retry_hours'.trArgs({'hours': 24, 'minutes': 0}),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          tester.widget<GradientButton>(find.byType(GradientButton)).onPressed,
+          isNull,
+        );
+        expect(find.textContaining('86400'), findsNothing);
+        final lifecycle =
+            tester.state(find.byType(LoginScreen)) as WidgetsBindingObserver;
+        lifecycle.didChangeAppLifecycleState(AppLifecycleState.paused);
+        now = now.add(const Duration(hours: 23, minutes: 30));
+        lifecycle.didChangeAppLifecycleState(AppLifecycleState.resumed);
+        await tester.pump();
+        expect(
+          find.text('auth_recovery_retry_minutes'.trArgs({'minutes': 30})),
+          findsOneWidget,
+        );
+        expect(
+          tester.widget<GradientButton>(find.byType(GradientButton)).onPressed,
+          isNull,
+        );
+        now = now.add(const Duration(minutes: 30));
+        lifecycle.didChangeAppLifecycleState(AppLifecycleState.paused);
+        lifecycle.didChangeAppLifecycleState(AppLifecycleState.resumed);
+        await tester.pump();
+        expect(
+          tester.widget<GradientButton>(find.byType(GradientButton)).onPressed,
+          isNotNull,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
+  testWidgets('accepted second SMS disables resend until the server deadline', (
+    tester,
+  ) async {
+    var calls = 0;
+    await _show(
+      tester,
+      request: (_, _) async => ++calls == 1
+          ? _link
+          : const OtpRequestResult(
+              deliveryMode: 'sms_link',
+              channel: 'sms',
+              retryAfterSeconds: 86340,
+            ),
+    );
+    await _recovery(tester);
+    await _tap(tester, find.text('auth_recovery_button'.tr));
+    await tester.pump(const Duration(seconds: 60));
+    final resend = find.byKey(const ValueKey('recovery-link-resend-button'));
+    await _tap(tester, resend);
+    expect(calls, 2);
+    expect(tester.widget<TextButton>(resend).onPressed, isNull);
+    expect(
+      find.text(
+        'auth_recovery_retry_hours'.trArgs({'hours': 23, 'minutes': 59}),
+      ),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+    'reset cooldown persists per phone across leaving and reopening login',
+    (tester) async {
+      final now = DateTime.utc(2026, 10, 4);
+      var calls = 0;
+      Future<OtpRequestResult> request(String phone, String _) async {
+        calls++;
+        return const OtpRequestResult(
+          error: 'limited',
+          errorCode: 'PASSWORD_RESET_RATE_LIMITED',
+          retryAfterSeconds: 3600,
+        );
+      }
+
+      await _show(tester, now: () => now, request: request);
+      await _recovery(tester);
+      await _tap(tester, find.text('auth_recovery_button'.tr));
+      await _tap(tester, find.text('auth_back_to_login'.tr));
+      await _recovery(tester);
+      expect(
+        tester.widget<GradientButton>(find.byType(GradientButton)).onPressed,
+        isNull,
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('auth-phone-field')),
+        '7010000000',
+      );
+      await tester.pump();
+      expect(
+        tester.widget<GradientButton>(find.byType(GradientButton)).onPressed,
+        isNotNull,
+      );
+      await tester.pumpWidget(const SizedBox());
+      await _show(tester, now: () => now, request: request);
+      await _recovery(tester);
+      expect(
+        tester.widget<GradientButton>(find.byType(GradientButton)).onPressed,
+        isNull,
+      );
+      expect(calls, 1);
+      await tester.pumpWidget(const SizedBox());
     },
   );
 
@@ -335,6 +520,11 @@ void main() {
       expect(tester.takeException(), isNull);
       await _show(tester);
       await _recovery(tester);
+      expect(
+        tester.widget<GradientButton>(find.byType(GradientButton)).onPressed,
+        isNull,
+      );
+      await tester.pump(const Duration(seconds: 60));
       await _tap(tester, find.text('auth_recovery_button'.tr));
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 61));

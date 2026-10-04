@@ -103,6 +103,7 @@ class _CashierCatalogState extends State<CashierCatalog> {
   final _scroll = ScrollController();
   final Set<String> _saving = {};
   bool _preorders = false;
+  bool _visible = true;
   @override
   void initState() {
     super.initState();
@@ -111,7 +112,17 @@ class _CashierCatalogState extends State<CashierCatalog> {
       widget.api,
       _load,
       events: ['inventory.updated', 'order.updated', 'order.created'],
+      isVisible: () => mounted && _visible,
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.of(context);
+    final wasVisible = _visible;
+    _visible = visible;
+    if (visible && !wasVisible) _live.request();
   }
 
   Future<void> _load() async {
@@ -668,6 +679,7 @@ class _CashierCatalogState extends State<CashierCatalog> {
             )
           : _NetworkImage(
               url: image,
+              photo: true,
               fit: BoxFit.contain,
               semanticLabel: '${p['name']}',
               errorPlaceholder: const Icon(

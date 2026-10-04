@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const { inactiveReminderTiming } = require('./inactive-reminder-window');
 
 const SCHEMA_MISSING = new Set(['42P01', '42703', 'PGRST204', 'PGRST205']);
 const DEFAULTS = Object.freeze({
@@ -152,6 +153,31 @@ function quietHoursResumeAt(preferences, now) {
 }
 
 async function notificationAllowed(customerId, data = {}, now = new Date()) {
+  if (data.type === 'marketing_inactive') {
+    const timing = inactiveReminderTiming(data, now);
+    if (timing.state === 'expired' || !customerId || !data.reminderDeliveryId) return false;
+    if (timing.state === 'waiting') {
+      throw Object.assign(new Error('Reminder postponed until its daytime slot'), {
+        code: 'PUSH_REMINDER_WINDOW',
+        retryable: true,
+        retryAt: timing.retryAt,
+      });
+    }
+    try {
+      const { data: eligible, error } = await supabase.rpc('inactive_order_reminder_allowed', {
+        p_customer_id: customerId,
+        p_delivery_id: data.reminderDeliveryId,
+        p_reminder_date: data.reminderDate,
+      });
+      if (error) throw error;
+      if (eligible !== true) return false;
+    } catch (_) {
+      throw Object.assign(new Error('Reminder eligibility temporarily unavailable'), {
+        code: 'PUSH_PREFERENCES_UNAVAILABLE',
+        retryable: true,
+      });
+    }
+  }
   if (
     data.type === 'order_personal_account_code' &&
     (!Number.isFinite(Date.parse(data.expiresAt)) || Date.parse(data.expiresAt) <= now.getTime())

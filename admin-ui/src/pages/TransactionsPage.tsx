@@ -36,11 +36,13 @@ export default function TransactionsPage() {
   const dateTo = params.get('to') || '';
   const type = params.get('type') || '';
   const search = params.get('search') || '';
+  const previousSearch = useRef(search);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
   const loadGeneration = useRef(0);
+  const activeLoad = useRef<AbortController | null>(null);
   const foregroundLoadPending = useRef(true);
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -61,6 +63,9 @@ export default function TransactionsPage() {
   const fetchTransactions = useCallback(
     async (silent = false) => {
       const generation = ++loadGeneration.current;
+      activeLoad.current?.abort();
+      const controller = new AbortController();
+      activeLoad.current = controller;
       const foreground = !silent || foregroundLoadPending.current;
       foregroundLoadPending.current = foreground;
       if (foreground) {
@@ -68,15 +73,18 @@ export default function TransactionsPage() {
         setError('');
       }
       try {
-        const response = await api.getTransactions({
-          page,
-          pageSize,
-          search: search.trim(),
-          dateFrom,
-          dateTo,
-          type,
-        });
-        if (generation !== loadGeneration.current) return;
+        const response = await api.getTransactions(
+          {
+            page,
+            pageSize,
+            search: search.trim(),
+            dateFrom,
+            dateTo,
+            type,
+          },
+          controller.signal,
+        );
+        if (controller.signal.aborted || generation !== loadGeneration.current) return;
         if (Array.isArray(response)) {
           setTransactions(response);
           setTotal(response.length);
@@ -87,12 +95,12 @@ export default function TransactionsPage() {
         setInitialized(true);
         setError('');
       } catch (caught) {
-        if (generation !== loadGeneration.current) return;
+        if (controller.signal.aborted || generation !== loadGeneration.current) return;
         if (foreground) {
           setError(caught instanceof Error ? caught.message : t('common.loadError'));
         }
       } finally {
-        if (generation === loadGeneration.current) {
+        if (!controller.signal.aborted && generation === loadGeneration.current) {
           foregroundLoadPending.current = false;
           setLoading(false);
         }
@@ -105,9 +113,13 @@ export default function TransactionsPage() {
     foregroundLoadPending.current = true;
     setLoading(true);
     setError('');
-    const timer = window.setTimeout(() => void fetchTransactions(), 350);
+    const typing = previousSearch.current !== search;
+    previousSearch.current = search;
+    const timer = typing ? window.setTimeout(() => void fetchTransactions(), 350) : undefined;
+    if (!typing) void fetchTransactions();
     return () => {
       window.clearTimeout(timer);
+      activeLoad.current?.abort();
       // Invalidate even while the next filter is still in its debounce period.
       loadGeneration.current += 1;
       foregroundLoadPending.current = false;

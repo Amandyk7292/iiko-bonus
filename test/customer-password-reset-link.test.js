@@ -105,13 +105,14 @@ test.before(async () => {
     '20260722223000_customer_password_auth.sql',
     '20261002150000_automatic_customer_otp.sql',
     '20261004180000_customer_password_reset_links.sql',
+    '20261004181000_customer_password_reset_rolling_quota.sql',
   ]) {
     await pg.exec(readFileSync(`supabase/migrations/${file}`, 'utf8'));
   }
 });
 test.beforeEach(() =>
   pg.exec(
-    'delete from customer_password_reset_links; delete from customer_credentials; delete from customer_refresh_tokens; delete from customers; delete from customer_otp_send_limits; delete from whatsapp_sessions;',
+    'delete from customer_password_reset_links; delete from customer_password_reset_send_limits; delete from customer_credentials; delete from customer_refresh_tokens; delete from customers; delete from customer_otp_send_limits; delete from whatsapp_sessions;',
   ),
 );
 test.after(() => pg.close());
@@ -322,7 +323,7 @@ test('shared hourly, daily and global limits block recovery before any paid send
     ['global', 'day_count=1', '1'],
   ]) {
     await pg.exec(
-      'delete from customer_password_reset_links; delete from customer_otp_send_limits;',
+      'delete from customer_password_reset_links; delete from customer_password_reset_send_limits; delete from customer_otp_send_limits;',
     );
     await send();
     await pg.query(
@@ -339,6 +340,209 @@ test('shared hourly, daily and global limits block recovery before any paid send
       (error) => error.code === 'PASSWORD_RESET_RATE_LIMITED' && error.retryAfterSeconds > 0,
     );
   }
+});
+
+test('two requests share a normalized phone quota; the third does not send or replace the last link', async () => {
+  await customer();
+  const first = await send('8 (700) 123-45-67');
+  assert.equal(first.result.retryAfterSeconds, 60);
+  await pg.exec("update customer_otp_send_limits set last_sent_at=now()-interval '61 seconds';");
+  const second = await send('+7 700 123 45 67');
+  assert.ok(second.result.retryAfterSeconds > 86390 && second.result.retryAfterSeconds <= 86400);
+  const before = (await pg.query('select * from customer_password_reset_send_limits')).rows;
+  await pg.exec("update customer_otp_send_limits set last_sent_at=now()-interval '61 seconds';");
+  for (let i = 0; i < 3; i++) {
+    await assert.rejects(
+      send(phone, { sendSms: async () => assert.fail('A third request cannot send SMS') }),
+      (error) => {
+        assert.equal(error.code, 'PASSWORD_RESET_RATE_LIMITED');
+        assert.equal(error.statusCode, 429);
+        assert.match(error.message, /2 раза за 24 часа/);
+        assert.ok(error.retryAfterSeconds > 86390 && error.retryAfterSeconds <= 86400);
+        return true;
+      },
+    );
+  }
+  assert.deepEqual(
+    (await pg.query('select * from customer_password_reset_send_limits')).rows,
+    before,
+  );
+  assert.deepEqual(
+    await validateCustomerPasswordResetLink({ resetToken: second.token }, dependencies),
+    {
+      success: true,
+    },
+  );
+  assert.equal(
+    (await pg.query('select count(*)::int as n from customer_password_reset_send_limits')).rows[0]
+      .n,
+    1,
+  );
+});
+
+test('rolling quota ignores calendar midnight and releases only the oldest request after 24 hours', async () => {
+  await customer();
+  await send();
+  // Separate this limit from the old calendar-hour/day budgets. A request just
+  // before midnight is still within 24 hours when a new calendar day begins.
+  const clock = (await pg.query('select clock_timestamp() as at')).rows[0].at;
+  const nowMs = new Date(clock).getTime();
+  const firstAt = new Date(nowMs - 23 * 3600000 - 59 * 60000);
+  const secondAt = new Date(nowMs - 2 * 3600000);
+  await pg.query(
+    'update customer_password_reset_send_limits set first_requested_at=$1,second_requested_at=$2',
+    [firstAt, secondAt],
+  );
+  await pg.exec(
+    "update customer_otp_send_limits set last_sent_at=now()-interval '61 seconds',hour_count=0,day_count=0;",
+  );
+  await assert.rejects(
+    send(),
+    (error) =>
+      error.code === 'PASSWORD_RESET_RATE_LIMITED' &&
+      error.retryAfterSeconds > 0 &&
+      error.retryAfterSeconds <= 60,
+  );
+  await pg.query(
+    "update customer_password_reset_send_limits set first_requested_at=clock_timestamp()-interval '24 hours 1 second'",
+  );
+  const released = await send();
+  assert.ok(
+    released.result.retryAfterSeconds > 79190 && released.result.retryAfterSeconds <= 79200,
+  );
+  const quota = (await pg.query('select * from customer_password_reset_send_limits')).rows[0];
+  assert.equal(new Date(quota.first_requested_at).getTime(), secondAt.getTime());
+  assert.ok(new Date(quota.second_requested_at).getTime() >= nowMs);
+  await pg.exec("update customer_otp_send_limits set last_sent_at=now()-interval '61 seconds';");
+  await assert.rejects(send(), { code: 'PASSWORD_RESET_RATE_LIMITED' });
+});
+
+test('both timestamps expire independently of consumed or cleaned-up links; registration keeps its own allowance', async () => {
+  await customer();
+  const first = await send();
+  await completeCustomerPasswordResetLink(
+    { resetToken: first.token, password: 'NewPass2026' },
+    dependencies,
+  );
+  await pg.exec("update customer_otp_send_limits set last_sent_at=now()-interval '61 seconds';");
+  await send();
+  await pg.exec(
+    "delete from customer_password_reset_links; update customer_otp_send_limits set last_sent_at=now()-interval '61 seconds';",
+  );
+  await assert.rejects(send(), { code: 'PASSWORD_RESET_RATE_LIMITED' });
+  const otp = await db.rpc('reserve_customer_otp', {
+    p_phone: phone,
+    p_digest: 'a'.repeat(64),
+    p_payload: { flowId: 'RegisterToken23456', purpose: 'customer_registration' },
+    p_daily_limit: 1000,
+  });
+  assert.equal(
+    otp.data.status,
+    'reserved',
+    'A reset-only limit must not become the registration limit',
+  );
+  await pg.exec(
+    "update customer_password_reset_send_limits set first_requested_at=now()-interval '26 hours',second_requested_at=now()-interval '25 hours'; update customer_otp_send_limits set last_sent_at=now()-interval '61 seconds';",
+  );
+  assert.equal((await send()).result.retryAfterSeconds, 60);
+  const quota = (await pg.query('select * from customer_password_reset_send_limits')).rows[0];
+  assert.equal(quota.second_requested_at, null);
+});
+
+test('provider failures and unknown accounts have the same persistent reset quota without a token authority leak', async () => {
+  await customer();
+  for (const number of [phone, '+77001234568']) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await pg.exec(
+        "update customer_otp_send_limits set last_sent_at=now()-interval '61 seconds';",
+      );
+      await assert.rejects(
+        send(number, {
+          sendSms: async () => {
+            throw new Error('Synthetic timeout after provider acceptance');
+          },
+        }),
+        {
+          code: 'PASSWORD_RESET_LINK_UNAVAILABLE',
+        },
+      );
+    }
+  }
+  assert.equal(
+    (await pg.query('select count(*)::int as n from customer_password_reset_links')).rows[0].n,
+    0,
+  );
+  const errors = [];
+  for (const number of [phone, '+77001234568']) {
+    await pg.exec("update customer_otp_send_limits set last_sent_at=now()-interval '61 seconds';");
+    await assert.rejects(
+      send(number, { sendSms: async () => assert.fail('Quota persists after provider failure') }),
+      (error) => {
+        errors.push(error);
+        return error.code === 'PASSWORD_RESET_RATE_LIMITED';
+      },
+    );
+  }
+  assert.equal(errors[0].message, errors[1].message);
+  assert.equal(errors[0].statusCode, errors[1].statusCode);
+  assert.ok(Math.abs(errors[0].retryAfterSeconds - errors[1].retryAfterSeconds) <= 1);
+});
+
+test('new app/service instances and concurrent resends cannot bypass the database quota', async () => {
+  await customer();
+  await send();
+  await pg.exec("update customer_otp_send_limits set last_sent_at=now()-interval '61 seconds';");
+  let sends = 0;
+  // Each independent dependency wrapper has no shared application limiter.
+  const results = await Promise.allSettled(
+    Array.from({ length: 8 }, (_, i) =>
+      startCustomerPasswordResetLink(
+        { phone, requestToken: `IndependentFlow${String(i).padStart(3, '0')}` },
+        {
+          db: { rpc: db.rpc.bind(db), from: db.from.bind(db) },
+          env,
+          findCustomer,
+          sendSms: async () => {
+            sends += 1;
+            return { messageId: 'accepted' };
+          },
+        },
+      ),
+    ),
+  );
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+  assert.equal(sends, 1);
+  assert.ok(
+    results
+      .filter((r) => r.status === 'rejected')
+      .every((r) => r.reason.code === 'PASSWORD_RESET_RATE_LIMITED'),
+  );
+  // Clearing the old generic quota still cannot erase the reset-specific one.
+  await pg.exec('delete from customer_otp_send_limits;');
+  await assert.rejects(send(), { code: 'PASSWORD_RESET_RATE_LIMITED' });
+});
+
+test('migration seeds a known existing request once and reapplies without resetting its quota', async () => {
+  await customer();
+  await send();
+  await pg.exec('delete from customer_password_reset_send_limits;');
+  const migration = readFileSync(
+    'supabase/migrations/20261004181000_customer_password_reset_rolling_quota.sql',
+    'utf8',
+  );
+  await pg.exec(migration);
+  const first = (await pg.query('select * from customer_password_reset_send_limits')).rows[0];
+  const link = (await pg.query('select created_at from customer_password_reset_links')).rows[0];
+  assert.equal(new Date(first.first_requested_at).getTime(), new Date(link.created_at).getTime());
+  await pg.exec("update customer_otp_send_limits set last_sent_at=now()-interval '61 seconds';");
+  await send();
+  const second = (await pg.query('select * from customer_password_reset_send_limits')).rows;
+  await pg.exec(migration);
+  assert.deepEqual(
+    (await pg.query('select * from customer_password_reset_send_limits')).rows,
+    second,
+  );
+  await assert.rejects(send(), { code: 'PASSWORD_RESET_RATE_LIMITED' });
 });
 
 test('phone changes and placeholder profiles never grant password-reset authority', async () => {
@@ -481,6 +685,7 @@ test('password reset hash storage and every RPC are inaccessible to public clien
   for (const role of ['anon', 'authenticated']) {
     const result = await pg.query(
       `select has_table_privilege($1,'customer_password_reset_links','SELECT') as readable,
+      has_table_privilege($1,'customer_password_reset_send_limits','SELECT') as quota_readable,
       has_function_privilege($1,'reserve_customer_password_reset_link(text,text,text,uuid,integer)','EXECUTE') as reservable,
       has_function_privilege($1,'complete_customer_password_reset_link_delivery(text,text,text,boolean)','EXECUTE') as activatable,
       has_function_privilege($1,'validate_customer_password_reset_link(text)','EXECUTE') as validatable,
@@ -489,6 +694,7 @@ test('password reset hash storage and every RPC are inaccessible to public clien
     );
     assert.deepEqual(result.rows[0], {
       readable: false,
+      quota_readable: false,
       reservable: false,
       activatable: false,
       validatable: false,

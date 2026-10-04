@@ -49,7 +49,9 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   const [initialized, setInitialized] = useState(false);
   const [error, setError] = useState('');
   const loadGeneration = useRef(0);
+  const activeLoad = useRef<AbortController | null>(null);
   const [search, setSearch] = useState(params.get('search') || '');
+  const previousSearch = useRef(search);
   const [page, setPage] = useState(Math.max(1, Number(params.get('page')) || 1));
   const [total, setTotal] = useState(0);
   const pageSize = 50;
@@ -119,28 +121,36 @@ export default function CustomersPage({ user }: CustomersPageProps) {
 
   const fetchCustomers = useCallback(async () => {
     const generation = ++loadGeneration.current;
+    activeLoad.current?.abort();
+    const controller = new AbortController();
+    activeLoad.current = controller;
     setLoading(true);
     setError('');
     try {
-      const data = await api.getCustomers({ page, pageSize, search });
-      if (generation !== loadGeneration.current) return;
+      const data = await api.getCustomers({ page, pageSize, search }, controller.signal);
+      if (controller.signal.aborted || generation !== loadGeneration.current) return;
       setCustomers(data.customers ?? []);
       setTotal(data.total ?? 0);
       setInitialized(true);
     } catch (caught) {
-      if (generation !== loadGeneration.current) return;
+      if (controller.signal.aborted || generation !== loadGeneration.current) return;
       setError(caught instanceof Error ? caught.message : t('common.loadError'));
     } finally {
-      if (generation === loadGeneration.current) setLoading(false);
+      if (!controller.signal.aborted && generation === loadGeneration.current) setLoading(false);
     }
   }, [page, search, t]);
 
   useEffect(() => {
     setLoading(true);
     setError('');
-    const timer = window.setTimeout(() => void fetchCustomers(), 250);
+    // Debounce typing only; opening the page and using pagination are immediate.
+    const typing = previousSearch.current !== search;
+    previousSearch.current = search;
+    const timer = typing ? window.setTimeout(() => void fetchCustomers(), 250) : undefined;
+    if (!typing) void fetchCustomers();
     return () => {
       window.clearTimeout(timer);
+      activeLoad.current?.abort();
       // Invalidate immediately, including the debounce before the next request starts.
       loadGeneration.current += 1;
     };

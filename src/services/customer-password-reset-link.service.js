@@ -64,7 +64,11 @@ async function startCustomerPasswordResetLink(
   });
   if (error) throw unavailable();
   if (reservation?.status === 'rate_limited') {
-    throw Object.assign(new Error('Подождите перед повторным запросом SMS.'), {
+    const message =
+      reservation.limitKind === 'rolling_24h'
+        ? 'Можно запросить SMS для сброса пароля только 2 раза за 24 часа. Попробуйте позже.'
+        : 'Подождите перед повторным запросом SMS.';
+    throw Object.assign(new Error(message), {
       statusCode: 429,
       code: 'PASSWORD_RESET_RATE_LIMITED',
       retryAfterSeconds: Math.max(1, Number(reservation.retryAfterSeconds) || 60),
@@ -93,7 +97,10 @@ async function startCustomerPasswordResetLink(
       .catch(() => {});
     throw unavailable();
   }
-  return { ...PUBLIC_RESULT };
+  return {
+    ...PUBLIC_RESULT,
+    retryAfterSeconds: Math.max(60, Math.min(86400, Number(reservation.retryAfterSeconds) || 60)),
+  };
 }
 
 async function validateCustomerPasswordResetLink({ resetToken }, { db = supabase } = {}) {

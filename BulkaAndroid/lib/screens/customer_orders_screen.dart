@@ -26,7 +26,7 @@ class CustomerOrdersScreen extends StatefulWidget {
 
 class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
   StreamSubscription<Map<String, dynamic>>? _pushOrderSubscription;
-  late final _LiveRefresh _ordersLive;
+  late _LiveRefresh _ordersLive;
   bool _loading = true;
   bool _refreshInFlight = false;
   final Set<String> _repeatInFlight = {};
@@ -36,18 +36,33 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
   bool _moreActive = false, _moreCompleted = false, _loadingMore = false;
   bool _loadedMoreActive = false, _loadedMoreCompleted = false;
   bool _usingOfflineCache = false;
+  bool _visible = true;
+  int _requestRevision = 0;
+  String? _identity;
   PaymentReturnNotice? _paymentReturnNotice;
   String? _pendingInitialOrderId;
 
-  String get _cacheKey => 'customer_orders_cache_${widget.cacheScope}_all';
+  String? get _cacheKey {
+    if (!widget.api.isAuthenticated) return null;
+    final scope =
+        widget.api.sessionCacheScope ??
+        (widget.cacheScope == 'session' ? null : widget.cacheScope);
+    return scope == null ? null : 'customer_orders_cache_${scope}_all';
+  }
 
   @override
   void initState() {
     super.initState();
+    _identity = widget.api.sessionCacheScope;
     _paymentReturnNotice = widget.paymentReturnNotice;
     _pendingInitialOrderId = widget.initialOrderId?.trim();
+    _listenOrders();
+    unawaited(_load());
+  }
+
+  void _listenOrders() {
     _pushOrderSubscription = PushNotifications.orderEvents.listen(
-      (_) => unawaited(_load(silent: true)),
+      (_) => _ordersLive.request(),
     );
     _ordersLive = _LiveRefresh(
       widget.api,
@@ -61,13 +76,48 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
       },
       () => _load(silent: true),
       busy: () => _refreshInFlight,
+      active: () => mounted && _visible,
       fallbackInterval: const Duration(seconds: 15),
     );
-    unawaited(_load());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.of(context);
+    if (visible && !_visible) _ordersLive.request(immediate: true);
+    _visible = visible;
+  }
+
+  @override
+  void didUpdateWidget(CustomerOrdersScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.api != widget.api ||
+        oldWidget.cacheScope != widget.cacheScope ||
+        _identity != widget.api.sessionCacheScope) {
+      _identity = widget.api.sessionCacheScope;
+      _requestRevision++;
+      _refreshInFlight = false;
+      _loadingMore = false;
+      _loading = true;
+      _orders = const [];
+      _usingOfflineCache = false;
+      _activeBefore = _completedBefore = null;
+      _moreActive = _moreCompleted = false;
+      _loadedMoreActive = _loadedMoreCompleted = false;
+      _error = null;
+      _paymentReturnNotice = widget.paymentReturnNotice;
+      _pendingInitialOrderId = widget.initialOrderId?.trim();
+      _ordersLive.dispose();
+      unawaited(_pushOrderSubscription?.cancel());
+      _listenOrders();
+      unawaited(_load());
+    }
   }
 
   @override
   void dispose() {
+    _requestRevision++;
     _pushOrderSubscription?.cancel();
     _ordersLive.dispose();
     super.dispose();
@@ -75,20 +125,34 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
 
   Future<void> _load({bool silent = false}) async {
     if (_refreshInFlight || _loadingMore) return;
+    final revision = ++_requestRevision;
+    final api = widget.api;
+    final identity = api.sessionCacheScope;
+    final cacheKey = _cacheKey;
+    bool current() =>
+        mounted &&
+        revision == _requestRevision &&
+        api == widget.api &&
+        identity == widget.api.sessionCacheScope;
     _refreshInFlight = true;
     if (!silent) {
       setState(() {
-        _loading = true;
+        _loading = _orders.isEmpty;
         _error = null;
       });
     }
+    final cacheRead = _orders.isEmpty && cacheKey != null
+        ? _restoreCache(cacheKey, current)
+        : Future.value(false);
     try {
       final groups = await Future.wait([
-        widget.api.getCustomerOrders(),
-        widget.api.getCustomerOrders(completed: true),
+        api.getCustomerOrders(),
+        api.getCustomerOrders(completed: true),
       ]);
+      if (!current()) return;
       final byId = <String, CustomerOrder>{
-        for (final order in _orders) order.id: order,
+        if (!_usingOfflineCache)
+          for (final order in _orders) order.id: order,
         for (final order in groups.expand((group) => group)) order.id: order,
       };
       if (!_loadedMoreActive) {
@@ -101,37 +165,43 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
       }
       final orders = byId.values.toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        _cacheKey,
-        jsonEncode({
-          'cachedAt': DateTime.now().toUtc().toIso8601String(),
-          'orders': orders.take(200).map((order) => order.toJson()).toList(),
-        }),
-      );
-      if (!mounted) return;
       setState(() {
         _orders = orders;
+        _loading = false;
         _error = null;
         _usingOfflineCache = false;
       });
       _scheduleInitialOrderOpen();
+      final prefs = await SharedPreferences.getInstance();
+      if (current() && cacheKey != null) {
+        await prefs.setString(
+          cacheKey,
+          jsonEncode({
+            'cachedAt': DateTime.now().toUtc().toIso8601String(),
+            'orders': orders.take(200).map((order) => order.toJson()).toList(),
+          }),
+        );
+      }
     } catch (_) {
-      if (!mounted) return;
-      final restored = await _restoreCache();
-      if (!silent && !restored && mounted) {
+      if (!current()) return;
+      final restored = await cacheRead;
+      if (!silent && !restored && _orders.isEmpty && current()) {
         setState(() => _error = 'orders_load_error'.tr);
       }
     } finally {
-      _refreshInFlight = false;
-      if (!silent && mounted) setState(() => _loading = false);
+      if (current()) {
+        setState(() {
+          _refreshInFlight = false;
+          _loading = false;
+        });
+      }
     }
   }
 
-  Future<bool> _restoreCache() async {
+  Future<bool> _restoreCache(String cacheKey, bool Function() current) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_cacheKey);
+      final raw = prefs.getString(cacheKey);
       if (raw == null) return false;
       final payload = _asMap(jsonDecode(raw));
       final values = payload['orders'] as List? ?? const [];
@@ -139,12 +209,16 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
           .map((item) => CustomerOrder.fromJson(_asMap(item)))
           .where((order) => order.id.isNotEmpty)
           .toList();
-      if (!mounted || orders.isEmpty) return false;
+      if (!current() || !_loading || _orders.isNotEmpty || orders.isEmpty) {
+        return false;
+      }
       setState(() {
         _orders = orders;
         _usingOfflineCache = true;
+        _loading = false;
         _error = null;
       });
+      _scheduleInitialOrderOpen();
       return true;
     } catch (_) {
       return false;
@@ -153,21 +227,29 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
 
   Future<void> _loadMore() async {
     if (_loadingMore || _refreshInFlight) return;
+    final api = widget.api;
+    final identity = api.sessionCacheScope;
+    final revision = _requestRevision;
+    bool current() =>
+        mounted &&
+        api == widget.api &&
+        identity == widget.api.sessionCacheScope &&
+        revision == _requestRevision;
     setState(() => _loadingMore = true);
     try {
       final loadActive = _moreActive && _activeBefore != null;
       final loadCompleted = _moreCompleted && _completedBefore != null;
       final pages = await Future.wait([
         if (loadActive)
-          widget.api.getMoreCustomerOrders(_activeBefore!)
+          api.getMoreCustomerOrders(_activeBefore!)
         else
           Future.value(<CustomerOrder>[]),
         if (loadCompleted)
-          widget.api.getMoreCustomerOrders(_completedBefore!, completed: true)
+          api.getMoreCustomerOrders(_completedBefore!, completed: true)
         else
           Future.value(<CustomerOrder>[]),
       ]);
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
         if (loadActive) _loadedMoreActive = true;
         if (loadCompleted) _loadedMoreCompleted = true;
@@ -181,19 +263,25 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
         }.values.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       });
     } catch (error) {
-      if (mounted) {
+      if (mounted && current()) {
         ScaffoldMessenger.of(context).showSnackBar(
           bulkaSnackBar(content: Text(localizeErrorMessage(error))),
         );
       }
     } finally {
-      if (mounted) setState(() => _loadingMore = false);
+      if (current()) setState(() => _loadingMore = false);
     }
   }
 
   void _scheduleInitialOrderOpen() {
     final id = _pendingInitialOrderId;
     if (id == null || id.isEmpty || !mounted) return;
+    final api = widget.api;
+    final identity = api.sessionCacheScope;
+    bool current() =>
+        mounted &&
+        api == widget.api &&
+        identity == widget.api.sessionCacheScope;
     CustomerOrder? match;
     for (final order in _orders) {
       if (order.id == id) {
@@ -202,24 +290,30 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
       }
     }
     if (match != null) {
+      if (match.needsDeliveryDecision) {
+        if (!_usingOfflineCache) _pendingInitialOrderId = null;
+        return;
+      }
       _pendingInitialOrderId = null;
-      if (match.needsDeliveryDecision) return;
+      final refreshOnOpen = _usingOfflineCache;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_openDetails(match!));
+        if (current()) {
+          unawaited(_openDetails(match!, refreshOnOpen: refreshOnOpen));
+        }
       });
       return;
     }
     _pendingInitialOrderId = null;
     unawaited(
-      widget.api
+      api
           .getCustomerOrder(id)
           .then((order) {
-            if (mounted && !order.needsDeliveryDecision) {
-              return _openDetails(order);
+            if (current() && !order.needsDeliveryDecision) {
+              return _openDetails(order, refreshOnOpen: false);
             }
           })
           .catchError((Object error) {
-            if (mounted) {
+            if (mounted && current()) {
               ScaffoldMessenger.of(context).showSnackBar(
                 bulkaSnackBar(content: Text(localizeErrorMessage(error))),
               );
@@ -393,15 +487,23 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
     }
   }
 
-  Future<void> _openDetails(CustomerOrder order) async {
+  Future<void> _openDetails(CustomerOrder order, {bool? refreshOnOpen}) async {
+    final api = widget.api;
+    final identity = api.sessionCacheScope;
+    bool current() =>
+        mounted &&
+        api == widget.api &&
+        identity == widget.api.sessionCacheScope;
+    final needsRefresh = refreshOnOpen ?? _usingOfflineCache;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => OrderDetailsScreen(
-          api: widget.api,
+          api: api,
           initialOrder: order,
+          refreshOnOpen: needsRefresh,
           onRepeat: _repeatOrder,
           onOrderChanged: (updated) {
-            if (!mounted) return;
+            if (!current()) return;
             setState(() {
               _orders = [
                 for (final item in _orders)
@@ -412,7 +514,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
         ),
       ),
     );
-    if (mounted) unawaited(_load(silent: true));
+    if (current()) _ordersLive.request(immediate: true);
   }
 
   @override
@@ -429,7 +531,9 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
       ),
       body: Column(
         children: [
-          if (_usingOfflineCache)
+          if (_refreshInFlight && !_loading)
+            const LinearProgressIndicator(minHeight: 2),
+          if (_usingOfflineCache && !_refreshInFlight)
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 10, 18, 0),
               child: _OrderNotice(
@@ -912,6 +1016,7 @@ class _CustomerOrderCard extends StatelessWidget {
                                           ? const SizedBox.expand()
                                           : _NetworkImage(
                                               url: url,
+                                              photo: true,
                                               fit: BoxFit.cover,
                                             ),
                                     ),

@@ -47,6 +47,7 @@ class _ProductPhotoHeaderState extends State<_ProductPhotoHeader> {
                     freezeImageDuringFlight: true,
                     child: _NetworkImage(
                       url: product.imageUrl,
+                      photo: true,
                       fit: BoxFit.cover,
                       semanticLabel: product.title,
                       errorPlaceholder: const SizedBox.shrink(),

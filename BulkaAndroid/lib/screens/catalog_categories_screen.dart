@@ -124,6 +124,7 @@ class CatalogAllCategoriesScreen extends StatelessWidget {
                                         ),
                                         child: _NetworkImage(
                                           url: imageUrl,
+                                          photo: true,
                                           fit: BoxFit.cover,
                                           semanticLabel: cat,
                                         ),

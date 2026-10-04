@@ -448,11 +448,12 @@ export const api = {
       '/integrations/payments/probe',
       json('POST'),
     ),
-  getCustomers: ({ page = 1, pageSize = 50, search = '' } = {}) => {
+  getCustomers: ({ page = 1, pageSize = 50, search = '' } = {}, signal?: AbortSignal) => {
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (search.trim()) params.set('search', search.trim());
     return request<{ customers: any[]; total: number; page: number; pageSize: number }>(
       `/customers?${params}`,
+      { signal },
     );
   },
   getCustomerFinancialDetails: (id: string) =>
@@ -480,19 +481,17 @@ export const api = {
     }
     return result;
   },
-  getOrders: ({
-    page = 1,
-    pageSize = 50,
-    search = '',
-    paymentStatus = '',
-    orderStatus = '',
-  } = {}) => {
+  getOrders: (
+    { page = 1, pageSize = 50, search = '', paymentStatus = '', orderStatus = '' } = {},
+    signal?: AbortSignal,
+  ) => {
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (search.trim()) params.set('search', search.trim());
     if (paymentStatus) params.set('paymentStatus', paymentStatus);
     if (orderStatus) params.set('orderStatus', orderStatus);
     return request<{ orders: AdminOrder[]; total: number; page: number; pageSize: number }>(
       `/orders?${params}`,
+      { signal },
     );
   },
   updateOrderStatus: (id: string, status: string, cancellationReason = '') =>
@@ -616,14 +615,10 @@ export const api = {
   deleteCustomer: (id: string) =>
     request<{ success: boolean }>(`/customers/${encodeURIComponent(id)}`, json('DELETE')),
 
-  getTransactions: ({
-    page = 1,
-    pageSize = 50,
-    search = '',
-    dateFrom = '',
-    dateTo = '',
-    type = '',
-  } = {}) => {
+  getTransactions: (
+    { page = 1, pageSize = 50, search = '', dateFrom = '', dateTo = '', type = '' } = {},
+    signal?: AbortSignal,
+  ) => {
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (search.trim()) params.set('search', search.trim());
     if (dateFrom) params.set('dateFrom', dateFrom);
@@ -634,7 +629,7 @@ export const api = {
       total: number;
       page: number;
       pageSize: number;
-    }>(`/transactions?${params}`);
+    }>(`/transactions?${params}`, { signal });
   },
   getIikoOperations: () => request<any[]>('/iiko-operations'),
 

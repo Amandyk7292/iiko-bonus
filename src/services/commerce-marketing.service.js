@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { supabase } = require('../config/supabase');
 const { sendPushToCustomer } = require('./push.service');
 const { pushOutboxDedupeKey } = require('./push-outbox.service');
+const { inactiveReminderTiming, inactiveReminderPushData } = require('./inactive-reminder-window');
 const { queueCustomerLoyaltySync } = require('./loyalty-sync.service');
 const { decryptSecret, encryptSecret } = require('../utils/secret-envelope.util');
 
@@ -706,19 +707,34 @@ async function enqueueAutomatedMessages() {
 
 async function deliverAutomatedMessages(
   limit = 100,
-  { db = supabase, sendPush = sendPushToCustomer } = {},
+  { db = supabase, sendPush = sendPushToCustomer, now = () => new Date() } = {},
 ) {
   const { data: deliveries, error } = await db
     .from('marketing_deliveries')
     .select('*,marketing_automations(*)')
     .eq('status', 'pending')
-    .lte('scheduled_at', new Date().toISOString())
+    .lte('scheduled_at', now().toISOString())
     .order('scheduled_at')
     .limit(Math.min(500, Math.max(1, Number(limit) || 100)));
   if (error) throw error;
   let sent = 0;
   for (const delivery of deliveries || []) {
     try {
+      const automation = delivery.marketing_automations || {};
+      if (automation.trigger_type === 'inactive') {
+        const timing = inactiveReminderTiming(delivery.payload, now());
+        if (timing.state !== 'ready') {
+          await db
+            .from('marketing_deliveries')
+            .update(
+              timing.state === 'waiting'
+                ? { scheduled_at: timing.retryAt }
+                : { status: 'skipped', error: 'Reminder day or delivery window expired' },
+            )
+            .eq('id', delivery.id);
+          continue;
+        }
+      }
       const { data: customer, error: customerError } = await db
         .from('customers')
         .select('fcm_token,preferred_language,deleted_at')
@@ -731,7 +747,6 @@ async function deliverAutomatedMessages(
           retryable: true,
         });
       }
-      const automation = delivery.marketing_automations || {};
       if (!customer || customer.deleted_at || automation.active === false) {
         await db.from('marketing_deliveries').update({ status: 'skipped' }).eq('id', delivery.id);
         continue;
@@ -749,6 +764,16 @@ async function deliverAutomatedMessages(
           type: `marketing_${automation.trigger_type}`,
           language,
           deepLink: '/app/',
+          ...(automation.trigger_type === 'inactive'
+            ? {
+                ...inactiveReminderPushData(delivery),
+                pushDedupeKey: pushOutboxDedupeKey(
+                  'inactive-day',
+                  delivery.customer_id,
+                  delivery.payload.reminderDate,
+                ),
+              }
+            : {}),
           ...(automation.trigger_type === 'birthday'
             ? {
                 pushDedupeKey: pushOutboxDedupeKey(

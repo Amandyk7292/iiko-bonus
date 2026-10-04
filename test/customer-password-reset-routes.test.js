@@ -6,6 +6,8 @@ const token = 'd'.repeat(64);
 const phone = '+77001234567';
 const calls = [];
 let validateError;
+let startError;
+let startRetryAfterSeconds = 60;
 function mockModule(relative, exports) {
   const filename = require.resolve(relative);
   require.cache[filename] = { id: filename, filename, loaded: true, exports };
@@ -18,11 +20,12 @@ mockModule('../src/services/customer-password-auth.service', {
   }),
   async startCustomerPasswordReset(args) {
     calls.push({ method: 'start', args });
+    if (startError) throw startError;
     return {
       deliveryMode: 'sms_link',
       channel: 'sms',
       expiresInSeconds: 900,
-      retryAfterSeconds: 60,
+      retryAfterSeconds: startRetryAfterSeconds,
       resetToken: token,
       phone,
       whatsappUrl: 'https://wa.me/never',
@@ -94,6 +97,8 @@ test.before(async () => {
 test.beforeEach(() => {
   calls.length = 0;
   validateError = null;
+  startError = null;
+  startRetryAfterSeconds = 60;
   authRateLimit.resetKey('127.0.0.1');
 });
 test.after(() => new Promise((resolve) => server.close(resolve)));
@@ -123,6 +128,43 @@ test('public reset start exposes only SMS-link metadata and accepts old request 
       automaticOtpSupported: supported,
     })),
   );
+});
+
+test('reset response preserves server rolling cooldown without publishing private reservation details', async () => {
+  startRetryAfterSeconds = 86340;
+  const response = await request('password-reset/start', { phone, token: 'RecoveryToken23456' });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    success: true,
+    deliveryMode: 'sms_link',
+    channel: 'sms',
+    expiresInSeconds: 900,
+    retryAfterSeconds: 86340,
+  });
+});
+
+test('reset quota failure exposes typed 429 and Retry-After but no link or account details', async () => {
+  startError = Object.assign(
+    new Error('Можно запросить SMS для сброса пароля только 2 раза за 24 часа. Попробуйте позже.'),
+    {
+      statusCode: 429,
+      code: 'PASSWORD_RESET_RATE_LIMITED',
+      retryAfterSeconds: 86340,
+      resetToken: token,
+      phone,
+      limitKind: 'rolling_24h',
+      customerExists: true,
+    },
+  );
+  const response = await request('password-reset/start', { phone, token: 'RecoveryToken23456' });
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get('retry-after'), '86340');
+  assert.deepEqual(await response.json(), {
+    success: false,
+    error: startError.message,
+    code: 'PASSWORD_RESET_RATE_LIMITED',
+    retryAfterSeconds: 86340,
+  });
 });
 
 test('password login forwards the credential version proved by authentication into session issuance', async () => {

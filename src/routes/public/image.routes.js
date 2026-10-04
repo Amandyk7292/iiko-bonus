@@ -1,17 +1,20 @@
 const { validateRequest, z } = require('../../middlewares/validation.middleware');
 const { publicImage } = require('../../services/public-image.service');
+const { publicImageRateLimit } = require('../../middlewares/rate-limit.middleware');
 function registerPublicImageRoutes(router) {
   router.get(
     '/api/public/image',
+    publicImageRateLimit,
     validateRequest({
       query: z.object({
         path: z.string().min(1).max(500),
         edge: z.coerce.number().int(),
+        mode: z.enum(['lossless', 'photo']).default('lossless'),
       }),
     }),
     async (req, res, next) => {
       try {
-        const result = await publicImage(req.query.path, Number(req.query.edge));
+        const result = await publicImage(req.query.path, Number(req.query.edge), req.query.mode);
         res.set({
           'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
           ETag: '"' + result.key + '"',

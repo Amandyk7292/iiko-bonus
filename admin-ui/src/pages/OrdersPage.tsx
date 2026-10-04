@@ -68,8 +68,10 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const [initialized, setInitialized] = useState(false);
   const [error, setError] = useState('');
   const loadGeneration = useRef(0);
+  const activeLoad = useRef<AbortController | null>(null);
   const foregroundLoadPending = useRef(false);
   const [search, setSearch] = useState(params.get('search') || '');
+  const previousSearch = useRef(search);
   const [paymentStatus, setPaymentStatus] = useState(
     params.get('payment') === 'expired' ? '' : params.get('payment') || '',
   );
@@ -104,6 +106,9 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const load = useCallback(
     async (silent = false) => {
       const generation = ++loadGeneration.current;
+      activeLoad.current?.abort();
+      const controller = new AbortController();
+      activeLoad.current = controller;
       // A realtime refresh taking over a visible load must also finish its loading/error state.
       const foreground = !silent || foregroundLoadPending.current;
       foregroundLoadPending.current = foreground;
@@ -112,17 +117,20 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
         setError('');
       }
       try {
-        const result = await api.getOrders({ page, pageSize, search, paymentStatus, orderStatus });
-        if (generation !== loadGeneration.current) return;
+        const result = await api.getOrders(
+          { page, pageSize, search, paymentStatus, orderStatus },
+          controller.signal,
+        );
+        if (controller.signal.aborted || generation !== loadGeneration.current) return;
         setOrders(result.orders ?? []);
         setTotal(result.total ?? 0);
         setInitialized(true);
         setError('');
       } catch (caught) {
-        if (generation !== loadGeneration.current) return;
+        if (controller.signal.aborted || generation !== loadGeneration.current) return;
         if (foreground) setError(caught instanceof Error ? caught.message : t('common.loadError'));
       } finally {
-        if (generation === loadGeneration.current) {
+        if (!controller.signal.aborted && generation === loadGeneration.current) {
           foregroundLoadPending.current = false;
           setLoading(false);
         }
@@ -135,9 +143,14 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
     foregroundLoadPending.current = true;
     setLoading(true);
     setError('');
-    const timer = window.setTimeout(() => void load(), 250);
+    // Filters, pagination and the initial visit should not wait for a typing debounce.
+    const typing = previousSearch.current !== search;
+    previousSearch.current = search;
+    const timer = typing ? window.setTimeout(() => void load(), 250) : undefined;
+    if (!typing) void load();
     return () => {
       window.clearTimeout(timer);
+      activeLoad.current?.abort();
       loadGeneration.current += 1;
       foregroundLoadPending.current = false;
     };

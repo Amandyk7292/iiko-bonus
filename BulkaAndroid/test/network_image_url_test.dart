@@ -16,20 +16,34 @@ void main() {
         expect(uri.path, '/api/public/image');
         expect(uri.queryParameters['path'], 'stories/admin/banner.png');
         expect(uri.queryParameters['edge'], '768');
+        expect(uri.queryParameters.containsKey('mode'), isFalse);
       }
     },
   );
-  test('Bulka uploaded photos use reusable lossless variants', () {
+  test('Bulka uploaded photos use reusable high-quality photo variants', () {
     final uri = Uri.parse(
       optimizedNetworkImageUrl(
         'https://owofrgapcxsmzkdsefai.supabase.co/storage/v1/object/public/menu_images/photo.webp',
         pixelWidth: 350,
         pixelHeight: 350,
+        photo: true,
       ),
     );
     expect(uri.path, '/api/public/image');
     expect(uri.queryParameters['path'], 'menu_images/photo.webp');
     expect(uri.queryParameters['edge'], '384');
+    expect(uri.queryParameters['mode'], 'photo');
+  });
+
+  test('menu-image stickers and tier artwork remain lossless by default', () {
+    final uri = Uri.parse(
+      optimizedNetworkImageUrl(
+        'https://owofrgapcxsmzkdsefai.supabase.co/storage/v1/object/public/menu_images/sticker.png',
+        pixelWidth: 350,
+        pixelHeight: 350,
+      ),
+    );
+    expect(uri.queryParameters.containsKey('mode'), isFalse);
   });
 
   test('Supabase public images use a bounded render URL', () {

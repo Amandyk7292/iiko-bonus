@@ -316,7 +316,7 @@ async function deliverPushOutbox(
       );
       outcomes.push(await markDelivered(row, results, { db }));
     } catch (stateError) {
-      if (stateError.code === 'PUSH_QUIET_HOURS') {
+      if (['PUSH_QUIET_HOURS', 'PUSH_REMINDER_WINDOW'].includes(stateError.code)) {
         await updateOutbox(
           row,
           {
@@ -325,7 +325,7 @@ async function deliverPushOutbox(
             attempt_count: Math.max(0, row.attemptCount - 1),
             locked_at: null,
             lease_token: null,
-            last_error: 'PUSH_QUIET_HOURS',
+            last_error: stateError.code,
           },
           { db },
         );

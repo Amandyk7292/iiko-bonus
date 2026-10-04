@@ -28,21 +28,17 @@ class _CatalogProductImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final placeholder = DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: borderRadius,
-        border: Border.all(
-          color: context.bulkaColors.cardBorder,
-          width: BulkaStrokes.hairline,
-        ),
+    final imageUrl = url.trim();
+    final placeholderDecoration = BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Colors.white, context.bulkaColors.skeletonBase],
       ),
-      child: Center(
-        child: Icon(
-          Icons.bakery_dining_outlined,
-          size: 48,
-          color: context.bulkaColors.cardBorder,
-        ),
+      borderRadius: borderRadius,
+      border: Border.all(
+        color: context.bulkaColors.cardBorder,
+        width: BulkaStrokes.hairline,
       ),
     );
     Widget image = ClipRRect(
@@ -51,14 +47,18 @@ class _CatalogProductImage extends StatelessWidget {
         color: Colors.white,
         child: Center(
           child: Padding(
-            padding: url.trim().isEmpty ? EdgeInsets.zero : safePadding,
+            padding: imageUrl.isEmpty ? EdgeInsets.zero : safePadding,
             child: _NetworkImage(
-              url: url,
+              url: imageUrl,
               fit: BoxFit.cover,
+              photo: true,
               animate: false,
               semanticLabel: semanticLabel,
-              loadingPlaceholder: placeholder,
-              errorPlaceholder: placeholder,
+              loadingPlaceholder: DecoratedBox(
+                decoration: placeholderDecoration,
+                child: const _PhotoLoadingIndicator(),
+              ),
+              errorPlaceholder: DecoratedBox(decoration: placeholderDecoration),
             ),
           ),
         ),

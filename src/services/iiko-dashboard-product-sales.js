@@ -74,14 +74,13 @@ const addTotals = (target, row) => {
 
 async function productSales(service, input) {
   const source = await reportSource(service, input.serverId);
-  const product = (await productCatalog(service, input.serverId)).find(
-    (candidate) => candidate.id === input.productId,
-  );
+  const [products, departmentResult] = await Promise.all([
+    productCatalog(service, input.serverId),
+    service.departments({ serverId: input.serverId }),
+  ]);
+  const product = products.find((candidate) => candidate.id === input.productId);
   if (!product) throw failure('IIKO_REPORT_FIELD', 404);
-  const names = retailDepartments(
-    source.city,
-    (await service.departments({ serverId: input.serverId })).departments,
-  );
+  const names = retailDepartments(source.city, departmentResult.departments);
   if (!names.length) throw failure('IIKO_REPORT_UNAVAILABLE', 409);
   if (input.department && !names.includes(input.department))
     throw failure('IIKO_REPORT_FIELD', 400);

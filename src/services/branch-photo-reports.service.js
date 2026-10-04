@@ -47,21 +47,25 @@ async function calendar(admin, { end = businessDate(), days = 14 } = {}, { db = 
     .order('sort_order')
     .order('name');
   if (scope.length) branchQuery = branchQuery.in('id', scope);
-  const branches = await rows(branchQuery);
-  const reports = [];
-  for (let offset = 0; ; offset += 1000) {
-    let query = db
-      .from('branch_closing_reports')
-      .select('*')
-      .gte('business_date', from)
-      .lte('business_date', end)
-      .order('id')
-      .range(offset, offset + 999);
-    if (scope.length) query = query.in('branch_id', scope);
-    const page = await rows(query);
-    reports.push(...page);
-    if (page.length < 1000) break;
-  }
+  const [branches, reports] = await Promise.all([
+    rows(branchQuery),
+    (async () => {
+      const reports = [];
+      for (let offset = 0; ; offset += 1000) {
+        let query = db
+          .from('branch_closing_reports')
+          .select('*')
+          .gte('business_date', from)
+          .lte('business_date', end)
+          .order('id')
+          .range(offset, offset + 999);
+        if (scope.length) query = query.in('branch_id', scope);
+        const page = await rows(query);
+        reports.push(...page);
+        if (page.length < 1000) return reports;
+      }
+    })(),
+  ]);
   const historicalIds = new Set(reports.map((r) => r.branch_id));
   const visibleBranches = (branches || []).filter((b) => b.active || historicalIds.has(b.id));
   const deviceCounts = await approvedDeviceCounts(

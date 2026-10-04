@@ -7,6 +7,7 @@ class OrderDetailsScreen extends StatefulWidget {
     required this.onRepeat,
     this.onReview,
     required this.onOrderChanged,
+    this.refreshOnOpen = false,
     super.key,
   });
 
@@ -15,6 +16,7 @@ class OrderDetailsScreen extends StatefulWidget {
   final Future<void> Function(CustomerOrder order) onRepeat;
   final Future<void> Function(CustomerOrder order)? onReview;
   final ValueChanged<CustomerOrder> onOrderChanged;
+  final bool refreshOnOpen;
 
   @override
   State<OrderDetailsScreen> createState() => _OrderDetailsScreenState();
@@ -29,12 +31,14 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
   bool _refreshing = false;
   bool _cancellationLoading = false;
   bool _repeatLoading = false;
+  late bool _hasFreshSnapshot;
   DateTime _now = DateTime.now();
 
   @override
   void initState() {
     super.initState();
     _order = widget.initialOrder;
+    _hasFreshSnapshot = !widget.refreshOnOpen;
     WidgetsBinding.instance.addObserver(this);
     _live = _LiveRefresh(
       widget.api,
@@ -50,6 +54,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
       active: () => mounted && _visible,
       fallbackInterval: const Duration(seconds: 15),
     );
+    if (widget.refreshOnOpen) unawaited(_reload());
   }
 
   @override
@@ -75,12 +80,17 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
 
   Future<void> _reload() async {
     if (_refreshing) return;
+    final api = widget.api;
+    final identity = api.sessionCacheScope;
     _refreshing = true;
     try {
-      final updated = await widget.api.getCustomerOrder(_order.id);
-      if (mounted) {
+      final updated = await api.getCustomerOrder(_order.id);
+      if (mounted &&
+          api == widget.api &&
+          identity == widget.api.sessionCacheScope) {
         setState(() {
           _order = updated;
+          _hasFreshSnapshot = true;
           _now = DateTime.now();
         });
         widget.onOrderChanged(updated);
@@ -90,6 +100,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
       // Keep the last realtime snapshot visible while the connection recovers.
     } finally {
       _refreshing = false;
+      if (mounted) setState(() {});
     }
   }
 
@@ -126,7 +137,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
   }
 
   Future<void> _cancelOrder() async {
-    if (_cancellationLoading || !_order.canCancel) return;
+    if (_cancellationLoading || !_hasFreshSnapshot || !_order.canCancel) {
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       animationStyle: BulkaMotion.reduced(context)
@@ -500,7 +513,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
             const SizedBox(height: 16),
             if (_order.canCancel) ...[
               OutlinedButton.icon(
-                onPressed: _cancellationLoading ? null : _cancelOrder,
+                onPressed: _cancellationLoading || !_hasFreshSnapshot
+                    ? null
+                    : _cancelOrder,
                 icon: _cancellationLoading
                     ? const SizedBox.square(
                         dimension: 20,

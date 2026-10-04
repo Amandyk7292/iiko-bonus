@@ -205,8 +205,11 @@ async function searchOrders(needle, customerIds, branchIds, limit) {
   };
   if (isUuid(needle)) queries.push(base().eq('id', needle).limit(1));
   if (/^\d{1,18}$/.test(needle)) queries.push(base().eq('order_number', needle).limit(limit));
-  if (customerIds.length) queries.push(base().in('customer_id', customerIds).limit(limit));
-  if (!queries.length) return [];
+  queries.push(
+    Promise.resolve(customerIds).then((ids) =>
+      ids.length ? base().in('customer_id', ids).limit(limit) : { data: [], error: null },
+    ),
+  );
   const results = await Promise.all(queries);
   for (const result of results) if (result.error) throw result.error;
   return deduplicate(results.flatMap((result) => result.data || []));
@@ -223,7 +226,11 @@ async function searchSupport(needle, customerIds, branchIds, limit) {
   };
   const queries = [base().ilike('message', `%${needle}%`).limit(limit)];
   if (isUuid(needle)) queries.push(base().eq('id', needle).limit(1));
-  if (customerIds.length) queries.push(base().in('customer_id', customerIds).limit(limit));
+  queries.push(
+    Promise.resolve(customerIds).then((ids) =>
+      ids.length ? base().in('customer_id', ids).limit(limit) : { data: [], error: null },
+    ),
+  );
   const results = await Promise.all(queries);
   for (const result of results) if (result.error) throw result.error;
   return deduplicate(results.flatMap((result) => result.data || []));
@@ -237,10 +244,14 @@ async function globalSearch(admin, query) {
   const needle = cleanNeedle(query.q);
   const limit = Number(query.limit || 20);
   const branchIds = branchScopeForAdmin(admin);
-  const rawCustomers = await candidateCustomers(needle, Math.max(limit, 30));
-  const customers = await filterScopedCustomers(rawCustomers, branchIds);
-  const customerIds = customers.map((customer) => customer.id);
-  const [orders, support] = await Promise.all([
+  const customerMatches = candidateCustomers(needle, Math.max(limit, 30)).then((rows) =>
+    filterScopedCustomers(rows, branchIds),
+  );
+  // Direct matches do not depend on the customer lookup. Related searches still
+  // wait for the same scoped customer IDs, without caching private search data.
+  const customerIds = customerMatches.then((customers) => customers.map((customer) => customer.id));
+  const [customers, orders, support] = await Promise.all([
+    customerMatches,
     types.has('order') ? searchOrders(needle, customerIds, branchIds, limit) : [],
     types.has('support') ? searchSupport(needle, customerIds, branchIds, limit) : [],
   ]);
@@ -381,12 +392,6 @@ async function customerDetail(admin, id, branchIds) {
     .order('created_at', { ascending: false })
     .limit(100);
   if (branchIds.length) orderQuery = orderQuery.in('branch_id', branchIds);
-  const { data: orders, error: ordersError } = await orderQuery;
-  if (ordersError) throw ordersError;
-  if (branchIds.length && !(orders || []).length) {
-    throw searchError('Клиент не найден', 404, 'ADMIN_SEARCH_RESULT_NOT_FOUND');
-  }
-
   let supportQuery = supabase
     .from('customer_support_requests')
     .select(branchIds.length ? '*,kaspi_orders!inner(branch_id)' : '*')
@@ -394,10 +399,16 @@ async function customerDetail(admin, id, branchIds) {
     .order('created_at', { ascending: false })
     .limit(100);
   if (branchIds.length) supportQuery = supportQuery.in('kaspi_orders.branch_id', branchIds);
-  const [supportResult, audit] = await Promise.all([
+  const [ordersResult, supportResult, audit] = await Promise.all([
+    orderQuery,
     supportQuery,
     auditEvents('customer', [String(id)], branchIds),
   ]);
+  if (ordersResult.error) throw ordersResult.error;
+  const orders = ordersResult.data || [];
+  if (branchIds.length && !orders.length) {
+    throw searchError('Клиент не найден', 404, 'ADMIN_SEARCH_RESULT_NOT_FOUND');
+  }
   if (supportResult.error) throw supportResult.error;
   const support = supportResult.data || [];
   const timeline = [

@@ -152,6 +152,7 @@ it('uploads a transparent sticker to the shared catalog and selects it for this 
   );
   const upload = request.mock.calls.find(([path]) => path === '/menu/upload-image');
   expect(upload![1].body).toBeInstanceOf(FormData);
+  expect((upload![1].body as FormData).get('purpose')).toBe('sticker');
   await user.click(screen.getByRole('button', { name: 'Сохранить оформление товара' }));
   await waitFor(() =>
     expect(request).toHaveBeenCalledWith(
