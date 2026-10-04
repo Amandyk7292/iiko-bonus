@@ -25,6 +25,7 @@ IikoBonusPlugin/obj/
 !admin-ui/tsconfig.json
 !test/fixtures/flutter-app/release-version.json
 !desktop/windows/runtime-lock.json
+!public/downloads/BulkaPlugin-*-update.manifest.json
 !test/fixtures/forte-web-client-request.json
 render_env.txt
 generate-csr.js

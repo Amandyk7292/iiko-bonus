@@ -246,6 +246,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
     public static class LoyaltyFlow
     {
         private static readonly HttpClient _httpClient = new HttpClient();
+        private static readonly HttpClient _updateHttpClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
         private static readonly string ApiBaseUrl = ReadPluginSetting("IIKO_LOYALTY_API_BASE_URL") ?? "https://bulka.com.kz/api/loyalty";
         private static readonly string ApiToken = ReadPluginSetting("IIKO_LOYALTY_API_TOKEN") ?? ReadPluginSetting("API_TOKEN");
         private static readonly string DiscountTypeId = ReadPluginSetting("IIKO_LOYALTY_DISCOUNT_TYPE_ID");
@@ -272,6 +273,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         static LoyaltyFlow()
         {
             _httpClient.Timeout = TimeSpan.FromSeconds(Clamp(ReadIntSetting("IIKO_LOYALTY_TIMEOUT_SEC", 8), 2, 30));
+            _updateHttpClient.Timeout = _httpClient.Timeout;
             TryMigrateLegacyFile("BulkaBonusPendingApplies.json", QueuePath);
             TryMigrateLegacyFile("BulkaBonusActiveOrders.json", ActiveOrdersPath);
         }
@@ -644,12 +646,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
             public bool IsSuccessStatusCode { get; set; }
         }
 
-        internal static ApiResponse SendApiRequest(HttpMethod method, string relativePath, object payload = null)
+        internal static ApiResponse SendApiRequest(HttpMethod method, string relativePath, object payload = null, bool updateCheck = false)
         {
             if (!EnsureApiConfiguration()) throw new InvalidOperationException("Конфигурация API лояльности не заполнена.");
 
             var baseUri = new Uri(ApiBaseUrl.TrimEnd('/') + "/", UriKind.Absolute);
             var requestUri = new Uri(baseUri, relativePath.TrimStart('/'));
+            if (updateCheck && (method != HttpMethod.Get || relativePath != "pos/updates/latest" ||
+                requestUri.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(requestUri.UserInfo)))
+                throw new InvalidOperationException("Недопустимый адрес проверки обновления.");
             using (var request = new HttpRequestMessage(method, requestUri))
             {
                 var paired = PosPairing.IsPaired ? PosPairing.Current : null;
@@ -676,11 +681,29 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     request.Content = new StringContent(SerializeJson(payload), Encoding.UTF8, "application/json");
                 }
 
-                using (var response = _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead).GetAwaiter().GetResult())
+                using (var response = (updateCheck ? _updateHttpClient : _httpClient).SendAsync(request,
+                    updateCheck ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead).GetAwaiter().GetResult())
                 {
-                    var body = response.Content == null
-                        ? ""
-                        : response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                    var body = "";
+                    if (response.Content != null)
+                    {
+                        if (!updateCheck) body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                        else
+                        {
+                            using (var deadline = new CancellationTokenSource(_updateHttpClient.Timeout))
+                            using (var input = response.Content.ReadAsStreamAsync().GetAwaiter().GetResult())
+                            using (var output = new MemoryStream())
+                            {
+                                var buffer = new byte[8192]; int count;
+                                while ((count = input.ReadAsync(buffer, 0, buffer.Length, deadline.Token).GetAwaiter().GetResult()) > 0)
+                                {
+                                    if (output.Length + count > 64 * 1024) throw new InvalidOperationException("Ответ обновления слишком большой.");
+                                    output.Write(buffer, 0, count);
+                                }
+                                body = Encoding.UTF8.GetString(output.ToArray());
+                            }
+                        }
+                    }
                     return new ApiResponse
                     {
                         StatusCode = response.StatusCode,

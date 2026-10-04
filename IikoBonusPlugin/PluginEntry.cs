@@ -40,6 +40,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private IDisposable _recountButton;
         private IDisposable _reconciliationButton;
         private IDisposable _pairingMenu;
+        private IDisposable _updateMenu;
         private IDisposable _pairingOrderButton;
         private IDisposable _onlinePaymentRegistration;
         private IDisposable _personalAccountPaymentRegistration;
@@ -94,6 +95,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     (ValueTuple<IOrder,IOperationService,IViewManager> args) => AssemblyTicket.Reprint(args.Item1,args.Item2,args.Item3));
                 _inbox = new OnlineOrderInbox();
                 _pairingMenu = PluginContext.Operations.AddButtonToPluginsMenu("Привязать кассу", args => PosPairing.Show(args.Item1));
+                _updateMenu = PluginContext.Operations.AddButtonToPluginsMenu("Проверить обновления Bulka", args => PluginUpdateFlow.Show(args.Item1));
+                RegisterOrderAction("Проверить обновления", args => PluginUpdateFlow.Show(args.Item3));
                 _pairingOrderButton = RegisterOrderAction("Привязать кассу",
                     (ValueTuple<IOrder,IOperationService,IViewManager> args) => PosPairing.Show(args.Item3));
                 _inboxMenu = PluginContext.Operations.AddButtonToPluginsMenu("Доставка · Заказы Bulka", args => _inbox.Show(args.Item1));
@@ -226,6 +229,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             TryDispose(_recountButton);
             TryDispose(_reconciliationButton);
             TryDispose(_pairingMenu);
+            TryDispose(_updateMenu);
             TryDispose(_pairingOrderButton);
             TryDispose(_automaticReceipts);
             TryDispose(_offlineReceipts);

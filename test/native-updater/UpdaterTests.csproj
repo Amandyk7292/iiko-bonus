@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>UpdaterTests</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System.Runtime.Serialization" />
+    <Compile Include="../../BulkaPluginUpdater/UpdateRequest.cs" Link="Production/UpdateRequest.cs" />
+    <Compile Include="../../BulkaPluginUpdater/UpdateInstaller.cs" Link="Production/UpdateInstaller.cs" />
+    <None Include="../../IikoBonusPlugin_Ready/Resto.Front.Api.IikoBonusPlugin.dll" Link="fixture/Resto.Front.Api.IikoBonusPlugin.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../IikoBonusPlugin/Manifest.xml" Link="fixture/Manifest.xml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

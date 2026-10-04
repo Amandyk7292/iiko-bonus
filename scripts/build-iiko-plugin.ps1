@@ -73,11 +73,13 @@ dotnet build $project -c $Configuration
 if ($LASTEXITCODE -ne 0) {
     throw "iiko plugin build failed with exit code $LASTEXITCODE"
 }
+dotnet build (Join-Path $root 'BulkaPluginUpdater/BulkaPluginUpdater.csproj') -c $Configuration
+if ($LASTEXITCODE -ne 0) { throw 'Plugin updater build failed.' }
 
 $buildDirectory = Join-Path $projectDirectory "bin\$Configuration"
 Push-Location $root
 try {
-    foreach ($suite in @('native-board/BoardViewTests', 'native-discounts/DiscountTests', 'native-loyalty/OfflineLoyaltyTests', 'native-diagnostics/DiagnosticsTests')) {
+    foreach ($suite in @('native-board/BoardViewTests', 'native-discounts/DiscountTests', 'native-loyalty/OfflineLoyaltyTests', 'native-diagnostics/DiagnosticsTests', 'native-update-package/NativeUpdatePackageTests', 'native-updater/UpdaterTests')) {
         dotnet build "test/$suite.csproj" -c $Configuration
         if ($LASTEXITCODE -ne 0) { throw "Required plugin suite build failed: $suite" }
         $suiteDirectory = Split-Path "test/$suite" -Parent
@@ -110,6 +112,7 @@ foreach ($staleArtifact in @(
     Remove-Item -LiteralPath (Join-Path $OutputDirectory $staleArtifact) -Force -ErrorAction SilentlyContinue
 }
 Copy-Item -LiteralPath $pluginDll -Destination (Join-Path $OutputDirectory 'Resto.Front.Api.IikoBonusPlugin.dll') -Force
+Copy-Item -LiteralPath (Join-Path $root "BulkaPluginUpdater/bin/$Configuration/BulkaPluginUpdater.exe") -Destination (Join-Path $OutputDirectory 'BulkaPluginUpdater.exe') -Force
 Copy-Item -LiteralPath $manifest -Destination (Join-Path $OutputDirectory 'Manifest.xml') -Force
 Copy-Item -LiteralPath (Join-Path $root 'docs/iiko-front-shared-stock.md') -Destination (Join-Path $OutputDirectory 'INSTALL.md') -Force
 foreach ($guide in @('README.md', 'PAIRING.md', 'PAYMENT_SETUP.md')) {

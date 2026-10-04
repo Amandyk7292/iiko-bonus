@@ -45,7 +45,9 @@ async function posTransportMiddleware(req, res, next) {
         .eq('terminal_id', data.terminal_id);
       data.plugin_version = reportedVersion;
     }
-    if (!String(req.path || '').includes('/pos/health/heartbeat')) {
+    const updateCheck = req.method === 'GET' && req.path === '/api/loyalty/pos/updates/latest';
+    // An authenticated outdated register must still be able to obtain its fix.
+    if (!updateCheck && !String(req.path || '').includes('/pos/health/heartbeat')) {
       const { data: policy, error: policyError } = await supabase
         .from('pos_plugin_policy')
         .select('minimum_version,enforce_minimum,download_url')
