@@ -143,7 +143,9 @@ Uri normalizedClientUri(Uri uri) {
   final path = uri.path.isEmpty ? '/' : uri.path;
   return Uri(
     path: path,
-    queryParameters: uri.queryParameters.isEmpty ? null : uri.queryParameters,
+    queryParameters: uri.queryParametersAll.isEmpty
+        ? null
+        : uri.queryParametersAll,
     fragment: uri.fragment.isEmpty ? null : uri.fragment,
   );
 }

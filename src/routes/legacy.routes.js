@@ -5,6 +5,7 @@ const { getSettings } = require('../services/settings.service');
 const { getActiveLoyaltyTiers } = require('../services/tier.service');
 const { getTierInfo } = require('../utils/tier.util');
 const { startCustomerOtp } = require('../services/customer-otp.service');
+const { customerOtpProvider } = require('../services/customer-otp-provider.service');
 const { getOrCreateCustomerByPhone, getCustomerByPhone } = require('../services/customer.service');
 const otpStore = require('../services/otpStore.service');
 const { supabase } = require('../config/supabase');
@@ -328,6 +329,17 @@ router.post(
   validateRequest({ body: customerOtpRequestBodySchema }),
   async (req, res) => {
     try {
+      if (
+        customerOtpProvider(process.env, AUTH_PURPOSES.registration) === 'autocall_sms' &&
+        !isEstablishedCustomer(await getCustomerByPhone(normalizeCustomerPhone(req.body.phone)))
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'Обновите приложение Bulka или перезагрузите страницу, чтобы подтвердить номер по SMS.',
+          code: 'OTP_CLIENT_UPDATE_REQUIRED',
+        });
+      }
       const result = await startCustomerOtp({
         phone: req.body.phone,
         requestToken: req.body.token,
@@ -411,6 +423,17 @@ router.post(
   validateRequest({ body: customerRegistrationBodySchema }),
   async (req, res) => {
     try {
+      if (
+        !req.registrationAuth.credentialGrantId &&
+        customerOtpProvider(process.env, AUTH_PURPOSES.registration) === 'autocall_sms'
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'Обновите приложение Bulka или перезагрузите страницу, чтобы подтвердить номер по SMS.',
+          code: 'OTP_CLIENT_UPDATE_REQUIRED',
+        });
+      }
       const phone = normalizePhone(req.registrationAuth.phone);
       const { name, surname, gender, birthdate, email } = req.body;
       if (!phone) return res.status(400).json({ success: false, error: 'Phone required' });

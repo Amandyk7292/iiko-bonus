@@ -1,5 +1,10 @@
 part of '../main.dart';
 
+bool isRegistrationClientUri(Uri uri) =>
+    uri.path == '/profile' &&
+    uri.queryParametersAll['register']?.length == 1 &&
+    uri.queryParameters['register'] == '1';
+
 class MainShell extends StatefulWidget {
   const MainShell({
     required this.api,
@@ -94,7 +99,8 @@ class _MainShellState extends State<MainShell> {
       if (mounted) {
         if (clientRouteNotifier.value.path == '/promos' ||
             clientRouteNotifier.value.path == '/faq' ||
-            clientRouteNotifier.value.path == '/cashier-register') {
+            clientRouteNotifier.value.path == '/cashier-register' ||
+            isRegistrationClientUri(clientRouteNotifier.value)) {
           _onClientRouteChanged();
         }
         // Staff devices can be intentionally signed out of the customer
@@ -146,10 +152,12 @@ class _MainShellState extends State<MainShell> {
       setState(() => _tab = routedTab);
       widget.onTabChanged?.call(routedTab);
     }
-    if (uri.path == '/cashier-register' &&
+    final cashierRegistration =
+        uri.path == '/cashier-register' &&
         PendingCashierInvite.validToken(uri.queryParameters['cashier']) !=
             null &&
-        uri.queryParametersAll['cashier']?.length == 1 &&
+        uri.queryParametersAll['cashier']?.length == 1;
+    if ((cashierRegistration || isRegistrationClientUri(uri)) &&
         widget.customer == null &&
         !widget.api.isAuthenticated &&
         widget.staff?.isAuthenticated != true) {

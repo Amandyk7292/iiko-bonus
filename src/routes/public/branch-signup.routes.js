@@ -13,7 +13,7 @@ function registerBranchSignupRoutes(router) {
   router.use('/branch-invite-assets', express.static(root, { index: false, maxAge: '1h' }));
   router.get('/invite/:branch', validateRequest({ params: branchParams }), (_req, res) => {
     res.set('Cache-Control', 'no-store');
-    res.sendFile(path.join(root, 'index.html'));
+    res.redirect(302, '/profile?register=1');
   });
   router.get(
     '/api/branch-invites/:branch',

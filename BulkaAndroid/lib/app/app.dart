@@ -1366,6 +1366,13 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         clientUri.queryParametersAll['cashier']?.length == 1 &&
         PendingCashierInvite.validToken(clientUri.queryParameters['cashier']) !=
             null;
+    final startRegistration =
+        cashierRegistration ||
+        (!staffOnly &&
+            _savedPhone == null &&
+            !_api.isAuthenticated &&
+            !_staff.isAuthenticated &&
+            isRegistrationClientUri(clientUri));
 
     late final MaterialPageRoute<bool> authenticationRoute;
     void finishAuthentication(int revision) {
@@ -1382,12 +1389,12 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
 
     try {
       authenticationRoute = MaterialPageRoute<bool>(
-        settings: cashierRegistration
+        settings: startRegistration
             ? null
             : const RouteSettings(name: 'authentication'),
         fullscreenDialog: true,
         builder: (routeContext) => LoginScreen(
-          startRegistration: cashierRegistration,
+          startRegistration: startRegistration,
           onChildLogin: (login, password) async {
             final operation = _loginFamilyChild(login, password);
             final revision = _authenticationRevision;
@@ -1558,9 +1565,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     final clientUri = uri.scheme == 'bulka'
         ? Uri(
             pathSegments: ['', uri.host, ...uri.pathSegments],
-            queryParameters: uri.queryParameters.isEmpty
+            queryParameters: uri.queryParametersAll.isEmpty
                 ? null
-                : uri.queryParameters,
+                : uri.queryParametersAll,
           )
         : normalizedClientUri(uri);
     final segments = clientUri.pathSegments

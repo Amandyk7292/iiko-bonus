@@ -1,5 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const express = require('express');
 const configPath = require.resolve('../src/config/supabase');
 require.cache[configPath] = {
   id: configPath,
@@ -17,6 +21,49 @@ const {
 const { registerBranchSignupRoutes } = require('../src/routes/public/branch-signup.routes');
 const { registerBranchSignupAdminRoutes } = require('../src/routes/admin/branch-signup.routes');
 const { directivesForPath } = require('../src/middlewares/content-security-policy.middleware');
+
+test('old printed branch invitations redirect directly to current registration without attribution or OTP requests', async (t) => {
+  const app = express();
+  registerBranchSignupRoutes(app);
+  app.use((error, _req, res, _next) =>
+    res.status(error.statusCode || 500).json({ error: error.code }),
+  );
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise((resolve) => server.once('listening', resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const response = await fetch(
+    `${origin}/invite/90c3a8b5-9c7c-4407-bf7e-18d093da218f?redirect=https://example.com`,
+    { redirect: 'manual' },
+  );
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get('location'), '/profile?register=1');
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.doesNotMatch(await response.text(), /WhatsApp|wa\.me|branch-invite-assets/);
+  const invalid = await fetch(`${origin}/invite/not-a-uuid`, { redirect: 'manual' });
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.headers.get('location'), null);
+
+  const bookmarked = await fetch(`${origin}/branch-invite-assets/index.html`);
+  assert.equal(bookmarked.status, 200);
+  const html = await bookmarked.text();
+  assert.match(html, /href="\/profile\?register=1"/);
+  assert.doesNotMatch(html, /WhatsApp|wa\.me|<form|30 дней|рейтинге/);
+});
+
+test('obsolete invitation client only replaces its URL with current registration', () => {
+  const script = fs.readFileSync(path.join(__dirname, '../public/branch-invite/app.js'), 'utf8');
+  const destinations = [];
+  vm.runInNewContext(script, {
+    window: { location: { replace: (url) => destinations.push(url) } },
+    fetch: () => assert.fail('invitation must not request or verify an OTP'),
+    sessionStorage: {
+      getItem: () => assert.fail('invitation must not restore obsolete WhatsApp state'),
+      setItem: () => assert.fail('invitation must not persist obsolete WhatsApp state'),
+    },
+  });
+  assert.deepEqual(destinations, ['/profile?register=1']);
+});
 
 test('attribution normalizes phone and uses a keyed hash without storing raw phone', async () => {
   assert.equal(phoneKey('87001234567'), phoneKey('+7 700 123 45 67'));
