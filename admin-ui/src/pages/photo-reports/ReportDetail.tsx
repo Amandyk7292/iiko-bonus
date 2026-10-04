@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, Check, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import Modal from '../../components/Modal';
 import PageState from '../../components/PageState';
+import ReportAudit from './ReportAudit';
 import { request } from '../../lib/api';
 import {
   kinds,
@@ -218,7 +219,7 @@ function DetailBody({
             <div>
               <strong>{copy.text('Отчёт отправлен', 'Есеп жіберілді')}</strong>
               <span>
-                {copy.timeLabel(report.submittedAt)} · {report.photoCount} фото
+                {report.photoCount} фото
               </span>
               {report.shiftStartsAt && report.shiftEndsAt && (
                 <span>
@@ -227,6 +228,7 @@ function DetailBody({
               )}
             </div>
           </div>
+          <ReportAudit report={report} copy={copy} />
           {photos.length ? (
             <PhotoViewer
               key={report.id}

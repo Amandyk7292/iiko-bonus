@@ -50,11 +50,12 @@ if (adminDirectory) {
   assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
-    // The bonus tabs, compact reports and cashier directory measure 443,321 B
-    // in total (+3,306 B over c3541b56). Allow 1,679 B headroom;
+    // Approved tablets and retained report audits add 3,172 B to e021cc3e:
+    // 446,493 B total. They stay in the deferred PhotoReportsPage chunk.
+    // Allow 1,507 B headroom;
     // retain the largest-chunk/CSS limits.
     // Exporters load only on download and keep their separate budgets below.
-    445_000,
+    448_000,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   assertBudget('Admin deferred price-label PDF gzip', Math.max(0, ...priceLabelPdfGzip), 185_000);

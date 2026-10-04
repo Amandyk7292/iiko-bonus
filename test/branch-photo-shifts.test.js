@@ -8,6 +8,10 @@ const service = require('../src/services/branch-photo-reports.service');
 const { submitPhotos } = require('../src/services/branch-photo-upload.service');
 const { photoPeriod } = require('../src/utils/branch-schedule.util');
 const { database } = require('./helpers/photo-report-database.cjs');
+const {
+  applyDeviceMigration,
+  approveDevice,
+} = require('./helpers/photo-report-device-fixture.cjs');
 const A = '11111111-1111-4111-8111-111111111111';
 const OWNER = { role: 'owner' };
 async function fixture(t, beforeMigration) {
@@ -27,9 +31,11 @@ async function fixture(t, beforeMigration) {
   );
   await pg.exec(`update bulka_locations set round_the_clock=true where id='${A}'`);
   const db = database(pg);
+  await applyDeviceMigration(pg);
   const qr = await service.ensureQr(OWNER, A, { db });
   const token = new URLSearchParams(new URL(qr.url).hash.slice(1)).get('t');
-  return { pg, db, token };
+  const deviceToken = await approveDevice(token, { db });
+  return { pg, db, token, deviceToken };
 }
 test('migration preserves legacy report and photo rows and expands uniqueness without losing constraints', async (t) => {
   const upload = randomUUID();
@@ -57,6 +63,16 @@ test('migration preserves legacy report and photo rows and expands uniqueness wi
     ])
   ).rows[0];
   assert.deepEqual(saved, { shift: 'daily', photo_count: 1 });
+  const legacy = (await service.calendar(OWNER, {}, { db: database(pg) })).reports.find(
+    (r) => r.uploadId === upload || r.kind === 'hall',
+  );
+  assert.equal(legacy.deviceId, null);
+  assert.equal(legacy.deviceName, null);
+  assert.deepEqual(
+    legacy.checks,
+    {},
+    'historical reports never claim checks that were not performed',
+  );
   assert.equal(
     (
       await pg.query(
@@ -92,7 +108,7 @@ test('migration preserves legacy report and photo rows and expands uniqueness wi
   assert.ok(constraints.some((r) => r.conname === 'branch_closing_reports_upload_id_key'));
 });
 test('shift periods agree between API and database across handovers, midnight and year end', async (t) => {
-  const { pg, db, token } = await fixture(t);
+  const { pg, db, token, deviceToken } = await fixture(t);
   const branch = {
     round_the_clock: true,
     photo_day_shift_start: '08:00',
@@ -118,7 +134,7 @@ test('shift periods agree between API and database across handovers, midnight an
       assert.equal(Date.parse(sql.startsAt), Date.parse(js.shiftStartsAt));
       assert.equal(Date.parse(sql.endsAt), Date.parse(js.shiftEndsAt));
     }
-    const session = await service.openSession(token, { db, now: new Date(now) });
+    const session = await service.openSession(token, { db, deviceToken, now: new Date(now) });
     assert.equal(session.shift, defaultShift);
     assert.equal(session.date, expectedDate);
   }
@@ -127,12 +143,13 @@ test('shift periods agree between API and database across handovers, midnight an
   );
   const session = await service.openSession(token, {
     db,
+    deviceToken,
     shift: 'night',
     now: new Date('2026-10-02T02:30:00Z'),
   });
   assert.equal(session.shiftStartsAt, '2026-10-01T17:15:00.000Z');
   assert.equal(session.shiftEndsAt, '2026-10-02T02:30:00.000Z');
-  await assert.rejects(service.openSession(token, { db, shift: 'daily' }));
+  await assert.rejects(service.openSession(token, { db, deviceToken, shift: 'daily' }));
   const privilege = (
     await pg.query(
       "select has_function_privilege('anon','branch_closing_period(uuid,text,timestamptz)','execute') as allowed",
@@ -141,7 +158,7 @@ test('shift periods agree between API and database across handovers, midnight an
   assert.equal(privilege.allowed, false);
 });
 test('each shift has its own immutable reports and 72-hour photo retention, while old daily history survives', async (t) => {
-  const { pg, db, token } = await fixture(t);
+  const { pg, db, token, deviceToken } = await fixture(t);
   const files = [
     {
       buffer: await sharp({ create: { width: 20, height: 20, channels: 3, background: '#ddd' } })
@@ -162,22 +179,25 @@ test('each shift has its own immutable reports and 72-hour photo retention, whil
   };
   const sessions = [];
   for (const shift of ['day', 'night']) {
-    const session = await service.openSession(token, { db, shift });
+    const session = await service.openSession(token, { db, deviceToken, shift });
     sessions.push(session);
-    await service.resolveSession(session.sessionToken, { db });
+    await service.resolveSession(session.sessionToken, { db, deviceToken });
     for (const kind of ['hall', 'baker']) {
       const body = { uploadId: randomUUID(), kind };
       assert.equal(
-        (await submitPhotos(session.sessionToken, body, files, { db, storage })).submitted,
+        (await submitPhotos(session.sessionToken, body, files, { db, storage, deviceToken }))
+          .submitted,
         true,
       );
       assert.equal(
-        (await submitPhotos(session.sessionToken, body, files, { db, storage })).submitted,
+        (await submitPhotos(session.sessionToken, body, files, { db, storage, deviceToken }))
+          .submitted,
         true,
       );
       await assert.rejects(
         submitPhotos(session.sessionToken, { ...body, uploadId: randomUUID() }, files, {
           db,
+          deviceToken,
           storage,
         }),
         { code: 'PHOTO_REPORT_ALREADY_SUBMITTED' },
@@ -198,12 +218,13 @@ test('each shift has its own immutable reports and 72-hour photo retention, whil
     assert.equal(detail.reports.filter((r) => r.shift === session.shift).length, 2);
   }
   await pg.exec(`update bulka_locations set round_the_clock=false`);
-  await assert.rejects(service.resolveSession(sessions[0].sessionToken, { db }), {
+  await assert.rejects(service.resolveSession(sessions[0].sessionToken, { db, deviceToken }), {
     code: 'PHOTO_REPORT_SESSION_EXPIRED',
   });
-  const daily = await service.openSession(token, { db });
+  const daily = await service.openSession(token, { db, deviceToken });
   await submitPhotos(daily.sessionToken, { uploadId: randomUUID(), kind: 'hall' }, files, {
     db,
+    deviceToken,
     storage,
   });
   const dailyReport = (await service.details(OWNER, A, daily.date, { db })).reports.find(
@@ -211,7 +232,7 @@ test('each shift has its own immutable reports and 72-hour photo retention, whil
   );
   assert.ok(dailyReport);
   await pg.exec(`update bulka_locations set round_the_clock=true`);
-  await assert.rejects(service.resolveSession(daily.sessionToken, { db }), {
+  await assert.rejects(service.resolveSession(daily.sessionToken, { db, deviceToken }), {
     code: 'PHOTO_REPORT_SESSION_EXPIRED',
   });
   assert.equal(
@@ -220,9 +241,9 @@ test('each shift has its own immutable reports and 72-hour photo retention, whil
     ).photoCount,
     1,
   );
-  const shifted = await service.openSession(token, { db, shift: 'day' });
+  const shifted = await service.openSession(token, { db, deviceToken, shift: 'day' });
   await pg.exec(`update bulka_locations set photo_day_shift_start='07:00'`);
-  await assert.rejects(service.resolveSession(shifted.sessionToken, { db }), {
+  await assert.rejects(service.resolveSession(shifted.sessionToken, { db, deviceToken }), {
     code: 'PHOTO_REPORT_SESSION_EXPIRED',
   });
   assert.equal(
@@ -231,8 +252,8 @@ test('each shift has its own immutable reports and 72-hour photo retention, whil
   );
 });
 test('timestamp formatting from PostgREST does not invalidate an otherwise valid shift session', async (t) => {
-  const { db, token } = await fixture(t);
-  const session = await service.openSession(token, { db, shift: 'night' });
+  const { db, token, deviceToken } = await fixture(t);
+  const session = await service.openSession(token, { db, deviceToken, shift: 'night' });
   const adapter = {
     ...db,
     from(table) {
@@ -256,7 +277,7 @@ test('timestamp formatting from PostgREST does not invalidate an otherwise valid
     },
   };
   assert.equal(
-    (await service.resolveSession(session.sessionToken, { db: adapter })).shift,
+    (await service.resolveSession(session.sessionToken, { db: adapter, deviceToken })).shift,
     'night',
   );
 });

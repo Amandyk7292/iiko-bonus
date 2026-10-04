@@ -16,4 +16,19 @@ const uploadBody = z
   })
   .strict();
 const sessionBody = z.object({ shift: z.enum(['daily', 'day', 'night']).optional() }).strict();
-module.exports = { branchParams, photoParams, calendarQuery, detailQuery, uploadBody, sessionBody };
+const deviceParams = z.object({ deviceId: z.uuid() }).strict();
+const devicesQuery = z.object({ branchId: z.uuid().optional() }).strip();
+const approveDeviceBody = z
+  .object({ code: z.string().regex(/^\d{6}$/), name: z.string().trim().min(1).max(80) })
+  .strict();
+module.exports = {
+  branchParams,
+  photoParams,
+  calendarQuery,
+  detailQuery,
+  uploadBody,
+  sessionBody,
+  deviceParams,
+  devicesQuery,
+  approveDeviceBody,
+};

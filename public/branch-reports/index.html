@@ -14,13 +14,36 @@
       <header class="brand">
         <img src="/admin/bulka_logo.png" alt="Bulka" width="118" height="44" /><span
           id="report-mode"
-          >Закрытие точки</span
+          >Фотоотчёты точки</span
         >
       </header>
       <section id="loading" class="panel" aria-busy="true">
         <p role="status">Загрузка…</p>
         <div class="loading-shape" aria-hidden="true"></div>
         <div class="loading-shape" aria-hidden="true"></div>
+      </section>
+      <section id="device" class="panel device-panel" aria-labelledby="device-branch" hidden>
+        <p id="device-city" class="eyebrow"></p>
+        <h1 id="device-branch">Планшет точки</h1>
+        <div class="device-heading">
+          <span class="device-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+              <rect x="5" y="2" width="14" height="20" rx="2.5" />
+              <path d="M10 18h4" />
+            </svg>
+          </span>
+          <h2 id="device-status" role="status">Проверяем подключение…</h2>
+        </div>
+        <p id="device-message" class="hint"></p>
+        <div id="pairing" class="pairing" hidden>
+          <p id="pairing-label" class="eyebrow">Код подключения</p>
+          <p id="pairing-code" aria-labelledby="pairing-label"></p>
+          <p id="pairing-expiry" class="hint"></p>
+        </div>
+        <div class="device-actions">
+          <button id="enroll-device" class="primary" type="button">Подключить планшет</button>
+          <button id="check-device" class="secondary" type="button">Проверить подключение</button>
+        </div>
       </section>
       <section id="intro" class="panel" hidden>
         <p id="city" class="eyebrow"></p>

@@ -28,7 +28,26 @@ export interface Report {
   shiftEndsAt?: string | null;
   photoCount: number;
   submittedAt: string;
+  deviceId?: string | null;
+  deviceName?: string | null;
+  checks?: {
+    deviceAuthorized?: boolean | null;
+    branchMatched?: boolean | null;
+    imagesValidated?: boolean | null;
+  } | null;
   photos?: Photo[];
+}
+export interface ReportDevice {
+  id: string;
+  branchId: string;
+  branchName: string;
+  city: string;
+  name: string | null;
+  status: 'pending' | 'active' | 'revoked' | 'expired';
+  createdAt: string;
+  approvedAt: string | null;
+  lastSeenAt: string | null;
+  expiresAt: string | null;
 }
 export interface Calendar {
   businessDate: string;

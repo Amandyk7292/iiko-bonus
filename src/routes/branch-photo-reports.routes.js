@@ -2,11 +2,13 @@ const express = require('express');
 const path = require('node:path');
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
-const { validateRequest } = require('../middlewares/validation.middleware');
+const { validateRequest, emptyBodySchema } = require('../middlewares/validation.middleware');
 const { uploadBody, sessionBody } = require('../contracts/branch-photo-reports.contract');
 const { openSession, resolveSession, fail } = require('../services/branch-photo-reports.service');
 const { submitPhotos } = require('../services/branch-photo-upload.service');
 const realtime = require('../services/realtime.service');
+const devices = require('../services/branch-photo-devices.service');
+const { readDeviceCookie, writeDeviceCookie } = require('../utils/branch-photo-device-cookie.util');
 const router = express.Router();
 const headers = (_req, res, next) => {
   res.set({
@@ -44,6 +46,16 @@ const uploadLimit = rateLimit({
   legacyHeaders: false,
   message: { error: 'Слишком много отправок. Обратитесь к управляющему.' },
 });
+const deviceRequestLimit = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 6,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'Слишком много заявок. Подождите пять минут.',
+    code: 'PHOTO_REPORT_DEVICE_RATE_LIMIT',
+  },
+});
 router.use('/api/branch-reports', headers, requestLimit, (req, res, next) => {
   // Public QR credentials authorize only this form; reject third-party origins.
   if (
@@ -56,14 +68,47 @@ router.use('/api/branch-reports', headers, requestLimit, (req, res, next) => {
     return res.status(403).json({ error: 'Недопустимый источник запроса' });
   next();
 });
+router.get('/api/branch-reports/device', async (req, res, next) => {
+  try {
+    const token = readDeviceCookie(req);
+    const result = await devices.status(req.headers['x-bulka-report-token'], token);
+    if (result.device.status === 'active') writeDeviceCookie(res, token);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+router.post(
+  '/api/branch-reports/device',
+  deviceRequestLimit,
+  validateRequest({ body: emptyBodySchema }),
+  async (req, res, next) => {
+    try {
+      const result = await devices.request(
+        req.headers['x-bulka-report-token'],
+        readDeviceCookie(req),
+      );
+      writeDeviceCookie(res, result.token);
+      res.json({ success: true, ...result.body });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 router.post(
   '/api/branch-reports/session',
   validateRequest({ body: sessionBody }),
   async (req, res, next) => {
     try {
+      const deviceToken = readDeviceCookie(req);
+      const session = await openSession(req.headers['x-bulka-report-token'], {
+        shift: req.body.shift,
+        deviceToken,
+      });
+      writeDeviceCookie(res, deviceToken);
       res.json({
         success: true,
-        ...(await openSession(req.headers['x-bulka-report-token'], { shift: req.body.shift })),
+        ...session,
       });
     } catch (error) {
       next(error);
@@ -90,7 +135,10 @@ router.post(
   '/api/branch-reports/submit',
   async (req, _res, next) => {
     try {
-      req.closingSession = await resolveSession(req.headers['x-bulka-report-session']);
+      req.reportDeviceToken = readDeviceCookie(req);
+      req.closingSession = await resolveSession(req.headers['x-bulka-report-session'], {
+        deviceToken: req.reportDeviceToken,
+      });
       next();
     } catch (error) {
       next(error);
@@ -101,7 +149,13 @@ router.post(
   validateRequest({ body: uploadBody }),
   async (req, res, next) => {
     try {
-      const result = await submitPhotos(req.headers['x-bulka-report-session'], req.body, req.files);
+      const result = await submitPhotos(
+        req.headers['x-bulka-report-session'],
+        req.body,
+        req.files,
+        { deviceToken: req.reportDeviceToken },
+      );
+      writeDeviceCookie(res, req.reportDeviceToken);
       realtime.publish(
         'photo-reports.updated',
         { branchId: req.closingSession.branch_id },

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCw, Search, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, Search, Tablet, X } from 'lucide-react';
 import PageState from '../components/PageState';
 import { useI18n } from '../lib/i18n';
 import {
@@ -17,6 +17,7 @@ import { usePhotoCalendar, usePhotoView } from './photo-reports/use-photo-calend
 import { ReportCalendar, ReportDayCards, ReportsSkeleton } from './photo-reports/ReportViews';
 import ReportDetail from './photo-reports/ReportDetail';
 import ReportQr from './photo-reports/ReportQr';
+import ReportDevices from './photo-reports/ReportDevices';
 import './PhotoReportsPage.css';
 
 export default function PhotoReportsPage({ role = 'viewer' }: { role?: string }) {
@@ -32,6 +33,7 @@ export default function PhotoReportsPage({ role = 'viewer' }: { role?: string })
   const [status, setStatus] = useState('all');
   const [selection, setSelection] = useState<Selection | null>(null);
   const [qrBranch, setQrBranch] = useState<Branch | null>(null);
+  const [devicesOpen, setDevicesOpen] = useState(false);
   const canIssueQr = ['owner', 'admin', 'branch_manager'].includes(role);
   const reports = useMemo(
     () => new Map(data?.reports.map((r) => [reportKey(r.branchId, r.date, r.kind, r.shift), r])),
@@ -136,6 +138,16 @@ export default function PhotoReportsPage({ role = 'viewer' }: { role?: string })
               {text('Календарь', 'Күнтізбе')}
             </button>
           </div>
+          {canIssueQr && (
+            <button
+              className="btn-outline closing-tablets-button"
+              type="button"
+              onClick={() => setDevicesOpen(true)}
+            >
+              <Tablet size={18} aria-hidden="true" />
+              {text('Планшеты', 'Планшеттер')}
+            </button>
+          )}
           <button
             className="btn-outline closing-refresh"
             type="button"
@@ -320,6 +332,14 @@ export default function PhotoReportsPage({ role = 'viewer' }: { role?: string })
       )}
       <ReportDetail selection={selection} onChange={setSelection} copy={copy} />
       <ReportQr branch={qrBranch} onClose={() => setQrBranch(null)} copy={copy} />
+      {canIssueQr && (
+        <ReportDevices
+          open={devicesOpen}
+          branches={data?.branches ?? []}
+          onClose={() => setDevicesOpen(false)}
+          copy={copy}
+        />
+      )}
     </div>
   );
 }

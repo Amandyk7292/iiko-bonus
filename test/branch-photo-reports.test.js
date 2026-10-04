@@ -15,6 +15,10 @@ const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
 
 const { database } = require('./helpers/photo-report-database.cjs');
+const {
+  applyDeviceMigration,
+  approveDevice,
+} = require('./helpers/photo-report-device-fixture.cjs');
 
 test('business date switches at 04:00 Kazakhstan time, including month/year boundaries', () => {
   assert.equal(service.businessDate(new Date('2026-10-01T22:59:59Z')), '2026-10-01');
@@ -64,17 +68,22 @@ test('private QR, durable reports, retries and automatic retention work against 
     readFileSync('supabase/migrations/20261002120000_round_the_clock_shifts.sql', 'utf8'),
   );
   const db = database(pg);
+  await applyDeviceMigration(pg);
   const qr = await service.ensureQr(OWNER, A, { db });
   const qrAgain = await service.ensureQr(OWNER, A, { db });
   assert.equal(qr.url, qrAgain.url);
   assert.equal(new URL(qr.url).search, '');
   const token = new URLSearchParams(new URL(qr.url).hash.slice(1)).get('t');
+  const deviceToken = await approveDevice(token, { db });
   const link = (await pg.query('select * from branch_closing_links')).rows[0];
   assert.equal(link.token_hash, service.tokenHash(token));
   assert.equal(link.token_ciphertext.includes(token), false);
-  const session = await service.openSession(token, { db });
+  const session = await service.openSession(token, { db, deviceToken });
   assert.equal(session.date, service.businessDate());
-  assert.equal((await service.resolveSession(session.sessionToken, { db })).branch_id, A);
+  assert.equal(
+    (await service.resolveSession(session.sessionToken, { db, deviceToken })).branch_id,
+    A,
+  );
   await assert.rejects(service.ensureQr({ role: 'branch_manager', branchIds: [B] }, A, { db }), {
     statusCode: 403,
   });
@@ -116,7 +125,11 @@ test('private QR, durable reports, retries and automatic retention work against 
   ];
   const uploadId = randomUUID();
   await assert.rejects(
-    submitPhotos(session.sessionToken, { uploadId, kind: 'hall' }, files, { db, storage }),
+    submitPhotos(session.sessionToken, { uploadId, kind: 'hall' }, files, {
+      db,
+      storage,
+      deviceToken,
+    }),
     /Storage unavailable/,
   );
   assert.equal(
@@ -126,13 +139,23 @@ test('private QR, durable reports, retries and automatic retention work against 
   );
   shouldFail = false;
   assert.equal(
-    (await submitPhotos(session.sessionToken, { uploadId, kind: 'hall' }, files, { db, storage }))
-      .submitted,
+    (
+      await submitPhotos(session.sessionToken, { uploadId, kind: 'hall' }, files, {
+        db,
+        storage,
+        deviceToken,
+      })
+    ).submitted,
     true,
   );
   assert.equal(
-    (await submitPhotos(session.sessionToken, { uploadId, kind: 'hall' }, files, { db, storage }))
-      .submitted,
+    (
+      await submitPhotos(session.sessionToken, { uploadId, kind: 'hall' }, files, {
+        db,
+        storage,
+        deviceToken,
+      })
+    ).submitted,
     true,
     'a retry after a lost success response is idempotent',
   );
@@ -140,6 +163,7 @@ test('private QR, durable reports, retries and automatic retention work against 
     submitPhotos(session.sessionToken, { uploadId: randomUUID(), kind: 'hall' }, files, {
       db,
       storage,
+      deviceToken,
     }),
     { code: 'PHOTO_REPORT_ALREADY_SUBMITTED' },
   );
@@ -147,9 +171,9 @@ test('private QR, durable reports, retries and automatic retention work against 
   assert.equal(detail.reports[0].photoCount, 1);
   assert.equal(detail.reports[0].photos[0].available, true);
   const photoId = detail.reports[0].photos[0].id;
-  assert.ok((await photoForAdmin(OWNER, photoId, { db, storage })).length > 0);
+  assert.ok((await photoForAdmin(OWNER, photoId, { db, storage, deviceToken })).length > 0);
   await assert.rejects(
-    photoForAdmin({ role: 'viewer', branchIds: [B] }, photoId, { db, storage }),
+    photoForAdmin({ role: 'viewer', branchIds: [B] }, photoId, { db, storage, deviceToken }),
     { statusCode: 403 },
   );
   const seconds = (
@@ -160,7 +184,7 @@ test('private QR, durable reports, retries and automatic retention work against 
   assert.equal(Number(seconds), 3 * 86400);
   await pg.exec("update branch_closing_photos set expires_at=now()-interval '1 second'");
   shouldFail = true;
-  await assert.rejects(cleanupPhotos({ db, storage }), /Delete unavailable/);
+  await assert.rejects(cleanupPhotos({ db, storage, deviceToken }), /Delete unavailable/);
   assert.equal(
     (await pg.query('select deleted_at from branch_closing_photos')).rows[0].deleted_at,
     null,
@@ -170,10 +194,12 @@ test('private QR, durable reports, retries and automatic retention work against 
     null,
     'expired photos are inaccessible even if storage deletion failed',
   );
-  await assert.rejects(photoForAdmin(OWNER, photoId, { db, storage }), { statusCode: 410 });
+  await assert.rejects(photoForAdmin(OWNER, photoId, { db, storage, deviceToken }), {
+    statusCode: 410,
+  });
   shouldFail = false;
   await pg.exec("update branch_closing_photos set cleanup_lease_until=now()-interval '1 second'");
-  assert.equal((await cleanupPhotos({ db, storage })).deleted, 1);
+  assert.equal((await cleanupPhotos({ db, storage, deviceToken })).deleted, 1);
   assert.equal(storedObjects.size, 0);
   const history = await service.calendar(OWNER, {}, { db });
   assert.equal(history.reports.length, 1);
@@ -184,7 +210,9 @@ test('private QR, durable reports, retries and automatic retention work against 
   ).rows[0];
   assert.deepEqual(access, { public: false, anon: false, authenticated: false });
   await pg.exec('update branch_closing_links set generation=gen_random_uuid()');
-  await assert.rejects(service.resolveSession(session.sessionToken, { db }), { statusCode: 401 });
+  await assert.rejects(service.resolveSession(session.sessionToken, { db, deviceToken }), {
+    statusCode: 401,
+  });
 });
 
 test('claims protect the ten-photo limit and isolate simultaneous submissions', async (t) => {
@@ -202,10 +230,15 @@ test('claims protect the ten-photo limit and isolate simultaneous submissions', 
     readFileSync('supabase/migrations/20261002120000_round_the_clock_shifts.sql', 'utf8'),
   );
   const db = database(pg);
+  await applyDeviceMigration(pg);
   const qr = await service.ensureQr(OWNER, A, { db });
-  const session = await service.openSession(
+  const deviceToken = await approveDevice(
     new URLSearchParams(new URL(qr.url).hash.slice(1)).get('t'),
     { db },
+  );
+  const session = await service.openSession(
+    new URLSearchParams(new URL(qr.url).hash.slice(1)).get('t'),
+    { db, deviceToken },
   );
   const upload = randomUUID(),
     claim = randomUUID();
@@ -215,6 +248,7 @@ test('claims protect the ten-photo limit and isolate simultaneous submissions', 
     p_kind: 'baker',
     p_manifest_hash: 'a'.repeat(64),
     p_claim: claim,
+    p_device_hash: service.tokenHash(deviceToken),
     p_photos: Array.from({ length: 10 }, (_, position) => ({
       id: randomUUID(),
       path: `uploads/${upload}/${position}.jpg`,
@@ -255,7 +289,11 @@ test('claims protect the ten-photo limit and isolate simultaneous submissions', 
   assert.equal(
     (
       await service.rows(
-        db.rpc('finish_branch_closing_upload', { p_upload_id: upload, p_claim: claim }),
+        db.rpc('finish_branch_closing_upload', {
+          p_upload_id: upload,
+          p_claim: claim,
+          p_device_hash: service.tokenHash(deviceToken),
+        }),
       )
     ).error,
     'photos_incomplete',

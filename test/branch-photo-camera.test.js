@@ -5,13 +5,14 @@ const { readFileSync } = require('node:fs');
 const path = require('node:path');
 const { JSDOM } = createRequire(path.resolve('admin-ui/package.json'))('jsdom');
 const flush = async () => {
-  for (let i = 0; i < 12; i++) await Promise.resolve();
+  for (let i = 0; i < 32; i++) await Promise.resolve();
 };
 
 test('tablet captures only live camera frames, caps at ten and retains the batch for safe retries', async (t) => {
   const dom = new JSDOM(readFileSync('public/branch-reports/index.html', 'utf8'), {
     url: 'https://bulka.com.kz/branch-reports#t=fixture',
     runScripts: 'outside-only',
+    pretendToBeVisual: true,
   });
   t.after(() => dom.window.close());
   const w = dom.window,
@@ -42,6 +43,16 @@ test('tablet captures only live camera frames, caps at ten and retains the batch
   w.URL.createObjectURL = () => 'blob:fixture';
   w.URL.revokeObjectURL = () => {};
   w.fetch = async (url, options) => {
+    assert.equal(options.credentials, 'same-origin', 'device cookies accompany every request');
+    if (url.endsWith('/device'))
+      return {
+        ok: true,
+        json: async () => ({
+          success: true,
+          branch: { name: '19А', city: 'Актау' },
+          device: { status: 'active' },
+        }),
+      };
     if (url.endsWith('/session'))
       return {
         ok: true,
@@ -91,6 +102,7 @@ test('camera permission failure provides recovery without exposing a gallery fal
   const dom = new JSDOM(readFileSync('public/branch-reports/index.html', 'utf8'), {
     url: 'https://bulka.com.kz/branch-reports#t=fixture',
     runScripts: 'outside-only',
+    pretendToBeVisual: true,
   });
   t.after(() => dom.window.close());
   const w = dom.window;
@@ -101,14 +113,24 @@ test('camera permission failure provides recovery without exposing a gallery fal
       },
     },
   });
-  w.fetch = async () => ({
-    ok: true,
-    json: async () => ({
-      branch: { name: 'Точка', city: 'Актау' },
-      date: '2026-10-01',
-      reports: [],
-    }),
-  });
+  w.fetch = async (url) =>
+    url.endsWith('/device')
+      ? {
+          ok: true,
+          json: async () => ({
+            success: true,
+            branch: { name: 'Точка', city: 'Актау' },
+            device: { status: 'active' },
+          }),
+        }
+      : {
+          ok: true,
+          json: async () => ({
+            branch: { name: 'Точка', city: 'Актау' },
+            date: '2026-10-01',
+            reports: [],
+          }),
+        };
   w.eval(readFileSync('public/branch-reports/report.js', 'utf8'));
   await flush();
   w.document.querySelector('[data-kind=baker]').click();

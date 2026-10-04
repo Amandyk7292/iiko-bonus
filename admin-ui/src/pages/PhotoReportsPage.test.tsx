@@ -151,6 +151,7 @@ describe('branch closing report calendar', () => {
     renderPage('viewer');
     await screen.findByRole('button', { name: /Актау · 19А · Зал/ });
     expect(screen.queryByRole('button', { name: /QR для/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Планшеты' })).not.toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText('Город'), 'Астана');
     expect(screen.queryByRole('button', { name: /Актау · 19А/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Астана · Premium · Зал/ })).toBeVisible();
@@ -160,6 +161,45 @@ describe('branch closing report calendar', () => {
       }),
     );
     expect(screen.getByText('Точек с такими условиями нет')).toBeVisible();
+  });
+
+  it.each(['viewer', 'employee', 'auditor'])('hides tablet management for %s', async (role) => {
+    renderPage(role);
+    await screen.findByRole('button', { name: /Актау · 19А · Зал/ });
+    expect(screen.queryByRole('button', { name: 'Планшеты' })).not.toBeInTheDocument();
+    expect(mocks.request.mock.calls.some(([path]) => path.startsWith('/photo-reports/devices'))).toBe(false);
+  });
+
+  it.each(['owner', 'admin', 'branch_manager'])('offers tablet management for %s', async (role) => {
+    renderPage(role);
+    await screen.findByRole('button', { name: /Актау · 19А · Зал/ });
+    expect(screen.getByRole('button', { name: 'Планшеты' })).toBeVisible();
+  });
+
+  it('preserves actual audit checks and tablet name when report photos are deleted', async () => {
+    const user = userEvent.setup();
+    const original = mocks.request.getMockImplementation()!;
+    mocks.request.mockImplementation((path: string) => path.startsWith('/photo-reports/branches/')
+      ? Promise.resolve({ branch: a, date, reports: [{ ...report, deviceId: 'tablet-a', deviceName: 'Планшет зала', checks: { deviceAuthorized: true, branchMatched: false, imagesValidated: true }, photos: [] }] })
+      : original(path));
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /Актау · 19А · Зал/ }));
+    const audit = within(await screen.findByRole('region', { name: 'Проверки при отправке' }));
+    expect(audit.getByText('Планшет зала')).toBeVisible();
+    expect(audit.getByText('Планшет подключён').parentElement).toHaveTextContent('Да');
+    expect(audit.getByText('Филиал совпадает').parentElement).toHaveTextContent('Нет');
+    expect(audit.getByText('Формат фото').parentElement).toHaveTextContent('Да');
+    expect(audit.getByText(/17:00/).closest('time')).toHaveAttribute('dateTime', report.submittedAt);
+    expect(screen.getByText('Срок хранения фото истёк')).toBeVisible();
+  });
+
+  it('shows unknown audit results for legacy reports without device metadata', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /Актау · 19А · Зал/ }));
+    const audit = within(await screen.findByRole('region', { name: 'Проверки при отправке' }));
+    expect(audit.getAllByText('Нет данных')).toHaveLength(4);
+    expect(audit.queryByText('Да')).not.toBeInTheDocument();
   });
 
   it('creates a reusable branch QR and offers a downloadable image', async () => {

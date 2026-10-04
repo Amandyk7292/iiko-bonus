@@ -2,35 +2,21 @@ const crypto = require('node:crypto');
 const { supabase } = require('../config/supabase');
 const { encryptSecret, decryptSecret } = require('../utils/secret-envelope.util');
 const { branchScopeForAdmin } = require('../utils/admin-scope.util');
-const { photoPeriod, shiftTimes } = require('../utils/branch-schedule.util');
-const branchFields =
-  'id,name,city,active,round_the_clock,photo_day_shift_start,photo_night_shift_start';
-const branchDto = (b) => ({
-  id: b.id,
-  name: b.name,
-  city: b.city,
-  active: b.active,
-  roundTheClock: b.round_the_clock === true,
-  photoDayShiftStart: shiftTimes(b).day,
-  photoNightShiftStart: shiftTimes(b).night,
-});
+const { photoPeriod } = require('../utils/branch-schedule.util');
+const {
+  branchFields,
+  branchDto,
+  tokenHash,
+  fail,
+  rows,
+  assertScope,
+  resolveLink,
+} = require('./branch-photo-report-access.service');
+const { requireDevice, touchDevice } = require('./branch-photo-devices.service');
 
 const PURPOSE = 'branch-closing-qr';
-const tokenHash = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
 const businessDate = (now = new Date()) =>
   new Date(now.getTime() + 3600000).toISOString().slice(0, 10);
-const fail = (message, statusCode = 400, code = 'PHOTO_REPORT_INVALID') =>
-  Object.assign(new Error(message), { statusCode, code });
-const rows = async (query) => {
-  const { data, error } = await query;
-  if (error) throw error;
-  return data;
-};
-const assertScope = (admin, branchId) => {
-  const scope = branchScopeForAdmin(admin);
-  if (scope.length && !scope.includes(branchId))
-    throw fail('Точка не входит в ваш доступ', 403, 'PHOTO_REPORT_FORBIDDEN');
-};
 const reportDto = (r) => ({
   id: r.id,
   branchId: r.branch_id,
@@ -43,6 +29,9 @@ const reportDto = (r) => ({
   city: r.city,
   photoCount: r.photo_count,
   submittedAt: r.submitted_at,
+  deviceId: r.device_id || null,
+  deviceName: r.device_name || null,
+  checks: r.checks || {},
 });
 
 async function calendar(admin, { end = businessDate(), days = 14 } = {}, { db = supabase } = {}) {
@@ -168,36 +157,9 @@ async function ensureQr(admin, branchId, { db = supabase, env = process.env } = 
   };
 }
 
-async function resolveLink(token, { db = supabase } = {}) {
-  if (!/^[A-Za-z0-9_-]{43}$/.test(String(token || '')))
-    throw fail(
-      'QR-код недействителен. Отсканируйте код вашей точки.',
-      401,
-      'PHOTO_REPORT_LINK_INVALID',
-    );
-  const link = await rows(
-    db
-      .from('branch_closing_links')
-      .select('branch_id,generation')
-      .eq('token_hash', tokenHash(token))
-      .maybeSingle(),
-  );
-  const branch =
-    link &&
-    (await rows(
-      db.from('bulka_locations').select(branchFields).eq('id', link.branch_id).maybeSingle(),
-    ));
-  if (!branch?.active)
-    throw fail(
-      'QR-код недействителен. Обратитесь к управляющему.',
-      401,
-      'PHOTO_REPORT_LINK_INVALID',
-    );
-  return { link, branch };
-}
-
-async function openSession(token, { db = supabase, shift, now = new Date() } = {}) {
+async function openSession(token, { db = supabase, shift, now = new Date(), deviceToken } = {}) {
   const { link, branch } = await resolveLink(token, { db });
+  const device = await requireDevice(deviceToken, branch.id, { db, now });
   if (
     (shift && shift !== 'daily' && !branch.round_the_clock) ||
     (shift === 'daily' && branch.round_the_clock)
@@ -206,17 +168,23 @@ async function openSession(token, { db = supabase, shift, now = new Date() } = {
   const sessionToken = crypto.randomBytes(32).toString('base64url');
   const period = photoPeriod(branch, shift, now);
   const date = period.date;
-  await rows(
-    db.from('branch_closing_sessions').insert({
-      token_hash: tokenHash(sessionToken),
-      branch_id: branch.id,
-      link_generation: link.generation,
-      business_date: date,
-      shift: period.shift,
-      shift_starts_at: period.shiftStartsAt,
-      shift_ends_at: period.shiftEndsAt,
+  const opened = await rows(
+    db.rpc('open_branch_closing_device_session', {
+      p_session_hash: tokenHash(sessionToken),
+      p_device_hash: tokenHash(deviceToken),
+      p_branch: branch.id,
+      p_link_generation: link.generation,
+      p_date: date,
+      p_shift: period.shift,
+      p_starts_at: period.shiftStartsAt,
+      p_ends_at: period.shiftEndsAt,
     }),
   );
+  if (opened.error) {
+    const { checked } = require('./branch-photo-upload.service');
+    checked(opened);
+  }
+  await touchDevice(device, { db, now });
   const reports = await rows(
     db
       .from('branch_closing_reports')
@@ -240,7 +208,7 @@ async function openSession(token, { db = supabase, shift, now = new Date() } = {
   };
 }
 
-async function resolveSession(token, { db = supabase, now = new Date() } = {}) {
+async function resolveSession(token, { db = supabase, now = new Date(), deviceToken } = {}) {
   if (!/^[A-Za-z0-9_-]{43}$/.test(String(token || '')))
     throw fail('Отсканируйте QR точки заново', 401, 'PHOTO_REPORT_SESSION_EXPIRED');
   const session = await rows(
@@ -252,6 +220,11 @@ async function resolveSession(token, { db = supabase, now = new Date() } = {}) {
       401,
       'PHOTO_REPORT_SESSION_EXPIRED',
     );
+  const device = await requireDevice(deviceToken, session.branch_id, {
+    db,
+    now,
+    deviceId: session.device_id,
+  });
   const [branch, link] = await Promise.all([
     rows(db.from('bulka_locations').select(branchFields).eq('id', session.branch_id).maybeSingle()),
     rows(
@@ -273,6 +246,7 @@ async function resolveSession(token, { db = supabase, now = new Date() } = {}) {
     !sameInstant(period.shiftEndsAt, session.shift_ends_at)
   )
     throw fail('Смена изменилась. Обновите страницу.', 401, 'PHOTO_REPORT_SESSION_EXPIRED');
+  await touchDevice(device, { db, now });
   return session;
 }
 

@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 const sharp = require('sharp');
 const { supabase } = require('../config/supabase');
-const { rows, fail, tokenHash } = require('./branch-photo-reports.service');
+const { rows, fail, tokenHash, resolveSession } = require('./branch-photo-reports.service');
 const { BUCKET, photoStorage } = require('./branch-photo-storage.service');
 const messages = {
   photo_limit: 'В отчёте должно быть от 1 до 10 снимков.',
@@ -12,12 +12,20 @@ const messages = {
   upload_busy: 'Отчёт ещё отправляется. Подождите и обновите страницу.',
   upload_expired: 'Снимки устарели. Сделайте новый отчёт.',
   photos_incomplete: 'Не все снимки загрузились. Повторите отправку.',
+  device_required: 'Подтвердите этот планшет у управляющего.',
+  device_revoked: 'Доступ планшета отозван.',
+  device_expired: 'Код подтверждения планшета истёк.',
+  device_branch_mismatch: 'Планшет закреплён за другой точкой.',
 };
 function checked(result) {
   if (result.error)
     throw fail(
       messages[result.error] || 'Не удалось отправить фотоотчёт',
-      result.error === 'session_expired' || result.error === 'link_invalid' ? 401 : 409,
+      result.error.startsWith('device_')
+        ? 403
+        : result.error === 'session_expired' || result.error === 'link_invalid'
+          ? 401
+          : 409,
       `PHOTO_REPORT_${result.error.toUpperCase()}`,
     );
   return result;
@@ -70,8 +78,9 @@ async function submitPhotos(
   sessionToken,
   body,
   files,
-  { db = supabase, storage = photoStorage() } = {},
+  { db = supabase, storage = photoStorage(), deviceToken } = {},
 ) {
+  await resolveSession(sessionToken, { db, deviceToken });
   const photos = await preparePhotos(files, body.uploadId);
   const claim = crypto.randomUUID();
   const result = checked(
@@ -86,6 +95,7 @@ async function submitPhotos(
           .digest('hex'),
         p_photos: photos.map(({ buffer: _buffer, hash: _hash, ...p }) => p),
         p_claim: claim,
+        p_device_hash: tokenHash(deviceToken),
       }),
     ),
   );
@@ -110,7 +120,11 @@ async function submitPhotos(
     }
     return checked(
       await rows(
-        db.rpc('finish_branch_closing_upload', { p_upload_id: body.uploadId, p_claim: claim }),
+        db.rpc('finish_branch_closing_upload', {
+          p_upload_id: body.uploadId,
+          p_claim: claim,
+          p_device_hash: tokenHash(deviceToken),
+        }),
       ),
     );
   } catch (error) {
