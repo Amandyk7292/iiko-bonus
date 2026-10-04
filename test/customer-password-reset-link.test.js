@@ -104,7 +104,7 @@ test.before(async () => {
   for (const file of [
     '20260722223000_customer_password_auth.sql',
     '20261002150000_automatic_customer_otp.sql',
-    '20261004001000_customer_password_reset_links.sql',
+    '20261004180000_customer_password_reset_links.sql',
   ]) {
     await pg.exec(readFileSync(`supabase/migrations/${file}`, 'utf8'));
   }
