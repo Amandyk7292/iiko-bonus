@@ -469,10 +469,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 decoration: BoxDecoration(
                   color: colors.surfaceCream,
                   borderRadius: BorderRadius.circular(BulkaRadii.card),
-                  border: Border.all(
-                    color: colors.cardBorder,
-                    width: BulkaStrokes.hairline,
-                  ),
                   boxShadow: const [
                     BoxShadow(
                       color: Color(0x0C000000),
