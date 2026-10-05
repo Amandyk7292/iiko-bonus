@@ -2,6 +2,43 @@
   display: grid;
   gap: 20px;
 }
+.id-drilldown-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 14px 0 20px;
+}
+.id-drilldown-heading strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.id-drilldown-heading button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+.id-writeoff-document {
+  display: grid;
+  gap: 20px;
+  padding: 20px;
+  min-width: 0;
+}
+.id-drilldown-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--color-surface-soft, #fff5d5);
+}
+.id-drilldown-total strong {
+  font-variant-numeric: tabular-nums;
+}
 .id-control-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

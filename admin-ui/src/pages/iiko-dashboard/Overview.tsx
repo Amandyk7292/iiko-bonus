@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ArrowUpRight,
   ArrowDownRight,
@@ -10,23 +10,11 @@ import {
   Package,
   Coins,
 } from '../../components/BulkaIcons';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Tooltip,
-  Legend,
-  Filler,
-} from 'chart.js';
-import { Line } from 'react-chartjs-2';
 import { useI18n } from '../../lib/i18n';
-import { useReducedMotion } from '../../lib/motion';
 import { datedRows, metrics, valueFor, type Report } from './model';
 import DataTable from './DataTable';
 import BranchRevenue from './BranchRevenue';
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
+import TrendChart from './TrendChart';
 
 export interface OverviewData {
   summary: Report;
@@ -36,13 +24,28 @@ export interface OverviewData {
   branches?: Report | null;
 }
 export default function Overview({ data, cards }: { data: OverviewData; cards: string[] }) {
-  const { t, formatNumber, formatDate } = useI18n();
-  const reduced = useReducedMotion();
+  const { t, formatNumber } = useI18n();
   const [selected, setSelected] = useState('revenue');
   const icons = [Wallet, Receipt, Activity, Tag, Coins, Users, Package];
   const metric = metrics.find((item) => item.id === selected) || metrics[0];
-  const currentRows = data.trend ? datedRows(data.trend) : [];
-  const previousRows = data.previousTrend ? datedRows(data.previousTrend) : [];
+  const scope = JSON.stringify([data.summary.serverId, data.summary.period]);
+  const lastTrend = useRef<{ scope: string; trend: Report; previous?: Report } | undefined>(
+    undefined,
+  );
+  if (data.trend) {
+    lastTrend.current = {
+      scope,
+      trend: data.trend,
+      previous:
+        data.previousTrend ??
+        (lastTrend.current?.scope === scope ? lastTrend.current.previous : undefined),
+    };
+  }
+  // Summary and branches may arrive before trend during a same-query refresh.
+  const cached = lastTrend.current?.scope === scope ? lastTrend.current : undefined;
+  const trend = data.trend ?? cached?.trend;
+  const previousTrend = data.previousTrend ?? cached?.previous;
+  const currentRows = trend ? datedRows(trend) : [];
   return (
     <>
       <div className="id-metric-grid">
@@ -140,7 +143,7 @@ export default function Overview({ data, cards }: { data: OverviewData; cards: s
             );
           })}
       </div>
-      {!data.trend ? (
+      {!trend ? (
         <div className="id-skeleton" role="status">
           {t('id.loading')}
         </div>
@@ -152,81 +155,11 @@ export default function Overview({ data, cards }: { data: OverviewData; cards: s
             role="img"
             aria-label={`${t('id.trend')}: ${t(`id.${metric.id}`)}`}
           >
-            <Line
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: reduced ? false : { duration: 180 },
-                spanGaps: false,
-                plugins: {
-                  legend: {
-                    position: 'bottom',
-                    labels: {
-                      usePointStyle: true,
-                      boxWidth: 7,
-                      padding: 24,
-                      font: { family: 'Montserrat', size: 12 },
-                    },
-                  },
-                },
-                scales: {
-                  x: {
-                    grid: { display: false },
-                    ticks: { maxTicksLimit: 8, color: '#74796f' },
-                    border: { display: false },
-                  },
-                  y: {
-                    grid: { color: '#f0f1ed' },
-                    border: { display: false },
-                    title: { display: metric.money, text: '₸' },
-                    ticks: {
-                      callback: (value) =>
-                        formatNumber(Number(value), {
-                          notation: 'compact',
-                          maximumFractionDigits: 1,
-                        }),
-                    },
-                  },
-                },
-              }}
-              data={{
-                labels: currentRows.map((row) =>
-                  formatDate(String(row['OpenDate.Typed']).slice(0, 10), {
-                    day: 'numeric',
-                    month: 'short',
-                  }),
-                ),
-                datasets: [
-                  {
-                    label: t('id.current'),
-                    data: currentRows.map((row) => valueFor(row, metric.field)),
-                    borderColor: '#9c7418',
-                    backgroundColor: 'rgba(239, 193, 77, 0.12)',
-                    fill: true,
-                    tension: 0.35,
-                    pointRadius: currentRows.length > 1 ? 0 : 4,
-                    pointHoverRadius: 5,
-                    borderWidth: 2,
-                  },
-                  ...(data.previousTrend
-                    ? [
-                        {
-                          label: t('id.previousLine'),
-                          data: previousRows.map((row) => valueFor(row, metric.field)),
-                          borderColor: '#adb3a4',
-                          borderDash: [5, 4],
-                          tension: 0.2,
-                          pointRadius: 1,
-                        },
-                      ]
-                    : []),
-                ],
-              }}
-            />
+            <TrendChart report={trend} previous={previousTrend} metric={metric} />
           </div>
           <details className="id-daily-details">
             <summary>{t('id.dailyData')}</summary>
-            <DataTable report={data.trend} />
+            <DataTable report={trend} />
           </details>
         </section>
       )}

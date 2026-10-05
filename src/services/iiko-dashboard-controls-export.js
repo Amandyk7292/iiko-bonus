@@ -19,6 +19,9 @@ function controlsExport(report, input) {
     rows: report.rows
       .filter(
         (row) =>
+          (!input.cashierKey || row.CashierKey === input.cashierKey) &&
+          (input.documentDepartment === undefined ||
+            (row.Department ?? '') === input.documentDepartment) &&
           (!input.flaggedOnly || row.Flags) &&
           (!input.adviceOnly || !['keep', 'short_period'].includes(row.Advice)),
       )

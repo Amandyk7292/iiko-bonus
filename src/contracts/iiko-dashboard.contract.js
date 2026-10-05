@@ -160,14 +160,22 @@ const controlsExportQuery = z
       'branches',
       'products',
       'documents',
+      'documentItems',
       'reasons',
       'trend',
       'discounts',
+      'discountCashiers',
+      'discountCashiersFlagged',
       'returns',
       'assortment',
     ]),
     flaggedOnly: z.boolean().default(false),
     adviceOnly: z.boolean().default(false),
+    cashierKey: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+    documentDepartment: z.string().max(250).optional(),
   })
   .strict();
 const receiptQuery = z

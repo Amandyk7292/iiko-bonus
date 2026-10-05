@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownUp, Columns3, Search } from '../../components/BulkaIcons';
 import { useI18n } from '../../lib/i18n';
 import type { Report } from './model';
@@ -8,22 +8,41 @@ export default function DataTable({
   report,
   onSelect,
   defaultFields,
+  defaultSort,
+  selectLabel,
+  getSelectLabel,
 }: {
   report: Report;
   defaultFields?: string[];
+  defaultSort?: { field: string; direction: 1 | -1 };
   onSelect?: (row: Record<string, unknown>) => void;
+  selectLabel?: string;
+  getSelectLabel?: (row: Record<string, unknown>) => string;
 }) {
   const { t, formatNumber, formatDate } = useI18n();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
-  const [sort, setSort] = useState({ field: '', direction: -1 });
+  const [sort, setSort] = useState<{ field: string; direction: 1 | -1 }>(
+    () => defaultSort || { field: '', direction: -1 },
+  );
+  const hadDefaultSort = useRef(defaultSort !== undefined);
+  const defaultSortField = defaultSort?.field;
+  const defaultSortDirection = defaultSort?.direction;
   const [visible, setVisible] = useState<string[]>(
     () => defaultFields || Object.keys(report.columns),
   );
   const schemaKey = Object.keys(report.columns).join('|');
+  const detailsLabel = selectLabel ?? t('id.details');
   useEffect(() => {
     setVisible(defaultFields || Object.keys(report.columns));
   }, [schemaKey]);
+  useEffect(() => {
+    if (defaultSortField !== undefined || hadDefaultSort.current) {
+      setSort({ field: defaultSortField ?? '', direction: defaultSortDirection ?? -1 });
+      setPage(0);
+    }
+    hadDefaultSort.current = defaultSortField !== undefined;
+  }, [schemaKey, defaultSortField, defaultSortDirection]);
   const fields = Object.keys(report.columns).filter((field) => visible.includes(field));
   const rows = useMemo(
     () => tableRows(report.rows, Object.keys(report.columns), search, sort),
@@ -96,7 +115,10 @@ export default function DataTable({
                     <button
                       type="button"
                       onClick={() =>
-                        setSort({ field, direction: sort.field === field ? -sort.direction : -1 })
+                        setSort({
+                          field,
+                          direction: sort.field === field && sort.direction === -1 ? 1 : -1,
+                        })
                       }
                     >
                       {report.columns[field].name}
@@ -104,7 +126,7 @@ export default function DataTable({
                     </button>
                   </th>
                 ))}
-                {onSelect && <th>{t('id.details')}</th>}
+                {onSelect && <th>{detailsLabel}</th>}
               </tr>
             </thead>
             <tbody>
@@ -124,7 +146,8 @@ export default function DataTable({
                       <span className={typeof row[field] === 'number' ? 'id-number' : undefined}>
                         {typeof row[field] === 'number'
                           ? formatNumber(row[field] as number, {
-                              maximumFractionDigits: field === 'Quantity' ? 3 : 2,
+                              maximumFractionDigits:
+                                field === 'Quantity' || field === 'WriteoffQuantity' ? 3 : 2,
                             })
                           : report.columns[field].type === 'DATE_TIME' && row[field]
                             ? formatDate(String(row[field]), {
@@ -136,15 +159,16 @@ export default function DataTable({
                     </td>
                   ))}
                   {onSelect && (
-                    <td data-label={t('id.details')}>
+                    <td data-label={detailsLabel}>
                       <button
                         type="button"
+                        aria-label={getSelectLabel?.(row)}
                         onClick={(event) => {
                           event.stopPropagation();
                           onSelect(row);
                         }}
                       >
-                        {t('id.details')}
+                        {detailsLabel}
                       </button>
                     </td>
                   )}

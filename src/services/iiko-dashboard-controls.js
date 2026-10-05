@@ -1,3 +1,10 @@
+const {
+  ranked,
+  documentIdentity,
+  writeoffDocuments,
+  discountCheckRows,
+  discountCashiers,
+} = require('./iiko-dashboard-control-drilldown');
 const col = (name, type = 'STRING') => ({ name, type });
 const n = (value) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
 const pct = (value, total) => (total > 0 ? (value / total) * 100 : null);
@@ -5,6 +12,7 @@ const change = (value, previous) => (previous > 0 ? ((value - previous) / previo
 const key = (...parts) => JSON.stringify(parts);
 const sum = (rows, field) => rows.reduce((total, row) => total + n(row[field]), 0);
 const names = {
+  Rank: col('Место', 'INTEGER'),
   Department: col('Филиал'),
   'Product.Name': col('Товар'),
   'Product.MeasureUnit': col('Единица'),
@@ -13,6 +21,7 @@ const names = {
   Revenue: col('Выручка, ₸', 'MONEY'),
   WriteoffShare: col('Списания / выручка, %', 'PERCENT'),
   DocumentCount: col('Документов', 'INTEGER'),
+  CheckCount: col('Чеков со скидкой', 'INTEGER'),
   Reason: col('Статья списания'),
   Comment: col('Комментарий'),
   Day: col('Дата'),
@@ -58,8 +67,7 @@ function groupWriteoffs(rows, fields) {
     const group = groups.get(id);
     group.WriteoffCost += n(row.WriteoffCost);
     group.WriteoffQuantity += n(row.WriteoffQuantity);
-    if (n(row.WriteoffQuantity) > 0 || n(row.WriteoffCost) > 0)
-      group.documents.add(key(row.Department, row.Store, row.Document, row.Day));
+    group.documents.add(documentIdentity(row));
   }
   return [...groups.values()].map(({ documents, ...row }) => ({
     ...row,
@@ -73,6 +81,7 @@ function writeoffControl(input, documents, revenue, previous) {
     Reason: row['Contr-Account.Name'] || '',
     Comment: row.Comment || '',
   }));
+  const documentDetails = writeoffDocuments(rows);
   const byBranch = new Map();
   const byDay = new Map();
   for (const row of revenue.rows) {
@@ -108,10 +117,11 @@ function writeoffControl(input, documents, revenue, previous) {
       revenue: sales,
       share: pct(cost, sales),
       change: change(cost, priorCost),
-      documents: new Set(rows.map((r) => key(r.Department, r.Store, r.Document, r.Day))).size,
+      documents: documentDetails.headers.length,
     },
     tables: {
-      branches: table(documents, branchRows, [
+      branches: table(documents, ranked(branchRows, 'WriteoffCost', 'Department'), [
+        'Rank',
         'Department',
         'WriteoffCost',
         'Revenue',
@@ -136,7 +146,16 @@ function writeoffControl(input, documents, revenue, previous) {
         groupWriteoffs(rows, ['Reason', 'Comment']).sort((a, b) => b.WriteoffCost - a.WriteoffCost),
         ['Reason', 'Comment', 'WriteoffCost', 'DocumentCount'],
       ),
-      documents: table(documents, rows, [
+      documents: table(documents, documentDetails.headers, [
+        'Department',
+        'Store',
+        'Document',
+        'Day',
+        'WriteoffCost',
+        'Reason',
+        'Comment',
+      ]),
+      documentItems: table(documents, documentDetails.items, [
         'Department',
         'Store',
         'Document',
@@ -215,18 +234,34 @@ function operationsControl(input, discounts, returns) {
       .filter(Boolean)
       .join('|'),
   });
-  const discountRows = discounted.map(flag),
+  const discountRows = discountCheckRows(discounts, discounted)
+      .map(flag)
+      .sort((a, b) => b.DiscountSum - a.DiscountSum || a.CheckKey.localeCompare(b.CheckKey)),
     returnRows = refunded.map(flag);
   const fields = ['Department', 'OrderNum', 'SourceOrderNum', 'CloseTime', 'Cashier', 'AuthUser'];
   return {
     summary: {
       discount: sum(discountRows, 'DiscountSum'),
-      discountChecks: discountRows.length,
+      discountChecks: discounted.length,
       returns: sum(returnRows, 'ReturnSum'),
       returnChecks: returnRows.length,
-      flagged: [...discountRows, ...returnRows].filter((row) => row.Flags).length,
+      flagged:
+        new Set(discountRows.filter((row) => row.Flags).map((row) => row.CheckKey)).size +
+        returnRows.filter((row) => row.Flags).length,
     },
     tables: {
+      discountCashiers: table(discounts, discountCashiers(discountRows), [
+        'Rank',
+        'Cashier',
+        'Department',
+        'DiscountSum',
+        'CheckCount',
+      ]),
+      discountCashiersFlagged: table(
+        discounts,
+        discountCashiers(discountRows.filter((row) => row.Flags)),
+        ['Rank', 'Cashier', 'Department', 'DiscountSum', 'CheckCount'],
+      ),
       discounts: table(discounts, discountRows, [
         ...fields,
         'DiscountName',

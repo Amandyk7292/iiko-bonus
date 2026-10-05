@@ -55,7 +55,7 @@ test('write-off share uses matching revenue and frequency deduplicates documents
   assert.equal(result.summary.cost, 80);
   assert.equal(result.summary.share, 8);
   assert.equal(result.summary.change, 100);
-  assert.equal(result.tables.branches.rows[0].DocumentCount, 1);
+  assert.equal(result.tables.branches.rows[0].DocumentCount, 2);
   assert(!result.tables.branches.columns.WriteoffQuantity);
   assert.equal(
     result.tables.products.rows.find((r) => r['Product.Id'] === 'P').WriteoffQuantity,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download, SlidersHorizontal } from '../../components/BulkaIcons';
+import { ArrowLeft, Download, SlidersHorizontal } from '../../components/BulkaIcons';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -17,6 +17,8 @@ import { download } from './api';
 import { errorKey, type Query, type Report } from './model';
 import DataTable from './DataTable';
 import ReceiptDetails from './ReceiptDetails';
+import WriteoffDocumentDetails from './WriteoffDocumentDetails';
+import { controlReport } from './control-report';
 import { controlText } from './control-labels';
 import './controls.css';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip);
@@ -29,7 +31,7 @@ type Result = {
 };
 const modes = {
   writeoffs: ['branches', 'products', 'reasons', 'documents', 'trend'],
-  operations: ['discounts', 'returns'],
+  operations: ['discountCashiers', 'discounts', 'returns'],
   assortment: ['assortment'],
 };
 export default function Controls({
@@ -56,6 +58,13 @@ export default function Controls({
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
   const [receipt, setReceipt] = useState<{ row: Record<string, unknown>; scope: string }>();
+  const [selection, setSelection] = useState<{
+    kind: 'branch' | 'cashier';
+    key: string;
+    label: string;
+    scope: string;
+  }>();
+  const [document, setDocument] = useState<{ key: string; scope: string }>();
   const query = useMemo(
     () => ({
       serverId: base.serverId,
@@ -68,7 +77,11 @@ export default function Controls({
     [base.serverId, base.from, base.to, department, mode, criteria],
   );
   const queryKey = JSON.stringify(query);
-  useEffect(() => setReceipt(undefined), [queryKey, table]);
+  useEffect(() => {
+    setReceipt(undefined);
+    setDocument(undefined);
+  }, [queryKey, table, flagged]);
+  useEffect(() => setSelection(undefined), [queryKey]);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
@@ -89,55 +102,58 @@ export default function Controls({
     return () => controller.abort();
   }, [queryKey, refresh]);
   const current = loaded === queryKey ? data : undefined;
-  const raw = current?.tables[table];
-  const report: Report | undefined = raw
-    ? {
-        ...raw,
-        columns: Object.fromEntries(
-          Object.entries(raw.columns).map(([key, column]) => [key, { ...column, name: text(key) }]),
-        ),
-        rows: raw.rows
-          .filter(
-            (row) =>
-              (!flagged || mode !== 'operations' || row.Flags) &&
-              (!onlyAdvice ||
-                mode !== 'assortment' ||
-                !['keep', 'short_period'].includes(String(row.Advice))),
-          )
-          .map((row) => ({
-            ...row,
-            ...(raw.columns.Flags
-              ? {
-                  Flags: String(row.Flags || '')
-                    .split('|')
-                    .filter(Boolean)
-                    .map(text)
-                    .join(' · '),
-                }
-              : {}),
-            ...(raw.columns.Advice
-              ? { Advice: text(String(row.Advice)), Pace: text(String(row.Pace)) }
-              : {}),
-            ...(raw.columns.Reason
-              ? {
-                  Reason: row.Reason || text('notSpecified'),
-                  Comment: row.Comment || text('notSpecified'),
-                }
-              : {}),
-            ...(row.CloseTime
-              ? {
-                  CloseTime: formatDate(String(row.CloseTime), {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  }),
-                }
-              : {}),
-          })),
-      }
+  const activeSelection = selection?.scope === queryKey ? selection : undefined;
+  const sourceTable = table === 'discountCashiers' && flagged ? 'discountCashiersFlagged' : table;
+  const raw = current?.tables[sourceTable];
+  const report = raw
+    ? controlReport(
+        raw,
+        text,
+        (value) => formatDate(value, { dateStyle: 'short', timeStyle: 'short' }),
+        (row) =>
+          Boolean(
+            (!activeSelection ||
+              (activeSelection.kind === 'branch'
+                ? String(row.Department ?? '') === activeSelection.key
+                : row.CashierKey === activeSelection.key)) &&
+            (!flagged || mode !== 'operations' || table === 'discountCashiers' || row.Flags) &&
+            (!onlyAdvice ||
+              mode !== 'assortment' ||
+              !['keep', 'short_period'].includes(String(row.Advice))),
+          ),
+      )
     : undefined;
+  const selectedDocument =
+    document?.scope === queryKey
+      ? current?.tables.documents?.rows.find((row) => row.DocumentKey === document.key)
+      : undefined;
+  const selectRow =
+    mode === 'writeoffs' && table === 'branches'
+      ? (row: Record<string, unknown>) => {
+          setSelection({
+            kind: 'branch',
+            key: String(row.Department ?? ''),
+            label: String(row.Department || text('notSpecified')),
+            scope: queryKey,
+          });
+          setTable('documents');
+        }
+      : mode === 'writeoffs' && table === 'documents'
+        ? (row: Record<string, unknown>) =>
+            setDocument({ key: String(row.DocumentKey), scope: queryKey })
+        : mode === 'operations' && table === 'discountCashiers'
+          ? (row: Record<string, unknown>) => {
+              setSelection({
+                kind: 'cashier',
+                key: String(row.CashierKey),
+                label: [row.Cashier, row.Department].filter(Boolean).join(' · '),
+                scope: queryKey,
+              });
+              setTable('discounts');
+            }
+          : mode === 'operations' && table === 'discounts'
+            ? (row: Record<string, unknown>) => setReceipt({ row, scope: `${queryKey}:${table}` })
+            : undefined;
   const cards =
     mode === 'writeoffs'
       ? [
@@ -167,7 +183,11 @@ export default function Controls({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query,
-          table,
+          table: sourceTable,
+          ...(activeSelection?.kind === 'branch'
+            ? { documentDepartment: activeSelection.key }
+            : {}),
+          ...(activeSelection?.kind === 'cashier' ? { cashierKey: activeSelection.key } : {}),
           flaggedOnly: flagged && mode === 'operations',
           adviceOnly: onlyAdvice && mode === 'assortment',
         }),
@@ -298,7 +318,10 @@ export default function Controls({
                     type="button"
                     key={value}
                     aria-pressed={table === value}
-                    onClick={() => setTable(value)}
+                    onClick={() => {
+                      setSelection(undefined);
+                      setTable(value);
+                    }}
                   >
                     {text(value)}
                   </button>
@@ -347,14 +370,39 @@ export default function Controls({
                 {loading ? ' · …' : ''}
               </time>
             </div>
+            {activeSelection && (
+              <div className="id-drilldown-heading">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTable(activeSelection.kind === 'branch' ? 'branches' : 'discountCashiers');
+                    setSelection(undefined);
+                  }}
+                >
+                  <ArrowLeft size={16} aria-hidden="true" />
+                  {text(activeSelection.kind === 'branch' ? 'allBranches' : 'allCashiers')}
+                </button>
+                <strong>{activeSelection.label}</strong>
+              </div>
+            )}
             {report && (
               <DataTable
-                key={table}
+                key={`${queryKey}:${table}:${activeSelection?.key ?? ''}:${flagged}`}
                 report={report}
-                onSelect={
-                  mode === 'operations' && table === 'discounts'
-                    ? (row) => setReceipt({ row, scope: `${queryKey}:${table}` })
-                    : undefined
+                onSelect={selectRow}
+                selectLabel={text(
+                  table === 'branches'
+                    ? 'documents'
+                    : table === 'discountCashiers'
+                      ? 'checks'
+                      : 'open',
+                )}
+                defaultSort={
+                  mode === 'writeoffs' && ['branches', 'documents'].includes(table)
+                    ? { field: 'WriteoffCost', direction: -1 }
+                    : mode === 'operations' && ['discountCashiers', 'discounts'].includes(table)
+                      ? { field: 'DiscountSum', direction: -1 }
+                      : undefined
                 }
                 defaultFields={
                   mode === 'assortment'
@@ -368,17 +416,19 @@ export default function Controls({
                         'Advice',
                         'SuggestedDaily',
                       ]
-                    : mode === 'operations'
-                      ? [
-                          'Department',
-                          'OrderNum',
-                          'CloseTime',
-                          'Cashier',
-                          'AuthUser',
-                          table === 'returns' ? 'ReturnSum' : 'DiscountSum',
-                          'Flags',
-                        ]
-                      : undefined
+                    : table === 'discountCashiers'
+                      ? ['Rank', 'Cashier', 'Department', 'DiscountSum', 'CheckCount']
+                      : mode === 'operations'
+                        ? [
+                            'Department',
+                            'OrderNum',
+                            'CloseTime',
+                            'Cashier',
+                            'AuthUser',
+                            table === 'returns' ? 'ReturnSum' : 'DiscountSum',
+                            'Flags',
+                          ]
+                        : undefined
                 }
               />
             )}
@@ -392,6 +442,16 @@ export default function Controls({
           onClose={() => setReceipt(undefined)}
         />
       )}
+      {selectedDocument &&
+        mode === 'writeoffs' &&
+        table === 'documents' &&
+        current?.tables.documentItems && (
+          <WriteoffDocumentDetails
+            document={selectedDocument}
+            items={current.tables.documentItems}
+            onClose={() => setDocument(undefined)}
+          />
+        )}
     </div>
   );
 }
