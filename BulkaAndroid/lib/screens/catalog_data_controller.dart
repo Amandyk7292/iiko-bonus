@@ -521,6 +521,9 @@ extension _CatalogDataController on _CatalogScreenState {
       }
       _liveProducts.value = liveProducts;
     }
+    // A response for the previous branch must not change an explicitly
+    // reviewed handoff before the shell applies its new catalog scope.
+    if (PendingChatGptCartLink.isPending) return;
     context.read<CartProvider>().reconcileMenu(
       products.map(
         (product) => CartProductSnapshot(

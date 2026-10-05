@@ -235,8 +235,8 @@ test('manually created dishes stay inside the selected city iiko profile', () =>
     path.join(__dirname, '..', 'src', 'routes', 'admin', 'menu.routes.js'),
     'utf8',
   );
-  const publicRoutes = fs.readFileSync(
-    path.join(__dirname, '..', 'src', 'routes', 'legacy.routes.js'),
+  const publicMenu = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'services', 'public-menu.service.js'),
     'utf8',
   );
 
@@ -244,7 +244,7 @@ test('manually created dishes stay inside the selected city iiko profile', () =>
   assert.match(migration, /custom_products_iiko_profile_sort_idx/i);
   assert.match(menuSource, /\.eq\('iiko_profile', cleanProfileKey\(profileKey\)\)/);
   assert.match(adminRoutes, /profileKey: selectedIikoApi\.profileKey/);
-  assert.match(publicRoutes, /getCustomProducts\(\{[\s\S]*profileKey: selectedIikoApi\.profileKey/);
+  assert.match(publicMenu, /getCustomProducts\(\{[\s\S]*profileKey: selectedIikoApi\.profileKey/);
 });
 
 test('customer profile refresh preserves the selected avatar', () => {

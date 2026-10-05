@@ -42,6 +42,7 @@ class OrdersScreen extends StatefulWidget {
     this.onOpenProduct,
     this.onRequireAuth,
     this.onOpenOrders,
+    this.restoreCheckout = true,
     super.key,
   });
 
@@ -57,6 +58,7 @@ class OrdersScreen extends StatefulWidget {
   final ValueChanged<String>? onOpenProduct;
   final Future<bool> Function()? onRequireAuth;
   final Future<void> Function()? onOpenOrders;
+  final bool restoreCheckout;
 
   @override
   State<OrdersScreen> createState() => _OrdersScreenState();
@@ -157,6 +159,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Future<void> _prepareCheckoutRestore() async {
+    if (!widget.restoreCheckout) return;
     final prefs = await SharedPreferences.getInstance();
     if (!mounted || prefs.getString('lastAppScreen') != 'checkout') return;
     _restoreCheckoutPending = true;

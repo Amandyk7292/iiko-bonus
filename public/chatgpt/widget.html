@@ -1,0 +1,1234 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bulka Bakery</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #51290f;
+        --muted: #82715f;
+        --gold: #ffbf18;
+        --cream: #fff9ed;
+        --line: #ecdfce;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #fff;
+        font:
+          15px/1.5 system-ui,
+          -apple-system,
+          sans-serif;
+        color: var(--ink);
+      }
+      button,
+      input,
+      select,
+      a {
+        font: inherit;
+      }
+      button,
+      a.button {
+        cursor: pointer;
+        min-height: 44px;
+        border: 0;
+        border-radius: 14px;
+        padding: 10px 16px;
+        background: #f6f0e6;
+        color: var(--ink);
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+      button:hover,
+      a.button:hover {
+        filter: brightness(0.97);
+      }
+      button:active {
+        transform: scale(0.98);
+      }
+      button:disabled {
+        opacity: 0.48;
+        cursor: default;
+      }
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      a:focus-visible {
+        outline: 3px solid #a76b17;
+        outline-offset: 3px;
+      }
+      button.primary,
+      a.primary {
+        color: #fff;
+        background: linear-gradient(135deg, #7c431e, #44220e);
+        box-shadow: 0 5px 15px #582c101c;
+      }
+      input,
+      select {
+        min-height: 44px;
+        padding: 10px 12px;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        color: var(--ink);
+        min-width: 0;
+      }
+      .shell {
+        max-width: 960px;
+        margin: auto;
+        padding: 20px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding-bottom: 18px;
+        border-bottom: 1px solid var(--line);
+      }
+      .wordmark {
+        font:
+          bold 31px Georgia,
+          serif;
+        letter-spacing: -1px;
+      }
+      .eyebrow {
+        font-size: 11px;
+        color: var(--muted);
+        letter-spacing: 1.8px;
+        text-transform: uppercase;
+      }
+      .status {
+        min-height: 24px;
+        color: var(--muted);
+        font-size: 13px;
+        padding: 10px 0;
+      }
+      .status.error {
+        color: #a12b20;
+      }
+      h1 {
+        font-size: 23px;
+        letter-spacing: -0.5px;
+        margin: 12px 0 6px;
+      }
+      h2 {
+        font-size: 19px;
+        margin: 0 0 12px;
+      }
+      p {
+        margin: 4px 0 14px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 16px 0;
+      }
+      .toolbar input {
+        flex: 1;
+      }
+      .toolbar select {
+        max-width: 240px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+        gap: 14px;
+      }
+      .point,
+      .product {
+        background: linear-gradient(145deg, #fff, #fffaf1);
+        border: 1px solid #f0e6d8;
+        border-radius: 20px;
+        padding: 16px;
+        text-align: left;
+      }
+      .point strong {
+        display: block;
+        font-size: 16px;
+      }
+      .point small {
+        display: block;
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .point {
+        align-items: start;
+        flex-direction: column;
+      }
+      .photo {
+        height: 150px;
+        background: linear-gradient(110deg, #f9f3e9, #eee4d1, #f9f3e9);
+        border-radius: 13px;
+        overflow: hidden;
+        margin-bottom: 12px;
+      }
+      .photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+      .photo img.loaded {
+        opacity: 1;
+      }
+      .name {
+        font-weight: 650;
+        font-size: 15px;
+        min-height: 45px;
+      }
+      .price {
+        font-size: 18px;
+        font-weight: 700;
+        margin: 6px 0;
+      }
+      .quantity {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .quantity button {
+        width: 44px;
+        padding: 8px;
+        font-size: 20px;
+      }
+      .quantity span {
+        flex: 1;
+        text-align: center;
+      }
+      .stock {
+        font-size: 12px;
+        color: #896c40;
+        margin-bottom: 10px;
+      }
+      .basket {
+        background: var(--cream);
+        border-radius: 20px;
+        padding: 18px;
+        margin-top: 20px;
+      }
+      .line {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--line);
+        padding: 12px 0;
+      }
+      .line .quantity {
+        min-width: 145px;
+      }
+      .sum {
+        font-weight: 700;
+        font-size: 23px;
+        margin: 16px 0 4px;
+      }
+      .wide {
+        width: 100%;
+      }
+      .tags {
+        display: flex;
+        gap: 8px;
+        overflow: auto;
+        padding: 2px 0 12px;
+        margin: 10px 0;
+      }
+      .tags button {
+        white-space: nowrap;
+        background: #fbf6ed;
+      }
+      .tags button.selected {
+        background: #ffe5a0;
+      }
+      .back {
+        font-size: 13px;
+        background: transparent;
+        padding-left: 0;
+      }
+      .empty {
+        padding: 28px;
+        text-align: center;
+        background: var(--cream);
+        border-radius: 16px;
+      }
+      .spinner {
+        width: 18px;
+        height: 18px;
+        border: 2px solid #dec7a5;
+        border-top-color: #663213;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        display: inline-block;
+        vertical-align: middle;
+        margin-right: 8px;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: #28140052;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        z-index: 5;
+      }
+      .modal {
+        width: min(520px, 100%);
+        max-height: 90vh;
+        overflow: auto;
+        background: #fff;
+        border-radius: 24px;
+        padding: 24px;
+        box-shadow: 0 20px 80px #28140033;
+      }
+      .modal label {
+        display: block;
+        margin-top: 14px;
+      }
+      .modal select {
+        width: 100%;
+        margin-top: 6px;
+      }
+      .modal .check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+      }
+      .modal input[type='checkbox'] {
+        min-height: 22px;
+        width: 22px;
+      }
+      .actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      .note {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .page {
+        animation: appear 0.2s ease-out;
+      }
+      @keyframes appear {
+        from {
+          opacity: 0.6;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @media (max-width: 460px) {
+        .shell {
+          padding: 14px;
+        }
+        .grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+        .product {
+          padding: 11px;
+        }
+        .photo {
+          height: 125px;
+        }
+        .line {
+          align-items: start;
+          flex-wrap: wrap;
+        }
+        .toolbar select {
+          max-width: 100%;
+          flex: 1;
+        }
+        .sum {
+          font-size: 21px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *:before,
+        *:after {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="brand">
+        <div>
+          <div class="wordmark">Bulka</div>
+          <div class="eyebrow">Bakery · Казахстан</div>
+        </div>
+        <span class="muted">Свежая выпечка рядом</span>
+      </header>
+      <div id="status" class="status" role="status" aria-live="polite">Загружаем…</div>
+      <section id="content" aria-label="Меню Bulka"></section>
+      <section id="basket"></section>
+    </main>
+    <div id="overlay"></div>
+    <script>
+      (() => {
+        'use strict';
+        const content = document.getElementById('content'),
+          basket = document.getElementById('basket'),
+          status = document.getElementById('status');
+        let snapshot = null,
+          branch = null,
+          orderType = 'pickup',
+          language = 'ru',
+          items = [],
+          menuProducts = [],
+          busy = false,
+          nextId = 1,
+          ready = false,
+          selectedCity = '';
+        const pending = new Map(),
+          money = (value) =>
+            new Intl.NumberFormat('ru-KZ', { maximumFractionDigits: 2 }).format(value) + ' ₸';
+        const el = (tag, text, cls) => {
+          const e = document.createElement(tag);
+          if (text != null) e.textContent = String(text);
+          if (cls) e.className = cls;
+          return e;
+        };
+        const button = (text, fn, cls) => {
+          const b = el('button', text, cls);
+          b.type = 'button';
+          b.disabled = busy;
+          b.onclick = fn;
+          return b;
+        };
+        function rpc(method, params) {
+          return new Promise((resolve, reject) => {
+            const id = nextId++,
+              timer = setTimeout(() => {
+                pending.delete(id);
+                reject(Error('Нет ответа. Попробуйте ещё раз.'));
+              }, 30000);
+            pending.set(id, { resolve, reject, timer });
+            window.parent.postMessage({ jsonrpc: '2.0', id, method, params }, '*');
+          });
+        }
+        function notify(method, params) {
+          if (ready) window.parent.postMessage({ jsonrpc: '2.0', method, params }, '*');
+        }
+        function message(text, error = false) {
+          status.textContent = text;
+          status.className = 'status' + (error ? ' error' : '');
+        }
+        function payloadItems(values = items) {
+          return values.map(({ id, quantity, configuration, modifiers }) => ({
+            id,
+            quantity,
+            ...(configuration && Object.keys(configuration).length ? { configuration } : {}),
+            ...(modifiers?.length ? { modifiers: modifierIds(modifiers) } : {}),
+          }));
+        }
+        function updateContext() {
+          if (!ready) return;
+          // The MCP Apps protocol defines this method as a request with a reply.
+          rpc('ui/update-model-context', {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  branchId: branch?.id,
+                  orderType,
+                  items: payloadItems(),
+                }),
+              },
+            ],
+          }).catch(() => {});
+        }
+        function selectionSignature(values, pointId, type) {
+          return JSON.stringify({
+            pointId,
+            type,
+            items: payloadItems(values)
+              .map((item) => ({
+                ...item,
+                configuration: Object.fromEntries(Object.entries(item.configuration || {}).sort()),
+                modifiers: (item.modifiers || [])
+                  .map((group) => ({
+                    groupId: group.groupId,
+                    optionIds: [...group.optionIds].sort(),
+                  }))
+                  .sort((a, b) => a.groupId.localeCompare(b.groupId)),
+              }))
+              .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+          });
+        }
+        function reviewChange(title, description, acceptLabel, accept) {
+          const shade = el('div', null, 'overlay'),
+            dialog = el('section', null, 'modal');
+          dialog.setAttribute('role', 'dialog');
+          dialog.setAttribute('aria-modal', 'true');
+          dialog.setAttribute('aria-label', title);
+          dialog.tabIndex = -1;
+          const close = () => document.getElementById('overlay').replaceChildren();
+          dialog.append(
+            el('h2', title),
+            el('p', description),
+            button('Оставить мою корзину', close),
+            button(
+              acceptLabel,
+              () => {
+                close();
+                accept();
+              },
+              'primary',
+            ),
+          );
+          shade.append(dialog);
+          document.getElementById('overlay').replaceChildren(shade);
+          dialog.focus();
+          shade.onkeydown = (e) => {
+            if (e.key === 'Escape') close();
+            if (e.key === 'Tab') {
+              const focusable = [...dialog.querySelectorAll('button')],
+                first = focusable[0],
+                last = focusable.at(-1);
+              if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+              } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+              }
+            }
+          };
+        }
+        async function call(name, args) {
+          if (busy) return null;
+          busy = true;
+          message('Загружаем…');
+          render();
+          try {
+            const r = await rpc('tools/call', { name, arguments: args });
+            if (r.isError)
+              throw Error(
+                r.content?.find((c) => c.type === 'text')?.text || 'Не удалось загрузить.',
+              );
+            message('');
+            return r.structuredContent;
+          } catch (e) {
+            message(e.message, true);
+            return null;
+          } finally {
+            busy = false;
+            render();
+          }
+        }
+        function absorb(data) {
+          if (!data || typeof data !== 'object') return;
+          if (data.view === 'menu' || data.view === 'options') {
+            if (!data.branch?.id) return;
+            if (items.length && (branch?.id !== data.branch.id || orderType !== data.orderType)) {
+              reviewChange(
+                'Сменить точку?',
+                'Текущая корзина будет очищена. Новая точка: ' + data.branch.name,
+                'Сменить точку',
+                () => {
+                  items = [];
+                  absorb(data);
+                  updateContext();
+                },
+              );
+              return;
+            }
+            branch = { ...branch, ...data.branch };
+            orderType = data.orderType;
+            language = data.language || language;
+            if (data.view === 'menu') menuProducts = data.products || [];
+            snapshot = data;
+          } else if (data.view === 'branches') {
+            snapshot = data;
+          } else if (data.view === 'cart') {
+            const incoming = (data.items || []).map((x) => ({
+              id: x.id,
+              quantity: x.quantity,
+              name: x.product?.name || x.name || 'Товар',
+              unit: x.unit || x.product?.unit,
+              quantityStep: x.quantityStep || x.product?.quantityStep || 1,
+              availableQuantity: x.product?.availableQuantity,
+              product: x.product,
+              options: x.options,
+              price: x.unitPrice ?? x.price,
+              configuration: codes(x.configuration),
+              modifiers: modifierIds(x.modifiers),
+              requiresSelection: x.requiresSelection === true,
+            }));
+            if (
+              items.length &&
+              selectionSignature(items, branch?.id, orderType) !==
+                selectionSignature(incoming, data.branch?.id, data.orderType)
+            ) {
+              reviewChange(
+                'Новая корзина из чата',
+                incoming
+                  .map((x) => x.name + ' · ' + x.quantity + ' ' + (x.unit || 'шт.'))
+                  .join(', '),
+                'Заменить корзину',
+                () => {
+                  items = [];
+                  absorb(data);
+                  updateContext();
+                },
+              );
+              return;
+            }
+            branch = branch?.id === data.branch?.id ? { ...branch, ...data.branch } : data.branch;
+            orderType = data.orderType;
+            language = data.language || language;
+            items = incoming;
+            snapshot = data;
+          }
+          render();
+        }
+        function codes(config) {
+          if (!config) return undefined;
+          return Object.fromEntries(
+            ['weight', 'filling', 'design']
+              .filter((k) => config[k])
+              .map((k) => [k, typeof config[k] === 'string' ? config[k] : config[k].code]),
+          );
+        }
+        function modifierIds(groups) {
+          return (groups || [])
+            .map((g) => ({
+              groupId: g.groupId || g.id,
+              optionIds: g.optionIds || g.options?.map((o) => o.id || o.code) || [],
+            }))
+            .filter((g) => g.groupId && g.optionIds.length);
+        }
+        async function branches(city) {
+          const data = await call('find_bulka_branches', city ? { city } : {});
+          if (data) {
+            selectedCity = city || '';
+            absorb(data);
+          }
+        }
+        async function menu(extra = {}) {
+          const data = await call('get_bulka_menu', {
+            branchId: branch.id,
+            orderType,
+            language,
+            ...extra,
+          });
+          if (data) absorb(data);
+        }
+        function changeQty(item, delta) {
+          if (busy) return;
+          const q = Math.round((item.quantity + delta) * 1000) / 1000;
+          const productQuantity =
+            items.filter((x) => x.id === item.id).reduce((sum, x) => sum + x.quantity, 0) + delta;
+          if (
+            q > 99 ||
+            productQuantity > 99 ||
+            (item.availableQuantity != null && productQuantity > item.availableQuantity)
+          ) {
+            message('Это количество сейчас недоступно.', true);
+            return;
+          }
+          if (q <= 0) items = items.filter((x) => x !== item);
+          else item.quantity = q;
+          if (snapshot?.view === 'cart') snapshot = null;
+          render();
+          updateContext();
+        }
+        function qty(item) {
+          const box = el('div', null, 'quantity');
+          box.append(
+            button('−', () => changeQty(item, -item.quantityStep)),
+            el('span', item.quantity + ' ' + (item.unit || 'шт.')),
+            button('+', () => changeQty(item, item.quantityStep)),
+          );
+          box.firstChild.setAttribute('aria-label', 'Уменьшить количество ' + item.name);
+          box.lastChild.setAttribute('aria-label', 'Увеличить количество ' + item.name);
+          return box;
+        }
+        function add(p, configuration, modifiers, delta = 0) {
+          modifiers = modifierIds(modifiers);
+          const existing = items.find(
+            (x) =>
+              x.id === p.id &&
+              JSON.stringify(x.configuration || {}) === JSON.stringify(configuration || {}) &&
+              JSON.stringify(x.modifiers || []) === JSON.stringify(modifiers || []),
+          );
+          if (existing) changeQty(existing, existing.quantityStep);
+          else {
+            if (items.length >= 20) {
+              message('В корзине можно выбрать до 20 разных позиций.', true);
+              return;
+            }
+            const step = Number(p.quantityStep) || 1;
+            const totalQuantity =
+              items.filter((x) => x.id === p.id).reduce((sum, x) => sum + x.quantity, 0) + step;
+            if (
+              totalQuantity > 99 ||
+              (p.availableQuantity != null && totalQuantity > p.availableQuantity)
+            ) {
+              message('Это количество сейчас недоступно.', true);
+              return;
+            }
+            items.push({
+              id: p.id,
+              name: p.name,
+              quantity: Number(p.quantityStep) || 1,
+              quantityStep: Number(p.quantityStep) || 1,
+              unit: p.unit,
+              availableQuantity: p.availableQuantity,
+              product: p,
+              price: Number(p.price) + delta,
+              configuration,
+              modifiers,
+            });
+            if (snapshot?.view === 'cart') snapshot = null;
+            render();
+            updateContext();
+          }
+        }
+        async function configure(p, suppliedOptions, editing) {
+          const result = suppliedOptions
+            ? { options: suppliedOptions }
+            : await call('get_bulka_product_options', {
+                branchId: branch.id,
+                orderType,
+                language,
+                productId: p.id,
+              });
+          if (!result) return;
+          const options = result.options || {},
+            config = options.configuration,
+            groups = options.modifierGroups || [];
+          if (
+            (!config?.enabled || config.productKind === 'standard') &&
+            !groups.length &&
+            !editing
+          ) {
+            add(p);
+            return;
+          }
+          const shade = el('div', null, 'overlay'),
+            dialog = el('section', null, 'modal');
+          dialog.setAttribute('role', 'dialog');
+          dialog.setAttribute('aria-modal', 'true');
+          dialog.setAttribute('aria-label', p.name);
+          dialog.tabIndex = -1;
+          dialog.append(el('h2', p.name), el('p', 'Выберите варианты', 'muted'));
+          const selections = {},
+            checks = [];
+          const title = (x) =>
+            typeof x === 'object' ? x[language] || x.ru || x.en || '' : String(x || '');
+          for (const [key, label] of [
+            ['weight', 'Вес'],
+            ['filling', 'Начинка'],
+            ['design', 'Оформление'],
+          ]) {
+            const list = config?.enabled ? config[key + 'Options'] || [] : [];
+            if (!list.length) continue;
+            const labelEl = el('label', label),
+              select = el('select');
+            select.append(new Option('Выберите', ''));
+            for (const o of list)
+              select.append(
+                new Option(
+                  title(o.title || o.name) + ' · +' + money(o.priceDelta ?? o.price_delta ?? 0),
+                  o.code || o.id,
+                ),
+              );
+            if (editing?.configuration?.[key]) select.value = editing.configuration[key];
+            selections[key] = { select, list };
+            labelEl.append(select);
+            dialog.append(labelEl);
+          }
+          for (const group of groups) {
+            dialog.append(el('label', title(group.title) + (group.required ? ' *' : '')));
+            const values = [];
+            for (const option of group.options || []) {
+              const label = el('label', null, 'check'),
+                input = el('input');
+              input.type = 'checkbox';
+              input.checked = editing
+                ? editing.modifiers?.some(
+                    (entry) => entry.groupId === group.id && entry.optionIds.includes(option.id),
+                  )
+                : !!option.isDefault;
+              if (group.selectionType === 'single')
+                input.onchange = () => {
+                  if (input.checked)
+                    for (const other of values)
+                      if (other.input !== input) other.input.checked = false;
+                };
+              label.append(
+                input,
+                el('span', title(option.title) + ' · +' + money(option.priceDelta || 0)),
+              );
+              dialog.append(label);
+              values.push({ input, option });
+            }
+            checks.push({ group, values });
+          }
+          const error = el('p', null, 'status error');
+          error.setAttribute('role', 'alert');
+          dialog.append(error);
+          const actions = el('div', null, 'actions');
+          const close = () => {
+            document.getElementById('overlay').replaceChildren();
+          };
+          actions.append(
+            button('Отмена', close),
+            button(
+              editing ? 'Сохранить варианты' : 'Добавить',
+              () => {
+                const selected = {},
+                  mods = [];
+                let delta = 0;
+                for (const [key, { select, list }] of Object.entries(selections)) {
+                  if (!select.value) {
+                    error.textContent = 'Выберите все варианты.';
+                    return;
+                  }
+                  selected[key] = select.value;
+                  const o = list.find((x) => String(x.code || x.id) === select.value);
+                  delta += Number(o.priceDelta ?? o.price_delta ?? 0);
+                }
+                for (const { group, values } of checks) {
+                  const chosen = values.filter((x) => x.input.checked);
+                  if (
+                    chosen.length < Math.max(group.required ? 1 : 0, group.minSelected || 0) ||
+                    chosen.length >
+                      Math.min(group.maxSelected ?? 1, group.selectionType === 'single' ? 1 : 10)
+                  ) {
+                    error.textContent = 'Проверьте количество вариантов: ' + title(group.title);
+                    return;
+                  }
+                  if (chosen.length)
+                    mods.push({
+                      groupId: group.id,
+                      optionIds: chosen.map((x) => x.option.id || x.option.code),
+                    });
+                  delta += chosen.reduce((sum, x) => sum + Number(x.option.priceDelta || 0), 0);
+                }
+                if (mods.length > 10) {
+                  error.textContent =
+                    'Слишком много групп вариантов. Выберите товар на сайте Bulka.';
+                  return;
+                }
+                close();
+                if (editing) {
+                  editing.configuration = Object.keys(selected).length ? selected : undefined;
+                  editing.modifiers = mods;
+                  editing.price = Number(p.price) + delta;
+                  editing.requiresSelection = false;
+                  snapshot = null;
+                  render();
+                  updateContext();
+                } else add(p, Object.keys(selected).length ? selected : undefined, mods, delta);
+              },
+              'primary',
+            ),
+          );
+          dialog.append(actions);
+          shade.append(dialog);
+          document.getElementById('overlay').replaceChildren(shade);
+          dialog.focus();
+          shade.onkeydown = (e) => {
+            if (e.key === 'Escape') close();
+            if (e.key === 'Tab') {
+              const focusable = [...dialog.querySelectorAll('button,select,input')];
+              const first = focusable[0],
+                last = focusable.at(-1);
+              if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+              } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+              }
+            }
+          };
+        }
+        function render() {
+          content.replaceChildren();
+          basket.replaceChildren();
+          content.className = 'page';
+          if (snapshot?.view === 'branches') {
+            content.append(el('h1', 'Выберите точку'));
+            const toolbar = el('div', null, 'toolbar'),
+              city = el('select');
+            city.setAttribute('aria-label', 'Город');
+            city.append(new Option('Все города', ''));
+            for (const c of snapshot.cities || [])
+              city.append(
+                new Option(typeof c === 'string' ? c : c.name, typeof c === 'string' ? c : c.name),
+              );
+            city.value = selectedCity;
+            city.disabled = busy;
+            city.onchange = () => branches(city.value);
+            toolbar.append(city);
+            content.append(toolbar);
+            const grid = el('div', null, 'grid');
+            for (const b of snapshot.branches || []) {
+              const card = button(
+                '',
+                () => {
+                  const selectBranch = () => {
+                    branch = b;
+                    items = [];
+                    orderType = b.pickupEnabled
+                      ? 'pickup'
+                      : b.preorderEnabled
+                        ? 'preorder'
+                        : 'delivery';
+                    menu();
+                    updateContext();
+                  };
+                  if (items.length)
+                    reviewChange(
+                      'Сменить точку?',
+                      'Текущая корзина будет очищена. Новая точка: ' + b.name,
+                      'Сменить точку',
+                      selectBranch,
+                    );
+                  else selectBranch();
+                },
+                'point',
+              );
+              card.append(el('strong', b.name), el('small', b.city), el('small', b.address));
+              grid.append(card);
+            }
+            content.append(grid);
+            if (!grid.childElementCount) content.append(el('p', 'Точки не найдены', 'empty'));
+          } else if (branch) {
+            content.append(
+              button(
+                '← Выбрать другую точку',
+                () => {
+                  if (items.length) {
+                    message('Очистите корзину перед сменой точки.', true);
+                    return;
+                  }
+                  branch = null;
+                  branches();
+                },
+                'back',
+              ),
+              el('h1', branch.name),
+              el('p', branch.city + ' · ' + branch.address, 'muted'),
+            );
+            const toolbar = el('form', null, 'toolbar'),
+              type = el('select'),
+              search = el('input');
+            type.setAttribute('aria-label', 'Тип заказа');
+            for (const [value, label, enabled] of [
+              ['pickup', 'Самовывоз', branch.pickupEnabled],
+              ['delivery', 'Доставка', branch.deliveryEnabled],
+              ['preorder', 'Предзаказ', branch.preorderEnabled],
+            ])
+              if (enabled) type.append(new Option(label, value));
+            type.value = orderType;
+            type.disabled = busy || items.length > 0;
+            type.onchange = () => {
+              const previousType = orderType;
+              orderType = type.value;
+              menu().then(() => {
+                if (snapshot?.orderType !== orderType) orderType = previousType;
+                render();
+              });
+            };
+            search.placeholder = 'Найти в меню';
+            search.setAttribute('aria-label', 'Поиск в меню');
+            search.value = snapshot?.query || '';
+            search.disabled = busy;
+            toolbar.append(
+              type,
+              search,
+              button('Найти', () => menu({ query: search.value })),
+            );
+            toolbar.onsubmit = (e) => {
+              e.preventDefault();
+              menu({ query: search.value });
+            };
+            content.append(toolbar);
+            if (snapshot?.view === 'menu') {
+              const tags = el('div', null, 'tags');
+              tags.append(button('Всё', () => menu(), !snapshot.categoryId ? 'selected' : ''));
+              for (const c of snapshot.categories || [])
+                tags.append(
+                  button(
+                    c.name,
+                    () => menu({ categoryId: c.id }),
+                    snapshot.categoryId === c.id ? 'selected' : '',
+                  ),
+                );
+              content.append(tags);
+              const grid = el('div', null, 'grid');
+              for (const p of menuProducts) {
+                const card = el('article', null, 'product'),
+                  photo = el('div', null, 'photo');
+                if (p.imageUrl) {
+                  try {
+                    const url = new URL(p.imageUrl);
+                    if (
+                      url.protocol === 'https:' &&
+                      url.origin === 'https://bulka.com.kz' &&
+                      !url.username &&
+                      !url.password
+                    ) {
+                      const image = el('img');
+                      image.src = url.href;
+                      image.alt = p.name;
+                      image.loading = 'lazy';
+                      image.onload = () => image.classList.add('loaded');
+                      photo.append(image);
+                    }
+                  } catch {}
+                }
+                card.append(
+                  photo,
+                  el('div', p.name, 'name'),
+                  el('div', money(p.price) + (p.unit?.includes('кг') ? ' / кг' : ''), 'price'),
+                );
+                const available =
+                  p.isAvailable !== false && p.onlineOrderable !== false && !p.inStopList;
+                card.append(
+                  el(
+                    'div',
+                    available
+                      ? p.availableQuantity != null
+                        ? 'В наличии: ' + p.availableQuantity + ' ' + p.unit
+                        : 'В наличии'
+                      : 'Нет в наличии',
+                    'stock',
+                  ),
+                );
+                const addButton = button(
+                  'Добавить',
+                  () => (p.hasOptions === false ? add(p) : configure(p)),
+                  'primary wide',
+                );
+                addButton.disabled = busy || !available;
+                card.append(addButton);
+                grid.append(card);
+              }
+              content.append(grid);
+              if (!grid.childElementCount) content.append(el('p', 'Товары не найдены', 'empty'));
+              const pages = el('div', null, 'actions');
+              if (snapshot.offset > 0)
+                pages.append(
+                  button('Назад', () =>
+                    menu({
+                      offset: Math.max(0, snapshot.offset - (snapshot.limit || 24)),
+                      limit: snapshot.limit || 24,
+                      query: snapshot.query,
+                      categoryId: snapshot.categoryId,
+                    }),
+                  ),
+                );
+              if (snapshot.hasMore)
+                pages.append(
+                  button('Ещё товары', () =>
+                    menu({
+                      offset: snapshot.offset + menuProducts.length,
+                      limit: snapshot.limit || 24,
+                      query: snapshot.query,
+                      categoryId: snapshot.categoryId,
+                    }),
+                  ),
+                );
+              content.append(pages);
+            } else if (snapshot?.view === 'options' && snapshot.product) {
+              content.append(
+                el('h2', snapshot.product.name),
+                el('p', 'Выберите варианты товара', 'muted'),
+                button(
+                  'Выбрать варианты',
+                  () => configure(snapshot.product, snapshot.options),
+                  'primary',
+                ),
+              );
+            } else content.append(button('Открыть меню', () => menu(), 'primary'));
+          } else content.append(button('Выбрать точку', () => branches(), 'primary'));
+          if (items.length) {
+            const box = el('div', null, 'basket');
+            box.append(el('h2', 'Корзина'));
+            for (const item of items) {
+              const row = el('div', null, 'line');
+              const details = el('div');
+              details.append(el('strong', item.name));
+              if (item.requiresSelection)
+                details.append(
+                  button(
+                    'Выбрать варианты',
+                    () => configure(item.product, item.options, item),
+                    'back',
+                  ),
+                );
+              row.append(details, qty(item));
+              box.append(row);
+            }
+            const total = items.reduce(
+              (s, x) => s + Math.round((Number(x.price) || 0) * x.quantity),
+              0,
+            );
+            const incomplete =
+              snapshot?.requiresSelection || items.some((x) => x.requiresSelection);
+            const validated =
+              snapshot?.view === 'cart' && !incomplete && snapshot.itemSubtotal != null;
+            box.append(
+              el(
+                'div',
+                incomplete
+                  ? 'Нужно выбрать варианты'
+                  : validated
+                    ? money(snapshot.itemSubtotal)
+                    : 'Предварительно: ' + money(total),
+                'sum',
+              ),
+              el(
+                'p',
+                incomplete
+                  ? 'Выберите варианты. Итоговая сумма — при оформлении.'
+                  : 'Сумма товаров. Доставка и бонусы — при оформлении.',
+                'note',
+              ),
+            );
+            if (snapshot?.view === 'cart' && snapshot.checkoutUrl) {
+              try {
+                const url = new URL(snapshot.checkoutUrl);
+                if (
+                  url.origin === 'https://bulka.com.kz' &&
+                  !url.username &&
+                  !url.password &&
+                  url.pathname === '/' &&
+                  url.searchParams.has('chatgptCart')
+                ) {
+                  const link = el('a', 'Оформить на Bulka', 'button primary wide');
+                  link.href = url.href;
+                  link.target = '_blank';
+                  link.rel = 'noopener noreferrer';
+                  link.onclick = (e) => {
+                    if (ready) {
+                      e.preventDefault();
+                      rpc('ui/open-link', { url: url.href }).catch(() =>
+                        message('Откройте ссылку оформления из ответа ChatGPT.', true),
+                      );
+                    }
+                  };
+                  box.append(link);
+                }
+              } catch {}
+            } else
+              box.append(
+                button(
+                  'Проверить корзину',
+                  async () => {
+                    const data = await call('prepare_bulka_cart', {
+                      branchId: branch.id,
+                      orderType,
+                      language,
+                      items: payloadItems(),
+                    });
+                    if (data) absorb(data);
+                  },
+                  'primary wide',
+                ),
+              );
+            box.append(
+              button(
+                'Очистить',
+                () => {
+                  items = [];
+                  if (snapshot?.view === 'cart') snapshot = null;
+                  render();
+                  updateContext();
+                },
+                'back',
+              ),
+            );
+            basket.append(box);
+          }
+          if (busy) {
+            const spin = el('span', null, 'spinner');
+            status.prepend(spin);
+          }
+          notify('ui/notifications/size-changed', {
+            height: document.documentElement.scrollHeight,
+            width: document.documentElement.clientWidth,
+          });
+        }
+        window.addEventListener('message', (e) => {
+          if (e.source !== window.parent) return;
+          const m = e.data;
+          if (m?.jsonrpc !== '2.0') return;
+          if (!m.method && pending.has(m.id)) {
+            const p = pending.get(m.id);
+            clearTimeout(p.timer);
+            pending.delete(m.id);
+            m.error ? p.reject(Error(m.error.message)) : p.resolve(m.result);
+            return;
+          }
+          if (m.method === 'ui/notifications/tool-input') {
+            language = m.params?.arguments?.language || language;
+          }
+          if (m.method === 'ui/notifications/tool-result') {
+            if (m.params?.isError)
+              message(
+                m.params.content?.find((entry) => entry.type === 'text')?.text ||
+                  'Не удалось загрузить.',
+                true,
+              );
+            else {
+              message('');
+              absorb(m.params?.structuredContent);
+            }
+          }
+          if (m.method === 'ui/notifications/tool-cancelled') {
+            message('Загрузка отменена.');
+          }
+        });
+        rpc('ui/initialize', {
+          appInfo: { name: 'Bulka Bakery', version: '1.0.0' },
+          appCapabilities: {},
+          protocolVersion: '2026-01-26',
+        })
+          .then(() => {
+            ready = true;
+            notify('ui/notifications/initialized', {});
+            render();
+            if (!snapshot) message('Выберите точку Bulka в чате.');
+          })
+          .catch(() => {
+            message('Откройте Bulka Bakery в ChatGPT.');
+          });
+        render();
+      })();
+    </script>
+  </body>
+</html>

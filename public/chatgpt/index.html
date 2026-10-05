@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Bulka Bakery — заказы из ChatGPT</title>
+    <meta
+      name="description"
+      content="Выбирайте выпечку Bulka Bakery в ChatGPT и оформляйте заказ на сайте Bulka. ИП Рублева, Казахстан."
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #fffaf0;
+        color: #542c17;
+        font:
+          16px/1.65 system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      main {
+        max-width: 860px;
+        margin: auto;
+        padding: 32px 22px;
+      }
+      header {
+        padding: 36px 0 28px;
+      }
+      .logo {
+        font:
+          bold 42px Georgia,
+          serif;
+        letter-spacing: -1px;
+      }
+      h1 {
+        font-size: clamp(30px, 6vw, 48px);
+        line-height: 1.15;
+        letter-spacing: -1.2px;
+        margin: 14px 0;
+      }
+      h2 {
+        font-size: 23px;
+        margin-top: 0;
+      }
+      p {
+        margin: 10px 0;
+      }
+      section {
+        background: #fff;
+        border-radius: 24px;
+        padding: 26px;
+        margin: 18px 0;
+        box-shadow: 0 8px 32px #54301905;
+      }
+      a {
+        color: #764012;
+        text-underline-offset: 4px;
+      }
+      .action {
+        display: inline-block;
+        text-decoration: none;
+        padding: 12px 20px;
+        background: linear-gradient(130deg, #814822, #49240e);
+        color: #fff;
+        border-radius: 14px;
+        margin: 14px 0;
+      }
+      .muted {
+        color: #806d5b;
+        font-size: 14px;
+      }
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+      }
+      .step b {
+        display: block;
+        font-size: 20px;
+        margin-bottom: 8px;
+      }
+      .badge {
+        display: inline-block;
+        padding: 5px 12px;
+        background: #ffe4a0;
+        border-radius: 30px;
+        font-size: 13px;
+      }
+      footer {
+        font-size: 13px;
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin: 24px 0;
+      }
+      code {
+        overflow-wrap: anywhere;
+        font-size: 13px;
+      }
+      @media (max-width: 600px) {
+        .steps {
+          grid-template-columns: 1fr;
+        }
+        main {
+          padding: 18px;
+        }
+        section {
+          padding: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="logo">Bulka Bakery</div>
+        <span class="badge">Казахстан · ИП Рублева</span>
+        <h1>Выпечка Bulka<br />в вашем чате</h1>
+        <p>Выберите точку и товары в ChatGPT. Проверьте заказ и оплатите его на сайте Bulka.</p>
+        <a class="action" href="/">Открыть Bulka</a>
+      </header>
+      <section>
+        <h2>Как это работает</h2>
+        <div class="steps">
+          <div class="step"><b>1. Выберите точку</b>Найдите пекарню в своём городе.</div>
+          <div class="step">
+            <b>2. Соберите корзину</b>Посмотрите меню, цены, наличие и варианты товаров.
+          </div>
+          <div class="step">
+            <b>3. Оформите на Bulka</b>Войдите в аккаунт, выберите получение и подтвердите оплату.
+          </div>
+        </div>
+        <p class="muted">
+          Самовывоз, доставка и предзаказ доступны по настройкам выбранной точки. Итоговая сумма,
+          доставка, бонусы и время получения подтверждаются на Bulka.
+        </p>
+      </section>
+      <section id="privacy">
+        <h2>Данные и конфиденциальность</h2>
+        <p>
+          Для показа меню и подготовки корзины плагин передаёт Bulka выбранную точку, тип заказа,
+          язык, товары, количества и выбранные варианты. Для этих действий он не запрашивает
+          телефон, адрес доставки, пароль или платёжные реквизиты.
+        </p>
+        <p>
+          Ссылка на корзину подписана сервером и действует 30 минут. Она содержит только выбор
+          товаров и не даёт доступ к аккаунту. Перед переносом корзины Bulka повторно проверяет цены
+          и наличие. Сам переход по ссылке не создаёт и не оплачивает заказ.
+        </p>
+        <p>
+          При оформлении на сайте действуют обычные правила Bulka. Переписку в ChatGPT обрабатывает
+          OpenAI по своим правилам. Не отправляйте в чат пароль и данные банковской карты.
+        </p>
+        <p>
+          Порядок обработки технических и клиентских данных, обращения и удаления данных описан в
+          <a href="/privacy">политике конфиденциальности Bulka</a>.
+        </p>
+      </section>
+      <section id="terms">
+        <h2>Условия использования</h2>
+        <p>
+          Плагин помогает выбрать продукты и подготовить корзину. Товары в ней не резервируются.
+          Наличие и цена могут измениться до оформления; Bulka проверит их повторно.
+        </p>
+        <p>
+          Заказ подтверждается на сайте Bulka после проверки состава, способа получения и оплаты.
+          Покупки, возвраты и доставка регулируются <a href="/public-offer">публичной офертой</a>,
+          <a href="/terms">условиями использования</a>,
+          <a href="/payment-and-refund">правилами оплаты и возврата</a> и
+          <a href="/delivery-terms">условиями доставки</a>.
+        </p>
+        <p>Сервис предназначен для заказа продуктов Bulka в Казахстане.</p>
+      </section>
+      <section id="support">
+        <h2>Поддержка</h2>
+        <p>
+          Если возникла проблема с меню, корзиной или заказом, свяжитесь с Bulka. Для оформленного
+          заказа укажите его номер.
+        </p>
+        <p>
+          <a href="tel:+77012772233">+7 701 277 22 33</a><br /><a
+            href="mailto:bulka.kazakhstan@mail.ru"
+            >bulka.kazakhstan@mail.ru</a
+          >
+        </p>
+        <p class="muted">
+          Издатель: ИП Рублева. <a href="/company-details">Реквизиты компании</a>.
+        </p>
+      </section>
+      <footer>
+        <a href="#privacy">Конфиденциальность</a><a href="#terms">Условия</a
+        ><a href="#support">Поддержка</a><span>© Bulka Bakery</span>
+      </footer>
+    </main>
+  </body>
+</html>

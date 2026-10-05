@@ -289,6 +289,36 @@ class _MainShellState extends State<MainShell> {
     });
   }
 
+  void _adoptChatGptCart(ChatGptCartDraft draft) {
+    setState(() {
+      _catalogOrderType = draft.orderType;
+      _hasCatalogOrderType = true;
+      _lastOrderableCartType = null;
+      _catalogSelectionRevision++;
+    });
+    _changeTab(2);
+  }
+
+  Future<void> _selectChatGptCartOptions(ChatGptCartDraft draft) async {
+    final item = draft.items
+        .where((value) => value.requiresSelection)
+        .firstOrNull;
+    if (item == null) return;
+    await _openCatalogFor(draft.orderType);
+    if (!mounted) return;
+    final uri = productClientUri(
+      item.cartItem.id,
+    ).replace(queryParameters: {'branch': draft.branch.id});
+    _pendingCatalogProduct = uri;
+    publishClientRoute(uri);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _tab == 1 && _pendingCatalogProduct == uri) {
+        _pendingCatalogProduct = null;
+        _catalogKey.currentState?.applyClientUri(uri);
+      }
+    });
+  }
+
   void _changeTab(int index) {
     _pendingCatalogProduct = null;
     _catalogKey.currentState?.cancelPendingProductNavigation();
@@ -353,6 +383,7 @@ class _MainShellState extends State<MainShell> {
         onOpenProduct: _openCatalogProduct,
         onRequireAuth: _requireAuth,
         onOpenOrders: widget.onOpenOrders,
+        restoreCheckout: !PendingChatGptCartLink.isPending,
       ),
       LocationDirectoryScreen(
         key: const PageStorageKey('locations-tab'),
@@ -382,49 +413,54 @@ class _MainShellState extends State<MainShell> {
     ];
 
     final tabSwitcher = _PersistentTabSwitcher(index: _tab, children: pages);
-    return PopScope(
-      canPop: _tab == 0,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && _tab != 0) {
-          if (_tab == 1 &&
-              (_catalogKey.currentState?.closeCategoryPage() ?? false)) {
-            return;
+    return ChatGptCartHandoff(
+      api: widget.api,
+      onImported: _adoptChatGptCart,
+      onSelectOptions: _selectChatGptCartOptions,
+      child: PopScope(
+        canPop: _tab == 0,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop && _tab != 0) {
+            if (_tab == 1 &&
+                (_catalogKey.currentState?.closeCategoryPage() ?? false)) {
+              return;
+            }
+            _changeTab(0);
           }
-          _changeTab(0);
-        }
-      },
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final useDesktopNavigation = constraints.maxWidth >= 900;
-          if (useDesktopNavigation) {
-            return Scaffold(
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              body: Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1360),
-                  child: Row(
-                    children: [
-                      _DesktopNavigation(
-                        selectedIndex: _tab,
-                        onChanged: _changeTab,
-                      ),
-                      Expanded(child: tabSwitcher),
-                    ],
+        },
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final useDesktopNavigation = constraints.maxWidth >= 900;
+            if (useDesktopNavigation) {
+              return Scaffold(
+                backgroundColor: Theme.of(context).colorScheme.surface,
+                body: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1360),
+                    child: Row(
+                      children: [
+                        _DesktopNavigation(
+                          selectedIndex: _tab,
+                          onChanged: _changeTab,
+                        ),
+                        Expanded(child: tabSwitcher),
+                      ],
+                    ),
                   ),
                 ),
+              );
+            }
+            return Scaffold(
+              extendBody: true,
+              body: BulkaAdaptiveFrame(child: tabSwitcher),
+              bottomNavigationBar: FloatingNavBar(
+                selectedIndex: _tab,
+                onChanged: _changeTab,
               ),
             );
-          }
-          return Scaffold(
-            extendBody: true,
-            body: BulkaAdaptiveFrame(child: tabSwitcher),
-            bottomNavigationBar: FloatingNavBar(
-              selectedIndex: _tab,
-              onChanged: _changeTab,
-            ),
-          );
-        },
+          },
+        ),
       ),
     );
   }

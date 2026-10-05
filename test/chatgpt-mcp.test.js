@@ -1,0 +1,143 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const express = require('express');
+const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
+const { InMemoryTransport } = require('@modelcontextprotocol/sdk/inMemory.js');
+const { createBulkaMcpServer, WIDGET_URI } = require('../src/services/chatgpt-mcp.service');
+const { createMcpRouter, mcpCors } = require('../src/routes/chatgpt-mcp.routes');
+
+const id = '11111111-1111-4111-8111-111111111111';
+const catalog = {
+  findBranches: async () => ({
+    branches: [{ id, name: 'Bulka', city: 'Актау' }],
+    cities: ['Актау'],
+  }),
+  getMenu: async (args) => ({ branch: { id }, ...args, products: [{ id: 'bun', price: 300 }] }),
+  getProductOptions: async () => ({
+    productId: 'bun',
+    options: { configuration: null, modifierGroups: [] },
+  }),
+};
+const cart = {
+  prepareCart: async (args) => ({
+    ...args,
+    itemSubtotal: 600,
+    checkoutUrl: 'https://bulka.com.kz/?chatgptCart=example',
+  }),
+};
+const createServer = () =>
+  createBulkaMcpServer({ catalog, cart, widgetHtml: '<main>Bulka</main>' });
+
+test('MCP advertises only public catalog and unreserved draft tools, with constrained UI resources', async (t) => {
+  const server = createServer(),
+    client = new Client({ name: 'test', version: '1' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+  const { tools } = await client.listTools();
+  assert.deepEqual(
+    tools.map((x) => x.name),
+    ['find_bulka_branches', 'get_bulka_menu', 'get_bulka_product_options', 'prepare_bulka_cart'],
+  );
+  assert.ok(tools.every((x) => x.annotations.readOnlyHint && !x.annotations.destructiveHint));
+  assert.ok(tools.every((x) => x._meta.securitySchemes[0].type === 'noauth'));
+  const resource = await client.readResource({ uri: WIDGET_URI });
+  assert.equal(resource.contents[0].mimeType, 'text/html;profile=mcp-app');
+  assert.deepEqual(resource.contents[0]._meta.ui.csp.resourceDomains, ['https://bulka.com.kz']);
+  assert.deepEqual(resource.contents[0]._meta.ui.csp.connectDomains, []);
+  const branches = await client.callTool({
+    name: 'find_bulka_branches',
+    arguments: { city: 'Актау' },
+  });
+  assert.equal(branches.structuredContent.view, 'branches');
+  const menu = await client.callTool({ name: 'get_bulka_menu', arguments: { branchId: id } });
+  assert.equal(menu.structuredContent.orderType, 'pickup');
+  const invalid = await client.callTool({
+    name: 'prepare_bulka_cart',
+    arguments: { branchId: id, items: [{ id: 'bun', quantity: 2, price: 1 }] },
+  });
+  assert.equal(invalid.isError, true);
+  const preview = await client.callTool({
+    name: 'prepare_bulka_cart',
+    arguments: { branchId: id, items: [{ id: 'bun', quantity: 2 }] },
+  });
+  assert.equal(preview.structuredContent.itemSubtotal, 600);
+});
+
+test('Streamable HTTP initializes and serves tools without sessions; rejects foreign origins and oversized payloads', async (t) => {
+  const app = express();
+  app.use(mcpCors);
+  app.use(express.json());
+  app.use(createMcpRouter({ createServer }));
+  const listener = app.listen(0, '127.0.0.1');
+  await new Promise((resolve) => listener.once('listening', resolve));
+  t.after(() => new Promise((resolve) => listener.close(resolve)));
+  const url = `http://127.0.0.1:${listener.address().port}/mcp`;
+  const rpc = (body, origin) =>
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        ...(origin && { Origin: origin }),
+      },
+      body: JSON.stringify(body),
+    });
+  const initial = await rpc({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2025-11-25',
+      capabilities: {},
+      clientInfo: { name: 'test', version: '1' },
+    },
+  });
+  assert.equal(initial.status, 200);
+  assert.equal((await initial.json()).result.serverInfo.name, 'bulka-bakery');
+  assert.equal(initial.headers.get('mcp-session-id'), null);
+  const list = await rpc({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, 'https://chatgpt.com');
+  assert.equal(list.headers.get('access-control-allow-origin'), 'https://chatgpt.com');
+  assert.equal((await list.json()).result.tools.length, 4);
+  const foreign = await rpc(
+    { jsonrpc: '2.0', id: 3, method: 'tools/list' },
+    'https://attacker.example',
+  );
+  assert.equal(foreign.status, 403);
+  const oversized = await rpc({
+    jsonrpc: '2.0',
+    id: 4,
+    method: 'tools/list',
+    params: { x: 'x'.repeat(33000) },
+  });
+  assert.equal(oversized.status, 413);
+  const get = await fetch(url);
+  assert.equal(get.status, 405);
+});
+
+test('MCP tool errors hide upstream database details', async (t) => {
+  const server = createBulkaMcpServer({
+    catalog: {
+      ...catalog,
+      findBranches: async () => {
+        throw Error('database secret internal relation');
+      },
+    },
+    cart,
+  });
+  const client = new Client({ name: 'test', version: '1' }),
+    [a, b] = InMemoryTransport.createLinkedPair();
+  await server.connect(b);
+  await client.connect(a);
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+  const result = await client.callTool({ name: 'find_bulka_branches', arguments: {} });
+  assert.equal(result.isError, true);
+  assert.doesNotMatch(result.content[0].text, /secret|database|relation/);
+});

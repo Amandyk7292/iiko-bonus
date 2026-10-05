@@ -12,6 +12,7 @@ const loyaltyRoutes = require('./routes/loyalty.routes');
 const walletRoutes = require('./routes/wallet.routes');
 const publicRoutes = require('./routes/public.routes');
 const legacyRoutes = require('./routes/legacy.routes');
+const { router: chatgptMcpRoutes, mcpCors } = require('./routes/chatgpt-mcp.routes');
 const yandexMapRoutes = require('./routes/yandex-map.routes');
 const { globalApiRateLimit, siteRateLimit } = require('./middlewares/rate-limit.middleware');
 const { tildaCopyProxy } = require('./middlewares/tilda-copy-proxy.middleware');
@@ -120,20 +121,21 @@ const publicOrigin = (() => {
 })();
 const allowedOrigins = new Set([...configuredOrigins, publicOrigin].filter(Boolean));
 const allowLocalOrigins = process.env.NODE_ENV !== 'production';
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (
-        !origin ||
-        allowedOrigins.has(origin) ||
-        (allowLocalOrigins && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))
-      ) {
-        return callback(null, true);
-      }
-      return callback(new Error('Origin is not allowed'));
-    },
-    credentials: true,
-  }),
+const siteCors = cors({
+  origin(origin, callback) {
+    if (
+      !origin ||
+      allowedOrigins.has(origin) ||
+      (allowLocalOrigins && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))
+    ) {
+      return callback(null, true);
+    }
+    return callback(new Error('Origin is not allowed'));
+  },
+  credentials: true,
+});
+app.use((req, res, next) =>
+  /^\/mcp\/?$/i.test(req.path) ? mcpCors(req, res, next) : siteCors(req, res, next),
 );
 
 app.use('/api', globalApiRateLimit);
@@ -151,6 +153,7 @@ app.use(
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(requestBodySafetyMiddleware);
 app.use(apiEnvelopeValidationMiddleware);
+app.use(chatgptMcpRoutes);
 
 const sendLiveness = (_req, res) =>
   res
@@ -348,6 +351,7 @@ app.use(require('./routes/front-order-board.routes'));
 app.use(loyaltyRoutes);
 app.use(walletRoutes);
 app.use(publicRoutes);
+app.use(require('./routes/chatgpt-cart.routes'));
 app.use(yandexMapRoutes);
 app.use(require('./routes/screen-cakes.routes'));
 app.use(require('./routes/app-link.routes'));

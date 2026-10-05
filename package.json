@@ -29,6 +29,7 @@
     "verify": "npm run check:secrets && npm run check:contracts && npm run lint && npm run check:structure && npm run check:icons && npm run check:migration-safety && npm run test:coverage && npm run build && npm run check:bundle-admin && npm --prefix admin-ui run lint && npm --prefix admin-ui run test:coverage"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.0",
     "@parse/node-apn": "^8.1.0",
     "@supabase/supabase-js": "^2.110.0",
     "@whiskeysockets/baileys": "7.0.0-rc14",

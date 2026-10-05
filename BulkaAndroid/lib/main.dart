@@ -129,6 +129,8 @@ part 'core/helpers.dart';
 part 'core/support_whatsapp.dart';
 part 'core/live_refresh.dart';
 part 'core/product_links.dart';
+part 'core/chatgpt_cart.dart';
+part 'core/chatgpt_cart_handoff.dart';
 part 'core/catalog_search.dart';
 part 'core/home_widget_sync.dart';
 part 'core/favorite_store.dart';
@@ -340,6 +342,9 @@ void main() {
   runZonedGuarded(
     () {
       WidgetsFlutterBinding.ensureInitialized();
+      if (kIsWeb) {
+        PendingChatGptCartLink.capture(currentClientUri());
+      }
       FlutterError.onError = (details) {
         if (kDebugMode) FlutterError.presentError(details);
         _reportUnhandledError(

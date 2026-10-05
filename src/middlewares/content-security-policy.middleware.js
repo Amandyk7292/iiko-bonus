@@ -55,6 +55,8 @@ const registrationPolicy = {
   imgSrc: ["'self'", 'data:'],
 };
 const staticDocumentPolicies = new Map([
+  ['/chatgpt', staticDocumentPolicy('public/chatgpt/index.html')],
+  ['/chatgpt/', staticDocumentPolicy('public/chatgpt/index.html')],
   [
     '/reset-password',
     {
