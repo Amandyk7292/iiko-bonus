@@ -5,6 +5,7 @@ const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { InMemoryTransport } = require('@modelcontextprotocol/sdk/inMemory.js');
 const { createBulkaMcpServer, WIDGET_URI } = require('../src/services/chatgpt-mcp.service');
 const { createMcpRouter, mcpCors } = require('../src/routes/chatgpt-mcp.routes');
+const { AppError, publicError } = require('../src/utils/app-error.util');
 
 const id = '11111111-1111-4111-8111-111111111111';
 const catalog = {
@@ -140,4 +141,48 @@ test('MCP tool errors hide upstream database details', async (t) => {
   const result = await client.callTool({ name: 'find_bulka_branches', arguments: {} });
   assert.equal(result.isError, true);
   assert.doesNotMatch(result.content[0].text, /secret|database|relation/);
+});
+
+test('MCP explains an intentional ordering pause while keeping every other server failure private', async (t) => {
+  let failure = publicError(503, 'ONLINE_ORDERING_DISABLED', 'Онлайн-заказы временно отключены');
+  const server = createBulkaMcpServer({
+    catalog,
+    cart: {
+      prepareCart: async () => {
+        throw failure;
+      },
+    },
+  });
+  const client = new Client({ name: 'test', version: '1' }),
+    [a, b] = InMemoryTransport.createLinkedPair();
+  await server.connect(b);
+  await client.connect(a);
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+  const request = {
+    name: 'prepare_bulka_cart',
+    arguments: { branchId: id, items: [{ id: 'bun', quantity: 1 }] },
+  };
+  const paused = await client.callTool(request);
+  assert.equal(paused.isError, true);
+  assert.equal(paused.content[0].text, 'Онлайн-заказы временно отключены');
+  assert.equal(paused.structuredContent, undefined);
+  for (const hidden of [
+    publicError(500, 'DATABASE_ERROR', 'database secret internal relation'),
+    publicError(503, 'UPSTREAM_UNAVAILABLE', 'upstream secret database connection'),
+    new AppError('secret disabled diagnosis', {
+      statusCode: 503,
+      code: 'ONLINE_ORDERING_DISABLED',
+      expose: false,
+    }),
+    publicError(500, 'ONLINE_ORDERING_DISABLED', 'secret unexpected server failure'),
+  ]) {
+    failure = hidden;
+    const result = await client.callTool(request);
+    assert.equal(result.isError, true);
+    assert.equal(result.content[0].text, 'Bulka временно недоступна. Попробуйте ещё раз.');
+    assert.doesNotMatch(result.content[0].text, /secret|database|upstream|diagnosis/);
+  }
 });

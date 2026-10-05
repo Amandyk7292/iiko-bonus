@@ -73,8 +73,11 @@ function createBulkaMcpServer({ catalog, cart, widgetHtml, baseUrl } = {}) {
             content: [{ type: 'text', text: JSON.stringify(result) }],
           };
         } catch (error) {
+          const publicOrderingPause =
+            error.statusCode === 503 && error.code === 'ONLINE_ORDERING_DISABLED';
           const safe =
-            error.expose === true && error.statusCode >= 400 && error.statusCode < 500
+            error.expose === true &&
+            ((error.statusCode >= 400 && error.statusCode < 500) || publicOrderingPause)
               ? String(error.message).slice(0, 300)
               : 'Bulka временно недоступна. Попробуйте ещё раз.';
           return { isError: true, content: [{ type: 'text', text: safe }] };
