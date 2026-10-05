@@ -1,10 +1,19 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { z } = require('zod');
 const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 const { chatgptCartPrepareSchema } = require('../contracts/chatgpt-cart.contract');
 
-const WIDGET_URI = 'ui://bulka-bakery/menu-v1.html';
+// A resource URI identifies immutable HTML to the ChatGPT host. Read the
+// released widget once, so future UI changes automatically get a new cache key.
+const defaultWidgetHtml = fs.readFileSync(
+  path.resolve(__dirname, '../../public/chatgpt/widget.html'),
+  'utf8',
+);
+const widgetUri = (html) =>
+  `ui://bulka-bakery/menu-${crypto.createHash('sha256').update(html).digest('hex').slice(0, 16)}.html`;
+const WIDGET_URI = widgetUri(defaultWidgetHtml);
 const language = z.enum(['ru', 'kk', 'en']).default('ru');
 const branchId = z.string().uuid();
 const orderType = z.enum(['pickup', 'delivery', 'preorder']).default('pickup');
@@ -16,6 +25,8 @@ function createBulkaMcpServer({ catalog, cart, widgetHtml, baseUrl } = {}) {
   cart ||= require('./chatgpt-cart.service');
   baseUrl ||= process.env.PUBLIC_BASE_URL || 'https://bulka.com.kz';
   const origin = new URL(baseUrl).origin;
+  const html = widgetHtml ?? defaultWidgetHtml;
+  const resourceUri = widgetUri(html);
   const server = new McpServer(
     { name: 'bulka-bakery', version: '1.0.0' },
     {
@@ -25,16 +36,14 @@ function createBulkaMcpServer({ catalog, cart, widgetHtml, baseUrl } = {}) {
   );
   server.registerResource(
     'bulka-menu',
-    WIDGET_URI,
+    resourceUri,
     { mimeType: 'text/html;profile=mcp-app' },
     async () => ({
       contents: [
         {
-          uri: WIDGET_URI,
+          uri: resourceUri,
           mimeType: 'text/html;profile=mcp-app',
-          text:
-            widgetHtml ||
-            fs.readFileSync(path.resolve(__dirname, '../../public/chatgpt/widget.html'), 'utf8'),
+          text: html,
           _meta: {
             ui: {
               prefersBorder: true,
@@ -58,8 +67,8 @@ function createBulkaMcpServer({ catalog, cart, widgetHtml, baseUrl } = {}) {
         annotations: readonly,
         _meta: {
           securitySchemes: [{ type: 'noauth' }],
-          ui: { resourceUri: WIDGET_URI },
-          'openai/outputTemplate': WIDGET_URI,
+          ui: { resourceUri },
+          'openai/outputTemplate': resourceUri,
           'openai/widgetAccessible': true,
           'openai/toolInvocation/invoking': status,
           'openai/toolInvocation/invoked': title,

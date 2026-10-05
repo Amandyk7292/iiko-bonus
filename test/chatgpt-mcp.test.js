@@ -46,7 +46,9 @@ test('MCP advertises only public catalog and unreserved draft tools, with constr
   );
   assert.ok(tools.every((x) => x.annotations.readOnlyHint && !x.annotations.destructiveHint));
   assert.ok(tools.every((x) => x._meta.securitySchemes[0].type === 'noauth'));
-  const resource = await client.readResource({ uri: WIDGET_URI });
+  const { resources } = await client.listResources();
+  assert.equal(resources.length, 1);
+  const resource = await client.readResource({ uri: resources[0].uri });
   assert.equal(resource.contents[0].mimeType, 'text/html;profile=mcp-app');
   assert.deepEqual(resource.contents[0]._meta.ui.csp.resourceDomains, ['https://bulka.com.kz']);
   assert.deepEqual(resource.contents[0]._meta.ui.csp.connectDomains, []);
@@ -67,6 +69,38 @@ test('MCP advertises only public catalog and unreserved draft tools, with constr
     arguments: { branchId: id, items: [{ id: 'bun', quantity: 2 }] },
   });
   assert.equal(preview.structuredContent.itemSubtotal, 600);
+});
+
+test('MCP versions widget resources by actual HTML and uses that identity in every tool and resource', async (t) => {
+  async function inspect(widgetHtml) {
+    const server = createBulkaMcpServer({ catalog, cart, widgetHtml });
+    const client = new Client({ name: 'widget-cache-test', version: '1' });
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    await server.connect(b);
+    await client.connect(a);
+    t.after(async () => {
+      await client.close();
+      await server.close();
+    });
+    const { resources } = await client.listResources();
+    assert.equal(resources.length, 1);
+    const uri = resources[0].uri;
+    assert.match(uri, /^ui:\/\/bulka-bakery\/menu-[a-f0-9]{16}\.html$/);
+    const { tools } = await client.listTools();
+    assert.equal(tools.length, 4);
+    for (const tool of tools) {
+      assert.equal(tool._meta.ui.resourceUri, uri);
+      assert.equal(tool._meta['openai/outputTemplate'], uri);
+    }
+    const resource = await client.readResource({ uri });
+    assert.equal(resource.contents[0].uri, uri);
+    if (widgetHtml !== undefined) assert.equal(resource.contents[0].text, widgetHtml);
+    return uri;
+  }
+  const original = await inspect('<main>Bulka · Добавить</main>');
+  assert.equal(await inspect('<main>Bulka · Добавить</main>'), original);
+  assert.notEqual(await inspect('<main>Bulka · Выбрать варианты</main>'), original);
+  assert.equal(await inspect(undefined), WIDGET_URI);
 });
 
 test('Streamable HTTP initializes and serves tools without sessions; rejects foreign origins and oversized payloads', async (t) => {
