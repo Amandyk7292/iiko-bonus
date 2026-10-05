@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, Download, QrCode, RefreshCw, Search, Trophy, Users, Wallet } from '../components/BulkaIcons';
+import { Copy, Download, QrCode, RefreshCw, Search, ShieldAlert, Trophy, Users, Wallet } from '../components/BulkaIcons';
 import Modal from '../components/Modal';
 import { request } from '../lib/api';
 import { useI18n } from '../lib/i18n';
@@ -16,11 +16,28 @@ export type CashierRaceItem = {
   isArchived: boolean;
   inviteToken: string | null;
   url: string | null;
+  pointId?: string | null;
+  duplicateCandidates?: CashierDuplicateCandidate[];
+  reviewSignals?: CashierReviewSignal[];
+};
+type CashierDuplicateCandidate = {
+  id: string;
+  name: string;
+  branchName: string;
+  city: string;
+  pointId: string | null;
+};
+type CashierReviewSignal = {
+  type: 'rapid_registrations' | 'daily_registrations';
+  count: number;
+  from: string;
+  to: string;
 };
 type RaceResponse = {
   success: boolean;
   items: CashierRaceItem[];
   totals: { completed: number; rewardAmount: number };
+  reviewPolicy?: { rapidCount: number; rapidMinutes: number; dailyCount: number; timeZone: string };
 };
 
 const copy = {
@@ -31,6 +48,9 @@ const copy = {
     to: 'По дату',
     city: 'Город',
     allCities: 'Все города',
+    point: 'Точка',
+    allPoints: 'Все точки',
+    chooseCity: 'Сначала выберите город',
     search: 'Найти кассира',
     registrations: 'Регистрации',
     reward: 'К зарплате',
@@ -51,6 +71,15 @@ const copy = {
     copyError: 'Скопируйте ссылку из поля ниже',
     link: 'Ссылка на регистрацию',
     unavailable: 'QR недоступен',
+    duplicate: 'Возможный дубль',
+    review: 'Проверить регистрации',
+    duplicateNote: 'Сверьте кадровые записи. Автоматического объединения нет.',
+    reviewNote: 'Частые регистрации — повод для проверки. Начисления не изменены.',
+    recordId: 'ID записи',
+    rapid: (count: string, minutes: number) => `${count} за ${minutes} минут`,
+    daily: (count: string) => `${count} за день`,
+    policy: (rapid: number, minutes: number, daily: number) =>
+      `От ${rapid} за ${minutes} минут или от ${daily} за день. Время Казахстана.`,
   },
   kk: {
     heading: 'Кассирлер жарысы',
@@ -59,6 +88,9 @@ const copy = {
     to: 'Аяқталу күні',
     city: 'Қала',
     allCities: 'Барлық қалалар',
+    point: 'Нүкте',
+    allPoints: 'Барлық нүктелер',
+    chooseCity: 'Алдымен қаланы таңдаңыз',
     search: 'Кассирді табу',
     registrations: 'Тіркелулер',
     reward: 'Жалақыға',
@@ -79,6 +111,15 @@ const copy = {
     copyError: 'Төмендегі өрістен сілтемені көшіріңіз',
     link: 'Тіркелу сілтемесі',
     unavailable: 'QR қолжетімсіз',
+    duplicate: 'Қайталануы мүмкін',
+    review: 'Тіркелулерді тексеру',
+    duplicateNote: 'Кадрлық жазбаларды салыстырыңыз. Автоматты түрде біріктірілмейді.',
+    reviewNote: 'Жиі тіркелулерді тексеріңіз. Есептелген сыйақылар өзгерген жоқ.',
+    recordId: 'Жазба ID',
+    rapid: (count: string, minutes: number) => `${minutes} минутта ${count}`,
+    daily: (count: string) => `Бір күнде ${count}`,
+    policy: (rapid: number, minutes: number, daily: number) =>
+      `${minutes} минутта ${rapid} немесе күніне ${daily} тіркелуден бастап. Қазақстан уақыты.`,
   },
 };
 
@@ -98,6 +139,24 @@ function validDate(value: string) {
 function hasQr(row: CashierRaceItem) {
   return !row.isArchived && Boolean(row.url) && /^[a-f0-9]{64}$/i.test(row.inviteToken || '');
 }
+function reviewTime(value: string, locale: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat(locale === 'kk' ? 'kk-KZ' : 'ru-KZ', {
+    timeZone: 'Asia/Almaty',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(date);
+}
+function registrationUnit(count: number, locale: string) {
+  if (locale === 'kk') return 'тіркелу';
+  const form = new Intl.PluralRules('ru').select(count);
+  return form === 'one' ? 'регистрация' : form === 'few' ? 'регистрации' : 'регистраций';
+}
 
 export default function CashierSignupRace({ active = true }: { active?: boolean }) {
   const { locale, formatNumber } = useI18n();
@@ -105,10 +164,12 @@ export default function CashierSignupRace({ active = true }: { active?: boolean 
   const [from, setFrom] = useState(() => `${today().slice(0, 7)}-01`);
   const [to, setTo] = useState(today);
   const [city, setCity] = useState('');
+  const [point, setPoint] = useState<{ id: string; label: string } | null>(null);
   const [search, setSearch] = useState('');
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<{ key: string; response?: RaceResponse; error?: string }>();
   const [qr, setQr] = useState<CashierRaceItem | null>(null);
+  const [review, setReview] = useState<{ id: string; kind: 'duplicate' | 'activity'; key: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
@@ -127,12 +188,26 @@ export default function CashierSignupRace({ active = true }: { active?: boolean 
       [...new Set(rows.map((row) => row.city).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
     [rows],
   );
+  const points = useMemo(() => {
+    const options = new Map<string, string>();
+    for (const row of rows) {
+      if (row.city === city && row.pointId) options.set(row.pointId, row.branchName);
+    }
+    const names = new Map<string, number>();
+    for (const name of options.values()) names.set(name, (names.get(name) || 0) + 1);
+    return [...options].map(([id, label]) => ({
+      id,
+      label: (names.get(label) || 0) > 1 ? `${label} · № ${id}` : label,
+    }))
+      .sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
+  }, [rows, city]);
   const filtered = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     const ordered = rows
       .filter(
         (row) =>
           (!city || row.city === city) &&
+          (!point || row.pointId === point.id) &&
           (!query || `${row.name} ${row.branchName}`.toLocaleLowerCase().includes(query)),
       )
       .sort(
@@ -144,7 +219,11 @@ export default function CashierSignupRace({ active = true }: { active?: boolean 
       if (index && ordered[index - 1].completed !== row.completed) rank = index + 1;
       return { ...row, rank };
     });
-  }, [rows, city, search]);
+  }, [rows, city, point, search]);
+  const reviewed = review?.key === key ? rows.find((row) => row.id === review.id) : undefined;
+  const reviewPolicy = current?.response?.reviewPolicy || {
+    rapidCount: 5, rapidMinutes: 10, dailyCount: 20, timeZone: 'Asia/Almaty',
+  };
   const totals = filtered.reduce(
     (sum, row) => ({
       completed: sum.completed + row.completed,
@@ -213,6 +292,14 @@ export default function CashierSignupRace({ active = true }: { active?: boolean 
     } else if (updated !== qr) setQr(updated);
   }, [current, qr]);
 
+  useEffect(() => {
+    if (!review) return;
+    if (review.key !== key || (current?.response && (!reviewed ||
+      !(review.kind === 'duplicate' ? reviewed.duplicateCandidates?.length : reviewed.reviewSignals?.length)))) {
+      setReview(null);
+    }
+  }, [current, key, review, reviewed]);
+
   const closeQr = () => {
     copyRevision.current++;
     setQr(null);
@@ -280,7 +367,10 @@ export default function CashierSignupRace({ active = true }: { active?: boolean 
             className="input-classic"
             id="cashier-race-city"
             value={city}
-            onChange={(event) => setCity(event.target.value)}
+            onChange={(event) => {
+              setCity(event.target.value);
+              setPoint(null);
+            }}
           >
             <option value="">{text.allCities}</option>
             {city && !cities.includes(city) && <option value={city}>{city}</option>}
@@ -288,6 +378,24 @@ export default function CashierSignupRace({ active = true }: { active?: boolean 
               <option key={item} value={item}>
                 {item}
               </option>
+            ))}
+          </select>
+        </label>
+        <label className="field-group" htmlFor="cashier-race-point">
+          <span>{text.point}</span>
+          <select
+            className="input-classic"
+            id="cashier-race-point"
+            value={point?.id || ''}
+            disabled={!city}
+            onChange={(event) => setPoint(points.find((option) => option.id === event.target.value) || null)}
+          >
+            <option value="">{city ? text.allPoints : text.chooseCity}</option>
+            {point && !points.some((option) => option.id === point.id) && (
+              <option value={point.id}>{point.label}</option>
+            )}
+            {points.map((option) => (
+              <option key={option.id} value={option.id}>{option.label}</option>
             ))}
           </select>
         </label>
@@ -374,6 +482,34 @@ export default function CashierSignupRace({ active = true }: { active?: boolean 
                       <span className="cashier-race-branch">
                         {[row.branchName, row.city].filter(Boolean).join(' · ')}
                       </span>
+                      {Boolean(row.duplicateCandidates?.length || row.reviewSignals?.length) && (
+                        <div className="cashier-race-checks">
+                          {Boolean(row.duplicateCandidates?.length) && (
+                            <button
+                              type="button"
+                              className="cashier-race-check"
+                              aria-label={`${text.duplicate}: ${row.name}`}
+                              aria-haspopup="dialog"
+                              onClick={() => setReview({ id: row.id, kind: 'duplicate', key })}
+                            >
+                              <Copy aria-hidden="true" size={16} />
+                              {text.duplicate}
+                            </button>
+                          )}
+                          {Boolean(row.reviewSignals?.length) && (
+                            <button
+                              type="button"
+                              className="cashier-race-check"
+                              aria-label={`${text.review}: ${row.name}`}
+                              aria-haspopup="dialog"
+                              onClick={() => setReview({ id: row.id, kind: 'activity', key })}
+                            >
+                              <ShieldAlert aria-hidden="true" size={16} />
+                              {text.review}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </th>
                     <td className="cashier-race-count" data-label={text.registrations}>
                       <span className="cashier-race-mobile-label">{text.registrations}</span>
@@ -406,6 +542,48 @@ export default function CashierSignupRace({ active = true }: { active?: boolean 
             <p className="cashier-race-empty">{text.empty}</p>
           )}
         </>
+      )}
+
+      {review && reviewed && (
+        <Modal
+          open
+          title={review.kind === 'duplicate' ? text.duplicate : text.review}
+          description={reviewed.name}
+          size="sm"
+          onClose={() => setReview(null)}
+        >
+          <div className="modal-body cashier-race-review-body">
+            <p>{review.kind === 'duplicate' ? text.duplicateNote : text.reviewNote}</p>
+            {review.kind === 'duplicate' ? (
+              <ul className="cashier-race-review-list">
+                {[reviewed, ...(reviewed.duplicateCandidates || []).filter((candidate) => candidate.id !== reviewed.id)]
+                  .map((candidate) => (
+                    <li key={candidate.id}>
+                      <strong>{candidate.name}</strong>
+                      <span>{[candidate.branchName, candidate.city].filter(Boolean).join(' · ')}</span>
+                      <span className="cashier-race-record-id">{text.recordId}: {candidate.id}</span>
+                    </li>
+                  ))}
+              </ul>
+            ) : (
+              <>
+                <ul className="cashier-race-review-list">
+                  {(reviewed.reviewSignals || []).map((signal) => (
+                    <li key={`${signal.type}|${signal.from}|${signal.to}`}>
+                      <strong>{signal.type === 'rapid_registrations'
+                        ? text.rapid(`${formatNumber(signal.count)} ${registrationUnit(signal.count, locale)}`, reviewPolicy.rapidMinutes)
+                        : text.daily(`${formatNumber(signal.count)} ${registrationUnit(signal.count, locale)}`)}</strong>
+                      <span>{reviewTime(signal.from, locale)} — {reviewTime(signal.to, locale)}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="cashier-race-review-policy">
+                  {text.policy(reviewPolicy.rapidCount, reviewPolicy.rapidMinutes, reviewPolicy.dailyCount)}
+                </p>
+              </>
+            )}
+          </div>
+        </Modal>
       )}
 
       {qr && (

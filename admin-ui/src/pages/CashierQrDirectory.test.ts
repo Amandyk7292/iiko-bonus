@@ -4,8 +4,48 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const token = 'a'.repeat(64);
 const row = (overrides = {}) => ({
-  id: 'cashier-1', name: 'Алия Рублева', branchName: 'Жасыл дала', city: 'Актау',
+  id: 'cashier-1', name: 'Алия Рублева', branchName: 'Жасыл дала', city: 'Актау', pointId: '10',
   inviteToken: token, ...overrides,
+});
+
+it('enables point selection after city, filters by ID and resets point when the city changes', async () => {
+  fetchMock.mockResolvedValue(result([
+    row(), row({ id: 'same-name', name: 'Другая точка', pointId: '11' }),
+    row({ id: 'astana', name: 'Астана кассир', city: 'Астана', pointId: '20' }),
+  ]));
+  await mount();
+  expect(element('point')).toBeDisabled();
+  element<HTMLSelectElement>('city').value = 'Актау';
+  element('city').dispatchEvent(new Event('change'));
+  expect(element('point')).not.toBeDisabled();
+  expect([...element<HTMLSelectElement>('point').options].map((option) => option.value)).toEqual(['', '10', '11']);
+  expect([...element<HTMLSelectElement>('point').options].map((option) => option.textContent)).toEqual(['Все точки', 'Жасыл дала · № 10', 'Жасыл дала · № 11']);
+  element<HTMLSelectElement>('point').value = '11';
+  element('point').dispatchEvent(new Event('change'));
+  expect(element('list')).toHaveTextContent('Другая точка');
+  expect(element('list')).not.toHaveTextContent('Алия Рублева');
+  element<HTMLSelectElement>('city').value = 'Астана';
+  element('city').dispatchEvent(new Event('change'));
+  expect(element('point')).toHaveValue('');
+  expect([...element<HTMLSelectElement>('point').options].map((option) => option.value)).toEqual(['', '20']);
+  expect(element('list')).toHaveTextContent('Астана кассир');
+  element<HTMLSelectElement>('city').value = '';
+  element('city').dispatchEvent(new Event('change'));
+  expect(element('point')).toBeDisabled();
+});
+
+it('preserves the selected point after a background refresh removes its last cashier', async () => {
+  await mount();
+  element<HTMLSelectElement>('city').value = 'Актау';
+  element('city').dispatchEvent(new Event('change'));
+  element<HTMLSelectElement>('point').value = '10';
+  element('point').dispatchEvent(new Event('change'));
+  fetchMock.mockResolvedValueOnce(result([row({ id: 'other', name: 'Другой кассир', pointId: '11' })]));
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(element('point')).toHaveValue('10');
+  expect(element('list').children).toHaveLength(0);
+  expect(element('status')).toHaveTextContent('Никого не нашли');
+  expect(element<HTMLSelectElement>('point').selectedOptions[0]).toHaveTextContent('Жасыл дала');
 });
 const result = (items = [row()]) => ({ ok: true, json: async () => ({ success: true, items }) });
 const fetchMock = vi.fn();

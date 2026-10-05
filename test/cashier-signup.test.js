@@ -55,6 +55,7 @@ function fixture() {
             employee_id: item.id,
             name: item.name,
             city: item.city,
+            point_id: item.pointId,
             branch_name: item.branchName,
             invite_token: rows.get(item.id)?.invite_token || item.inviteToken,
           });
@@ -64,12 +65,21 @@ function fixture() {
       if (name === 'cashier_signup_ranking') {
         return {
           data: {
+            reviewPolicy: {
+              rapidCount: 5,
+              rapidMinutes: 10,
+              dailyCount: 20,
+              timeZone: 'Asia/Almaty',
+            },
             items: [
               {
                 id: '123',
                 name: employee.name,
                 city: employee.city,
                 branchName: employee.branchName,
+                pointId: employee.pointId,
+                duplicateCandidates: [],
+                reviewSignals: [],
                 completed: 2,
                 rewardAmount: 600,
                 rank: 1,
@@ -109,8 +119,9 @@ test('public directory filters cities/FIO and preserves opaque employee tokens a
   assert.equal((await service.list({ search: 'Неизвестный' })).items.length, 0);
   assert.deepEqual(
     Object.keys(first.items[0]).sort(),
-    ['id', 'name', 'branchName', 'city', 'inviteToken', 'url'].sort(),
+    ['id', 'name', 'pointId', 'branchName', 'city', 'inviteToken', 'url'].sort(),
   );
+  assert.equal(first.items[0].pointId, employee.pointId);
 });
 test('fresh archive/read failure blocks salary accrual before the completion RPC', async () => {
   const f = fixture();
@@ -150,6 +161,15 @@ test('ranking applies authorized dates/scope and sums actual accrued ledger amou
   assert.equal(f.calls.at(-1).args.p_to, '2026-10-03T19:00:00.000Z');
   assert.deepEqual(f.calls.at(-1).args.p_branches, ['allowed']);
   assert.deepEqual(result.totals, { completed: 2, rewardAmount: 600 });
+  assert.deepEqual(result.reviewPolicy, {
+    rapidCount: 5,
+    rapidMinutes: 10,
+    dailyCount: 20,
+    timeZone: 'Asia/Almaty',
+  });
+  assert.equal(result.items[0].pointId, employee.pointId);
+  assert.deepEqual(result.items[0].duplicateCandidates, []);
+  assert.deepEqual(result.items[0].reviewSignals, []);
 });
 
 test('overlapping directory/ranking refreshes share a source read, then read fresh again', async () => {

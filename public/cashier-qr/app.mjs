@@ -1,7 +1,8 @@
-import { readDirectory, filterCashiers, qrImageUrl } from './directory.mjs';
+import { readDirectory, filterCashiers, cashierPoints, qrImageUrl } from './directory.mjs';
 
 const search = document.getElementById('search');
 const city = document.getElementById('city');
+const point = document.getElementById('point');
 const list = document.getElementById('list');
 const status = document.getElementById('status');
 const refresh = document.getElementById('refresh');
@@ -28,6 +29,16 @@ function closeDialog() {
   current = null;
   previousFocus?.focus();
 }
+function updatePoints(preserve = false) {
+  const selected = preserve ? point.value : '';
+  const label = point.selectedOptions[0]?.textContent || selected;
+  const points = cashierPoints(items, city.value);
+  point.replaceChildren(new Option(city.value ? 'Все точки' : 'Сначала выберите город', ''));
+  for (const item of points) point.add(new Option(item.name, item.id));
+  if (selected && !points.some((item) => item.id === selected)) point.add(new Option(label, selected));
+  point.value = selected;
+  point.disabled = !city.value;
+}
 function openQr(row, button) {
   current = row;
   previousFocus = button;
@@ -49,7 +60,7 @@ function render() {
   let focusButton = null;
   list.replaceChildren();
   if ((loading || failed) && !items.length) return;
-  const rows = filterCashiers(items, city.value, search.value);
+  const rows = filterCashiers(items, city.value, search.value, point.value);
   if (!failed) status.textContent = rows.length ? `Кассиры · ${rows.length}` : items.length ? 'Никого не нашли' : 'Кассиров пока нет';
   const fragment = document.createDocumentFragment();
   for (const row of rows) {
@@ -96,6 +107,7 @@ async function load() {
     [...new Set(items.map((row) => row.city).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')).forEach((name) => city.add(new Option(name, name)));
     if (selectedCity && !items.some((row) => row.city === selectedCity)) city.add(new Option(selectedCity, selectedCity));
     city.value = selectedCity;
+    updatePoints(true);
     if (current) {
       const updated = items.find((row) => row.id === current.id);
       if (!updated || updated.inviteToken !== current.inviteToken) closeDialog();
@@ -121,7 +133,8 @@ async function load() {
 }
 document.querySelector('form').addEventListener('submit', (event) => event.preventDefault());
 search.addEventListener('input', render);
-city.addEventListener('change', render);
+city.addEventListener('change', () => { updatePoints(); render(); });
+point.addEventListener('change', render);
 refresh.addEventListener('click', load);
 const reloadVisible = () => { if (document.visibilityState === 'visible') void load(); };
 setInterval(reloadVisible, 60_000);

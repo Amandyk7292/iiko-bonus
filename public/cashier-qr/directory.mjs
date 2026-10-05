@@ -13,10 +13,23 @@ export function readDirectory(result) {
     return true;
   }).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
 }
-export function filterCashiers(items, city, search) {
+export function filterCashiers(items, city, search, pointId = '') {
   const words = search.normalize('NFKC').toLocaleLowerCase('ru').trim().split(/\s+/).filter(Boolean);
-  return items.filter((row) => (!city || row.city === city) && words.every((word) =>
+  return items.filter((row) => (!city || row.city === city) && (!pointId || row.pointId === pointId) && words.every((word) =>
     `${row.name} ${row.branchName} ${row.city}`.normalize('NFKC').toLocaleLowerCase('ru').includes(word)));
+}
+export function cashierPoints(items, city) {
+  if (!city) return [];
+  const points = new Map();
+  for (const row of items) {
+    if (row.city === city && typeof row.pointId === 'string' && row.pointId) {
+      points.set(row.pointId, row.branchName);
+    }
+  }
+  const names = new Map();
+  for (const name of points.values()) names.set(name, (names.get(name) || 0) + 1);
+  return [...points].map(([id, name]) => ({ id, name: names.get(name) > 1 ? `${name} · № ${id}` : name })).sort((a, b) =>
+    a.name.localeCompare(b.name, 'ru') || a.id.localeCompare(b.id));
 }
 export function qrImageUrl(token) {
   if (!tokenPattern.test(token)) throw new Error('Некорректный QR');

@@ -12,6 +12,7 @@ const item = (overrides: Partial<CashierRaceItem> = {}): CashierRaceItem => ({
   name: 'Алия Рублева',
   branchName: '19а ЖК Жасыл дала',
   city: 'Актау',
+  pointId: 'point-19a',
   completed: 4,
   rewardAmount: 1200,
   rank: 1,
@@ -138,6 +139,139 @@ describe('cashier registration race', () => {
     fireEvent.change(screen.getByLabelText('Найти кассира'), { target: { value: 'никого' } });
     expect(screen.getByText('Кассиры не найдены')).toBeInTheDocument();
     expect(mocks.request).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires a city before choosing a point and filters by stable point ID', async () => {
+    mocks.request.mockResolvedValue(response([
+      item(),
+      item({ id: 'second', name: 'Марат', pointId: 'point-5', branchName: '5-й микрорайон' }),
+      item({ id: 'same-name', name: 'Баян', pointId: 'point-5-new', branchName: '5-й микрорайон' }),
+      item({ id: 'astana', name: 'Ирина', pointId: 'astana-5', branchName: '5-й микрорайон', city: 'Астана' }),
+    ]));
+    renderRace();
+    await screen.findByText('Ирина');
+    const point = screen.getByLabelText('Точка');
+    expect(point).toBeDisabled();
+    expect(within(point).getByRole('option')).toHaveTextContent('Сначала выберите город');
+    fireEvent.change(screen.getByLabelText('Город'), { target: { value: 'Актау' } });
+    expect(point).not.toBeDisabled();
+    expect(within(point).getAllByRole('option')).toHaveLength(4);
+    expect(within(point).getByRole('option', { name: '5-й микрорайон · № point-5' })).toBeInTheDocument();
+    expect(within(point).getByRole('option', { name: '5-й микрорайон · № point-5-new' })).toBeInTheDocument();
+    fireEvent.change(point, { target: { value: 'point-5' } });
+    expect(screen.getByText('Марат')).toBeInTheDocument();
+    expect(screen.queryByText('Баян')).not.toBeInTheDocument();
+    expect(screen.queryByText('Алия Рублева')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Город'), { target: { value: 'Астана' } });
+    expect(point).toHaveValue('');
+    expect(screen.getByText('Ирина')).toBeInTheDocument();
+    expect(within(point).getAllByRole('option')).toHaveLength(2);
+    expect(mocks.request).toHaveBeenCalledTimes(1);
+  });
+
+  it('retains a missing point selection during refresh instead of showing other cashiers', async () => {
+    const next = deferred<ReturnType<typeof response>>();
+    mocks.request.mockResolvedValueOnce(response()).mockReturnValueOnce(next.promise);
+    renderRace();
+    await screen.findByText('Алия Рублева');
+    fireEvent.change(screen.getByLabelText('Город'), { target: { value: 'Актау' } });
+    fireEvent.change(screen.getByLabelText('Точка'), { target: { value: 'point-19a' } });
+    fireEvent.change(screen.getByLabelText('Найти кассира'), { target: { value: 'Алия' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Обновить рейтинг' }));
+    expect(screen.getByText('Алия Рублева')).toBeInTheDocument();
+    expect(screen.getByLabelText('Точка')).toHaveValue('point-19a');
+    fireEvent.focus(window);
+    expect(mocks.request).toHaveBeenCalledTimes(2);
+    await act(async () => next.resolve(response([
+      item({ id: 'new', name: 'Алия другая', pointId: 'point-other', branchName: 'Другая точка' }),
+    ])));
+    expect(screen.getByText('Кассиры не найдены')).toBeInTheDocument();
+    expect(screen.queryByText('Алия другая')).not.toBeInTheDocument();
+    const point = screen.getByLabelText('Точка');
+    expect(point).toHaveValue('point-19a');
+    expect(within(point).getByRole('option', { name: '19а ЖК Жасыл дала' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Найти кассира')).toHaveValue('Алия');
+    fireEvent.change(point, { target: { value: '' } });
+    expect(screen.getByText('Алия другая')).toBeInTheDocument();
+  });
+
+  it('shows possible duplicate records with IDs without merging records or changing rewards', async () => {
+    const candidate = {
+      id: 'cashier-duplicate', name: 'Алия Рублева', pointId: 'point-19a',
+      branchName: '19а ЖК Жасыл дала', city: 'Актау',
+    };
+    mocks.request.mockResolvedValue(response([
+      item({ duplicateCandidates: [candidate] }),
+      item({ ...candidate, completed: 2, rewardAmount: 600 }),
+    ]));
+    renderRace();
+    const badge = await screen.findByRole('button', { name: 'Возможный дубль: Алия Рублева' });
+    expect(badge).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(screen.getAllByRole('rowheader')).toHaveLength(2);
+    expect(screen.getByText(/1\s800 ₸/)).toBeInTheDocument();
+    fireEvent.click(badge);
+    const dialog = screen.getByRole('dialog', { name: 'Возможный дубль' });
+    expect(dialog).toHaveTextContent('Автоматического объединения нет');
+    expect(within(dialog).getByText('ID записи: cashier-1')).toBeInTheDocument();
+    expect(within(dialog).getByText('ID записи: cashier-duplicate')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: /Объединить|Удалить/ })).not.toBeInTheDocument();
+    expect(mocks.request).toHaveBeenCalledTimes(1);
+  });
+
+  it('explains registration peaks and review thresholds in Kazakhstan time without withholding salary', async () => {
+    mocks.request.mockResolvedValue({
+      ...response([item({
+        completed: 24, rewardAmount: 7200,
+        reviewSignals: [
+          { type: 'rapid_registrations', count: 6, from: '2026-10-04T06:00:00Z', to: '2026-10-04T06:09:00Z' },
+          { type: 'daily_registrations', count: 24, from: '2026-10-03T19:00:00Z', to: '2026-10-04T19:00:00Z' },
+        ],
+      })]),
+      reviewPolicy: { rapidCount: 5, rapidMinutes: 10, dailyCount: 20, timeZone: 'Asia/Almaty' },
+    });
+    renderRace();
+    fireEvent.click(await screen.findByRole('button', { name: 'Проверить регистрации: Алия Рублева' }));
+    const dialog = screen.getByRole('dialog', { name: 'Проверить регистрации' });
+    expect(dialog).toHaveTextContent('Начисления не изменены');
+    expect(within(dialog).getByText('6 регистраций за 10 минут')).toBeInTheDocument();
+    expect(within(dialog).getByText('24 регистрации за день')).toBeInTheDocument();
+    expect(dialog).toHaveTextContent(/04\.10\.2026, 11:00 — 04\.10\.2026, 11:09/);
+    expect(dialog).toHaveTextContent('От 5 за 10 минут или от 20 за день. Время Казахстана.');
+    expect(screen.getAllByText(/7\s200 ₸/)).toHaveLength(2);
+    expect(mocks.request).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes review details and closes resolved flags without retaining stale accusations', async () => {
+    const signals = [{ type: 'rapid_registrations' as const, count: 5, from: '2026-10-04T06:00:00Z', to: '2026-10-04T06:09:00Z' }];
+    mocks.request.mockResolvedValueOnce(response([item({ reviewSignals: signals })]))
+      .mockResolvedValueOnce(response([item({ name: 'Алия Новая', reviewSignals: [{ ...signals[0], count: 7 }] })]))
+      .mockResolvedValueOnce(response([item({ name: 'Алия Новая', reviewSignals: [] })]));
+    renderRace();
+    fireEvent.click(await screen.findByRole('button', { name: 'Проверить регистрации: Алия Рублева' }));
+    fireEvent.online(window);
+    await within(screen.getByRole('dialog')).findByText('7 регистраций за 10 минут');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Алия Новая');
+    fireEvent.online(window);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /Проверить регистрации:/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Алия Новая')).toBeInTheDocument();
+  });
+
+  it('localizes point selection and review details in Kazakh', async () => {
+    localStorage.setItem('adminLocale', 'kk');
+    mocks.request.mockResolvedValue(response([item({ reviewSignals: [{
+      type: 'rapid_registrations', count: 5, from: '2026-10-04T06:00:00Z', to: '2026-10-04T06:09:00Z',
+    }] })]));
+    renderRace();
+    const badge = await screen.findByRole('button', { name: 'Тіркелулерді тексеру: Алия Рублева' });
+    expect(screen.getByLabelText('Нүкте')).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Қала'), { target: { value: 'Актау' } });
+    expect(screen.getByLabelText('Нүкте')).not.toBeDisabled();
+    fireEvent.click(badge);
+    const dialog = screen.getByRole('dialog', { name: 'Тіркелулерді тексеру' });
+    expect(dialog).toHaveTextContent('10 минутта 5 тіркелу');
+    expect(dialog).toHaveTextContent('Есептелген сыйақылар өзгерген жоқ');
+    expect(dialog).toHaveTextContent('Қазақстан уақыты');
   });
 
   it('requests changed dates automatically and hides counts from the previous period while loading', async () => {

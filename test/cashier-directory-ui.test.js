@@ -6,6 +6,23 @@ const moduleUrl = pathToFileURL(path.resolve(__dirname, '../public/cashier-qr/di
 const row = (id, name, city, branchName = 'Булка') => ({
   id, name, city, branchName, inviteToken: 'a'.repeat(64),
 });
+
+test('point filters use stable IDs within the selected city, even when point names match', async () => {
+  const { cashierPoints, filterCashiers } = await import(moduleUrl.href);
+  const items = [
+    { ...row('1', 'Первый', 'Актау'), pointId: '10' },
+    { ...row('2', 'Второй', 'Актау'), pointId: '11' },
+    { ...row('3', 'Третий', 'Астана'), pointId: '20' },
+    row('4', 'Без привязки', 'Актау'),
+  ];
+  assert.deepEqual(cashierPoints(items, ''), []);
+  assert.deepEqual(cashierPoints(items, 'Актау').map((point) => point.id), ['10', '11']);
+  assert.deepEqual(cashierPoints(items, 'Актау').map((point) => point.name), ['Булка · № 10', 'Булка · № 11']);
+  assert.deepEqual(cashierPoints(items, 'Астана'), [{ id: '20', name: 'Булка' }]);
+  assert.deepEqual(filterCashiers(items, 'Актау', '', '11').map((person) => person.id), ['2']);
+  assert.deepEqual(filterCashiers(items, 'Астана', '', '11'), []);
+  assert.equal(filterCashiers(items, 'Актау', '').length, 3);
+});
 test('cashier list rejects unsafe QR and archived rows, then filters city and name', async () => {
   const { readDirectory, filterCashiers, qrImageUrl } = await import(moduleUrl.href);
   const items = readDirectory({success:true,items:[

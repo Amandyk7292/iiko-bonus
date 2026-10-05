@@ -8,6 +8,7 @@ const invitationUrl = (token) =>
 const toPublic = (row) => ({
   id: row.employee_id,
   name: row.name,
+  pointId: row.point_id ?? null,
   branchName: row.branch_name,
   city: row.city,
   inviteToken: row.invite_token,
@@ -93,6 +94,7 @@ function createCashierSignup({ db = supabase, directory = staffDirectory } = {})
       }));
       return {
         items,
+        reviewPolicy: data?.reviewPolicy,
         totals: {
           completed: items.reduce((sum, item) => sum + Number(item.completed), 0),
           rewardAmount: items.reduce((sum, item) => sum + Number(item.rewardAmount), 0),

@@ -38,7 +38,7 @@
 }
 .cashier-race-filters {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -58,6 +58,10 @@
   width: 100%;
   min-height: var(--touch-minimum);
   font-size: var(--type-body-small);
+}
+.cashier-race-filters select:disabled {
+  opacity: .55;
+  cursor: not-allowed;
 }
 .cashier-race-search {
   grid-column: 1 / -1;
@@ -174,6 +178,40 @@
   font-size: var(--type-caption);
   white-space: nowrap;
 }
+.cashier-race-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.cashier-race-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--touch-minimum);
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--sagi-cocoa);
+  background: var(--workspace-accent-soft, var(--sagi-cream));
+  font-size: var(--type-caption);
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 160ms ease;
+}
+.cashier-race-check:hover,
+.cashier-race-check:active {
+  background: var(--color-beige-100);
+}
+.cashier-race-check:focus-visible {
+  outline: 2px solid var(--sagi-cocoa);
+  outline-offset: 3px;
+}
+.cashier-race-check svg {
+  flex-shrink: 0;
+}
 .cashier-race-count,
 .cashier-race-reward {
   text-align: right;
@@ -249,6 +287,47 @@
   width: 100%;
   font-size: var(--type-body-small);
 }
+.cashier-race-review-body > p {
+  margin: 0 0 16px;
+  color: var(--sagi-cocoa);
+  font-size: var(--type-body-small);
+  line-height: 1.5;
+}
+.cashier-race-review-list {
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.cashier-race-review-list li {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border-radius: var(--radius-control);
+  background: var(--color-beige-100);
+  color: var(--sagi-cocoa);
+  font-size: var(--type-body-small);
+  overflow-wrap: anywhere;
+}
+.cashier-race-review-list span {
+  color: var(--sagi-muted);
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+.cashier-race-record-id {
+  font-variant-numeric: tabular-nums;
+}
+.cashier-race-review-body > .cashier-race-review-policy {
+  margin: 16px 0 0;
+  color: var(--sagi-muted);
+  font-size: var(--type-caption);
+}
+@media (max-width: 1099px) {
+  .cashier-race-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 @media (max-width: 767px) {
   .cashier-race-heading {
     gap: 12px;
@@ -269,6 +348,7 @@
     padding-left: 44px;
   }
   .cashier-race-filters > :nth-child(3),
+  .cashier-race-filters > :nth-child(4),
   .cashier-race-search {
     grid-column: 1 / -1;
   }
@@ -347,6 +427,11 @@
     margin-right: 8px;
     color: var(--sagi-muted);
     font-size: var(--type-caption);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cashier-race-check {
+    transition: none;
   }
 }
 @media (max-width: 359px) {
