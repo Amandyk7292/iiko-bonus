@@ -441,6 +441,25 @@
           status.textContent = text;
           status.className = 'status' + (error ? ' error' : '');
         }
+        function errorMessage(value, hostError = false) {
+          const text = typeof value === 'string' ? value.trim() : '',
+            retry = 'Не удалось выполнить запрос. Попробуйте ещё раз.',
+            orderingPause = 'Онлайн-заказы временно отключены';
+          // ChatGPT can wrap a public MCP error in a technical JSON/Python description.
+          // Recognize only this known public fact; never interpret or display that wrapper.
+          if (text.includes(orderingPause)) return orderingPause;
+          if (text === 'Нет ответа. Попробуйте ещё раз.') return text;
+          if (
+            hostError ||
+            !text ||
+            text.length > 300 ||
+            /^[{["]|[\r\n\t]|\b(?:\w*(?:error|exception)|traceback|textcontent|econn\w*|enotfound|etimedout|network|connection|stack|fetch|http|sqlstate|password|secret|authorization|token)\b|(?:https?|postgres(?:ql)?):\/\//i.test(
+              text,
+            )
+          )
+            return retry;
+          return text;
+        }
         function payloadItems(values = items) {
           return values.map(({ id, quantity, configuration, modifiers }) => ({
             id,
@@ -530,14 +549,14 @@
           render();
           try {
             const r = await rpc('tools/call', { name, arguments: args });
-            if (r.isError)
-              throw Error(
-                r.content?.find((c) => c.type === 'text')?.text || 'Не удалось загрузить.',
-              );
+            if (r.isError) {
+              message(errorMessage(r.content?.find((c) => c.type === 'text')?.text), true);
+              return null;
+            }
             message('');
             return r.structuredContent;
           } catch (e) {
-            message(e.message, true);
+            message(errorMessage(e?.message, true), true);
             return null;
           } finally {
             busy = false;
@@ -1222,7 +1241,7 @@
             const p = pending.get(m.id);
             clearTimeout(p.timer);
             pending.delete(m.id);
-            m.error ? p.reject(Error(m.error.message)) : p.resolve(m.result);
+            m.error ? p.reject(Error(errorMessage(m.error.message, true))) : p.resolve(m.result);
             return;
           }
           if (m.method === 'ui/notifications/tool-input') {
@@ -1231,8 +1250,7 @@
           if (m.method === 'ui/notifications/tool-result') {
             if (m.params?.isError)
               message(
-                m.params.content?.find((entry) => entry.type === 'text')?.text ||
-                  'Не удалось загрузить.',
+                errorMessage(m.params.content?.find((entry) => entry.type === 'text')?.text),
                 true,
               );
             else {

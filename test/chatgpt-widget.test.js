@@ -82,10 +82,16 @@ function widgetHarness() {
     activeElement: null,
   };
   const messages = [],
-    timers = new Map();
+    timers = new Map(),
+    requestTimers = new Map();
   let listener,
     timerId = 0;
-  const parent = { postMessage: (message) => messages.push(message) };
+  const parent = {
+    postMessage: (message) => {
+      messages.push(message);
+      if (message.id) requestTimers.set(message.id, timerId);
+    },
+  };
   const window = {
     parent,
     addEventListener: (_name, fn) => {
@@ -115,6 +121,15 @@ function widgetHarness() {
   vm.runInContext(script, context, { filename: 'public/chatgpt/widget.html' });
   const send = (message, source = parent) => listener({ source, data: message });
   const reply = (request, result) => send({ jsonrpc: '2.0', id: request.id, result });
+  const reject = (request, message) =>
+    send({ jsonrpc: '2.0', id: request.id, error: { code: -32602, message } });
+  const timeout = (request) => {
+    const id = requestTimers.get(request.id),
+      timer = timers.get(id);
+    assert.ok(timer, 'Missing RPC timeout');
+    timers.delete(id);
+    timer();
+  };
   const result = (data) =>
     send({
       jsonrpc: '2.0',
@@ -150,6 +165,8 @@ function widgetHarness() {
     messages,
     send,
     reply,
+    reject,
+    timeout,
     result,
     buttons,
     findButton,
@@ -505,4 +522,120 @@ test('widget does not present incomplete pricing as final and rejects foreign if
   assert.match(app.roots.basket.textContent, /Нужно выбрать варианты/);
   assert.doesNotMatch(app.roots.basket.textContent, /500/);
   assert.equal(app.roots.basket.querySelectorAll('a').length, 0);
+});
+
+async function basketHarness() {
+  const app = widgetHarness();
+  await app.ready();
+  app.result({ ...menu, products: [{ ...product, hasOptions: false }] });
+  app.click(app.findButton('Добавить'));
+  return app;
+}
+
+function assertBasketRetainedAndEnabled(app) {
+  assert.match(app.roots.basket.textContent, /Булочка/);
+  assert.match(app.roots.basket.textContent, /1 шт\./);
+  assert.equal(app.findButton('Проверить корзину', app.roots.basket).disabled, false);
+  assert.equal(app.findButton('Увеличить количество Булочка', app.roots.basket).disabled, false);
+  assert.equal(app.findButton('Добавить').disabled, false);
+}
+
+const wrappedOrderingPause = JSON.stringify({
+  detail:
+    "Error code: INVALID_ARGUMENT; Error: RuntimeException: Error calling MCP tool: [TextContent(type='text', text='Онлайн-заказы временно отключены', annotations=None, meta=None)]",
+});
+
+test('widget shows only the public ordering pause from the actual host RPC wrapper and keeps the basket usable', async () => {
+  const app = await basketHarness();
+  const checking = app.click(app.findButton('Проверить корзину', app.roots.basket));
+  assert.equal(app.findButton('Проверить корзину', app.roots.basket).disabled, true);
+  assert.equal(app.findButton('Добавить').disabled, true);
+  app.reject(app.toolRequest('prepare_bulka_cart'), wrappedOrderingPause);
+  await checking;
+  assert.equal(app.roots.status.textContent, 'Онлайн-заказы временно отключены');
+  assertBasketRetainedAndEnabled(app);
+  assert.equal(app.roots.basket.querySelectorAll('a').length, 0);
+});
+
+test('widget suppresses unknown host errors including internal JSON, trace content and non-string messages', async () => {
+  const app = await basketHarness();
+  for (const error of [
+    JSON.stringify({
+      detail:
+        "Error code: INVALID_ARGUMENT; Error: RuntimeException: Error calling MCP tool: [TextContent(type='text', text='password=fixture-private-value', annotations=None, meta=None)]",
+    }),
+    'Internal backend failure: password=fixture-private-value at postgres://internal/db',
+    { detail: 'fixture-private-value' },
+  ]) {
+    const checking = app.click(app.findButton('Проверить корзину', app.roots.basket));
+    app.reject(app.toolRequest('prepare_bulka_cart'), error);
+    await checking;
+    assert.equal(app.roots.status.textContent, 'Не удалось выполнить запрос. Попробуйте ещё раз.');
+    assert.doesNotMatch(
+      app.roots.status.textContent,
+      /fixture-private-value|RuntimeException|detail/,
+    );
+    assertBasketRetainedAndEnabled(app);
+  }
+  const checking = app.click(app.findButton('Проверить корзину', app.roots.basket));
+  // A malformed transport reply must not expose a browser TypeError either.
+  app.reply(app.toolRequest('prepare_bulka_cart'), null);
+  await checking;
+  assert.equal(app.roots.status.textContent, 'Не удалось выполнить запрос. Попробуйте ещё раз.');
+  assertBasketRetainedAndEnabled(app);
+});
+
+test('widget preserves plain public stock and option validation errors returned by MCP', async () => {
+  const app = await basketHarness();
+  for (const text of [
+    'Недостаточно товара «Булочка». Обновите корзину.',
+    'Проверьте количество вариантов «Размер»',
+  ]) {
+    const checking = app.click(app.findButton('Проверить корзину', app.roots.basket));
+    app.reply(app.toolRequest('prepare_bulka_cart'), {
+      isError: true,
+      content: [{ type: 'text', text }],
+    });
+    await checking;
+    assert.equal(app.roots.status.textContent, text);
+    assertBasketRetainedAndEnabled(app);
+  }
+});
+
+test('widget sanitizes tool-result notification errors through the same public messages without replacing a basket', async () => {
+  const app = await basketHarness();
+  for (const [text, expected] of [
+    [wrappedOrderingPause, 'Онлайн-заказы временно отключены'],
+    [
+      JSON.stringify({ detail: 'fixture-private-value' }),
+      'Не удалось выполнить запрос. Попробуйте ещё раз.',
+    ],
+    [
+      "RuntimeException: [TextContent(text='password=fixture-private-value')]",
+      'Не удалось выполнить запрос. Попробуйте ещё раз.',
+    ],
+    ['Выбранный вариант товара больше недоступен', 'Выбранный вариант товара больше недоступен'],
+  ]) {
+    app.send({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/tool-result',
+      params: {
+        isError: true,
+        content: [{ type: 'text', text }],
+        structuredContent: cart([cartItem(1, { ...product, id: 'cake', name: 'Торт' })]),
+      },
+    });
+    assert.equal(app.roots.status.textContent, expected);
+    assert.doesNotMatch(app.roots.basket.textContent, /Торт/);
+    assertBasketRetainedAndEnabled(app);
+  }
+});
+
+test('widget keeps its local timeout message and releases controls while retaining the basket', async () => {
+  const app = await basketHarness();
+  const checking = app.click(app.findButton('Проверить корзину', app.roots.basket));
+  app.timeout(app.toolRequest('prepare_bulka_cart'));
+  await checking;
+  assert.equal(app.roots.status.textContent, 'Нет ответа. Попробуйте ещё раз.');
+  assertBasketRetainedAndEnabled(app);
 });
