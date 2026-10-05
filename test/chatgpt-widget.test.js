@@ -344,7 +344,90 @@ test('widget retains search and category across pagination and renders standalon
     options: { configuration: null, modifierGroups: [] },
   });
   assert.match(app.roots.content.textContent, /Булочка/);
-  assert.ok(app.findButton('Выбрать варианты'));
+  assert.ok(app.findButton('Добавить'));
+  assert.doesNotMatch(app.roots.content.textContent, /Выберите варианты|Выбрать варианты/);
+});
+
+test('standalone options without active variants show the real price and add directly without a second options fetch', async () => {
+  const app = widgetHarness();
+  await app.ready();
+  const pretzel = { ...product, id: 'pretzel', name: 'Брецель', price: 350 };
+  app.result({
+    view: 'options',
+    branch,
+    orderType: 'preorder',
+    productId: pretzel.id,
+    product: pretzel,
+    options: {
+      configuration: {
+        enabled: false,
+        productKind: 'cake',
+        weightOptions: [{ code: 'disabled', priceDelta: 100 }],
+      },
+      modifierGroups: [],
+    },
+  });
+  assert.match(app.roots.content.textContent, /350 ₸ \/ шт\./);
+  assert.match(app.roots.content.textContent, /Вариантов нет/);
+  assert.doesNotMatch(app.roots.content.textContent, /Выберите варианты|Выбрать варианты/);
+  app.click(app.findButton('Добавить'));
+  assert.match(app.roots.basket.textContent, /Брецель/);
+  assert.match(app.roots.basket.textContent, /350/);
+  assert.equal(app.roots.overlay.childElementCount, 0);
+  assert.equal(app.toolRequest('get_bulka_product_options'), undefined);
+  const checking = app.click(app.findButton('Проверить корзину', app.roots.basket));
+  const request = app.toolRequest('prepare_bulka_cart');
+  assert.equal(request.params.arguments.orderType, 'preorder');
+  assert.deepEqual(JSON.parse(JSON.stringify(request.params.arguments.items)), [
+    { id: 'pretzel', quantity: 1 },
+  ]);
+  app.reply(request, {
+    structuredContent: cart([cartItem(1, pretzel)], { orderType: 'preorder' }),
+  });
+  await checking;
+});
+
+test('standalone options keep actual available variants and block unavailable products', async () => {
+  const app = widgetHarness();
+  await app.ready();
+  const options = {
+    configuration: null,
+    modifierGroups: [
+      {
+        id: 'size',
+        title: { ru: 'Размер' },
+        selectionType: 'single',
+        required: true,
+        minSelected: 1,
+        maxSelected: 1,
+        options: [{ id: 'large', title: { ru: 'Большой' }, priceDelta: 100, isDefault: true }],
+      },
+    ],
+  };
+  app.result({
+    view: 'options',
+    branch,
+    orderType: 'pickup',
+    productId: product.id,
+    product: { ...product, hasOptions: false },
+    options,
+  });
+  await app.click(app.findButton('Выбрать варианты'));
+  app.click(app.findButton('Добавить', app.roots.overlay));
+  assert.match(app.roots.basket.textContent, /600/);
+  const unavailable = widgetHarness();
+  await unavailable.ready();
+  unavailable.result({
+    view: 'options',
+    branch,
+    orderType: 'pickup',
+    productId: product.id,
+    product: { ...product, isAvailable: false, onlineOrderable: false, inStopList: true },
+    options: { configuration: null, modifierGroups: [] },
+  });
+  assert.match(unavailable.roots.content.textContent, /Нет в наличии/);
+  assert.equal(unavailable.findButton('Добавить').disabled, true);
+  assert.equal(unavailable.roots.basket.childElementCount, 0);
 });
 
 test('widget single-choice options preserve the chosen checkbox and allow incomplete cart editing', async () => {

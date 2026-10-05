@@ -1008,7 +1008,9 @@
                       image.onload = () => image.classList.add('loaded');
                       photo.append(image);
                     }
-                  } catch {}
+                  } catch {
+                    // A malformed image URL keeps the public photo placeholder.
+                  }
                 }
                 card.append(
                   photo,
@@ -1064,14 +1066,41 @@
                 );
               content.append(pages);
             } else if (snapshot?.view === 'options' && snapshot.product) {
-              content.append(
-                el('h2', snapshot.product.name),
-                el('p', 'Выберите варианты товара', 'muted'),
-                button(
-                  'Выбрать варианты',
-                  () => configure(snapshot.product, snapshot.options),
+              const product = snapshot.product,
+                configuration = snapshot.options?.configuration,
+                hasVariants =
+                  (configuration?.enabled === true &&
+                    configuration.productKind !== 'standard' &&
+                    ['weight', 'filling', 'design'].some(
+                      (key) =>
+                        Array.isArray(configuration[key + 'Options']) &&
+                        configuration[key + 'Options'].length,
+                    )) ||
+                  (Array.isArray(snapshot.options?.modifierGroups) &&
+                    snapshot.options.modifierGroups.length > 0),
+                available =
+                  product.isAvailable === true &&
+                  product.onlineOrderable === true &&
+                  !product.inStopList,
+                action = button(
+                  hasVariants ? 'Выбрать варианты' : 'Добавить',
+                  () => (hasVariants ? configure(product, snapshot.options) : add(product)),
                   'primary',
+                );
+              action.disabled = busy || !available;
+              content.append(
+                el('h2', product.name),
+                el('div', money(product.price) + ' / ' + (product.unit || 'шт.'), 'price'),
+                el(
+                  'p',
+                  !available
+                    ? 'Нет в наличии'
+                    : hasVariants
+                      ? 'Выберите варианты товара'
+                      : 'Вариантов нет',
+                  'muted',
                 ),
+                action,
               );
             } else content.append(button('Открыть меню', () => menu(), 'primary'));
           } else content.append(button('Выбрать точку', () => branches(), 'primary'));
@@ -1143,7 +1172,9 @@
                   };
                   box.append(link);
                 }
-              } catch {}
+              } catch {
+                // A malformed handoff URL must never become a checkout link.
+              }
             } else
               box.append(
                 button(
