@@ -52,6 +52,9 @@ test.before(async () => {
   await db.exec(
     readFileSync('supabase/migrations/20261005093000_cashier_signup_review.sql', 'utf8'),
   );
+  await db.exec(
+    readFileSync('supabase/migrations/20261005131000_cashier_directory_sync_status.sql', 'utf8'),
+  );
   await sync([cashierA, cashierB]);
 });
 test.after(() => db.close());

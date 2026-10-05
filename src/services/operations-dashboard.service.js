@@ -1,5 +1,6 @@
 const { supabase } = require('../config/supabase');
 const { isDeliveryFulfillment } = require('../utils/fulfillment.util');
+const { cashierDirectoryStatus } = require('./cashier-directory-status.service');
 
 const CLOSED_ORDER_STATUSES = new Set(['completed', 'cancelled']);
 const CLOSED_DELIVERY_STATUSES = new Set(['delivered', 'cancelled']);
@@ -56,6 +57,7 @@ async function getOperationsSummary({
   includeSupport = true,
   includeWhatsApp = true,
   includeInventory = true,
+  includeCashierDirectory = false,
   assignedTo = '',
 } = {}) {
   const scoped = Array.isArray(branchIds) ? branchIds.map(String).filter(Boolean) : [];
@@ -112,6 +114,10 @@ async function getOperationsSummary({
     includeSupport ? fetchAllPages(supportQuery) : Promise.resolve({ data: [], error: null }),
     includeInventory ? inventoryQuery : Promise.resolve({ data: [], error: null }),
   ];
+  // A directory outage must not prevent operators from seeing urgent orders.
+  const cashierStatusPromise = includeCashierDirectory
+    ? cashierDirectoryStatus.getStatus().catch(() => ({ state: 'error' }))
+    : Promise.resolve(null);
   if (includeWhatsApp) {
     promises.push(
       supabase
@@ -124,6 +130,7 @@ async function getOperationsSummary({
   }
   const [activeOrdersResult, paymentIssuesResult, supportResult, inventoryResult, whatsappResult] =
     await Promise.all(promises);
+  const cashierStatus = await cashierStatusPromise;
   for (const result of [
     activeOrdersResult,
     paymentIssuesResult,
@@ -200,6 +207,7 @@ async function getOperationsSummary({
       support: includeSupport,
       whatsapp: includeWhatsApp,
       inventory: includeInventory,
+      cashierDirectory: includeCashierDirectory,
     },
     counts: {
       newOrders: newOrders.length,
@@ -218,6 +226,7 @@ async function getOperationsSummary({
       whatsappUnread,
       whatsappDialogs: whatsapp.length,
       stoppedProducts: stoppedProducts.length,
+      cashierSyncIssues: cashierStatus && cashierStatus.state !== 'ok' ? 1 : 0,
     },
     orders: [...kitchenOverdue, ...deliveryAttention, ...newOrders]
       .filter(

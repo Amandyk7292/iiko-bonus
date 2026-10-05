@@ -22,6 +22,16 @@ const employee = {
 function fixture() {
   const rows = new Map();
   const calls = [];
+  let syncAttempt = 0;
+  let syncStatus = {
+    state: 'never',
+    lastAttemptAt: null,
+    lastSuccessAt: null,
+    lastFailureAt: null,
+    failureSince: null,
+    consecutiveFailures: 0,
+    cashierCount: null,
+  };
   let source = employee;
   const directory = {
     listCashiers: async () => [employee],
@@ -49,7 +59,23 @@ function fixture() {
     },
     async rpc(name, args) {
       calls.push({ name, args });
-      if (name === 'sync_cashier_signup_directory') {
+      if (name === 'begin_cashier_directory_sync') {
+        syncStatus.lastAttemptAt = new Date().toISOString();
+        return { data: String(++syncAttempt) };
+      }
+      if (name === 'get_cashier_directory_sync_status') return { data: syncStatus };
+      if (name === 'fail_cashier_directory_sync') {
+        const failedAt = new Date().toISOString();
+        syncStatus = {
+          ...syncStatus,
+          state: 'error',
+          lastFailureAt: failedAt,
+          failureSince: syncStatus.failureSince || failedAt,
+          consecutiveFailures: syncStatus.consecutiveFailures + 1,
+        };
+        return { data: null };
+      }
+      if (name === 'sync_cashier_directory_with_status') {
         for (const item of args.p_cashiers) {
           rows.set(item.id, {
             employee_id: item.id,
@@ -60,6 +86,14 @@ function fixture() {
             invite_token: rows.get(item.id)?.invite_token || item.inviteToken,
           });
         }
+        syncStatus = {
+          ...syncStatus,
+          state: 'ok',
+          lastSuccessAt: new Date().toISOString(),
+          failureSince: null,
+          consecutiveFailures: 0,
+          cashierCount: args.p_cashiers.length,
+        };
         return { data: { items: [...rows.values()] } };
       }
       if (name === 'cashier_signup_ranking') {
@@ -185,11 +219,16 @@ test('overlapping directory/ranking refreshes share a source read, then read fre
     return [employee];
   };
   const requests = [service.list(), service.ranking({ from: '2026-10-01', to: '2026-10-04' })];
+  await new Promise((resolve) => setImmediate(resolve));
   assert.equal(reads, 1);
   release();
   await Promise.all(requests);
-  assert.equal(f.calls.filter((call) => call.name === 'sync_cashier_signup_directory').length, 1);
+  assert.equal(
+    f.calls.filter((call) => call.name === 'sync_cashier_directory_with_status').length,
+    1,
+  );
   const next = service.list();
+  await new Promise((resolve) => setImmediate(resolve));
   assert.equal(reads, 2, 'a completed snapshot is never reused on the next refresh');
   release();
   await next;
@@ -207,7 +246,10 @@ test('a failed source refresh never writes a partial directory and the next refr
   assert.ok(
     requests.every((request) => request.status === 'rejected' && request.reason === unavailable),
   );
-  assert.equal(f.calls.filter((call) => call.name === 'sync_cashier_signup_directory').length, 1);
+  assert.equal(
+    f.calls.filter((call) => call.name === 'sync_cashier_directory_with_status').length,
+    1,
+  );
   f.directory.listCashiers = async () => [{ ...employee, name: 'Новое ФИО', city: 'Астана' }];
   const updated = await service.list();
   assert.equal(updated.items[0].name, 'Новое ФИО');

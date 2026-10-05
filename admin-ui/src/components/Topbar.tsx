@@ -9,6 +9,7 @@ import {
   ShoppingBag,
   Volume2,
   VolumeX,
+  RefreshCw,
 } from './BulkaIcons';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from '../lib/router';
@@ -80,7 +81,7 @@ export default function Topbar({
   selectedBranchId?: string;
   onBranchChange?: (branchId: string) => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { toast } = useFeedback();
   const location = useLocation();
   const { summary, connectionStatus, soundEnabled, setSoundEnabled } = useAdminRealtime();
@@ -112,7 +113,8 @@ export default function Topbar({
       counts.kitchenOverdue +
       counts.supportNew +
       counts.whatsappUnread +
-      counts.paymentIssues
+      counts.paymentIssues +
+      (summary?.capabilities.cashierDirectory ? counts.cashierSyncIssues || 0 : 0)
     : 0;
 
   useEffect(() => {
@@ -137,6 +139,13 @@ export default function Topbar({
 
   const notificationItems = counts
     ? [
+        {
+          key: 'cashier-directory',
+          label: locale === 'kk' ? 'Қызметкерлер базасы жаңартылмайды' : 'База сотрудников не обновляется',
+          value: counts.cashierSyncIssues || 0,
+          path: '/bonus',
+          icon: RefreshCw,
+        },
         {
           key: 'unaccepted',
           label: 'Не приняты более 5 минут',
@@ -185,6 +194,7 @@ export default function Topbar({
         if (item.path.startsWith('/kitchen')) return summary?.capabilities.kitchen;
         if (item.path.startsWith('/support')) return summary?.capabilities.support;
         if (item.path.startsWith('/whatsapp')) return summary?.capabilities.whatsapp;
+        if (item.path === '/bonus') return summary?.capabilities.cashierDirectory;
         return false;
       })
     : [];

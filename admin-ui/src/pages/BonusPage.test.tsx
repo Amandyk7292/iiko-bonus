@@ -109,6 +109,10 @@ const report = {
   },
 };
 const race = { success: true, items: [], totals: { completed: 0, rewardAmount: 0 } };
+const directoryStatus = { success: true, status: {
+  state: 'ok', lastAttemptAt: '2026-10-05T05:00:00Z', lastSuccessAt: '2026-10-05T05:00:00Z',
+  lastFailureAt: null, failureSince: null, consecutiveFailures: 0, cashierCount: 71,
+} };
 const mockRequest = vi.mocked(request);
 const wrap = (content: React.ReactNode) => (
   <BrowserRouter>
@@ -120,13 +124,19 @@ const wrap = (content: React.ReactNode) => (
 
 beforeEach(() => {
   localStorage.setItem('adminLocale', 'ru');
+  localStorage.removeItem('adminSelectedBranchId');
   window.history.replaceState({}, '', '/bonus');
   vi.spyOn(api, 'getSettings').mockResolvedValue(settings);
   vi.spyOn(api, 'updateSettings').mockResolvedValue({ success: true });
   mockRequest
     .mockReset()
     .mockImplementation(
-      async (url) => (url.startsWith('/bonus/cashier-race') ? race : report) as never,
+      async (url) => (url.startsWith('/bonus/cashier-race') ? race
+        : url === '/bonus/cashier-directory-status' ? directoryStatus
+        : url.startsWith('/bonus/cashier-payroll?') ? {
+          success: true, month: new URLSearchParams(url.split('?')[1]).get('month'), canMarkPaid: false,
+          items: [], totals: { completed: 0, rewardAmount: 0, paidAmount: 0, outstandingAmount: 0 },
+        } : report) as never,
     );
 });
 afterEach(() => vi.restoreAllMocks());
@@ -219,17 +229,37 @@ describe('bonus workspace', () => {
     render(wrap(<BonusPage />));
     expect(screen.getByRole('tab', { name: 'Кассиры' })).toHaveAttribute('aria-selected', 'true');
     await screen.findByText('Кассиры не найдены');
-    expect(mockRequest).toHaveBeenCalledTimes(1);
-    expect(mockRequest.mock.calls[0][2]).toEqual({ branchScope: '' });
+    const raceCalls = () => mockRequest.mock.calls.filter(([url]) => url.startsWith('/bonus/cashier-race'));
+    expect(raceCalls()).toHaveLength(1);
+    expect(raceCalls()[0][2]).toEqual({ branchScope: '' });
+    expect(mockRequest.mock.calls.filter(([url]) => url === '/bonus/cashier-directory-status')).toHaveLength(1);
     fireEvent.click(screen.getByRole('tab', { name: 'Приглашения' }));
     await screen.findByText('Тестовый клиент');
-    expect(mockRequest).toHaveBeenCalledTimes(2);
+    expect(mockRequest.mock.calls.filter(([url]) => url.startsWith('/bonus/referrals?'))).toHaveLength(1);
     fireEvent.click(screen.getByRole('tab', { name: 'Кассиры' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Приглашения' }));
     expect(screen.getByText('Тестовый клиент')).toBeVisible();
-    expect(mockRequest).toHaveBeenCalledTimes(3);
-    expect(mockRequest.mock.calls[2][0]).toContain('/bonus/cashier-race?');
-    expect(mockRequest.mock.calls[2][1]?.signal?.aborted).toBe(true);
+    expect(raceCalls()).toHaveLength(2);
+    expect(raceCalls()[1][1]?.signal?.aborted).toBe(true);
+  });
+
+  it('opens payroll only on demand and retains rating filters while switching cashier views', async () => {
+    localStorage.setItem('adminSelectedBranchId', 'branch-1');
+    render(wrap(<BonusPage scope="branch-1" />));
+    await screen.findByText('Кассиры не найдены');
+    expect(mockRequest.mock.calls.some(([url]) => url.startsWith('/bonus/cashier-payroll'))).toBe(false);
+    fireEvent.change(screen.getByLabelText('Найти кассира'), { target: { value: 'Алия' } });
+    fireEvent.click(screen.getByRole('tab', { name: 'Ведомость' }));
+    await screen.findByText('Начислений за этот месяц нет');
+    expect(mockRequest.mock.calls.find(([url]) => url.startsWith('/bonus/cashier-payroll?'))?.[2]).toEqual({ branchScope: '' });
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Ведомость' }), { key: 'Home' });
+    expect(screen.getByRole('tab', { name: 'Рейтинг' })).toHaveFocus();
+    expect(within(screen.getByRole('tabpanel', { name: 'Рейтинг' })).getByLabelText('Найти кассира')).toHaveValue('Алия');
+    expect(screen.getByRole('tab', { name: 'Рейтинг' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: 'Приглашения' }));
+    await screen.findByText('Тестовый клиент');
+    const payrollCalls = mockRequest.mock.calls.filter(([url]) => url.startsWith('/bonus/cashier-payroll?'));
+    expect(payrollCalls).toHaveLength(1);
   });
 
   it('preserves unsaved settings across tabs and branch changes, then saves all policy fields', async () => {

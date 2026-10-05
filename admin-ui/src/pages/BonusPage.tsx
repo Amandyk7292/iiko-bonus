@@ -8,7 +8,7 @@ import { useI18n } from '../lib/i18n';
 import { useUnsavedChanges } from '../lib/use-unsaved-changes';
 import ReferralSettings, { type ReferralPolicy } from './ReferralSettings';
 import ReferralReport from './ReferralReport';
-import CashierSignupRace from './CashierSignupRace';
+import CashierWorkspace from './CashierWorkspace';
 import '../styles/bonus-page.css';
 
 const tabs = ['cashiers', 'referrals', 'registers', 'settings'] as const;
@@ -220,7 +220,7 @@ export default function BonusPage({ scope = '' }: { scope?: string }) {
         aria-labelledby="bonus-tab-cashiers"
         hidden={tab !== 'cashiers'}
       >
-        <CashierSignupRace active={tab === 'cashiers'} />
+        <CashierWorkspace active={tab === 'cashiers'} />
       </div>
       <div
         role="tabpanel"

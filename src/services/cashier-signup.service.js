@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const { supabase } = require('../config/supabase');
 const { staffDirectory } = require('./staff-directory.service');
+const { createCashierDirectoryStatus } = require('./cashier-directory-status.service');
 const { notFound } = require('../utils/app-error.util');
 
 const invitationUrl = (token) =>
@@ -15,18 +16,30 @@ const toPublic = (row) => ({
   url: invitationUrl(row.invite_token),
 });
 
-function createCashierSignup({ db = supabase, directory = staffDirectory } = {}) {
+function createCashierSignup({
+  db = supabase,
+  directory = staffDirectory,
+  status = createCashierDirectoryStatus({ db }),
+} = {}) {
   let syncTask;
   const readAndSync = async () => {
-    const cashiers = await directory.listCashiers();
-    const { data, error } = await db.rpc('sync_cashier_signup_directory', {
-      p_cashiers: cashiers.map((cashier) => ({
-        ...cashier,
-        inviteToken: crypto.randomBytes(32).toString('hex'),
-      })),
-    });
-    if (error) throw error;
-    return data?.items || [];
+    const attempt = await status.begin();
+    try {
+      const cashiers = await directory.listCashiers();
+      const data = await status.complete(
+        attempt,
+        cashiers.map((cashier) => ({
+          ...cashier,
+          inviteToken: crypto.randomBytes(32).toString('hex'),
+        })),
+      );
+      return data?.items || [];
+    } catch (error) {
+      // Preserve the original protective failure even when health persistence
+      // itself is unavailable. Saved status never authorizes a QR redemption.
+      await status.fail(attempt).catch(() => {});
+      throw error;
+    }
   };
   // Page refreshes and the background worker share one full source read. Do
   // not retain a result: the next refresh must see new/deleted HR employees.
@@ -81,7 +94,15 @@ function createCashierSignup({ db = supabase, directory = staffDirectory } = {})
       };
     },
     async ranking({ from, to, branches }) {
-      await sync();
+      try {
+        await sync();
+      } catch (error) {
+        // Managers can inspect the last complete saved roster during an HR
+        // outage. First-sync failure must not look like a successful empty list.
+        const saved = await status.getStatus();
+        if (!saved.lastSuccessAt) throw error;
+      }
+      const directoryStatus = await status.getStatus();
       const { data, error } = await db.rpc('cashier_signup_ranking', {
         p_from: `${from}T00:00:00+05:00`,
         p_to: new Date(Date.parse(`${to}T00:00:00+05:00`) + 86400000).toISOString(),
@@ -95,6 +116,10 @@ function createCashierSignup({ db = supabase, directory = staffDirectory } = {})
       return {
         items,
         reviewPolicy: data?.reviewPolicy,
+        directoryStatus: {
+          ...directoryStatus,
+          cashierCount: branches?.length ? null : directoryStatus.cashierCount,
+        },
         totals: {
           completed: items.reduce((sum, item) => sum + Number(item.completed), 0),
           rewardAmount: items.reduce((sum, item) => sum + Number(item.rewardAmount), 0),

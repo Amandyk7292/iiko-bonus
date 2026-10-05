@@ -3,8 +3,10 @@ const { querySchema } = require('./referral.routes');
 const { validateRequest } = require('../../middlewares/validation.middleware');
 const { branchScopeForAdmin } = require('../../utils/admin-scope.util');
 const { sendCashierError } = require('../public/cashier-signup.routes');
+const { registerCashierPayrollAdminRoutes } = require('./cashier-payroll.routes');
 
 function registerCashierSignupAdminRoutes(router) {
+  registerCashierPayrollAdminRoutes(router);
   router.get(
     '/admin/api/bonus/cashier-race',
     validateRequest({ query: querySchema }),

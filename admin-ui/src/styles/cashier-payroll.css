@@ -1,0 +1,79 @@
+.cashier-workspace { display: grid; gap: 16px; min-width: 0; }
+.cashier-workspace [hidden] { display: none !important; }
+.cashier-workspace-tabs { display: flex; gap: 8px; padding: 4px; border-radius: var(--radius-control); background: var(--color-beige-100); width: fit-content; }
+.cashier-workspace-tabs button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: var(--touch-minimum); border: 0; border-radius: var(--radius-control); background: transparent; color: var(--sagi-muted); padding: 10px 18px; font-weight: 650; font-size: var(--type-body-small); cursor: pointer; }
+.cashier-workspace-tabs button[aria-selected=true] { background: var(--workspace-accent-soft,var(--sagi-cream)); color: var(--sagi-cocoa); }
+.cashier-workspace-tabs button:focus-visible { outline: 2px solid var(--sagi-cocoa); outline-offset: 3px; }
+.cashier-payroll { min-width: 0; padding: clamp(20px,4vw,32px); }
+.cashier-payroll-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+.cashier-payroll-heading h2 { margin: 0; font-size: var(--type-title); color: var(--sagi-cocoa); }
+.cashier-payroll-heading-icon { display: grid; place-items: center; flex: 0 0 48px; height: 48px; border-radius: var(--radius-medium); background: var(--workspace-accent-soft,var(--sagi-cream)); color: var(--sagi-cocoa); }
+.cashier-payroll-heading > button { margin-left: auto; flex-shrink: 0; min-width: var(--touch-minimum); min-height: var(--touch-minimum); }
+.cashier-payroll-filters { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; margin-bottom: 20px; }
+.cashier-payroll-filters .field-group { margin: 0; min-width: 0; }
+.cashier-payroll-filters .field-group > span { display: block; margin-bottom: 7px; color: var(--sagi-muted); font-size: var(--type-body-small); }
+.cashier-payroll-filters .input-classic { width: 100%; min-width: 0; min-height: var(--touch-minimum); font-size: var(--type-body-small); }
+.cashier-payroll-filters select:disabled { opacity: .55; cursor: not-allowed; }
+.cashier-payroll-search { grid-column: 1 / -1; }
+.cashier-payroll-search > div { position: relative; }
+.cashier-payroll-search svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--sagi-muted); }
+.cashier-payroll-search .input-classic { padding-left: 44px; }
+.cashier-payroll-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin: 0 0 20px; }
+.cashier-payroll-stats > div { padding: 18px 16px; background: var(--color-beige-100); border-radius: var(--radius-control); min-width: 0; }
+.cashier-payroll-stats > div:last-child { background: var(--workspace-accent-soft,var(--sagi-cream)); }
+.cashier-payroll-stats dt { color: var(--sagi-muted); font-size: var(--type-caption); }
+.cashier-payroll-stats dd { margin: 8px 0 0; font-size: var(--type-title-small); color: var(--sagi-cocoa); font-weight: 750; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cashier-payroll-export { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.cashier-payroll-export button,.cashier-payroll-actions button,.cashier-payroll-modal-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: var(--touch-minimum); }
+.cashier-payroll-export > span { color: var(--sagi-cocoa); font-size: var(--type-body-small); }
+.cashier-payroll-table { border-collapse: collapse; width: 100%; font-size: var(--type-body-small); text-align: right; }
+.cashier-payroll-table thead th { padding: 0 8px 12px; font-weight: 400; color: var(--sagi-muted); }
+.cashier-payroll-table thead th:first-child { text-align: left; }
+.cashier-payroll-table tbody tr { border-top: 1px solid var(--sagi-border); }
+.cashier-payroll-table tbody td,.cashier-payroll-table tbody th { padding: 16px 8px; vertical-align: middle; min-width: 0; }
+.cashier-payroll-table td { font-variant-numeric: tabular-nums; }
+.cashier-payroll-person { text-align: left; font-weight: 400; color: var(--sagi-cocoa); overflow-wrap: anywhere; }
+.cashier-payroll-person > span:not(.cashier-payroll-archive) { display: block; color: var(--sagi-muted); font-size: var(--type-caption); margin-top: 4px; }
+.cashier-payroll-archive { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: var(--radius-pill); color: var(--sagi-muted); background: var(--color-beige-100); font-size: var(--type-caption); }
+.cashier-payroll-paid { display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-size: var(--type-caption); color: var(--sagi-cocoa); margin-top: 6px; }
+.cashier-payroll-actions { width: 164px; }
+.cashier-payroll-actions button { width: 100%; margin: 4px 0; font-size: var(--type-caption); padding: 10px 12px; }
+.cashier-payroll-loading { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 28px 0; color: var(--sagi-muted); font-size: var(--type-body-small); }
+.cashier-payroll-empty,.cashier-payroll-notice { color: var(--sagi-muted); font-size: var(--type-body-small); }
+.cashier-payroll .inline-alert { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.cashier-payroll-modal-actions { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 12px; }
+.cashier-payroll-confirm,.cashier-payroll-history { color: var(--sagi-cocoa); font-size: var(--type-body-small); line-height: 1.5; overflow-wrap: anywhere; }
+.cashier-payroll-confirm > p,.cashier-payroll-history > p { margin: 0 0 16px; }
+.cashier-payroll-confirm > p:last-child { margin: 16px 0 0; }
+.cashier-payroll-confirm dl { display: grid; gap: 14px; margin: 16px 0; padding: 18px; border-radius: var(--radius-control); background: var(--workspace-accent-soft,var(--sagi-cream)); }
+.cashier-payroll-confirm dl > div { display: flex; justify-content: space-between; gap: 16px; }
+.cashier-payroll-confirm dt { color: var(--sagi-muted); }
+.cashier-payroll-confirm dd { margin: 0; font-weight: 650; text-align: right; font-variant-numeric: tabular-nums; }
+.cashier-payroll-confirm dl > div:last-child dd { font-size: var(--type-title-small); }
+.cashier-payroll-history ul { display: grid; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.cashier-payroll-history li { display: grid; gap: 6px; padding: 16px; background: var(--color-beige-100); border-radius: var(--radius-control); }
+.cashier-payroll-history li span,.cashier-payroll-history time { color: var(--sagi-muted); font-size: var(--type-caption); }
+@media (max-width:767px) {
+  .cashier-payroll-heading { gap: 12px; }
+  .cashier-payroll-heading h2 { font-size: var(--type-title-small); }
+  .cashier-payroll-filters { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+  .cashier-payroll-filters > :nth-child(3) { grid-column: 1 / -1; }
+  .cashier-payroll-filters .input-classic { font-size: var(--type-body); padding-left: 12px; padding-right: 12px; }
+  .cashier-payroll-search .input-classic { padding-left: 44px; }
+  .cashier-payroll-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .cashier-payroll-stats > div { padding: 16px 12px; }
+  .cashier-payroll-stats dd { font-size: var(--type-title-small); }
+  .cashier-payroll-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .cashier-payroll-table,.cashier-payroll-table tbody { display: block; }
+  .cashier-payroll-table tbody tr { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; padding: 18px 0; }
+  .cashier-payroll-table tbody td,.cashier-payroll-table tbody th { display: block; text-align: left; padding: 0; }
+  .cashier-payroll-person,.cashier-payroll-actions { grid-column: 1 / -1; width: auto; }
+  .cashier-payroll-table td[data-label]::before { content: attr(data-label); display: block; color: var(--sagi-muted); font-size: var(--type-caption); margin-bottom: 4px; }
+  .cashier-payroll-actions { display: grid !important; gap: 8px; }
+  .cashier-payroll-actions button { margin: 0; font-size: var(--type-body-small); }
+  .cashier-payroll-paid { justify-content: flex-start; }
+}
+@media (max-width:359px) {
+  .cashier-payroll-filters { grid-template-columns: minmax(0,1fr); }
+  .cashier-payroll-modal-actions { grid-template-columns: minmax(0,1fr); }
+}

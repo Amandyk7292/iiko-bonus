@@ -567,6 +567,7 @@ export interface OperationsSummary {
     support: boolean;
     whatsapp: boolean;
     inventory: boolean;
+    cashierDirectory?: boolean;
   };
   counts: {
     newOrders: number;
@@ -581,6 +582,7 @@ export interface OperationsSummary {
     whatsappUnread: number;
     whatsappDialogs: number;
     stoppedProducts: number;
+    cashierSyncIssues?: number;
   };
   orders: Array<{
     id: string;

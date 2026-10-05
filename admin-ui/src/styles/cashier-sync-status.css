@@ -1,0 +1,18 @@
+.cashier-sync {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 16px 20px;
+  border-radius: var(--radius-medium);
+  background: var(--color-beige-100);
+  color: var(--sagi-cocoa);
+}
+.cashier-sync > svg { flex-shrink: 0; }
+.cashier-sync-content { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.cashier-sync-content > div { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: var(--type-body-small); }
+.cashier-sync-content small { display: block; margin-top: 4px; color: var(--sagi-muted); }
+.cashier-sync-warning { background: var(--workspace-accent-soft, var(--sagi-cream)); }
+.cashier-sync-warning > svg { color: var(--color-danger, #b42318); }
+.cashier-sync .icon-button { flex-shrink: 0; min-width: 44px; min-height: 44px; }
+@media (max-width: 600px) { .cashier-sync { align-items: flex-start; padding: 14px; gap: 8px; } }

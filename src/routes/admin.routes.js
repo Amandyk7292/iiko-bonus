@@ -366,6 +366,7 @@ router.get('/admin/api/operations/summary', async (req, res) => {
         includeSupport: canRead('support'),
         includeWhatsApp: canRead('whatsapp'),
         includeInventory: canRead('inventory'),
+        includeCashierDirectory: canRead('bonus'),
         assignedTo: req.admin?.sub || '',
       })),
     });
@@ -378,6 +379,8 @@ registerPosHealthAdminRoutes(router);
 require('./admin/referral.routes').registerReferralAdminRoutes(router);
 require('./admin/branch-signup.routes').registerBranchSignupAdminRoutes(router);
 require('./admin/cashier-signup.routes').registerCashierSignupAdminRoutes(router);
+require('./admin/cashier-payroll-export.routes').registerCashierPayrollExportRoutes(router);
+require('./admin/cashier-directory-status.routes').registerCashierDirectoryStatusRoutes(router);
 require('./admin/franchise.routes').registerFranchiseRoutes(router);
 registerOrderSubstitutionAdminRoutes(router, { assertOrderAccess });
 require('./admin/delivery-resolution.routes').registerDeliveryResolutionAdminRoutes(router, {

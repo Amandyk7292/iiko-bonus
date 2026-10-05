@@ -12,6 +12,7 @@ import Topbar from './Topbar';
 
 const setSoundEnabled = vi.hoisted(() => vi.fn());
 const unregisterBeforeLogout = vi.hoisted(() => vi.fn());
+const realtimeState = vi.hoisted(() => ({ summary: null as Record<string, unknown> | null }));
 
 vi.mock('./StaffPushControl', async () => {
   const React = await import('react');
@@ -29,7 +30,7 @@ vi.mock('./StaffPushControl', async () => {
 vi.mock('../lib/admin-realtime', () => ({
   useAdminRealtimeEvents: vi.fn(),
   useAdminRealtime: () => ({
-    summary: null,
+    summary: realtimeState.summary,
     connectionStatus: 'online',
     soundEnabled: true,
     setSoundEnabled,
@@ -88,6 +89,7 @@ function topbar(
 describe('Topbar city and branch scope', () => {
   beforeEach(() => {
     localStorage.setItem('adminLocale', 'ru');
+    realtimeState.summary = null;
     setSoundEnabled.mockClear();
     unregisterBeforeLogout.mockReset().mockResolvedValue(undefined);
     window.history.replaceState({}, '', '/admin/operations');
@@ -107,6 +109,19 @@ describe('Topbar city and branch scope', () => {
   });
 
   afterEach(() => vi.unstubAllGlobals());
+
+  it('shows one directory failure notification only to roles with cashier access', () => {
+    const counts = { newOrders: 0, kitchenOverdue: 0, supportNew: 0, whatsappUnread: 0, paymentIssues: 0, cashierSyncIssues: 1 };
+    realtimeState.summary = { counts, capabilities: { cashierDirectory: true } };
+    const { rerender } = render(topbar('', vi.fn()));
+    fireEvent.click(screen.getByRole('button', { name: 'Операционные уведомления' }));
+    expect(screen.getByRole('link', { name: /База сотрудников не обновляется/ })).toHaveAttribute('href', '/admin/bonus');
+    expect(document.querySelector('.topbar-notification-count')).toHaveTextContent('1');
+    realtimeState.summary = { counts, capabilities: { cashierDirectory: false } };
+    rerender(topbar('', vi.fn()));
+    expect(screen.queryByRole('link', { name: /База сотрудников не обновляется/ })).not.toBeInTheDocument();
+    expect(document.querySelector('.topbar-notification-count')).not.toBeInTheDocument();
+  });
 
   it('leaves photo-report city selection to the page filters', () => {
     window.history.replaceState({}, '', '/admin/photo-reports');
