@@ -117,6 +117,19 @@ if (!process.env.VERCEL) {
     intervalMs: 300000,
     maxRunMs: 120000,
   });
+  registerWorker('pickup-photo-retention', {
+    enabled: runWorkers,
+    intervalMs: 300000,
+    maxRunMs: 120000,
+  });
+  if (runWorkers) {
+    const cleanupPickupPhotos = () =>
+      runMonitoredWorker('pickup-photo-retention', () =>
+        require('./services/pickup-photo-gift.service').cleanupPhotos(),
+      );
+    setTimeout(cleanupPickupPhotos, 55000).unref?.();
+    setInterval(cleanupPickupPhotos, 300000).unref?.();
+  }
   if (runWorkers) {
     const cleanupBranchPhotos = () =>
       runMonitoredWorker('branch-photo-retention', () =>

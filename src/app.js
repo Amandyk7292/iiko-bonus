@@ -344,6 +344,7 @@ app.use(require('./routes/branch-photo-reports.routes'));
 app.use(require('./routes/pos-pairing.routes'));
 app.use(require('./routes/front-inventory.routes'));
 app.use(require('./routes/front-auto-receipt.routes'));
+app.use(require('./routes/pickup-photo-gift.routes'));
 app.use(require('./routes/personal-account-pos.routes'));
 app.use(require('./routes/family.routes'));
 app.use(require('./routes/pos-health.routes'));

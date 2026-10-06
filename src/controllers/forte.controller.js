@@ -12,6 +12,10 @@ const {
 } = require('../services/checkout-delivery-pricing.service');
 const { getCitiesWithPoints } = require('../services/location.service');
 const { normalizeOrderType, validateCheckout } = require('../services/checkout.service');
+const {
+  reserveCheckoutPhoto,
+  assertExistingPhoto,
+} = require('../services/pickup-photo-gift.service');
 const { forecastOrderEta } = require('../services/eta.service');
 const { SingleFlight } = require('../utils/single-flight.util');
 const {
@@ -31,6 +35,7 @@ const {
 } = require('../services/online-ordering.service');
 
 const checkoutRequests = new SingleFlight();
+const checkoutPhotoRequests = new Map();
 const personalAccount = require('../services/personal-account.service');
 const CHECKOUT_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -165,10 +170,22 @@ const createPayment = async (req, res) => {
     }
 
     const requestKey = `${customerId}:${checkoutId}`;
-    const result = await checkoutRequests.run(requestKey, async () => {
+    const ownsFlight = !checkoutPhotoRequests.has(requestKey);
+    if (!ownsFlight) {
+      try {
+        assertExistingPhoto({ pickup_photo_id: checkoutPhotoRequests.get(requestKey) }, req.body);
+      } catch (error) {
+        // Do not run outer reservation cleanup while the original payment is active.
+        return res.status(error.statusCode).json({ error: error.message, code: error.code });
+      }
+    } else {
+      checkoutPhotoRequests.set(requestKey, req.body?.pickupPhotoId?.toLowerCase() || null);
+    }
+    const paymentFlight = checkoutRequests.run(requestKey, async () => {
       // An existing payment keeps its amount even after the quote or slot expires.
       const existing = await forteWidgetService.existingRequest(customerId, checkoutId);
       if (existing) {
+        assertExistingPhoto(existing, req.body);
         if (existing.payment_method !== (req.body?.paymentMethod || 'forte_card')) {
           throw Object.assign(new Error('Оформление связано с другим способом оплаты'), {
             statusCode: 409,
@@ -195,6 +212,13 @@ const createPayment = async (req, res) => {
         applyDeliveryAvailability: false,
       });
       const checkout = validateCheckout(req.body, cities);
+      // Resolve immutable photo ownership before creating any shared money hold.
+      checkout.pickupPhotoId = await reserveCheckoutPhoto(
+        customerId,
+        checkoutId,
+        req.body,
+        checkout,
+      );
       let pricing = await priceOrder(items, promoCode, {
         deliveryFee: checkout.deliveryFee,
         branchId: checkout.branchId,
@@ -331,9 +355,15 @@ const createPayment = async (req, res) => {
         throw error;
       }
     });
+    const result = await paymentFlight.finally(() => {
+      if (ownsFlight) checkoutPhotoRequests.delete(requestKey);
+    });
     return res.json(result);
   } catch (error) {
-    if (CHECKOUT_ID_PATTERN.test(String(req.body?.checkoutId || ''))) {
+    if (
+      CHECKOUT_ID_PATTERN.test(String(req.body?.checkoutId || '')) &&
+      !String(error.code || '').startsWith('PICKUP_PHOTO_')
+    ) {
       await deliveryBudget
         .releaseUnstarted(req.customerAuth.id, req.body.checkoutId)
         .catch(() => {});

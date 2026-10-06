@@ -46,6 +46,8 @@ function controllerHarness(t) {
     bonusAvailable: 0,
     fundsBlocked: false,
     probeBlocked: false,
+    photoReservations: [],
+    pricingCalls: 0,
   };
   const {
     deliveryAvailability,
@@ -93,6 +95,19 @@ function controllerHarness(t) {
       longitude: 51.16,
     },
   };
+  const photoService = require('../src/services/pickup-photo-gift.service');
+  install(t, '../src/services/pickup-photo-gift.service', {
+    ...photoService,
+    reserveCheckoutPhoto: async (customerId, checkoutId, payload, context) =>
+      photoService.reserveCheckoutPhoto(customerId, checkoutId, payload, context, {
+        rpc: async (_name, body) => {
+          state.photoReservations.push(body);
+          return {
+            data: state.photoError ? { error: state.photoError } : { photoId: body.p_photo },
+          };
+        },
+      }),
+  });
   const merchandise = {
     subtotal: 35,
     discount: 0,
@@ -107,9 +122,11 @@ function controllerHarness(t) {
       amount: order.amount,
       operationId: 'same-operation',
     }),
-    createCheckout: async (_phone, pricing) => {
+    createCheckout: async (_phone, pricing, _customer, context) => {
       if (state.preflightFailure) throw state.preflightFailure;
+      if (state.beforePayment) await state.beforePayment(context);
       state.charges.push(pricing);
+      state.paymentPhotoId = context.pickupPhotoId;
       return { success: true, amount: pricing.total };
     },
   };
@@ -122,7 +139,12 @@ function controllerHarness(t) {
   install(t, '../src/services/payment-operations.service', {
     getForteCheckoutDecision: async () => ({ effectiveIntegration: 'widget' }),
   });
-  install(t, '../src/services/order.service', { priceOrder: async () => ({ ...merchandise }) });
+  install(t, '../src/services/order.service', {
+    priceOrder: async () => {
+      state.pricingCalls++;
+      return { ...merchandise };
+    },
+  });
   install(t, '../src/services/location.service', { getCitiesWithPoints: async () => [] });
   install(t, '../src/services/checkout.service', {
     normalizeOrderType() {},
@@ -156,8 +178,112 @@ function controllerHarness(t) {
     customerAuth: { id: 'customer', phone: '+77001112233' },
     headers: {},
   };
-  return { state, controller, request };
+  return { state, controller, request, checkout };
 }
+
+test('optional pickup photo is validated before the gateway and passed with the paid checkout', async (t) => {
+  const { state, controller, request, checkout } = controllerHarness(t);
+  checkout.effectiveFulfillmentType = checkout.orderType = 'pickup';
+  request.body.pickupPhotoId = '22222222-2222-4222-8222-222222222222';
+  await controller.createPayment(request, response());
+  assert.equal(state.charges.length, 1);
+  assert.equal(state.paymentPhotoId, request.body.pickupPhotoId);
+  assert.equal(state.photoReservations[0].p_photo, request.body.pickupPhotoId);
+});
+
+test('concurrent changed photo cannot join an active payment or release its reservation', async (t) => {
+  const { state, controller, request, checkout } = controllerHarness(t);
+  checkout.effectiveFulfillmentType = checkout.orderType = 'pickup';
+  request.body.pickupPhotoId = '22222222-2222-4222-8222-222222222222';
+  let finishPayment;
+  const gate = new Promise((resolve) => {
+    finishPayment = resolve;
+  });
+  const started = new Promise((resolve) => {
+    state.beforePayment = async () => {
+      resolve();
+      await gate;
+    };
+  });
+  const { deliveryBudget } = require('../src/services/delivery-budget.service');
+  const releases = [];
+  t.mock.method(deliveryBudget, 'releaseUnstarted', async (...args) => releases.push(args));
+  const firstResult = response();
+  const first = controller.createPayment(request, firstResult);
+  await started;
+  const result = response();
+  await controller.createPayment(
+    {
+      ...request,
+      body: { ...request.body, pickupPhotoId: '33333333-3333-4333-8333-333333333333' },
+    },
+    result,
+  );
+  assert.equal(result.statusCode, 409);
+  assert.equal(result.body.code, 'PICKUP_PHOTO_REQUEST_CHANGED');
+  assert.deepEqual(releases, []);
+  assert.equal(state.photoReservations.length, 1);
+  finishPayment();
+  await first;
+  assert.equal(state.charges.length, 1);
+  assert.equal(firstResult.statusCode, 200);
+});
+
+test('expired/foreign photos and unsupported printers never create a payment', async (t) => {
+  const { state, controller, request, checkout } = controllerHarness(t);
+  checkout.effectiveFulfillmentType = checkout.orderType = 'pickup';
+  request.body.pickupPhotoId = '22222222-2222-4222-8222-222222222222';
+  const { deliveryBudget } = require('../src/services/delivery-budget.service');
+  const releases = [];
+  t.mock.method(deliveryBudget, 'releaseUnstarted', async (...args) => releases.push(args));
+  for (const [reason, code] of [
+    ['photo_unavailable', 'PICKUP_PHOTO_EXPIRED'],
+    ['printer_unavailable', 'PICKUP_PHOTO_PRINTER_UNAVAILABLE'],
+    ['request_changed', 'PICKUP_PHOTO_REQUEST_CHANGED'],
+  ]) {
+    state.photoError = reason;
+    const result = response();
+    await controller.createPayment(request, result);
+    assert.equal(result.body.code, code);
+    assert.equal(state.charges.length, 0);
+    assert.equal(state.pricingCalls, 0, 'photo is verified before any price/delivery/bonus hold');
+    assert.deepEqual(releases, [], 'a rejected photo cannot release another process payment hold');
+  }
+});
+
+test('delivery rejects a photo before any bank call', async (t) => {
+  const { state, controller, request } = controllerHarness(t);
+  const quote = response();
+  await controller.quotePayment(request, quote);
+  request.body.deliveryQuoteToken = quote.body.deliveryQuoteToken;
+  request.body.pickupPhotoId = '22222222-2222-4222-8222-222222222222';
+  const result = response();
+  await controller.createPayment(request, result);
+  assert.equal(result.body.code, 'PICKUP_PHOTO_PICKUP_ONLY');
+  assert.equal(state.charges.length, 0);
+  assert.equal(state.photoReservations.length, 0);
+});
+
+test('an existing checkout cannot replace its photo or pay again', async (t) => {
+  const { state, controller, request } = controllerHarness(t);
+  state.existing = {
+    amount: 35,
+    payment_method: 'forte_card',
+    provider_payment_system: 'forte_widget',
+    pickup_photo_id: '22222222-2222-4222-8222-222222222222',
+  };
+  request.body.pickupPhotoId = '33333333-3333-4333-8333-333333333333';
+  const result = response();
+  await controller.createPayment(request, result);
+  assert.equal(result.body.code, 'PICKUP_PHOTO_REQUEST_CHANGED');
+  assert.equal(state.charges.length, 0);
+  assert.equal(state.validations, 0);
+  request.body.pickupPhotoId = state.existing.pickup_photo_id;
+  const retry = response();
+  await controller.createPayment(request, retry);
+  assert.equal(retry.body.amount, 35);
+  assert.equal(state.charges.length, 0);
+});
 
 test('quote and payment charge exactly the displayed delivery fee, not the later provider price', async (t) => {
   const { state, controller, request } = controllerHarness(t);

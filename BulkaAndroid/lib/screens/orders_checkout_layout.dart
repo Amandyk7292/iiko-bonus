@@ -26,8 +26,6 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                         : _branch.trim().isNotEmpty,
                     timeComplete: _usesDelivery || _scheduledSlot != null,
                   ),
-                  const SizedBox(height: 16),
-                  _SelectedOrderTypeCard(value: _orderType),
                   if (_onlineOrderingDisabled) ...[
                     const SizedBox(height: 14),
                     const _OnlineOrderingDisabledNotice(),
@@ -61,7 +59,12 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                           ? 'checkout_select_branch'.tr
                           : _branch,
                       icon: Icons.storefront_outlined,
-                      onTap: _isSelectingBranch ? null : _selectBranch,
+                      onTap:
+                          _isSelectingBranch ||
+                              _isSubmitting ||
+                              _pickupPhotoLocked
+                          ? null
+                          : _selectBranch,
                       loading: _isSelectingBranch,
                     ),
                   ],
@@ -151,6 +154,9 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                   if (!_onlineOrderingDisabled) ...[
                     const SizedBox(height: 24),
                     _buildBonusSwitch(),
+                  ],
+                  if (!_usesDelivery && !_onlineOrderingDisabled) ...[
+                    _buildPickupPhotoSection(context),
                   ],
                   const SizedBox(height: 28),
                   _CheckoutLabel('checkout_comment'.tr),

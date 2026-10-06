@@ -1,6 +1,54 @@
 part of '../main.dart';
 
 const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
+  'checkout_photo_title': {
+    'ru': 'Фото к заказу',
+    'kk': 'Тапсырысқа фото',
+    'en': 'Photo with your order',
+  },
+  'checkout_photo_gift': {
+    'ru': 'Сделайте фото — распечатаем в подарок',
+    'kk': 'Фото түсіріңіз — сыйлық ретінде басып береміз',
+    'en': 'Take a photo — we will print it as a gift',
+  },
+  'checkout_photo_capture': {
+    'ru': 'Сделать фото',
+    'kk': 'Фото түсіру',
+    'en': 'Take a photo',
+  },
+  'checkout_photo_replace': {
+    'ru': 'Переснять',
+    'kk': 'Қайта түсіру',
+    'en': 'Retake',
+  },
+  'checkout_photo_remove': {
+    'ru': 'Убрать фото',
+    'kk': 'Фотосуретті жою',
+    'en': 'Remove photo',
+  },
+  'checkout_photo_too_large': {
+    'ru': 'Фото слишком большое. Сделайте другое.',
+    'kk': 'Фото тым үлкен. Басқа фото түсіріңіз.',
+    'en': 'The photo is too large. Take another one.',
+  },
+  'checkout_photo_upload_error': {
+    'ru': 'Не удалось прикрепить фото. Повторите или уберите его.',
+    'kk': 'Фото тіркелмеді. Қайталаңыз немесе жойыңыз.',
+    'en': 'Could not attach the photo. Retry or remove it.',
+  },
+  'checkout_photo_load_error': {
+    'ru': 'Не удалось загрузить фото. Повторите или уберите его.',
+    'kk': 'Фото жүктелмеді. Қайталаңыз немесе жойыңыз.',
+    'en': 'Could not load the photo. Retry or remove it.',
+  },
+  'checkout_photo_expired': {'ru': 'Срок хранения фото истёк. Переснимите или уберите его.',
+    'kk': 'Фотоны сақтау мерзімі өтті. Қайта түсіріңіз немесе жойыңыз.',
+    'en': 'The photo has expired. Retake or remove it.'},
+  'checkout_photo_capture_error': {
+    'ru': 'Камера недоступна. Разрешите доступ к ней в настройках.',
+    'kk': 'Камера қолжетімсіз. Баптауларда кіруге рұқсат беріңіз.',
+    'en': 'The camera is unavailable. Allow camera access in settings.',
+  },
   'referral_history': {
     'ru': 'Мои приглашения',
     'kk': 'Менің шақыруларым',

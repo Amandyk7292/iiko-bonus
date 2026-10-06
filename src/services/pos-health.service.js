@@ -222,7 +222,11 @@ async function recordHeartbeat(branchId, payload, db = supabase) {
       connected_to_main: payload.connectedToMain,
       printer_status: payload.printerStatus,
       health_status: status,
-      health_payload: { queues: payload.queues, statuses: payload.statuses },
+      health_payload: {
+        queues: payload.queues,
+        statuses: payload.statuses,
+        photoPrinterReady: payload.photoPrinterReady === true,
+      },
       last_error: payload.errors[0]?.message || null,
     })
     .eq('terminal_id', payload.terminalId)

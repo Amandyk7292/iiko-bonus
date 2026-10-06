@@ -6,11 +6,19 @@ Widget buildCheckoutScreenForTest({
   required int total,
   required List<Map<String, dynamic>> cartItems,
   Future<FortePaymentOutcome> Function()? onSubmit,
+  Future<XFile?> Function()? capturePickupPhoto,
+  ValueChanged<String?>? onPickupPhotoSubmitted,
+  String? initialCheckoutId,
 }) => _CheckoutScreen(
   api: api,
   total: total,
   cartItems: cartItems,
-  onSubmit: (_) async => await onSubmit?.call() ?? FortePaymentOutcome.failed,
+  capturePickupPhoto: capturePickupPhoto,
+  initialCheckoutId: initialCheckoutId,
+  onSubmit: (details) async {
+    onPickupPhotoSubmitted?.call(details.pickupPhotoId);
+    return await onSubmit?.call() ?? FortePaymentOutcome.failed;
+  },
 );
 
 class _CheckoutScreen extends StatefulWidget {
@@ -21,6 +29,7 @@ class _CheckoutScreen extends StatefulWidget {
     required this.onSubmit,
     this.initialCheckoutId,
     this.cartRevision,
+    this.capturePickupPhoto,
   });
 
   final BulkaApiClient api;
@@ -29,6 +38,7 @@ class _CheckoutScreen extends StatefulWidget {
   final Future<FortePaymentOutcome> Function(_CheckoutDetails details) onSubmit;
   final String? initialCheckoutId;
   final String? cartRevision;
+  final Future<XFile?> Function()? capturePickupPhoto;
 
   @override
   State<_CheckoutScreen> createState() => _CheckoutScreenState();
@@ -54,6 +64,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   bool _deliveryAvailabilityChecked = false;
   bool _isSubmitting = false;
   bool _isManagingPaymentMethod = false;
+  bool _isManagingPickupPhoto = false;
+  bool _pickupPhotoLocked = false;
+  String? _pickupPhotoId;
   bool _isQuoting = false;
   bool _quotePending = false;
   bool _quoteFeedbackPending = false;
@@ -101,6 +114,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   void initState() {
     super.initState();
     final initialCheckoutId = widget.initialCheckoutId;
+    _pickupPhotoLocked = initialCheckoutId != null;
     if (initialCheckoutId != null &&
         RegExp(
           r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
@@ -352,7 +366,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 
   Future<void> _selectBranch() async {
-    if (_isSelectingBranch || _isSubmitting) return;
+    if (_isSelectingBranch || _isSubmitting || _pickupPhotoLocked) return;
     setState(() => _isSelectingBranch = true);
     try {
       final selected = await Navigator.of(context).push<String>(
@@ -360,7 +374,13 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           builder: (_) => LocationsScreen(orderType: _orderType.wireValue),
         ),
       );
-      if (!mounted || selected == null || selected.trim().isEmpty) return;
+      if (!mounted ||
+          _isSubmitting ||
+          _pickupPhotoLocked ||
+          selected == null ||
+          selected.trim().isEmpty) {
+        return;
+      }
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('selected_bakery_location', selected);
       if (!mounted) return;
@@ -486,7 +506,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 
   Future<void> _submit() async {
-    if (_isManagingPaymentMethod) return;
+    if (_isManagingPaymentMethod || _isManagingPickupPhoto) return;
     if (_onlineOrderingDisabled) {
       ScaffoldMessenger.of(context).showSnackBar(
         bulkaSnackBar(content: Text('checkout_online_ordering_disabled'.tr)),
@@ -536,6 +556,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     final submittedUseBonuses = _useBonuses;
     final submittedUsePersonalAccount = _usePersonalAccount;
     final submittedPaymentMethodId = _selectedPaymentMethodId;
+    final submittedPickupPhotoId = _usesDelivery ? null : _pickupPhotoId;
     setState(() => _isSubmitting = true);
     try {
       // Background refresh keeps the button steady. A tap still waits for the
@@ -557,6 +578,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           _bonusSpent != submittedBonusSpent ||
           _useBonuses != submittedUseBonuses ||
           _usePersonalAccount != submittedUsePersonalAccount ||
+          (!_usesDelivery && _pickupPhotoId != submittedPickupPhotoId) ||
           (!_usePersonalAccount &&
               _selectedPaymentMethodId != submittedPaymentMethodId)) {
         setState(() => _isSubmitting = false);
@@ -592,6 +614,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         deliveryAddress: _usesDelivery ? _deliveryAddress : null,
         promoCode: _appliedPromoCode,
         comment: _commentController.text.trim(),
+        pickupPhotoId: submittedPickupPhotoId,
       );
       final prefs = await SharedPreferences.getInstance();
       // Keep the id before the network call. A crash after the order is
@@ -609,6 +632,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           DateTime.now().toUtc().toIso8601String(),
         ),
       ]);
+      // Once a request can reach the server, the optional photo belongs to
+      // that same idempotent checkout until payment is terminal.
+      setState(() => _pickupPhotoLocked = true);
       final outcome = await widget.onSubmit(details);
       if (mounted && outcome == FortePaymentOutcome.paid) {
         final prefs = await SharedPreferences.getInstance();
@@ -621,12 +647,14 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           prefs.remove(_draftKey('checkout_id')),
           prefs.remove(_draftKey('checkout_cart_revision')),
           prefs.remove(_draftKey('checkout_id_created_at')),
+          prefs.remove(_draftKey('checkout_pickup_photo')),
         ]);
         if (mounted) Navigator.pop(context, true);
       }
       if (mounted && outcome != FortePaymentOutcome.paid) {
         setState(() {
           _isSubmitting = false;
+          _pickupPhotoLocked = outcome == FortePaymentOutcome.pending;
           // Keep the id while Forte is still pending so a retry resumes the
           // same idempotent operation. A terminal failure clears the pending
           // record and is the only safe point to issue a new checkout id.
@@ -652,8 +680,24 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           const {
             'PAYMENT_SESSION_CLOSED',
             'PERSONAL_ACCOUNT_INSUFFICIENT',
+            'PICKUP_PHOTO_EXPIRED',
+            'PICKUP_PHOTO_PRINTER_UNAVAILABLE',
+            'PICKUP_PHOTO_PICKUP_ONLY',
+            'CHECKOUT_QUOTE_CHANGED',
+            'CHECKOUT_BONUS_CHANGED',
+            'CHECKOUT_BONUS_UNAVAILABLE',
           }.contains(error.code)) {
-        _checkoutId = _newCheckoutId();
+        setState(() {
+          _checkoutId = _newCheckoutId();
+          _pickupPhotoLocked = false;
+        });
+        final prefs = await SharedPreferences.getInstance();
+        await Future.wait([
+          prefs.remove(_draftKey('checkout_id')),
+          prefs.remove(_draftKey('checkout_cart_revision')),
+          prefs.remove(_draftKey('checkout_id_created_at')),
+        ]);
+        if (!mounted) return;
       }
       if (error is ApiException &&
           const {

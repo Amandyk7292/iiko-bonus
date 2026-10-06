@@ -82,6 +82,7 @@ const checkoutQuoteBodySchema = z
 const checkoutPaymentBodySchema = checkoutQuoteBodySchema
   .extend({
     checkoutId: z.string().trim().uuid(),
+    pickupPhotoId: uuidSchema.nullish(),
     paymentMethod: z.enum(['forte_card', 'personal_account']).optional().default('forte_card'),
     expectedTotal: z.number().finite().nonnegative().max(100000000).optional(),
     savedPaymentMethodId: nullableText(200),

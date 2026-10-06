@@ -24,6 +24,7 @@ const posHealthHeartbeatSchema = z
     startedAt: z.string().datetime({ offset: true }),
     connectedToMain: z.boolean(),
     printerStatus: z.enum(['unknown', 'ready', 'missing', 'error']),
+    photoPrinterReady: z.boolean().optional().default(false),
     queues: queueSchema,
     statuses: z
       .object({

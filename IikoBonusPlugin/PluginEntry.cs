@@ -46,6 +46,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private IDisposable _personalAccountPaymentRegistration;
         private IDisposable _assemblyReprintButton;
         private OnlineReceiptSync _automaticReceipts;
+        private PickupPhotoSync _pickupPhotos;
         private static OfflineReceiptSync _offlineReceipts;
         private PosHealthSync _posHealth;
 
@@ -91,6 +92,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     _automaticReceipts = new OnlineReceiptSync(_sharedStock);
                 }
                 catch(Exception error) { PluginContext.Log.Error("Bulka online payment registration: " + error.Message); }
+                try { _pickupPhotos = new PickupPhotoSync(); }
+                catch { PluginContext.Log.Error("Bulka pickup photo worker could not start"); }
                 _assemblyReprintButton = RegisterOrderAction("Сборочный чек Bulka",
                     (ValueTuple<IOrder,IOperationService,IViewManager> args) => AssemblyTicket.Reprint(args.Item1,args.Item2,args.Item3));
                 _inbox = new OnlineOrderInbox();
@@ -142,6 +145,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                                 GiftCertificateFlow.GetStatusText() + "\n\n" + (_stockSync?.StatusText ?? "Остатки: обмен выключен") + "\n\n" + _sharedStock.StatusText
                                 + "\n\n" + (_automaticReceipts?.StatusText ?? "Внешняя оплата Bulka: обработчик не зарегистрирован. Проверьте журнал плагина.")
                                 + "\n\n" + (_offlineReceipts?.StatusText ?? "Продажи кассы: журнал недоступен, нужна сверка")
+                                + "\n\n" + (_pickupPhotos?.StatusText ?? "Фото в подарок: обработчик недоступен")
                                 + "\n\n" + (_posHealth?.StatusText ?? "Мониторинг кассы: недоступен"),
                                 "ОК");
                         }
@@ -192,7 +196,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 GiftCertificateFlow.StartBackgroundRetry();
                 if (!string.Equals(LoyaltyFlow.ReadPluginSetting("IIKO_STOCK_SYNC_ENABLED"), "false", StringComparison.OrdinalIgnoreCase))
                     _stockSync = new StockSync();
-                _posHealth = new PosHealthSync(_sharedStock, _automaticReceipts, _offlineReceipts);
+                _posHealth = new PosHealthSync(_sharedStock, _automaticReceipts, _offlineReceipts, _pickupPhotos);
 
                 PluginContext.Log.Info("IikoBonusPlugin: Initialized successfully.");
             }
@@ -232,6 +236,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             TryDispose(_updateMenu);
             TryDispose(_pairingOrderButton);
             TryDispose(_automaticReceipts);
+            TryDispose(_pickupPhotos);
             TryDispose(_offlineReceipts);
             TryDispose(_onlinePaymentRegistration);
             TryDispose(_personalAccountPaymentRegistration);

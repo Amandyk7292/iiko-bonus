@@ -28,6 +28,7 @@ extension _OrdersPayment on _OrdersScreenState {
       deliveryQuoteToken: details.deliveryQuoteToken,
       promoCode: details.promoCode,
       comment: details.comment,
+      pickupPhotoId: details.pickupPhotoId,
     );
     final operationId = (result['operationId'] ?? '').toString();
     if (operationId.isEmpty) {

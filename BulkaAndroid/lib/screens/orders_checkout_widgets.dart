@@ -128,83 +128,6 @@ class _CheckoutStepItem extends StatelessWidget {
   }
 }
 
-class _SelectedOrderTypeCard extends StatelessWidget {
-  const _SelectedOrderTypeCard({required this.value});
-
-  final _OrderType value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      container: true,
-      label: '${'checkout_order_type'.tr}: ${value.label}',
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(BulkaRadii.card),
-          border: Border.all(
-            color: _almond.withValues(alpha: 0.7),
-            width: BulkaStrokes.hairline,
-          ),
-          boxShadow: BulkaShadows.card,
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: _bulkaYellow.withValues(alpha: 0.22),
-                borderRadius: BorderRadius.circular(BulkaRadii.control),
-              ),
-              child: Icon(value.icon, color: _textDark, size: 25),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'checkout_order_type'.tr,
-                    style: TextStyle(
-                      color: context.bulkaColors.mutedText,
-                      fontSize: BulkaTypeScale.caption,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    value.label,
-                    style: const TextStyle(
-                      fontFamily: _headingFont,
-                      color: _textDark,
-                      fontSize: BulkaTypeScale.body,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    (value == _OrderType.preorder
-                            ? 'checkout_preorder_pickup_only'
-                            : 'checkout_catalog_locked')
-                        .tr,
-                    style: TextStyle(
-                      color: context.bulkaColors.mutedText,
-                      fontSize: BulkaTypeScale.caption,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.check_circle_rounded, color: Color(0xFF2E7D32)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _PreorderScheduleField extends StatelessWidget {
   const _PreorderScheduleField({
     required this.slot,
@@ -291,7 +214,7 @@ class _PreorderScheduleField extends StatelessWidget {
                   )
                 else
                   const Icon(
-                    Icons.calendar_month_outlined,
+                  Icons.event_available_outlined,
                     color: Colors.white,
                     size: 27,
                   ),

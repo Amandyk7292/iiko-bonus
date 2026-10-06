@@ -107,6 +107,7 @@ class _CartApi extends BulkaApiClient {
     String? additionalPhone,
     String? promoCode,
     String? comment,
+    String? pickupPhotoId,
     String substitutionPreference = 'call_customer',
   }) async {
     attempts.add(checkoutId);

@@ -14,12 +14,6 @@ extension on _OrderType {
     _OrderType.delivery => 'order_delivery'.tr,
     _OrderType.preorder => 'order_preorder'.tr,
   };
-
-  IconData get icon => switch (this) {
-    _OrderType.pickup => Icons.storefront_outlined,
-    _OrderType.delivery => Icons.delivery_dining_outlined,
-    _OrderType.preorder => Icons.event_available_outlined,
-  };
 }
 
 _OrderType _orderTypeFromWire(String? value) => switch (value) {

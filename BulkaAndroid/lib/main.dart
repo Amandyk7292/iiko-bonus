@@ -60,6 +60,7 @@ import 'widgets/admin_portal_webview.dart';
 import 'widgets/forte_checkout_webview.dart';
 import 'widgets/yandex_map/yandex_map.dart';
 part 'api/bulka_api_client.dart';
+part 'screens/checkout_pickup_photo.dart';
 part 'api/delivery_resolution_api.dart';
 part 'api/family_api.dart';
 part 'api/faq_api.dart';

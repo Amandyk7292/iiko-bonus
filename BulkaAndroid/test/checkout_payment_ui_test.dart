@@ -10,6 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _PaymentUiApi extends BulkaApiClient {
+  @override
+  Future<bool> isPickupOrderPhotoAvailable(String branchId) async => false;
   final events = StreamController<Map<String, dynamic>>.broadcast();
   final startsAt = DateTime.utc(2026, 10, 6, 6);
   Completer<Map<String, dynamic>>? pendingAccount;

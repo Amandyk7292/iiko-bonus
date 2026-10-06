@@ -591,26 +591,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Оформление заказа'), findsOneWidget);
-    expect(find.text('Самовывоз'), findsOneWidget);
-    expect(
-      find.text('Ассортимент выбран для этого типа заказа'),
-      findsOneWidget,
-    );
+    expect(find.text('Самовывоз'), findsNothing);
+    expect(find.text('Ассортимент выбран для этого типа заказа'), findsNothing);
     expect(find.text('Если товара не будет'), findsNothing);
     expect(
       find.byKey(const ValueKey('checkout-substitution-call_customer')),
       findsNothing,
     );
 
-    final savedCardLabel = find.text('•••• 1328');
-    await tester.scrollUntilVisible(
-      savedCardLabel,
-      420,
-      scrollable: find.byType(Scrollable).last,
-    );
-    await tester.pumpAndSettle();
-
-    expect(savedCardLabel, findsOneWidget);
+    expect(find.text('•••• 1328'), findsOneWidget);
     await tester.ensureVisible(
       find.byKey(const ValueKey('checkout-choose-card')),
     );
@@ -629,7 +618,7 @@ void main() {
       find.byKey(const ValueKey('checkout-add-saved-card')),
       findsOneWidget,
     );
-    expect(find.text('Выберите способ оплаты'), findsNothing);
+    expect(find.text('Способ оплаты'), findsOneWidget);
     expect(find.text('Kaspi Pay'), findsNothing);
     expect(find.text('Оплатить картой'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -668,21 +657,15 @@ void main() {
     await tester.tap(find.text('Оформить заказ'));
     await tester.pumpAndSettle();
 
-    final addCard = find.text('Добавить карту');
-    await tester.scrollUntilVisible(
-      addCard,
-      420,
-      scrollable: find.byType(Scrollable).last,
-    );
+    await tester.tap(find.byKey(const ValueKey('checkout-choose-card')));
     await tester.pumpAndSettle();
-
     expect(
-      find.byKey(const ValueKey('checkout-saved-cards-empty')),
+      find.byKey(const ValueKey('checkout-add-saved-card')),
       findsOneWidget,
     );
-    expect(find.text('Сохранённых карт пока нет.'), findsOneWidget);
-    expect(addCard, findsOneWidget);
-    expect(find.text('Выберите способ оплаты'), findsNothing);
+    expect(find.text('Добавить новую карту'), findsOneWidget);
+    expect(find.text('Сохранённых карт пока нет.'), findsNothing);
+    expect(find.text('Способ оплаты'), findsOneWidget);
     expect(find.text('Kaspi Pay'), findsNothing);
     expect(find.text('Оплатить картой'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -944,7 +927,10 @@ void main() {
           api.savedPaymentMethodId,
           '31f0d793-0102-4d2f-a5a1-744d12cffe7c',
         );
-        expect(find.text('Оплата картой'), findsWidgets);
+        expect(
+          find.byKey(const ValueKey('checkout-payment-selector')),
+          findsOneWidget,
+        );
 
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump();
@@ -1085,10 +1071,20 @@ void main() {
       await tester.tap(find.text('Оформить заказ'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Доставка'), findsOneWidget);
+      expect(find.text('Доставка'), findsNothing);
+      expect(
+        find.textContaining('Адрес доставки', findRichText: true),
+        findsWidgets,
+      );
+      expect(
+        (await SharedPreferences.getInstance()).getString(
+          'selected_order_type',
+        ),
+        'delivery',
+      );
       expect(
         find.text('Ассортимент выбран для этого типа заказа'),
-        findsOneWidget,
+        findsNothing,
       );
       expect(
         find.textContaining('доставка временно недоступна'),
@@ -1133,14 +1129,22 @@ void main() {
     await tester.tap(find.text('Оформить заказ'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Предзаказ'), findsOneWidget);
+    expect(find.text('Предзаказ'), findsNothing);
+    expect(
+      find.textContaining('Выберите время самовывоза', findRichText: true),
+      findsOneWidget,
+    );
+    expect(
+      (await SharedPreferences.getInstance()).getString('selected_order_type'),
+      'preorder',
+    );
     expect(
       find.byKey(const ValueKey('preorder-fulfillment-delivery')),
       findsNothing,
     );
     expect(
       find.textContaining('Самовывоз из выбранного филиала'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.textContaining('Адрес доставки', findRichText: true),
@@ -2978,6 +2982,7 @@ class _CheckoutPaymentRoutingApiClient extends _FakeBulkaApiClient {
     String? additionalPhone,
     String? promoCode,
     String? comment,
+    String? pickupPhotoId,
     String substitutionPreference = 'call_customer',
   }) async {
     forteCreateCalls++;

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
   <appSettings>
+    <!-- 384 dots fits 58/80 mm paper; use 576 only for a configured 80 mm printer. -->
+    <add key="IIKO_PICKUP_PHOTO_WIDTH_DOTS" value="384" />
     <add key="IIKO_LOYALTY_API_BASE_URL" value="https://bulka.com.kz/api/loyalty" />
     <add key="IIKO_LOYALTY_API_TOKEN" value="" />
     <add key="IIKO_LOYALTY_DISCOUNT_TYPE_NAME" value="Bulka Bonus" />

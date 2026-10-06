@@ -42,6 +42,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember(Name="startedAt")] public string StartedAt {get;set;}
         [DataMember(Name="connectedToMain")] public bool ConnectedToMain {get;set;}
         [DataMember(Name="printerStatus")] public string PrinterStatus {get;set;}
+        [DataMember(Name="photoPrinterReady")] public bool PhotoPrinterReady {get;set;}
         [DataMember(Name="queues")] public PosHealthQueues Queues {get;set;}
         [DataMember(Name="statuses")] public PosHealthStatuses Statuses {get;set;}
         [DataMember(Name="errors")] public List<PosHealthError> Errors {get;set;}
@@ -75,15 +76,17 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private readonly SharedStockGuard stock;
         private readonly OnlineReceiptSync automaticReceipts;
         private readonly OfflineReceiptSync offlineReceipts;
+        private readonly PickupPhotoSync pickupPhotos;
         private readonly Timer timer;
         private readonly string startedAt=DateTime.UtcNow.ToString("o");
         private int busy;
         private volatile bool disposed;
         internal string StatusText {get;private set;}="Мониторинг кассы: ожидает первой проверки";
 
-        internal PosHealthSync(SharedStockGuard stockGuard,OnlineReceiptSync automatic,OfflineReceiptSync offline)
+        internal PosHealthSync(SharedStockGuard stockGuard,OnlineReceiptSync automatic,OfflineReceiptSync offline,PickupPhotoSync photos=null)
         {
             stock=stockGuard;automaticReceipts=automatic;offlineReceipts=offline;
+            pickupPhotos=photos;
             timer=new Timer(Tick,null,TimeSpan.FromSeconds(5),TimeSpan.FromSeconds(20));
         }
 
@@ -133,6 +136,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 TerminalId=os.GetHostTerminal().Id.ToString(),PluginVersion=Version,
                 ApiVersion="V9Preview7",StartedAt=startedAt,ConnectedToMain=ConnectedToMain(),
                 PrinterStatus=PrinterStatus(),
+                PhotoPrinterReady=pickupPhotos?.CanAcceptJobs==true && PickupPhotoSync.PrinterReady(os),
                 Queues=new PosHealthQueues {
                     LoyaltyPending=LoyaltyFlow.PendingQueueCount,LoyaltyFailed=LoyaltyFlow.FailedQueueCount,
                     GiftPending=GiftCertificateFlow.PendingQueueCount,GiftFailed=GiftCertificateFlow.FailedQueueCount,

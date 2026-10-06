@@ -1,0 +1,200 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Resto.Front.Api.Data.Print;
+
+namespace Resto.Front.Api.IikoBonusPlugin
+{
+    internal sealed class PickupPhotoSync : IDisposable
+    {
+        private readonly string path=Path.Combine(LoyaltyFlow.DataDirectoryPath,"BulkaPickupPhotos.json");
+        private Dictionary<string,PickupPhotoLedgerEntry> ledger=new Dictionary<string,PickupPhotoLedgerEntry>();
+        private readonly Timer timer;
+        private volatile bool storageHealthy;
+        private int busy;
+        private volatile bool disposed;
+        private volatile Task<bool> printerFlight;
+        private readonly TimeSpan printTimeout;
+        private const int MaximumUnconfirmed=256;
+        private const int RetainedAcknowledged=2048;
+        private volatile int unconfirmedCount;
+        internal string StatusText {get;private set;}="Фото в подарок: ожидание привязки кассы";
+        internal bool CanAcceptJobs => storageHealthy && !disposed
+            && unconfirmedCount<MaximumUnconfirmed
+            && (printerFlight==null || printerFlight.IsCompleted);
+        internal PickupPhotoSync(bool startTimer=true,int timeoutSeconds=30)
+        {
+            printTimeout=TimeSpan.FromSeconds(Math.Max(1,Math.Min(60,timeoutSeconds)));
+            TryLoad();
+            if(startTimer) timer=new Timer(Tick,null,TimeSpan.FromSeconds(10),TimeSpan.FromSeconds(5));
+        }
+        private bool TryLoad()
+        {
+            try
+            {
+                ledger=DurableJsonFile.ReadValidated<Dictionary<string,PickupPhotoLedgerEntry>>(path,
+                    entries=>entries.All(pair=>pair.Value!=null && pair.Key==pair.Value.OrderId
+                        && Guid.TryParse(pair.Key,out _) && Guid.TryParse(pair.Value.PhotoId,out _)
+                        && Guid.TryParse(pair.Value.BranchId,out _) && Guid.TryParse(pair.Value.TerminalId,out _)
+                        && pair.Value.Number>0 && new[]{"started","printed","uncertain"}.Contains(pair.Value.Status)),false);
+                RefreshCount();storageHealthy=true;return true;
+            }
+            catch
+            {
+                storageHealthy=false;
+                StatusText="Фото в подарок: журнал требует сверки; повторная печать остановлена";
+                PluginContext.Log.Error("Bulka photo gift ledger requires reconciliation");
+                return false;
+            }
+        }
+        internal static IPrinterQueueRef Printer(IOperationService os) => os.TryGetReceiptChequePrinter(true);
+        internal static int PrintableWidth(IOperationService os)
+        {
+            var printer=Printer(os);
+            if(printer==null) throw new InvalidOperationException("Кассовый принтер не настроен.");
+            var device=os.TryGetPrintingDeviceInfoById(printer.Id);
+            var parameters=device==null ? null : os.GetPrinterDriverParameters(device);
+            if(parameters?.CanPrintImage!=true) throw new InvalidOperationException("Принтер не поддерживает фотопечать.");
+            var width=PickupPhotoRaster.WidthDots;
+            if(parameters.PageWidth.HasValue)
+            {
+                var printable=(long)parameters.PageWidth.Value-Math.Max(0,parameters.MarginLeft)-Math.Max(0,parameters.MarginRight);
+                if(printable<384) throw new InvalidOperationException("Недостаточная ширина ленты для фотопечати.");
+                if(printable<width) width=384;
+            }
+            return width;
+        }
+        internal static bool PrinterReady(IOperationService os)
+        {
+            try
+            {
+                return PrintableWidth(os)>0;
+            }
+            catch {return false;}
+        }
+        private void Tick(object state)
+        {
+            if(disposed || !PosPairing.IsPaired || Interlocked.CompareExchange(ref busy,1,0)!=0) return;
+            try
+            {
+                // An SDK call that timed out can still complete physically.
+                // Wait for that call to finish before submitting any new image.
+                if(printerFlight!=null && !printerFlight.IsCompleted) return;
+                printerFlight=null;
+                if(!storageHealthy && !TryLoad()) return;
+                var os=PluginContext.Operations;var terminalId=os.GetHostTerminal().Id.ToString();
+                var result=PickupPhotoTransport.Post("poll",new PickupPhotoPoll {TerminalId=terminalId},terminalId);
+                if(result.Jobs==null || result.Jobs.Count>20) throw new InvalidDataException("Недопустимая очередь фотопечати.");
+                foreach(var job in result.Jobs)
+                {
+                    if(disposed || (printerFlight!=null && !printerFlight.IsCompleted)) break;
+                    try {Process(job,os,terminalId);}
+                    catch {StatusText="Фото в подарок: требуется проверка очереди или принтера";}
+                }
+            }
+            catch {StatusText="Фото в подарок: нет связи с Bulka";}
+            finally {Interlocked.Exchange(ref busy,0);}
+        }
+        private PickupPhotoResponse Action(string terminalId,string orderId,string action,string error=null) =>
+            PickupPhotoTransport.Post("action",new PickupPhotoAction {TerminalId=terminalId,OrderId=orderId,Action=action,Error=error},terminalId);
+        private void RefreshCount() => unconfirmedCount=ledger.Values.Count(entry=>entry.Status!="printed" || entry.AcknowledgedAt==null);
+        private void PruneAcknowledged()
+        {
+            // Only a terminal, irreversible server acknowledgement permits
+            // pruning. Local started/uncertain evidence is retained forever.
+            var retired=ledger.Values.Where(entry=>entry.Status=="printed" && entry.AcknowledgedAt!=null)
+                .OrderByDescending(entry=>entry.AcknowledgedAt,StringComparer.Ordinal).Skip(RetainedAcknowledged)
+                .Select(entry=>entry.OrderId).ToArray();
+            foreach(var id in retired) ledger.Remove(id);
+            RefreshCount();
+        }
+        private void Acknowledge(PickupPhotoLedgerEntry saved,string terminalId)
+        {
+            var result=Action(terminalId,saved.OrderId,"complete");
+            if(result.Status!="printed" || result.PhotoId!=saved.PhotoId || result.Number!=saved.Number)
+                throw new InvalidDataException("Сервер не подтвердил завершение фотопечати.");
+            saved.AcknowledgedAt=DateTime.UtcNow.ToString("o");
+            PruneAcknowledged();DurableJsonFile.Write(path,ledger);
+        }
+        private void Process(PickupPhotoJob job,IOperationService os,string terminalId)
+        {
+            if(job==null || !Guid.TryParse(job.OrderId,out _) || !Guid.TryParse(job.PhotoId,out _)
+                || job.Number<=0 || !new[]{"pending","printing","printed","uncertain"}.Contains(job.Status))
+                throw new InvalidDataException("Недопустимое задание фотопечати.");
+            var branchId=LoyaltyFlow.BranchId;
+            if(ledger.TryGetValue(job.OrderId,out var saved))
+            {
+                if(saved.PhotoId!=job.PhotoId || saved.BranchId!=branchId || saved.TerminalId!=terminalId || saved.Number!=job.Number)
+                    throw new InvalidDataException("Задание фотопечати требует сверки.");
+                if(saved.Status=="printed") {Acknowledge(saved,terminalId);return;}
+                // A started record survives crashes, printer exceptions and lost
+                // acknowledgements. It never authorizes another print attempt.
+                Action(terminalId,job.OrderId,"uncertain","PRINT_OUTCOME_UNCERTAIN");
+                StatusText="Фото №"+job.Number+": проверьте ленту принтера; автоматический повтор запрещён";
+                return;
+            }
+            if(job.Status=="printed") return;
+            if(job.Status!="pending")
+            {
+                Action(terminalId,job.OrderId,"uncertain","CLAIM_OUTCOME_UNCERTAIN");
+                StatusText="Фото №"+job.Number+": требуется сверка ленты";return;
+            }
+            if(unconfirmedCount>=MaximumUnconfirmed)
+            {
+                StatusText="Фото в подарок: сверка незавершённых заданий; новая печать приостановлена";return;
+            }
+            if(!PrinterReady(os)) {StatusText="Фото в подарок: настройте кассовый принтер с печатью изображений";return;}
+            var printer=Printer(os);
+            var widthDots=PrintableWidth(os);
+            var claim=Action(terminalId,job.OrderId,"claim");
+            if(claim.Status!="print") return;
+            var printStarted=false;
+            try
+            {
+                if(claim.PhotoId!=job.PhotoId || claim.Number!=job.Number)
+                    throw new InvalidDataException("Изменилось задание фотопечати.");
+                var image=PickupPhotoTransport.Image(job.OrderId,terminalId,widthDots);
+                var document=PickupPhotoRaster.Prepare(image,widthDots);
+                if(disposed) throw new OperationCanceledException();
+                saved=new PickupPhotoLedgerEntry {OrderId=job.OrderId,PhotoId=job.PhotoId,Number=job.Number,
+                    BranchId=branchId,TerminalId=terminalId,Status="started",StartedAt=DateTime.UtcNow.ToString("o"),
+                    ImageSha256=PickupPhotoRaster.Hash(image)};
+                ledger.Add(job.OrderId,saved);
+                RefreshCount();
+                DurableJsonFile.Write(path,ledger); // Must succeed before any SDK print call.
+                printStarted=true;
+                printerFlight=Task.Run(()=>os.Print(printer,document,true));
+                if(!printerFlight.Wait(printTimeout) || !printerFlight.Result)
+                    throw new InvalidOperationException("PRINT_OUTCOME_UNCERTAIN");
+                saved.Status="printed";
+                DurableJsonFile.Write(path,ledger); // Persist before acknowledgement; retries only ack.
+                Acknowledge(saved,terminalId);
+                StatusText="Фото №"+job.Number+": напечатано";
+            }
+            catch
+            {
+                if(!printStarted)
+                {
+                    // Only definite failures before invoking the printer may be
+                    // released for automatic retry; no physical strip existed.
+                    if(saved!=null && saved.Status=="started") {ledger.Remove(job.OrderId);RefreshCount();}
+                    try {Action(terminalId,job.OrderId,"release","PHOTO_PREPARE_FAILED");} catch { }
+                }
+                else if(saved.Status!="printed")
+                {
+                    saved.Status="uncertain";
+                    try {DurableJsonFile.Write(path,ledger);} catch {storageHealthy=false;}
+                    try {Action(terminalId,job.OrderId,"uncertain","PRINT_OUTCOME_UNCERTAIN");} catch { }
+                }
+                // A completed print whose acknowledgement failed remains a
+                // printed tombstone. The next poll acknowledges without reprint.
+                throw;
+            }
+        }
+        internal void RequestRetry() {if(!disposed) ThreadPool.QueueUserWorkItem(Tick);}
+        public void Dispose() {disposed=true;timer?.Dispose();}
+    }
+}

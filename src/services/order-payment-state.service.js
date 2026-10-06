@@ -92,6 +92,7 @@ class OrderPaymentStateService {
       preparation_minutes: preparationMinutes,
       ...etaDatabaseFields(resolvedEta, effectiveType),
       client_request_id: checkout.requestId,
+      pickup_photo_id: checkout.pickupPhotoId || null,
       payment_method: paymentMethod,
       qr_token: qrToken,
     };

@@ -14,6 +14,7 @@ extension _CheckoutQuoteState on _CheckoutScreenState {
   bool get _canSubmit =>
       !_isSubmitting &&
       !_isManagingPaymentMethod &&
+      !_isManagingPickupPhoto &&
       _selectedPaymentAvailable &&
       !_hasUnappliedPromo &&
       _hasCurrentQuote;

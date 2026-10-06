@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Обновление Bulka 1.14.0</title>
+  <style>body{font:16px/1.6 Arial,sans-serif;max-width:740px;margin:36px auto;padding:0 20px;background:#fffbf3;color:#593019}h1{font-size:30px}h2{font-size:22px;margin-top:30px}a{color:#814719}.download{display:inline-block;background:#ffbd12;color:#35180b;text-decoration:none;font-weight:bold;padding:13px 20px;border-radius:12px}.note{padding:16px 20px;border-radius:14px;background:#fff0c7}li{margin:10px 0}</style>
+</head>
+<body>
+  <h1>Обновление Bulka 1.14.0</h1>
+  <p>Фото клиента для самовывоза печатается отдельной лентой: логотип Bulka, номер заказа и чёрно-белое изображение. Задание поступает после оплаты заказа.</p>
+  <h2>Обновление через кассу</h2>
+  <ol>
+    <li>Откройте «Плагины → Проверить обновления Bulka» или «Доставка → Проверить обновления».</li>
+    <li>Нажмите «Скачать и установить».</li>
+    <li>Когда пакет готов, закройте iiko обычным способом. Дождитесь сообщения «Обновление установлено».</li>
+    <li>Снова запустите iiko. Настройки и привязка кассы сохраняются.</li>
+  </ol>
+  <p class="note">Не запускайте iiko до завершения установки. Время закрытия выбирает кассир.</p>
+  <h2>Фото к заказу</h2>
+  <p>Плагин использует настроенный чековый принтер, поддерживающий печать изображений. После обновления проверьте наличие бумаги и качество первой фотографии. Доступность функции в приложении обновится после связи кассы с сервером.</p>
+  <p>Если печать прервалась и результат неизвестен, проверьте бумажную ленту перед повторной печатью. Фото печатается отдельным документом и не изменяет сумму заказа.</p>
+  <h2>Установка вручную</h2>
+  <p><a class="download" href="/downloads/BulkaPlugin-1.14.0-update.zip">Скачать обновление 1.14.0</a></p>
+  <ol>
+    <li>Закройте iikoFront и сохраните копию папки плагина.</li>
+    <li>Распакуйте архив в папку Bulka: замените DLL, Manifest.xml и BulkaPluginUpdater.exe.</li>
+    <li>Сохраните действующий .dll.config и локальные данные. Запустите iiko.</li>
+  </ol>
+  <p>Установщик проверяет подпись Bulka и совместимость пакета. Архив обновления не содержит конфигурацию, привязку или журнал чеков.</p>
+  <p>Пакет рассчитан на iikoFront 9.4 / V9Preview7 и .NET Framework 4.7.2, x86/x64. Для Windows 7 требуется SP1.</p>
+  <p><a href="/docs/iiko-plugin-installation.html">Установка на новую кассу</a></p>
+</body>
+</html>

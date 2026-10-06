@@ -677,6 +677,7 @@ class BulkaApiClient {
     String? additionalPhone,
     String? promoCode,
     String? comment,
+    String? pickupPhotoId,
     String substitutionPreference = 'call_customer',
   }) async {
     final json = await _post('/api/customer/forte-pay/create', {
@@ -699,6 +700,7 @@ class BulkaApiClient {
       'additionalPhone': additionalPhone,
       'promoCode': promoCode,
       'comment': comment,
+      'pickupPhotoId': ?pickupPhotoId,
       'substitutionPreference': substitutionPreference,
       'language': AppLang.current,
     });
@@ -713,6 +715,149 @@ class BulkaApiClient {
   }
 
   String? _forteSavedCardLabel;
+  Future<bool> isPickupOrderPhotoAvailable(String branchId) async {
+    final json = await _get(
+      '/api/customer/checkout-photo/capability?branchId=${Uri.encodeQueryComponent(branchId)}',
+    );
+    return json['success'] == true && json['available'] == true;
+  }
+
+  Future<Map<String, dynamic>> uploadPickupOrderPhoto({
+    required List<int> bytes,
+    required String mimeType,
+  }) => _withReadBarrier(() async {
+    final revision = _sessionRevision;
+    if (bytes.isEmpty || bytes.length > 5 * 1024 * 1024) {
+      throw ApiException(
+        'checkout_photo_too_large'.tr,
+        code: 'CHECKOUT_PHOTO_TOO_LARGE',
+      );
+    }
+    final mediaType = MediaType.parse(mimeType);
+    if (!const {'image/jpeg', 'image/png', 'image/webp'}.contains(mimeType)) {
+      throw ApiException('checkout_photo_upload_error'.tr);
+    }
+    final response = await _sendPickupPhotoRequest(() async {
+      final request = http.MultipartRequest(
+        'POST',
+        _uri('/api/customer/checkout-photo'),
+      );
+      request.headers.addAll(_headers(json: false));
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'photo',
+          bytes,
+          filename: 'pickup-photo.${mediaType.subtype}',
+          contentType: mediaType,
+        ),
+      );
+      final streamed = await _client
+          .send(request)
+          .timeout(const Duration(seconds: 30));
+      return http.Response.fromStream(
+        streamed,
+      ).timeout(const Duration(seconds: 30));
+    });
+    final json = await _decodeResponse(response);
+    if (revision != _sessionRevision) {
+      throw ApiException(
+        'error_session_changed'.tr,
+        code: 'SESSION_IDENTITY_CHANGED',
+      );
+    }
+    final id = _asString(json['photoId']);
+    final expiresAt = DateTime.tryParse(_asString(json['expiresAt']));
+    if (json['success'] != true ||
+        !_validPickupPhotoId(id) ||
+        expiresAt == null) {
+      throw ApiException('checkout_photo_upload_error'.tr);
+    }
+    return json;
+  });
+
+  Future<Uint8List> getPickupOrderPhotoImage(String photoId) async {
+    final revision = _sessionRevision;
+    if (!_validPickupPhotoId(photoId)) {
+      throw ApiException('checkout_photo_upload_error'.tr);
+    }
+    final response = await _sendPickupPhotoRequest(
+      () => _client
+          .get(
+            _uri(
+              '/api/customer/checkout-photo/${Uri.encodeComponent(photoId)}/image',
+            ),
+            headers: _headers(json: false),
+          )
+          .timeout(const Duration(seconds: 15)),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      await _decodeResponse(response);
+      throw ApiException('checkout_photo_upload_error'.tr);
+    }
+    final type = response.headers['content-type']?.split(';').first;
+    if (!const {'image/jpeg', 'image/png', 'image/webp'}.contains(type) ||
+        response.bodyBytes.isEmpty ||
+        response.bodyBytes.length > 1024 * 1024) {
+      throw ApiException('checkout_photo_upload_error'.tr);
+    }
+    if (revision != _sessionRevision) {
+      throw ApiException(
+        'error_session_changed'.tr,
+        code: 'SESSION_IDENTITY_CHANGED',
+      );
+    }
+    return response.bodyBytes;
+  }
+
+  Future<void> removePickupOrderPhoto(String photoId) async {
+    if (!_validPickupPhotoId(photoId)) return;
+    await _delete(
+      '/api/customer/checkout-photo/${Uri.encodeComponent(photoId)}',
+    );
+  }
+
+  Future<http.Response> _sendPickupPhotoRequest(
+    Future<http.Response> Function() send,
+  ) async {
+    if (isFamilyChildSession) {
+      throw ApiException(
+        _familyText('childHelp'),
+        statusCode: 403,
+        code: 'FAMILY_CHILD_RESTRICTED',
+      );
+    }
+    final revision = _sessionRevision;
+    final accessToken = _accessToken;
+    void checkSession() {
+      if (revision != _sessionRevision) {
+        throw ApiException(
+          'error_session_changed'.tr,
+          code: 'SESSION_IDENTITY_CHANGED',
+        );
+      }
+    }
+
+    var response = await send();
+    checkSession();
+    if (response.statusCode == 401 &&
+        (_usesCookieSessionTransport || _refreshToken?.isNotEmpty == true)) {
+      final refresh = accessToken != _accessToken && isAuthenticated
+          ? _SessionRefreshResult.refreshed
+          : await _refreshSession();
+      checkSession();
+      if (refresh == _SessionRefreshResult.refreshed) {
+        response = await send();
+      } else if (refresh == _SessionRefreshResult.unavailable) {
+        throw ApiException(
+          'error_network'.tr,
+          code: 'SESSION_REFRESH_UNAVAILABLE',
+        );
+      }
+    }
+    checkSession();
+    return response;
+  }
+
   Future<Map<String, dynamic>> getPersonalAccount() =>
       _get('/api/customer/personal-account');
   Future<Map<String, dynamic>> createPersonalAccountTopup(

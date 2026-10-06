@@ -60,6 +60,7 @@ class _CheckoutDetails {
     this.deliveryAddress,
     this.promoCode,
     this.comment,
+    this.pickupPhotoId,
   });
 
   final String checkoutId;
@@ -77,6 +78,7 @@ class _CheckoutDetails {
   final DeliveryAddress? deliveryAddress;
   final String? promoCode;
   final String? comment;
+  final String? pickupPhotoId;
 }
 
 class _CheckoutSavedCardsPanel extends StatefulWidget {
