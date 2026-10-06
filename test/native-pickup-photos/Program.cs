@@ -89,6 +89,16 @@ internal static partial class Program
     private static readonly List<string> printSequence=new List<string>();
     private static readonly List<Guid> printTargets=new List<Guid>();
     private static bool suppressCallback,multipleTargets;
+    private static bool deferProbeCallback;
+    private static int queueReturns;
+    private static DeferredQueueFormat deferredProbe;
+    private static IPointOfSale[] configuredHostPoints=new IPointOfSale[0];
+    private static Guid? receiptDeviceTerminal;
+    private static Guid? absentReceiptDevice;
+    private static bool wrongReceiptDevice;
+    private static int receiptDeviceReads;
+    private static bool rejectLegacyRouting;
+    private static int legacyRouteReads;
     private static bool draftMismatch,noPhoto;
     private static Guid? terminalOverride;
     private static ManualResetEvent probeGate;
@@ -112,10 +122,10 @@ internal static partial class Program
         call.MethodName=="get_ExternalNumber" ? "Bulka:"+orderId : null);
     private static object Selection()
     {
-        var queue=Call(AssemblyTicket,"Printer",null,services.Operations,TestOrder());
-        var args=new object[]{services.Operations,queue,orderId,frontOrderId,photoId,1057L,null,null};
+        var args=new object[]{services.Operations,TestOrder(),orderId,photoId,1057L,null,null,null};
         return (bool)Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.PickupPhotoPrinter",true)
-            .GetMethod("TryPrepareForOrder",Static).Invoke(null,args) ? args[6] : null;
+            .GetMethods(Static).Single(method=>method.Name=="TryPrepareForOrder" && method.GetParameters()[1].ParameterType==typeof(IOrder))
+            .Invoke(null,args) ? args[5] : null;
     }
     private static string Attempt(object worker)
     {
@@ -149,6 +159,60 @@ internal static partial class Program
         var formatted=document;
         foreach(var callback in callbacks) formatted=callback((target,formatted)) ?? formatted;
         return formatted;
+    }
+    private sealed class DeferredQueueFormat
+    {
+        internal readonly Document Original;
+        internal readonly Guid Target;
+        private readonly Func<ValueTuple<Guid,Document>,Document> originalObserver;
+        internal DeferredQueueFormat(Document original,Guid target)
+        {
+            Original=original;Target=target;originalObserver=beforeFormat;
+        }
+        // Bill/document queues can acknowledge submission before they format it.
+        // Each physical target receives the original document, including its nonce.
+        internal Document Observe(Guid? target=null,bool oldObserver=false) => Task.Run(()=>
+            oldObserver ? originalObserver((target??Target,Original)) : FormatDocument(target??Target,Original)).GetAwaiter().GetResult();
+        internal Document ObserveOldHandler(Document newerDocument) => Task.Run(()=>originalObserver((Target,newerDocument))).GetAwaiter().GetResult();
+    }
+    private static bool PrintBusy => (bool)Routes.GetProperty("PrintBusy",Static).GetValue(null);
+    private static DeferredQueueFormat PendingQueueFormat()
+    {
+        WaitUntil(()=>Volatile.Read(ref deferredProbe)!=null && Volatile.Read(ref queueReturns)>0,"queue SDK returned before callback");
+        var pending=Volatile.Read(ref deferredProbe);
+        // Give the production continuation a chance to process the positive SDK
+        // return; the callback has not been invoked on any thread yet.
+        Thread.Sleep(30);return pending;
+    }
+    private static IPointOfSale ReceiptPoint(Guid? target,bool virtualRegister=true,bool nullRegister=false,bool isDefault=false,
+        Guid? pointId=null,Guid? registerId=null)
+    {
+        var id=pointId??Guid.NewGuid();var cashId=registerId??Guid.NewGuid();
+        var cash=nullRegister ? null : Proxy.Make<ICashRegisterInfo>(call=>
+        {
+            switch(call.MethodName)
+            {
+                case "get_Id":return cashId;
+                case "get_IsVirtual":return virtualRegister;
+                case "get_VirtualChequePrinterId":return target;
+                default:throw new Exception("Unexpected configured cash-register read: "+call.MethodName);
+            }
+        });
+        return Proxy.Make<IPointOfSale>(call=>
+        {
+            switch(call.MethodName)
+            {
+                case "get_Id":return id;
+                case "get_CashRegister":return cash;
+                case "get_IsDefault":return isDefault;
+                default:throw new Exception("Unexpected configured POS read: "+call.MethodName);
+            }
+        });
+    }
+    private static void ConfigureReceipt(Guid? target=null)
+    {
+        configuredHostPoints=new[]{ReceiptPoint(target??PrinterId),ReceiptPoint(target??PrinterId)};
+        receiptDeviceTerminal=TerminalId;
     }
     private static int ActiveCallbacks {get {lock(callbackGate) return formatCallbacks.Count;}}
     private static void UseRetryClock()
@@ -188,6 +252,10 @@ internal static partial class Program
     private static void RestartRoutes(int timeout=30)
     {
         routeSubscription?.Dispose();routeSubscription=(IDisposable)Call(Routes,"Start",null,services.Operations,timeout);
+        // Most fixtures need the initial observer to be registered. Intentional
+        // registration barriers must remain asynchronous so receipt readiness
+        // and stale/disposed-owner fences can be tested while the SDK is hung.
+        if(registrationWait==null) WaitUntil(()=>!RegistrationBusy,"initial startup observer registration");
     }
     private static void LearnAssembly()
     {
@@ -211,6 +279,9 @@ internal static partial class Program
         printed=completed=claims=releases=httpCalls=0;failAck=failDownload=failPrinter=failClaim=badHash=false;printResult=true;
         printerPresent=true;billPresent=true;documentPresent=receiptQueryFails=false;receiptQueries=0;lastPrintedPrinter=Guid.Empty;
         probePrints=assemblyPrints=0;printSequence.Clear();printTargets.Clear();suppressCallback=multipleTargets=false;probeGate=null;frontOrderId=Guid.NewGuid();
+        deferProbeCallback=false;queueReturns=0;deferredProbe=null;
+        configuredHostPoints=new IPointOfSale[0];receiptDeviceTerminal=TerminalId;absentReceiptDevice=null;wrongReceiptDevice=false;receiptDeviceReads=0;
+        rejectLegacyRouting=false;legacyRouteReads=0;
         draftMismatch=noPhoto=false;terminalOverride=null;
         registrationThrows=registrationReturnsNull=queuePrinterThrows=false;registrationWait=registrationEntered=null;
         retryNow=null;
@@ -278,23 +349,37 @@ internal static partial class Program
         var printer=Proxy.Make<IPrinterQueueRef>(call=>call.MethodName=="get_Id"?(object)PrinterId:true);
         var bill=Proxy.Make<IPrinterQueueRef>(call=>call.MethodName=="get_Id"?(object)BillPrinterId:true);
         var documentPrinter=Proxy.Make<IPrinterQueueRef>(call=>call.MethodName=="get_Id"?(object)DocumentPrinterId:true);
-        var device=Proxy.Make<IPrintingDeviceInfo>(call=>call.MethodName=="get_Id"?(object)PrinterId:null);
-        var billDevice=Proxy.Make<IPrintingDeviceInfo>(call=>call.MethodName=="get_Id"?(object)BillDeviceId:null);
-        var documentDevice=Proxy.Make<IPrintingDeviceInfo>(call=>call.MethodName=="get_Id"?(object)DocumentDeviceId:null);
+        Func<IMethodCallMessage,Guid,object> deviceRead=(call,id)=>call.MethodName=="get_Id" ? (object)id :
+            call.MethodName=="get_RelatedTerminal" ? (receiptDeviceTerminal.HasValue ?
+                Proxy.Make<ITerminal>(read=>read.MethodName=="get_Id"?(object)receiptDeviceTerminal.Value:null) : null) : null;
+        var device=Proxy.Make<IPrintingDeviceInfo>(call=>deviceRead(call,PrinterId));
+        var billDevice=Proxy.Make<IPrintingDeviceInfo>(call=>deviceRead(call,BillDeviceId));
+        var documentDevice=Proxy.Make<IPrintingDeviceInfo>(call=>deviceRead(call,DocumentDeviceId));
         section=Proxy.Make<IRestaurantSection>(call=>call.MethodName=="get_Id"?(object)SectionId:null);
         table=Proxy.Make<ITable>(call=>call.MethodName=="get_IsActive"?(object)true:call.MethodName=="get_RestaurantSection"?section:null);
         services.Operations=Proxy.Make<IOperationService>(call=>{
             switch(call.MethodName)
             {
                 case "GetHostTerminal":return terminal;
-                case "GetHostTerminalRestaurantSections":return new[]{section};
-                case "GetTables":return new[]{table};
+                case "GetHostTerminalPointsOfSale":return configuredHostPoints;
+                case "GetHostTerminalRestaurantSections":legacyRouteReads++;if(rejectLegacyRouting)throw new Exception("Configured receipt must not inspect unrelated assembly section");return new[]{section};
+                case "GetTables":legacyRouteReads++;if(rejectLegacyRouting)throw new Exception("Configured receipt must not inspect unrelated assembly table");return new[]{table};
                 case "RegisterBeforeFormatDocumentHandler":return RegisterCallback((Func<ValueTuple<Guid,Document>,Document>)call.Args[0]);
                 case "TryGetReceiptChequePrinter":receiptQueries++;if(receiptQueryFails)throw new IOException("Receipt query failed");return printerPresent?printer:null;
-                case "TryGetBillPrinter":if(call.Args[0]!=section || !(bool)call.Args[1])throw new Exception("Wrong automatic assembly section");return billPresent?bill:null;
-                case "TryGetDocumentPrinter":if(call.Args[0]!=section || !(bool)call.Args[1])throw new Exception("Wrong automatic assembly section");return documentPresent?documentPrinter:null;
+                case "TryGetBillPrinter":legacyRouteReads++;if(rejectLegacyRouting)throw new Exception("Configured receipt must not inspect unrelated bill queue");if(call.Args[0]!=section || !(bool)call.Args[1])throw new Exception("Wrong automatic assembly section");return billPresent?bill:null;
+                case "TryGetDocumentPrinter":legacyRouteReads++;if(rejectLegacyRouting)throw new Exception("Configured receipt must not inspect unrelated document queue");if(call.Args[0]!=section || !(bool)call.Args[1])throw new Exception("Wrong automatic assembly section");return documentPresent?documentPrinter:null;
                 case "GetPrintingDeviceInfos":return new[]{device,documentDevice,billDevice};
-                case "TryGetPrintingDeviceInfoById":throw new Exception("Queue UUID must not be used as physical printer UUID");
+                case "TryGetPrintingDeviceInfoById":
+                    receiptDeviceReads++;
+                    var requested=(Guid)call.Args[0];
+                    if(configuredHostPoints==null || configuredHostPoints.Length==0 || requested==BillPrinterId || requested==DocumentPrinterId)
+                        throw new Exception("Queue UUID must not be used as physical printer UUID");
+                    if(absentReceiptDevice==requested)return null;
+                    if(wrongReceiptDevice)return documentDevice;
+                    if(requested==PrinterId)return device;
+                    if(requested==BillDeviceId)return billDevice;
+                    if(requested==DocumentDeviceId)return documentDevice;
+                    return null;
                 case "GetPrinterDriverParameters":return ((IPrintingDeviceInfo)call.Args[0]).Id==BillDeviceId?billDriver:((IPrintingDeviceInfo)call.Args[0]).Id==DocumentDeviceId?documentDriver:driver;
                 case "Print":
                     var payload=(Document)call.Args[1];
@@ -303,16 +388,20 @@ internal static partial class Program
                     {
                         if(call.Args.Length!=3 || !(bool)call.Args[2])throw new Exception("Assembly/probe must wait for printer completion");
                         var target=queue.Id==BillPrinterId?BillDeviceId:DocumentDeviceId;
-                        if(!suppressCallback)
+                        var serviceProbe=markup.Value.Contains("проверка фотопечати");
+                        if(serviceProbe && deferProbeCallback)
+                            Interlocked.Exchange(ref deferredProbe,new DeferredQueueFormat(payload,target));
+                        else if(!suppressCallback)
                         {
                             var formatted=FormatDocument(target,payload);
                             if(multipleTargets)FormatDocument(PrinterId,payload);
                             if(formatted!=null)markup=formatted.Markup;
                             if(markup.Descendants("section").Any())throw new Exception("Private route marker leaked to paper");
                         }
-                        if(markup.Value.Contains("проверка фотопечати")){Interlocked.Increment(ref probePrints);probeGate?.WaitOne();}
+                        if(serviceProbe){Interlocked.Increment(ref probePrints);probeGate?.WaitOne();}
                         else Interlocked.Increment(ref assemblyPrints);
                         if(queuePrinterThrows) throw new IOException("Fake queue printer failed after dispatch");
+                        Interlocked.Increment(ref queueReturns);
                         return printResult;
                     }
                     if(call.Args.Length!=2)throw new Exception("Physical photo/assembly target uses bool-returning SDK overload");
@@ -350,11 +439,22 @@ internal static partial class Program
             .SetValue(null,new HttpClient(new FakeHttp{Reply=Reply}));
         typeof(LoyaltyFlow).GetField("_httpClient",Static).SetValue(null,new HttpClient(new FakeHttp{Reply=request=>
             Json("{\"id\":\""+(draftMismatch?Guid.NewGuid().ToString():orderId)+"\",\"pickupPhotoId\":"+(noPhoto?"null":"\""+photoId+"\"")+",\"items\":[{\"name\":\"Test\",\"quantity\":1}]}")}));
-        RasterBounds();PrinterCapability();RouteFailures();StartupRecovery();PrintAndAck();PrintFailures();PreparationRecovery();FreshDispatchGuard();LostClaim();Timeout();LedgerRetention();RouteStorage();CorruptJournal();
-        PhotoFirstIntegration();
-        Check(Plugin.GetName().Version.ToString(3)=="1.14.4","safe startup recovery and photo-first orchestration have version 1.14.4");
-        Console.WriteLine("PASS: "+assertions+" photo-print assertions; intercepted HTTP and SDK only, no physical printer.");
-        PluginContext.Uninitialize();
+        var waitField=Routes.GetField("observationWaitMilliseconds",Static);
+        var settleField=Routes.GetField("observationSettleMilliseconds",Static);
+        var originalWait=waitField.GetValue(null);var originalSettle=settleField.GetValue(null);
+        try
+        {
+            waitField.SetValue(null,600);settleField.SetValue(null,50);
+            RasterBounds();PrinterCapability();RouteFailures();StartupRecovery();DelayedQueueCallbacks();ConfiguredReceiptPaths();PrintAndAck();PrintFailures();PreparationRecovery();FreshDispatchGuard();LostClaim();Timeout();LedgerRetention();RouteStorage();CorruptJournal();
+            PhotoFirstIntegration();
+            Check(Plugin.GetName().Version.ToString(3)=="1.14.5","configured receipt recovery and delayed callbacks have version 1.14.5");
+            Console.WriteLine("PASS: "+assertions+" photo-print assertions; intercepted HTTP and SDK only, no physical printer.");
+        }
+        finally
+        {
+            waitField.SetValue(null,originalWait);settleField.SetValue(null,originalSettle);
+            PluginContext.Uninitialize();
+        }
     }
     private static bool Reject(byte[] bytes,int width=384)
     {
@@ -633,6 +733,282 @@ internal static partial class Program
             probeGate=null;
             Check(ReadyAfterProbe() && probePrints==2 && assemblyPrints==0 && printed==0,
                 "after the old SDK call ends only the new startup's independent service probe can recover readiness");
+        }
+    }
+    private static void DelayedQueueCallbacks()
+    {
+        var waitField=Routes.GetField("observationWaitMilliseconds",Static);
+        var settleField=Routes.GetField("observationSettleMilliseconds",Static);
+        var oldWait=waitField.GetValue(null);var oldSettle=settleField.GetValue(null);
+        try
+        {
+            waitField.SetValue(null,1500);settleField.SetValue(null,350);
+            Scenario(false);deferProbeCallback=true;UseRetryClock();PrinterReady();
+            var pending=PendingQueueFormat();
+            Check(PrintBusy && !PrinterReady() && probePrints==1,
+                "positive queue SDK return retains the shared lease until its delayed physical callback arrives");
+            using(var competing=(IDisposable)Call(Routes,"TryReservePrint",null))
+                Check(competing==null,"photo and assembly cannot reserve a competing print while queue observation is pending");
+            var worker=NewWorker();Tick(worker);Attempt(worker);Dispose(worker);
+            Parallel.For(0,12,_=>PrinterReady());
+            Check(probePrints==1 && printed==0 && assemblyPrints==0 && claims==0 && httpCalls==0,
+                "delayed callback wait emits no repeat probe, photo, assembly or order claim under concurrent readiness checks");
+            var unrelated=(Document)new XElement("doc",new XElement("center","Unrelated ordinary document"));
+            FormatDocument(BillDeviceId,unrelated);
+            Check(!PrinterReady() && PrintBusy,"a physical callback without this probe's nonce cannot confirm its route");
+            var formatted=pending.Observe();
+            Check(formatted!=null && !formatted.Markup.Descendants("section").Any() && pending.Original.Markup.Descendants("section").Any(),
+                "delayed formatting strips the private nonce from paper while preserving the original fan-out document");
+            Thread.Sleep(180);pending.Observe();Thread.Sleep(200);
+            Check(!PrinterReady() && PrintBusy,"a repeated same-device callback resets the quiet observation interval before readiness");
+            Check(ReadyAfterProbe() && probePrints==1 && Selection()!=null && StartupDiagnostic==null,
+                "delayed same-device queue callbacks resolve one exact physical printer without another SDK print");
+            Check(printed==0 && assemblyPrints==0 && claims==0 && httpCalls==0,
+                "route confirmation after delayed callbacks remains independent of customer order printing");
+
+            Scenario(false);billPresent=false;documentPresent=true;deferProbeCallback=true;PrinterReady();
+            pending=PendingQueueFormat();pending.Observe();
+            Check(ReadyAfterProbe() && probePrints==1 && pending.Target==DocumentDeviceId && Selection()!=null,
+                "a document queue's delayed callback confirms its own physical device rather than a receipt or bill printer");
+
+            foreach(var second in new[]{PrinterId,Guid.Empty})
+            {
+                Scenario(false);deferProbeCallback=true;UseRetryClock();PrinterReady();pending=PendingQueueFormat();
+                pending.Observe();Thread.Sleep(500);pending.Observe(second);
+                Check(!ReadyAfterProbe() && !PrintBusy && probePrints==1 && StartupDiagnostic?.Contains("retry=blocked")==true,
+                    "a second physical target after the quiet interval but before deadline still makes the probe unavailable: "+(second==Guid.Empty?"empty":"different"));
+                AdvanceRetryClock(3600);deferProbeCallback=false;Parallel.For(0,12,_=>PrinterReady());
+                Check(!ReadyAfterProbe() && probePrints==1 && printed==0 && assemblyPrints==0 && claims==0,
+                    "ambiguous delayed physical callbacks never auto-replay a service or customer strip");
+            }
+
+            foreach(var missing in new[]{"callback","marker"})
+            {
+                Scenario(false);deferProbeCallback=true;UseRetryClock();PrinterReady();pending=PendingQueueFormat();
+                if(missing=="marker") FormatDocument(BillDeviceId,unrelated);
+                Check(!ReadyAfterProbe() && !PrintBusy && probePrints==1 && StartupDiagnostic?.Contains("retry=blocked")==true,
+                    "positive SDK submission with a missing "+missing+" expires its bounded observation wait");
+                pending.Observe();AdvanceRetryClock(3600);deferProbeCallback=false;Parallel.For(0,12,_=>PrinterReady());
+                Check(!ReadyAfterProbe() && probePrints==1 && printed==0 && assemblyPrints==0 && claims==0,
+                    "a callback arriving after observation expiry cannot authorize or replay the positive submission: "+missing);
+            }
+
+            Scenario(false);deferProbeCallback=true;UseRetryClock();PrinterReady();pending=PendingQueueFormat();
+            using(var stop=new CancellationTokenSource())
+            {
+                var observed=0;
+                var callbacks=Task.Run(()=>
+                {
+                    while(!stop.IsCancellationRequested)
+                    {
+                        pending.Observe();Interlocked.Increment(ref observed);Thread.Sleep(80);
+                    }
+                });
+                try
+                {
+                    Check(!ReadyAfterProbe() && observed>2 && StartupDiagnostic?.StartsWith("probe_callback_unsettled")==true && probePrints==1,
+                        "repeated same-device callbacks cannot extend the bounded observation deadline indefinitely");
+                }
+                finally {stop.Cancel();callbacks.GetAwaiter().GetResult();}
+            }
+            AdvanceRetryClock(3600);pending.Observe();
+            Check(!ReadyAfterProbe() && probePrints==1,"an unsettled positive probe never auto-replays or accepts a post-expiry callback");
+
+            foreach(var replacement in new[]{"dispose","restart"})
+            {
+                Scenario(false);deferProbeCallback=true;UseRetryClock();PrinterReady();pending=PendingQueueFormat();
+                Check(PrintBusy,"a pending delayed callback owns the print lease before "+replacement);
+                if(replacement=="restart") RestartRoutes();
+                else {routeSubscription.Dispose();routeSubscription=null;}
+                WaitUntil(()=>!PrintBusy,"replaced delayed queue observation exits");
+                var stale=pending.Observe(oldObserver:true);
+                Check(stale==null && ((IDictionary)Routes.GetField("confirmed",Static).GetValue(null)).Count==0,
+                    "a delayed captured callback from the replaced generation cannot strip or confirm current metadata: "+replacement);
+                if(replacement=="restart")
+                {
+                    // The active observer may still see an old printer job. Its
+                    // expired nonce must not count as a new route observation.
+                    pending.Observe();PrinterReady();
+                    WaitUntil(()=>probePrints==2 && !ReferenceEquals(Volatile.Read(ref deferredProbe),pending),"replacement queue probe dispatched");
+                    var current=PendingQueueFormat();
+                    Check(pending.ObserveOldHandler(current.Original)==null && current.Original.Markup.Descendants("section").Any(),
+                        "a stale queue callback leaves the replacement probe's nonce untouched");
+                    current.Observe();
+                    Check(ReadyAfterProbe() && probePrints==2 && ActiveCallbacks==1,
+                        "only the new generation's delayed callback can confirm its independently submitted service probe");
+                }
+                else
+                {
+                    AdvanceRetryClock(3600);Parallel.For(0,12,_=>PrinterReady());
+                    Check(!PrinterReady() && probePrints==1 && ActiveCallbacks==0 && printed==0 && assemblyPrints==0,
+                        "disposing a positive submission awaiting its callback cannot revive readiness or trigger a later probe");
+                }
+            }
+        }
+        finally {waitField.SetValue(null,oldWait);settleField.SetValue(null,oldSettle);}
+    }
+    private static void ConfiguredReceiptPaths()
+    {
+        WithReceiptScenario((state,photos,automatic)=>
+        {
+            ConfigureReceipt();rejectLegacyRouting=true;
+            using(var waiting=new ManualResetEvent(false))
+            using(var entered=new ManualResetEvent(false))
+            {
+                registrationWait=waiting;registrationEntered=entered;
+                var startup=Task.Run(()=>RestartRoutes());
+                try
+                {
+                    WaitUntil(()=>entered.WaitOne(0),"configured receipt startup registration is still in flight");
+                    Check(RegistrationBusy && PrinterReady() && probePrints==0 && legacyRouteReads==0,
+                        "exact configured receipt readiness does not wait for a hung unrelated formatter registration");
+                    Check(ProcessAutomatic(automatic,state) && printSequence.SequenceEqual(new[]{"photo","assembly"}) &&
+                        printTargets.All(id=>id==PrinterId) && probePrints==0,
+                        "photo-first configured receipt acceptance remains available while formatter registration is in flight");
+                }
+                finally
+                {
+                    waiting.Set();startup.GetAwaiter().GetResult();registrationWait=registrationEntered=null;
+                }
+                WaitUntil(()=>!RegistrationBusy && ActiveCallbacks==1,"late configured receipt observer registered");
+                Check(ActiveCallbacks==1 && PrinterReady() && printed==1 && assemblyPrints==1 && probePrints==0,
+                    "late successful formatter registration does not replay or replace the already verified receipt route");
+            }
+        },false);
+
+        foreach(var registration in new[]{"throw","null"})
+        {
+            WithReceiptScenario((state,photos,automatic)=>
+            {
+                ConfigureReceipt();registrationThrows=registration=="throw";registrationReturnsNull=registration=="null";
+                suppressCallback=true;billPresent=documentPresent=printerPresent=false;rejectLegacyRouting=true;RestartRoutes();
+                Check(PrinterReady() && ActiveCallbacks==0 && probePrints==0 && legacyRouteReads==0 && receiptQueries==0,
+                    "matching configured virtual POS targets enable the exact receipt printer without format registration or queue probes: "+registration);
+                Check(ProcessAutomatic(automatic,state) && printSequence.SequenceEqual(new[]{"photo","assembly"}) &&
+                    printTargets.All(id=>id==PrinterId) && printed==1 && assemblyPrints==1 && claims==1 && state.AssemblyClaims==1,
+                    "configured receipt route prints PHOTO then ASSEMBLY on the same exact Xprinter without any legacy queue: "+registration);
+                Check(state.PaymentTypeReads==0 && state.FiscalSdkCalls==0 && receiptQueries==0 && legacyRouteReads==0 && probePrints==0,
+                    "configured receipt acceptance neither fiscalizes nor consults unrelated table, bill, document or receipt queues");
+                Check(ProcessAutomatic(automatic,state) && printed==1 && assemblyPrints==1,
+                    "repeated configured receipt acceptance never duplicates either customer strip");
+                var restartedPhotos=NewWorker();var restarted=NewAutomatic(restartedPhotos);
+                try
+                {
+                    RestartRoutes();
+                    Check(PrinterReady() && ProcessAutomatic(restarted,state) && printed==1 && assemblyPrints==1 && ActiveCallbacks==0,
+                        "configured receipt readiness and completed order evidence recover after restart despite unavailable callbacks");
+                }
+                finally {Dispose(restarted);Dispose(restartedPhotos);}
+            },false);
+        }
+
+        WithReceiptScenario((state,photos,automatic)=>
+        {
+            ConfigureReceipt();suppressCallback=true;registrationReturnsNull=true;RestartRoutes();failAck=true;
+            Check(ProcessAutomatic(automatic,state) && printed==1 && assemblyPrints==1 && status=="printing",
+                "lost ACK on configured receipt retains durable physical proof and permits only the following assembly");
+            var restartedPhotos=NewWorker();var restarted=NewAutomatic(restartedPhotos);
+            try
+            {
+                RestartRoutes();Tick(restartedPhotos);
+                Check(ProcessAutomatic(restarted,state) && status=="printed" && printed==1 && assemblyPrints==1 && claims==1,
+                    "configured receipt restart reconciles lost photo ACK without repeating photo or assembly");
+            }
+            finally {Dispose(restarted);Dispose(restartedPhotos);}
+        },false);
+
+        WithReceiptScenario((state,photos,automatic)=>
+        {
+            ConfigureReceipt();suppressCallback=true;registrationThrows=true;RestartRoutes();
+            var originalPoints=configuredHostPoints;
+            Check(Selection()!=null && probePrints==0,"an unprinted configured receipt order durably reserves its exact physical printer");
+            var binding=RouteBindings().Values.Cast<object>().Single(entry=>(string)entry.GetType().GetProperty("OrderId").GetValue(entry)==orderId);
+            Check((string)binding.GetType().GetProperty("Kind").GetValue(binding)=="receipt" &&
+                binding.GetType().GetProperty("QueueId").GetValue(binding)==null &&
+                (int)binding.GetType().GetProperty("ReceiptPointCount").GetValue(binding)==2,
+                "receipt reservation records configuration proof rather than disguising a physical ID as a legacy queue UUID");
+            configuredHostPoints=originalPoints.Reverse().ToArray();RestartRoutes();
+            Check(Selection()!=null && probePrints==0 && printed==0,
+                "receipt reservation survives restart and sorted POS order without a service probe or premature photo");
+            ConfigureReceipt(BillDeviceId);
+            Check(Selection()==null && printed==0 && assemblyPrints==0 && claims==0,
+                "changed configured receipt target cannot silently replace an existing unprinted order reservation");
+            configuredHostPoints=new[]{ReceiptPoint(PrinterId),ReceiptPoint(PrinterId)};
+            Check(Selection()==null,"changed POS or cash-register identity cannot reuse a receipt reservation merely because its device matches");
+            configuredHostPoints=originalPoints;RestartRoutes();
+            Check(ProcessAutomatic(automatic,state) && printSequence.SequenceEqual(new[]{"photo","assembly"}) && printTargets.All(id=>id==PrinterId),
+                "restoring the exact original receipt configuration resumes the reserved photo-first order on its pinned device");
+        },false);
+
+        WithReceiptScenario((state,photos,automatic)=>
+        {
+            // Scenario(true) has already persisted the legacy bill reservation.
+            ConfigureReceipt();RestartRoutes();
+            Check(Selection()!=null && ProcessAutomatic(automatic,state) && printTargets.All(id=>id==BillDeviceId) &&
+                printSequence.SequenceEqual(new[]{"photo","assembly"}),
+                "new receipt configuration preserves an existing legacy order's original device instead of auto-upgrading its route");
+        });
+
+        WithReceiptScenario((state,photos,automatic)=>
+        {
+            configuredHostPoints=new[]{ReceiptPoint(PrinterId)};registrationReturnsNull=true;suppressCallback=true;RestartRoutes();
+            Check(PrinterReady() && Selection()!=null && probePrints==0,"one valid host POS is sufficient to pin its configured receipt device");
+            routeSubscription.Dispose();routeSubscription=null;
+            Check(!PrinterReady() && Selection()==null && probePrints==0 && printed==0 && claims==0,
+                "disposing callback-independent receipt lifecycle disables further readiness and order reservations");
+        },false);
+
+        foreach(var invalid in new[]{"no_pos","null_points","null_pos","conflicting","nonvirtual","mixed_nonvirtual","null_register","null_target","empty_target",
+            "empty_pos_id","empty_register_id","duplicate_pos","too_many_pos","missing_device","wrong_device","remote_terminal","no_terminal","unsupported_image","narrow_width"})
+        {
+            WithReceiptScenario((state,photos,automatic)=>
+            {
+                ConfigureReceipt();registrationReturnsNull=true;suppressCallback=true;
+                switch(invalid)
+                {
+                    case "no_pos":configuredHostPoints=new IPointOfSale[0];break;
+                    case "null_points":configuredHostPoints=null;break;
+                    case "null_pos":configuredHostPoints=new IPointOfSale[]{null};break;
+                    case "conflicting":configuredHostPoints=new[]{ReceiptPoint(PrinterId,isDefault:true),ReceiptPoint(BillDeviceId)};break;
+                    case "nonvirtual":configuredHostPoints=new[]{ReceiptPoint(PrinterId,false)};break;
+                    case "mixed_nonvirtual":configuredHostPoints=new[]{ReceiptPoint(PrinterId),ReceiptPoint(PrinterId,false)};break;
+                    case "null_register":configuredHostPoints=new[]{ReceiptPoint(PrinterId,nullRegister:true)};break;
+                    case "null_target":configuredHostPoints=new[]{ReceiptPoint(null)};break;
+                    case "empty_target":configuredHostPoints=new[]{ReceiptPoint(Guid.Empty)};break;
+                    case "empty_pos_id":configuredHostPoints=new[]{ReceiptPoint(PrinterId,pointId:Guid.Empty)};break;
+                    case "empty_register_id":configuredHostPoints=new[]{ReceiptPoint(PrinterId,registerId:Guid.Empty)};break;
+                    case "duplicate_pos":var samePoint=ReceiptPoint(PrinterId);configuredHostPoints=new[]{samePoint,samePoint};break;
+                    case "too_many_pos":configuredHostPoints=Enumerable.Range(0,33).Select(_=>ReceiptPoint(PrinterId)).ToArray();break;
+                    case "missing_device":absentReceiptDevice=PrinterId;break;
+                    case "wrong_device":wrongReceiptDevice=true;break;
+                    case "remote_terminal":receiptDeviceTerminal=Guid.NewGuid();break;
+                    case "no_terminal":receiptDeviceTerminal=null;break;
+                    case "unsupported_image":SetDriver(false);break;
+                    case "narrow_width":SetDriver(true,300);break;
+                }
+                RestartRoutes();
+                Check(!PrinterReady() && Selection()==null && printed==0 && assemblyPrints==0 && probePrints==0 && claims==0,
+                    "invalid exact receipt configuration fails closed without selecting arbitrary inventory/default printer: "+invalid);
+            },false);
+        }
+
+        foreach(var corrupt in new[]{"proof","count"})
+        {
+            WithReceiptScenario((state,photos,automatic)=>
+            {
+                ConfigureReceipt();registrationReturnsNull=true;suppressCallback=true;RestartRoutes();
+                Check(Selection()!=null,"receipt journal fixture has one valid reserved configuration before corruption: "+corrupt);
+                var bindings=RouteBindings();
+                var binding=bindings.Values.Cast<object>().Single(entry=>(string)entry.GetType().GetProperty("OrderId").GetValue(entry)==orderId);
+                if(corrupt=="proof") binding.GetType().GetProperty("ReceiptProof").SetValue(binding,"invalid-proof");
+                else binding.GetType().GetProperty("ReceiptPointCount").SetValue(binding,0);
+                var path=(string)Routes.GetField("path",Static).GetValue(null);
+                using(var file=File.Create(path))new DataContractJsonSerializer(bindings.GetType()).WriteObject(file,bindings);
+                RestartRoutes();
+                Check(!PrinterReady() && Selection()==null && probePrints==0 && printed==0 && claims==0 &&
+                    (string)Call(Worker,"ReadinessStatus",photos,services.Operations,null)=="journal_unhealthy",
+                    "malformed persisted receipt configuration proof disables printing rather than losing or replacing old evidence: "+corrupt);
+            },false);
         }
     }
     private static void PrintAndAck()

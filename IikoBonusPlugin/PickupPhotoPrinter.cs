@@ -78,9 +78,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
         internal static bool TrySelect(IOperationService os,out PickupPhotoPrinterSelection selected,out string reason)
         {
             selected=null;
+            if(PickupPhotoReceiptRoute.TryResolve(os,out var receipt,out var receiptDiagnostic))
+            {
+                var receiptReady=PrepareReceipt(os,receipt,out selected,out reason,out var receiptFailure);
+                lock(diagnosticGate) readinessDiagnostic=receiptReady ? null : receiptFailure;
+                return receiptReady;
+            }
             if(!PickupPhotoRoutes.TryDefaultDevice(os,out var deviceId,out reason))
             {
-                var routeDiagnostic=PickupPhotoRoutes.DiagnosticStatus;
+                var routeDiagnostic=receiptDiagnostic ?? PickupPhotoRoutes.DiagnosticStatus;
                 lock(diagnosticGate) readinessDiagnostic=routeDiagnostic;
                 return false;
             }
@@ -93,26 +99,100 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             selected=null;
             if(!PickupPhotoRoutes.TryOrderDevice(os,orderId,photoId,number,out var deviceId,out reason)) return false;
-            return PrepareDevice(os,deviceId,out selected,out reason);
+            return PreparePinned(os,orderId,deviceId,out selected,out reason);
         }
         internal static bool TryPrepareForOrder(IOperationService os,Resto.Front.Api.Data.Print.IPrinterQueueRef queue,
             string orderId,Guid frontOrderId,string photoId,long number,out PickupPhotoPrinterSelection selected,out string reason)
         {
             selected=null;
             if(PickupPhotoRoutes.TryOrderDevice(os,orderId,photoId,number,out var existing,out reason))
+            {
+                if(PickupPhotoRoutes.HasReceiptBinding(os,orderId))
+                    return PrepareReceiptOrder(os,orderId,frontOrderId,photoId,number,out selected,out reason);
                 return PickupPhotoRoutes.ReserveOrder(os,queue,orderId,frontOrderId,photoId,number,existing,out reason)
                     && PrepareDevice(os,existing,out selected,out reason);
+            }
+            if(PickupPhotoReceiptRoute.TryResolve(os,out var receipt,out _))
+            {
+                if(!PrepareReceipt(os,receipt,out selected,out reason,out _)) return false;
+                if(PickupPhotoRoutes.ReserveReceiptOrder(os,receipt,orderId,frontOrderId,photoId,number,out reason)) return true;
+                selected=null;return false;
+            }
             if(!PickupPhotoRoutes.TryQueueDevice(os,queue,out var device,out reason)
                 || !PrepareDevice(os,device,out selected,out reason)) return false;
             if(!PickupPhotoRoutes.ReserveOrder(os,queue,orderId,frontOrderId,photoId,number,device,out reason)) {selected=null;return false;}
             return true;
+        }
+        internal static bool TryPrepareForOrder(IOperationService os,Resto.Front.Api.Data.Orders.IOrder order,
+            string orderId,string photoId,long number,out PickupPhotoPrinterSelection selected,
+            out Resto.Front.Api.Data.Print.IPrinterQueueRef queue,out string reason)
+        {
+            selected=null;queue=null;reason="device_unmapped";
+            // A durable legacy reservation takes precedence over a newly
+            // configured receipt target. Never migrate an outstanding photo.
+            if(PickupPhotoRoutes.TryOrderDevice(os,orderId,photoId,number,out _,out _))
+            {
+                if(PickupPhotoRoutes.HasReceiptBinding(os,orderId))
+                    return PrepareReceiptOrder(os,orderId,order.Id,photoId,number,out selected,out reason);
+            }
+            else if(PickupPhotoReceiptRoute.TryResolve(os,out var receipt,out _))
+            {
+                if(!PrepareReceipt(os,receipt,out selected,out reason,out _)) return false;
+                if(PickupPhotoRoutes.ReserveReceiptOrder(os,receipt,orderId,order.Id,photoId,number,out reason)) return true;
+                selected=null;return false;
+            }
+            try {queue=AssemblyTicket.Printer(os,order);}
+            catch {reason="not_configured";return false;}
+            return TryPrepareForOrder(os,queue,orderId,order.Id,photoId,number,out selected,out reason);
+        }
+        private static bool PrepareReceiptOrder(IOperationService os,string orderId,Guid frontOrderId,string photoId,long number,
+            out PickupPhotoPrinterSelection selected,out string reason)
+        {
+            selected=null;reason="device_unmapped";
+            if(!PickupPhotoReceiptRoute.TryResolve(os,out var receipt,out _)
+                || !PrepareReceipt(os,receipt,out selected,out reason,out _)) return false;
+            if(PickupPhotoRoutes.ReserveReceiptOrder(os,receipt,orderId,frontOrderId,photoId,number,out reason)) return true;
+            selected=null;return false;
+        }
+        private static bool PreparePinned(IOperationService os,string orderId,Guid deviceId,
+            out PickupPhotoPrinterSelection selected,out string reason)
+        {
+            if(PickupPhotoRoutes.TryReceiptBinding(os,orderId,out var receipt))
+            {
+                if(receipt.Device!=deviceId) {selected=null;reason="device_unmapped";return false;}
+                return PrepareReceipt(os,receipt,out selected,out reason,out _);
+            }
+            return PrepareDevice(os,deviceId,out selected,out reason);
+        }
+        private static bool PrepareReceipt(IOperationService os,PickupPhotoReceiptRoute receipt,
+            out PickupPhotoPrinterSelection selected,out string reason,out string diagnostic)
+        {
+            selected=null;diagnostic=null;reason="driver_unavailable";
+            if(!PickupPhotoRoutes.CanUseReceiptRoute(out reason)) return false;
+            try
+            {
+                if(receipt.Generation!=PickupPhotoRoutes.ReceiptGeneration || receipt.Branch!=LoyaltyFlow.BranchId
+                    || receipt.Terminal!=os.GetHostTerminal().Id.ToString()) {reason="device_unmapped";return false;}
+                var device=os.TryGetPrintingDeviceInfoById(receipt.Device);
+                if(device==null || device.Id!=receipt.Device) {reason="device_unmapped";diagnostic="receipt_device_missing";return false;}
+                if(device.RelatedTerminal==null || device.RelatedTerminal.Id.ToString()!=receipt.Terminal)
+                    {reason="printer_not_local";diagnostic="receipt_device_not_local";return false;}
+                int requested;
+                try {requested=PickupPhotoRaster.WidthDots;}
+                catch {reason="invalid_width";return false;}
+                if(!TryPrepare(os,device,requested,out var physical,out reason,out diagnostic)) return false;
+                if(!PickupPhotoRoutes.CanUseReceiptRoute(out reason) || receipt.Generation!=PickupPhotoRoutes.ReceiptGeneration)
+                    {reason="device_unmapped";return false;}
+                selected=new PickupPhotoPrinterSelection(physical.Printer,physical.WidthDots,"receipt");reason="ready";return true;
+            }
+            catch(Exception error) {reason="driver_unavailable";diagnostic="receipt_device_failed type="+error.GetType().Name;return false;}
         }
         internal static bool TrySelectForRecovery(IOperationService os,string orderId,Guid frontOrderId,string photoId,long number,
             out PickupPhotoPrinterSelection selected,out string reason)
         {
             selected=null;
             return PickupPhotoRoutes.TryRecoveryDevice(os,orderId,frontOrderId,photoId,number,out var device,out reason)
-                && PrepareDevice(os,device,out selected,out reason);
+                && PreparePinned(os,orderId,device,out selected,out reason);
         }
         internal static string StatusMessage(string status)
         {

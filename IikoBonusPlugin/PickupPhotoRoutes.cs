@@ -24,6 +24,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember] public string QueueId {get;set;}
         [DataMember] public string SectionId {get;set;}
         [DataMember] public string Kind {get;set;}
+        [DataMember(EmitDefaultValue=false)] public string ReceiptProof {get;set;}
+        [DataMember(EmitDefaultValue=false)] public int ReceiptPointCount {get;set;}
         [DataMember(EmitDefaultValue=false)] public string Phase {get;set;}
         [DataMember] public bool PhotoAcknowledged {get;set;}
     }
@@ -57,6 +59,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
             internal Guid? Device;
             internal bool Ambiguous,Expired;
             internal int Generation;
+            internal int CallbacksSeen;
+            internal long LastObservedTick;
+            internal TaskCompletionSource<bool> Changed=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         }
         internal sealed class Lease:IDisposable
         {
@@ -82,9 +87,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
             && Guid.TryParse(pair.Value.BranchId,out _) && Guid.TryParse(pair.Value.TerminalId,out _)
             && Guid.TryParse(pair.Value.OrderId,out _) && Guid.TryParse(pair.Value.FrontOrderId,out _)
             && Guid.TryParse(pair.Value.PhotoId,out _)
-            && Guid.TryParse(pair.Value.DeviceId,out _) && Guid.TryParse(pair.Value.QueueId,out _)
-            && (pair.Value.SectionId=="none" || Guid.TryParse(pair.Value.SectionId,out _))
-            && pair.Value.Number>0 && new[]{"bill","document"}.Contains(pair.Value.Kind)
+            && Guid.TryParse(pair.Value.DeviceId,out _) && ValidSource(pair.Value)
+            && pair.Value.Number>0
             && (pair.Value.Phase==null || new[]{"reserved","assembly_printed","assembly_acknowledged"}.Contains(pair.Value.Phase)));
         internal static void BindQueue(IOperationService os,IPrinterQueueRef queue,Guid? section,string kind)
         {
@@ -115,7 +119,12 @@ namespace Resto.Front.Api.IikoBonusPlugin
         }
         private static Document BeforeFormat(ValueTuple<Guid,Document> args,int callbackGeneration)
         {
-            lock(gate) {if(callbackGeneration!=generation || !initialized) return null;}
+            lock(gate)
+            {
+                if(callbackGeneration!=generation || !initialized) return null;
+                foreach(var observation in observations.Values)
+                    if(!observation.Expired && observation.Generation==generation) observation.CallbacksSeen++;
+            }
             if(args.Item2?.Markup==null) return null;
             var doc=new XElement(args.Item2.Markup);
             var markers=doc.Descendants("section").Where(item=>(string)item.Attribute("name")==Marker).ToArray();
@@ -131,6 +140,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     if(args.Item1==Guid.Empty || (observation.Device.HasValue && observation.Device!=args.Item1))
                         observation.Ambiguous=true;
                     else observation.Device=args.Item1;
+                    observation.LastObservedTick=System.Diagnostics.Stopwatch.GetTimestamp();
+                    Signal(observation);
                 }
             }
             return (Document)doc;
@@ -226,7 +237,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             var terminal=os.GetHostTerminal().Id.ToString();var branch=LoyaltyFlow.BranchId;
             lock(gate)
             {
-                if(!initialized || !healthy || !queues.TryGetValue(queue,out var route)) return false;
+                if(!LifecycleActive || !healthy || queue==null || !queues.TryGetValue(queue,out var route)) return false;
                 if(route.Terminal!=terminal || route.Branch!=branch) return false;
                 if(!Guid.TryParse(orderId,out _) || !Guid.TryParse(photoId,out _) || number<=0 || frontOrder==Guid.Empty) return false;
                 var key=BindingKey(route.Branch,route.Terminal,orderId);
@@ -284,7 +295,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         }
         internal static bool IsReserved(string branch,string terminal,string orderId,string photoId,long number)
         {
-            lock(gate) return initialized && healthy && bindings.TryGetValue(BindingKey(branch,terminal,orderId),out var binding)
+            lock(gate) return LifecycleActive && healthy && bindings.TryGetValue(BindingKey(branch,terminal,orderId),out var binding)
                 && binding.Phase=="reserved" && binding.PhotoId==photoId && binding.Number==number;
         }
         internal static bool TryOrderDevice(IOperationService os,string orderId,string photoId,long number,out Guid device,out string reason)
@@ -293,7 +304,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             var terminal=os.GetHostTerminal().Id.ToString();
             lock(gate)
             {
-                if(!initialized) return false;if(!healthy){reason="journal_unhealthy";return false;}
+                if(!LifecycleActive) return false;if(!healthy){reason="journal_unhealthy";return false;}
                 if(!bindings.TryGetValue(BindingKey(LoyaltyFlow.BranchId,terminal,orderId),out var binding)
                     || binding.Number!=number || binding.PhotoId!=photoId) return false;
                 device=Guid.Parse(binding.DeviceId);reason="ready";return true;
@@ -306,7 +317,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             var terminal=os.GetHostTerminal().Id.ToString();var branch=LoyaltyFlow.BranchId;
             lock(gate)
             {
-                if(!initialized || !healthy || !bindings.TryGetValue(BindingKey(branch,terminal,orderId),out var binding)
+                if(!LifecycleActive || !healthy || !bindings.TryGetValue(BindingKey(branch,terminal,orderId),out var binding)
                     || binding.FrontOrderId!=frontOrder.ToString() || binding.Number!=number || binding.PhotoId!=photoId) return false;
                 device=Guid.Parse(binding.DeviceId);reason="ready";return true;
             }

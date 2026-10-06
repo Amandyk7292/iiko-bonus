@@ -231,12 +231,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 else if(!job.FiscalDue)
                 {
                     var draft=AssemblyTicket.LoadDraft(job.Number,job.OrderId);
-                    var printer=AssemblyTicket.Printer(os,order);
+                    Resto.Front.Api.Data.Print.IPrinterQueueRef printer=null;
                     PickupPhotoPrinterSelection selected=null;
                     var photoFirst=draft.PickupPhotoId!=null;
-                    if(photoFirst && (photos==null || !PickupPhotoPrinter.TryPrepareForOrder(os,printer,job.OrderId,order.Id,
-                        draft.PickupPhotoId,job.Number,out selected,out _)))
+                    if(photoFirst && (photos==null || !PickupPhotoPrinter.TryPrepareForOrder(os,order,job.OrderId,
+                        draft.PickupPhotoId,job.Number,out selected,out printer,out _)))
                     {StatusText="Онлайн-чек №"+job.Number+": ожидаем принтер фотоленты";return false;}
+                    if(!photoFirst) printer=AssemblyTicket.Printer(os,order);
                     using(var lease=PickupPhotoRoutes.TryReservePrint())
                     {
                         // Never take a server print claim while the shared

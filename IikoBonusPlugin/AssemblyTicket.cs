@@ -18,7 +18,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 var id=OnlineReceiptSync.OrderId(order);
                 if(id==null) throw new InvalidOperationException("Выберите онлайн-заказ Bulka.");
                 if(!vm.ShowOkCancelPopup("Сборочный чек", "Проверьте ленту принтера. Напечатать ещё один экземпляр для сборки заказа № "+order.Number+"?", "Печатать", "Отмена")) return;
-                var printer=Printer(os,order);
+                IPrinterQueueRef printer=null;
                 var jobs=OnlineReceiptSync.Request<AutomaticReceiptJobs>("poll",new AutomaticReceiptPoll {TerminalId=os.GetHostTerminal().Id.ToString()});
                 var job=jobs.Jobs.SingleOrDefault(j=>j.OrderId==id);
                 if(job==null) throw new InvalidOperationException("Задание завершено или закреплено за другой кассой.");
@@ -30,6 +30,12 @@ namespace Resto.Front.Api.IikoBonusPlugin
                         || !PickupPhotoPrinter.TrySelectForRecovery(os,id,order.Id,draft.PickupPhotoId,job.Number,out selected,out _))
                         throw new InvalidOperationException("Сначала дождитесь автоматической фотопечати и сборочного чека.");
                 }
+                else if(draft.PickupPhotoId!=null && PickupPhotoRoutes.HasReceiptBinding(os,id))
+                {
+                    if(!PickupPhotoPrinter.TrySelectForRecovery(os,id,order.Id,draft.PickupPhotoId,job.Number,out selected,out _))
+                        throw new InvalidOperationException("Принтер исходного заказа недоступен. Печать остановлена для сверки.");
+                }
+                if(selected==null) printer=Printer(os,order);
                 using(var lease=PickupPhotoRoutes.TryReservePrint())
                 {
                     if(lease==null) throw new InvalidOperationException("Принтер занят. Дождитесь завершения печати.");

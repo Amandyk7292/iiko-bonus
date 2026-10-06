@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -12,6 +13,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private const int MaximumStartupAttempts=3;
         private static Func<DateTime> utcNow=()=>DateTime.UtcNow;
         private static Action beforeProbe=null;
+        private static int observationWaitMilliseconds=5000,observationSettleMilliseconds=250;
         private static readonly Dictionary<string,ProbeAttempt> probeAttempts=new Dictionary<string,ProbeAttempt>();
         private static Subscription subscription;
         private static string startupDiagnostic;
@@ -34,7 +36,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             private DateTime retryAt;
             internal bool InFlight;
             internal Subscription(IOperationService os,int ownGeneration){this.os=os;this.ownGeneration=ownGeneration;}
-            private bool Current=>!disposed && generation==ownGeneration && ReferenceEquals(subscription,this);
+            internal bool Current=>!disposed && generation==ownGeneration && ReferenceEquals(subscription,this);
             internal void TryRegister(bool asynchronously)
             {
                 lock(gate)
@@ -79,7 +81,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 lock(gate)
                 {
                     if(disposed) return;disposed=true;old=handler;handler=null;
-                    if(generation==ownGeneration && ReferenceEquals(subscription,this)) initialized=false;
+                    if(generation==ownGeneration && ReferenceEquals(subscription,this))
+                    {
+                        initialized=false;
+                        foreach(var observation in observations.Values) {observation.Expired=true;Signal(observation);}
+                    }
                 }
                 DisposeHandler(old);
             }
@@ -95,6 +101,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             lock(gate)
             {
                 previous=subscription;initialized=false;healthy=false;generation++;
+                foreach(var observation in observations.Values) {observation.Expired=true;Signal(observation);}
                 observations.Clear();confirmed.Clear();probes.Clear();probeAttempts.Clear();startupDiagnostic=null;
                 probeTimeoutSeconds=Math.Max(1,Math.Min(60,timeoutSeconds));
                 path=Path.Combine(LoyaltyFlow.DataDirectoryPath,"BulkaPickupPhotoRoutes.json");
@@ -102,7 +109,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 catch {bindings=new Dictionary<string,PickupPhotoRouteBinding>();PickupPhotoPrinter.Diagnose("route_journal",null,"invalid");}
                 current=new Subscription(os,generation);subscription=current;
             }
-            previous?.Dispose();current.TryRegister(false);return current;
+            previous?.Dispose();current.TryRegister(true);return current;
         }
         private static void EnsureRegistration()
         {
@@ -110,6 +117,39 @@ namespace Resto.Front.Api.IikoBonusPlugin
             current?.TryRegister(true);
         }
         private static bool Active(ProbeAttempt attempt)=>initialized && attempt.Generation==generation;
+        private static void Signal(Observation observation)
+        {
+            observation.Changed.TrySetResult(true);
+            observation.Changed=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+        private static async Task<string> AwaitObservation(Observation observation,ProbeAttempt attempt)
+        {
+            var elapsed=Stopwatch.StartNew();
+            var maximum=Math.Max(1,Math.Min(10000,observationWaitMilliseconds));
+            var settle=Math.Max(1,Math.Min(maximum,observationSettleMilliseconds));
+            while(true)
+            {
+                Task signal;long remaining;
+                lock(gate)
+                {
+                    if(!Active(attempt) || observation.Expired) return "stale";
+                    if(observation.Ambiguous) return "probe_ambiguous";
+                    var quiet=(Stopwatch.GetTimestamp()-observation.LastObservedTick)*1000.0/Stopwatch.Frequency;
+                    remaining=maximum-elapsed.ElapsedMilliseconds;
+                    if(remaining<=0)
+                    {
+                        if(observation.Device.HasValue && quiet>=settle) return null;
+                        observation.Expired=true;
+                        return observation.Device.HasValue ? "probe_callback_unsettled" :
+                            observation.CallbacksSeen==0 ? "probe_callback_not_seen" : "probe_marker_not_seen";
+                    }
+                    signal=observation.Changed.Task;
+                }
+                // The queue can return success before formatting begins. Keep
+                // the original nonce live; no further physical Print is sent.
+                await Task.WhenAny(signal,Task.Delay((int)Math.Max(1,remaining)));
+            }
+        }
         private static void ProbeOutcome(Route route,ProbeAttempt attempt,string status,string detail,bool retryable)
         {
             lock(gate)
@@ -136,12 +176,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 if(observation==null) {ProbeOutcome(route,attempt,"device_unmapped","probe_attach_failed",true);return;}
                 flight=Task.Run(()=>
                 {
-                    try
-                    {
-                        lock(gate) {if(!Active(attempt) || observation.Expired) return false;}
-                        return os.Print(queue,(Document)doc,true);
-                    }
-                    finally {lease.Dispose();}
+                    lock(gate) {if(!Active(attempt) || observation.Expired) return false;}
+                    return os.Print(queue,(Document)doc,true);
                 });
                 if(await Task.WhenAny(flight,Task.Delay(TimeSpan.FromSeconds(probeTimeoutSeconds)))!=flight)
                 {
@@ -154,6 +190,16 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     Complete(observation,false);return;
                 }
                 var result=await flight;
+                if(result)
+                {
+                    var failure=await AwaitObservation(observation,attempt);
+                    if(failure!=null)
+                    {
+                        Complete(observation,false);
+                        if(failure!="stale") ProbeOutcome(route,attempt,failure=="probe_ambiguous" ? "ambiguous_printer" : "device_unmapped",failure,false);
+                        return;
+                    }
+                }
                 bool safeNegative;
                 lock(gate) safeNegative=!result && !observation.Device.HasValue && !observation.Ambiguous;
                 Complete(observation,result);
@@ -183,7 +229,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
             finally
             {
                 lock(gate) attempt.InFlight=false;
-                if(flight==null) lease.Dispose();
+                // SDK completion alone does not end a positive bill/document
+                // observation. Serialize the callback grace with photo work.
+                lease.Dispose();
             }
         }
     }
