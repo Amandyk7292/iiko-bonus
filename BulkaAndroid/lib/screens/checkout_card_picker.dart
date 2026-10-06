@@ -206,8 +206,8 @@ class _CheckoutCardPicker extends StatelessWidget {
                               method: method,
                               trailing: Icon(
                                 method['id'] == selectedId
-                                    ? Icons.check_circle_rounded
-                                    : Icons.radio_button_unchecked_rounded,
+                                    ? Icons.radio_button_checked
+                                    : Icons.radio_button_off,
                                 color: method['id'] == selectedId
                                     ? colors.brandBrown
                                     : colors.cardBorder,

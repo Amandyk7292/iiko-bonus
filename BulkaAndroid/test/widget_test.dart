@@ -664,6 +664,13 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Добавить новую карту'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('checkout-payment-selector')),
+        matching: find.byIcon(Icons.credit_card_off_rounded),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Сохранённых карт пока нет.'), findsNothing);
     expect(find.text('Способ оплаты'), findsOneWidget);
     expect(find.text('Kaspi Pay'), findsNothing);
@@ -782,14 +789,14 @@ void main() {
       expect(
         find.descendant(
           of: firstCard,
-          matching: find.byIcon(Icons.check_circle_rounded),
+          matching: find.byIcon(Icons.radio_button_checked),
         ),
         findsOneWidget,
       );
       expect(
         find.descendant(
           of: secondCard,
-          matching: find.byIcon(Icons.radio_button_unchecked_rounded),
+          matching: find.byIcon(Icons.radio_button_off),
         ),
         findsOneWidget,
       );
@@ -802,7 +809,7 @@ void main() {
       expect(
         find.descendant(
           of: secondCard,
-          matching: find.byIcon(Icons.check_circle_rounded),
+          matching: find.byIcon(Icons.radio_button_checked),
         ),
         findsOneWidget,
       );

@@ -615,7 +615,10 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
                   else
                     Icon(
                       widget.active
-                          ? Icons.credit_card_outlined
+                          ? _methods.isEmpty &&
+                                    widget.api.forteCardSetupAvailable
+                                ? Icons.credit_card_off_rounded
+                                : Icons.credit_card_outlined
                           : Icons.account_balance_wallet_outlined,
                       color: colors.brandBrown,
                       size: 22,
