@@ -36,7 +36,7 @@ function memoryDb(tables) {
       const filters = [];
       let patch;
       const result = () => {
-        const found = rows.filter((row) => filters.every(([k, v]) => row[k] === v));
+        const found = rows.filter((row) => filters.every((filter) => filter(row)));
         if (patch) found.forEach((row) => Object.assign(row, patch));
         return found;
       };
@@ -45,7 +45,12 @@ function memoryDb(tables) {
           return q;
         },
         eq(k, v) {
-          filters.push([k, v]);
+          filters.push((row) => row[k] === v);
+          return q;
+        },
+        is(k, v) {
+          // Omitted nullable fixture columns represent SQL NULL, like explicit null.
+          filters.push((row) => (v === null ? row[k] == null : row[k] === v));
           return q;
         },
         insert(values) {
