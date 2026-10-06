@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using Resto.Front.Api.Data.Print;
 
 namespace Resto.Front.Api.IikoBonusPlugin
 {
@@ -12,9 +13,39 @@ namespace Resto.Front.Api.IikoBonusPlugin
             if(binding.Kind=="receipt") return binding.QueueId==null && binding.SectionId=="none"
                 && binding.ReceiptPointCount>0 && binding.ReceiptPointCount<=PickupPhotoReceiptRoute.MaximumPoints
                 && binding.ReceiptProof?.Length==64 && binding.ReceiptProof.All(c=>c>='0' && c<='9' || c>='a' && c<='f');
-            return new[]{"bill","document"}.Contains(binding.Kind) && Guid.TryParse(binding.QueueId,out _)
+            return new[]{"bill","document","receipt_queue"}.Contains(binding.Kind) && Guid.TryParse(binding.QueueId,out var queue) && queue!=Guid.Empty
                 && (binding.SectionId=="none" || Guid.TryParse(binding.SectionId,out _))
+                && (binding.Kind!="receipt_queue" || binding.SectionId=="none")
                 && binding.ReceiptProof==null && binding.ReceiptPointCount==0;
+        }
+        internal static IPrinterQueueRef ConfiguredReceiptQueue(IOperationService os)
+        {
+            try
+            {
+                // This SDK route is the configured default cash register's
+                // receipt printer. Its queue ID is never treated as a device ID.
+                var queue=os.TryGetReceiptChequePrinter(true);
+                if(queue==null) return null;
+                if(queue.Id==Guid.Empty) throw new InvalidOperationException();
+                BindQueue(os,queue,null,"receipt_queue");return queue;
+            }
+            catch(Exception error)
+            {
+                lock(gate) startupDiagnostic="receipt_queue_failed type="+error.GetType().Name;
+                throw;
+            }
+        }
+        internal static bool HasReceiptQueueBinding(IOperationService os,string orderId)
+            => BindingKind(os,orderId)=="receipt_queue";
+        internal static string BindingKind(IOperationService os,string orderId)
+        {
+            var terminal=os.GetHostTerminal().Id.ToString();var branch=LoyaltyFlow.BranchId;
+            lock(gate) return LifecycleActive && healthy && bindings.TryGetValue(BindingKey(branch,terminal,orderId),out var binding)
+                ? binding.Kind : null;
+        }
+        internal static bool IsReceiptQueue(IPrinterQueueRef queue)
+        {
+            lock(gate) return queue!=null && queues.TryGetValue(queue,out var route) && route.Kind=="receipt_queue";
         }
         internal static bool CanUseReceiptRoute(out string reason)
         {

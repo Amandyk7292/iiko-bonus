@@ -30,7 +30,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                         || !PickupPhotoPrinter.TrySelectForRecovery(os,id,order.Id,draft.PickupPhotoId,job.Number,out selected,out _))
                         throw new InvalidOperationException("Сначала дождитесь автоматической фотопечати и сборочного чека.");
                 }
-                else if(draft.PickupPhotoId!=null && PickupPhotoRoutes.HasReceiptBinding(os,id))
+                else if(draft.PickupPhotoId!=null && (PickupPhotoRoutes.HasReceiptBinding(os,id) || PickupPhotoRoutes.HasReceiptQueueBinding(os,id)))
                 {
                     if(!PickupPhotoPrinter.TrySelectForRecovery(os,id,order.Id,draft.PickupPhotoId,job.Number,out selected,out _))
                         throw new InvalidOperationException("Принтер исходного заказа недоступен. Печать остановлена для сверки.");

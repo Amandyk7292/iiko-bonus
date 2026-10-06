@@ -195,12 +195,18 @@ namespace Resto.Front.Api.IikoBonusPlugin
             try {DurableJsonFile.Write(path,bindings);}
             catch(Exception error) {healthy=false;PickupPhotoPrinter.Diagnose("route_journal",queue,error.GetType().Name);}
         }
-        internal static bool TryDefaultDevice(IOperationService os,out Guid device,out string reason)
+        internal static bool TryDefaultDevice(IOperationService os,out Guid device,out string reason,out string kind)
         {
-            device=Guid.Empty;reason="device_unmapped";
+            device=Guid.Empty;reason="device_unmapped";kind="device";
             EnsureRegistration();
             lock(gate) {if(!initialized) return false;if(!healthy){reason="journal_unhealthy";return false;}}
             IPrinterQueueRef queue;
+            try {queue=ConfiguredReceiptQueue(os);}
+            catch {reason="driver_unavailable";return false;}
+            if(queue!=null)
+            {
+                kind="receipt";return TryQueueDevice(os,queue,out device,out reason);
+            }
             try
             {
                 // This is the exact section/table choice used by online imports.

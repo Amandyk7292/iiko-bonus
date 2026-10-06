@@ -6,6 +6,7 @@ const { PGlite } = require('@electric-sql/pglite');
 for (const release of [
   { from: '1.14.3', to: '1.14.4', migration: '20261006235600_pickup_photo_startup_recovery_release.sql' },
   { from: '1.14.4', to: '1.14.5', migration: '20261006235700_pickup_photo_receipt_printer_release.sql' },
+  { from: '1.14.5', to: '1.14.6', migration: '20261006235800_pickup_photo_general_receipt_release.sql' },
 ]) test(`photo release ${release.to} preserves administrator enforcement and newer releases`, async (t) => {
   const db = new PGlite();
   t.after(() => db.close());
