@@ -17,6 +17,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private int busy;
         private volatile bool disposed;
         private volatile Task<bool> printerFlight;
+        private volatile bool printerOutcomeUncertain;
         private readonly TimeSpan printTimeout;
         private const int MaximumUnconfirmed=256;
         private const int RetainedAcknowledged=2048;
@@ -28,7 +29,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             {
                 var flight=printerFlight;
                 return storageHealthy && !disposed && unconfirmedCount<MaximumUnconfirmed
-                    && (flight==null || flight.IsCompleted);
+                    && (!printerOutcomeUncertain || flight==null || flight.IsCompleted) && !PickupPhotoRoutes.UncertainPrintBusy;
             }
         }
         internal PickupPhotoSync(bool startTimer=true,int timeoutSeconds=30)
@@ -70,7 +71,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
             if(!storageHealthy) return "journal_unhealthy";
             if(unconfirmedCount>=MaximumUnconfirmed) return "queue_full";
             var flight=printerFlight;
-            if(flight!=null && !flight.IsCompleted) return "print_in_progress";
+            if(printerOutcomeUncertain && flight!=null && !flight.IsCompleted) return "print_in_progress";
+            if(PickupPhotoRoutes.UncertainPrintBusy) return "print_in_progress";
             PickupPhotoPrinter.TrySelect(os,out selected,out var status);
             return status;
         }
@@ -81,8 +83,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
             {
                 // An SDK call that timed out can still complete physically.
                 // Wait for that call to finish before submitting any new image.
-                if(printerFlight!=null && !printerFlight.IsCompleted) return;
+                var flight=printerFlight;
+                if((flight!=null && !flight.IsCompleted) || PickupPhotoRoutes.PrintBusy) return;
                 printerFlight=null;
+                printerOutcomeUncertain=false;
                 if(!storageHealthy && !TryLoad()) return;
                 var os=PluginContext.Operations;var terminalId=os.GetHostTerminal().Id.ToString();
                 var result=PickupPhotoTransport.Post("poll",new PickupPhotoPoll {TerminalId=terminalId},terminalId);
@@ -117,6 +121,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 throw new InvalidDataException("Сервер не подтвердил завершение фотопечати.");
             saved.AcknowledgedAt=DateTime.UtcNow.ToString("o");
             PruneAcknowledged();DurableJsonFile.Write(path,ledger);
+            PickupPhotoRoutes.ForgetAcknowledged(saved.BranchId,saved.TerminalId,saved.OrderId,saved.PhotoId,saved.Number);
         }
         private void Process(PickupPhotoJob job,IOperationService os,string terminalId)
         {
@@ -145,55 +150,63 @@ namespace Resto.Front.Api.IikoBonusPlugin
             {
                 StatusText="Фото в подарок: сверка незавершённых заданий; новая печать приостановлена";return;
             }
-            if(!PickupPhotoPrinter.TrySelect(os,out var selected,out var printerStatus))
+            if(!PickupPhotoPrinter.TrySelectForOrder(os,job.OrderId,job.PhotoId,job.Number,out var selected,out var printerStatus))
                 {StatusText=PickupPhotoPrinter.StatusMessage(printerStatus);return;}
             // Keep the exact inspected printer and width through claim/download/print.
             var printer=selected.Printer;
             var widthDots=selected.WidthDots;
-            var claim=Action(terminalId,job.OrderId,"claim");
-            if(claim.Status!="print") return;
-            var printStarted=false;
+            var lease=PickupPhotoRoutes.TryReservePrint();if(lease==null) return;
+            var leaseInFlight=false;
             try
             {
-                if(claim.PhotoId!=job.PhotoId || claim.Number!=job.Number)
-                    throw new InvalidDataException("Изменилось задание фотопечати.");
-                var image=PickupPhotoTransport.Image(job.OrderId,terminalId,widthDots);
-                var document=PickupPhotoRaster.Prepare(image,widthDots);
-                if(disposed) throw new OperationCanceledException();
-                saved=new PickupPhotoLedgerEntry {OrderId=job.OrderId,PhotoId=job.PhotoId,Number=job.Number,
-                    BranchId=branchId,TerminalId=terminalId,Status="started",StartedAt=DateTime.UtcNow.ToString("o"),
-                    ImageSha256=PickupPhotoRaster.Hash(image)};
-                ledger.Add(job.OrderId,saved);
-                RefreshCount();
-                DurableJsonFile.Write(path,ledger); // Must succeed before any SDK print call.
-                printStarted=true;
-                printerFlight=Task.Run(()=>os.Print(printer,document,true));
-                if(!printerFlight.Wait(printTimeout) || !printerFlight.Result)
-                    throw new InvalidOperationException("PRINT_OUTCOME_UNCERTAIN");
-                saved.Status="printed";
-                DurableJsonFile.Write(path,ledger); // Persist before acknowledgement; retries only ack.
-                Acknowledge(saved,terminalId);
-                StatusText="Фото №"+job.Number+": напечатано";
-            }
-            catch
-            {
-                if(!printStarted)
+                var claim=Action(terminalId,job.OrderId,"claim");
+                if(claim.Status!="print") return;
+                var printStarted=false;
+                try
                 {
-                    // Only definite failures before invoking the printer may be
-                    // released for automatic retry; no physical strip existed.
-                    if(saved!=null && saved.Status=="started") {ledger.Remove(job.OrderId);RefreshCount();}
-                    try {Action(terminalId,job.OrderId,"release","PHOTO_PREPARE_FAILED");} catch { }
+                    if(claim.PhotoId!=job.PhotoId || claim.Number!=job.Number)
+                        throw new InvalidDataException("Изменилось задание фотопечати.");
+                    var image=PickupPhotoTransport.Image(job.OrderId,terminalId,widthDots);
+                    var document=PickupPhotoRaster.Prepare(image,widthDots);
+                    if(disposed) throw new OperationCanceledException();
+                    saved=new PickupPhotoLedgerEntry {OrderId=job.OrderId,PhotoId=job.PhotoId,Number=job.Number,
+                        BranchId=branchId,TerminalId=terminalId,Status="started",StartedAt=DateTime.UtcNow.ToString("o"),
+                        ImageSha256=PickupPhotoRaster.Hash(image)};
+                    ledger.Add(job.OrderId,saved);
+                    RefreshCount();
+                    DurableJsonFile.Write(path,ledger); // Must succeed before any SDK print call.
+                    printStarted=true;
+                    printerFlight=Task.Run(()=>{try{return os.Print(printer,document);}finally{lease.Dispose();}});
+                    leaseInFlight=true;
+                    if(!printerFlight.Wait(printTimeout) || !printerFlight.Result)
+                        throw new InvalidOperationException("PRINT_OUTCOME_UNCERTAIN");
+                    saved.Status="printed";
+                    DurableJsonFile.Write(path,ledger); // Persist before acknowledgement; retries only ack.
+                    Acknowledge(saved,terminalId);
+                    StatusText="Фото №"+job.Number+": напечатано";
                 }
-                else if(saved.Status!="printed")
+                catch
                 {
-                    saved.Status="uncertain";
-                    try {DurableJsonFile.Write(path,ledger);} catch {storageHealthy=false;}
-                    try {Action(terminalId,job.OrderId,"uncertain","PRINT_OUTCOME_UNCERTAIN");} catch { }
+                    if(!printStarted)
+                    {
+                        // Only definite failures before invoking the printer may be
+                        // released for automatic retry; no physical strip existed.
+                        if(saved!=null && saved.Status=="started") {ledger.Remove(job.OrderId);RefreshCount();}
+                        try {Action(terminalId,job.OrderId,"release","PHOTO_PREPARE_FAILED");} catch { }
+                    }
+                    else if(saved.Status!="printed")
+                    {
+                        printerOutcomeUncertain=true;
+                        saved.Status="uncertain";
+                        try {DurableJsonFile.Write(path,ledger);} catch {storageHealthy=false;}
+                        try {Action(terminalId,job.OrderId,"uncertain","PRINT_OUTCOME_UNCERTAIN");} catch { }
+                    }
+                    // A completed print whose acknowledgement failed remains a
+                    // printed tombstone. The next poll acknowledges without reprint.
+                    throw;
                 }
-                // A completed print whose acknowledgement failed remains a
-                // printed tombstone. The next poll acknowledges without reprint.
-                throw;
             }
+            finally {if(!leaseInFlight) lease.Dispose();}
         }
         internal void RequestRetry() {if(!disposed) ThreadPool.QueueUserWorkItem(Tick);}
         public void Dispose() {disposed=true;timer?.Dispose();}

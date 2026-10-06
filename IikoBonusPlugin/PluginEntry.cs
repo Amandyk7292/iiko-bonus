@@ -47,6 +47,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private IDisposable _assemblyReprintButton;
         private OnlineReceiptSync _automaticReceipts;
         private PickupPhotoSync _pickupPhotos;
+        private IDisposable _pickupPhotoRoutes;
         private static OfflineReceiptSync _offlineReceipts;
         private PosHealthSync _posHealth;
 
@@ -78,6 +79,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 PluginContext.Log.Info("IikoBonusPlugin: Initializing...");
                 LoyaltyFlow.RestoreActiveOrders();
                 GiftCertificateFlow.RestoreActiveOrders();
+                // Observe the actual assembly printer before any print timers start.
+                _pickupPhotoRoutes = PickupPhotoRoutes.Start(PluginContext.Operations);
                 try { _personalAccountPaymentRegistration = PluginContext.Operations.RegisterPaymentSystem(
                     new PersonalAccountPaymentProcessor(), false,
                     Resto.Front.Api.Data.Payments.FiscalPaymentTypeGroup.NonCash); }
@@ -237,6 +240,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             TryDispose(_pairingOrderButton);
             TryDispose(_automaticReceipts);
             TryDispose(_pickupPhotos);
+            TryDispose(_pickupPhotoRoutes);
             TryDispose(_offlineReceipts);
             TryDispose(_onlinePaymentRegistration);
             TryDispose(_personalAccountPaymentRegistration);

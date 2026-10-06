@@ -53,6 +53,21 @@ test('photo printer diagnostics accept old clients and bound new capability tele
       .success,
     true,
   );
+  assert.equal(
+    posHealthHeartbeatSchema.safeParse({ ...configured, photoPrinterKind: 'device' }).success,
+    true,
+  );
+  for (const reason of [
+    'ambiguous_printer',
+    'device_unmapped',
+    'printer_not_local',
+    'invalid_printer_id',
+  ]) {
+    assert.equal(
+      posHealthHeartbeatSchema.safeParse(heartbeat({ photoPrinterStatus: reason })).success,
+      true,
+    );
+  }
   for (const invalid of [
     { photoPrinterStatus: 'unbounded device error' },
     { photoPrinterKind: 'external-url' },
@@ -165,4 +180,34 @@ test('printer release policy advertises 1.14.1 and preserves newer administrator
   policy = (await db.query('select * from pos_plugin_policy')).rows[0];
   assert.equal(policy.latest_version, '1.15.0');
   assert.equal(policy.download_url, 'custom');
+});
+
+test('physical printer release upgrades 1.14.1 without changing enforcement or custom releases', async (t) => {
+  const db = new PGlite();
+  t.after(() => db.close());
+  await db.exec(`create table pos_plugin_policy(singleton boolean primary key,latest_version text,
+    download_url text,guide_url text,updated_at timestamptz,minimum_version text,enforce_minimum boolean);
+    insert into pos_plugin_policy values(true,'1.14.1','old','old',now(),'1.9.0',false);`);
+  const migration = fs.readFileSync(
+    'supabase/migrations/20261006235000_pickup_photo_physical_printer_release.sql',
+    'utf8',
+  );
+  await db.exec(migration);
+  let policy = (await db.query('select * from pos_plugin_policy')).rows[0];
+  assert.equal(policy.latest_version, '1.14.2');
+  assert.equal(policy.download_url, '/downloads/BulkaPlugin-1.14.2-update.zip');
+  assert.equal(policy.guide_url, '/docs/iiko-plugin-1.14.2.html');
+  assert.equal(policy.minimum_version, '1.9.0');
+  assert.equal(policy.enforce_minimum, false);
+  for (const existingVersion of ['1.15.0', '2.0.0', 'custom']) {
+    await db.query(
+      "update pos_plugin_policy set latest_version=$1, download_url='custom', guide_url='custom'",
+      [existingVersion],
+    );
+    await db.exec(migration);
+    policy = (await db.query('select * from pos_plugin_policy')).rows[0];
+    assert.equal(policy.latest_version, existingVersion);
+    assert.equal(policy.download_url, 'custom');
+    assert.equal(policy.guide_url, 'custom');
+  }
 });

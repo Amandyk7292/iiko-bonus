@@ -3,6 +3,7 @@ using System.Linq;
 using System.Xml.Linq;
 using System.Net.Http;
 using Resto.Front.Api.Data.Orders;
+using Resto.Front.Api.Data.Organization.Sections;
 using Resto.Front.Api.Data.Print;
 using Resto.Front.Api.UI;
 
@@ -21,21 +22,31 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 var jobs=OnlineReceiptSync.Request<AutomaticReceiptJobs>("poll",new AutomaticReceiptPoll {TerminalId=os.GetHostTerminal().Id.ToString()});
                 var job=jobs.Jobs.SingleOrDefault(j=>j.OrderId==id);
                 if(job==null) throw new InvalidOperationException("Задание завершено или закреплено за другой кассой.");
-                OnlineReceiptSync.Action(os,"claim",id);
-                OnlineReceiptSync.Action(os,"bind",id,order);
-                if(job.AssemblyStatus=="pending") OnlineReceiptSync.Action(os,"assembly-claim",id,order);
-                Print(os,printer,order,job.Number);
-                OnlineReceiptSync.Action(os,"assembly-complete",id,order);
+                using(var lease=PickupPhotoRoutes.TryReservePrint())
+                {
+                    if(lease==null) throw new InvalidOperationException("Принтер занят. Дождитесь завершения печати.");
+                    OnlineReceiptSync.Action(os,"claim",id);
+                    OnlineReceiptSync.Action(os,"bind",id,order);
+                    if(job.AssemblyStatus=="pending") OnlineReceiptSync.Action(os,"assembly-claim",id,order);
+                    Print(os,printer,order,job.Number,id,true);
+                    OnlineReceiptSync.Action(os,"assembly-complete",id,order);
+                }
             }
             catch(Exception error) {vm.ShowErrorPopup(error.Message,"ОК");}
         }
         internal static IPrinterQueueRef Printer(IOperationService os,IOrder order)
         {
-            var section=order.Tables.FirstOrDefault()?.RestaurantSection;
-            return os.TryGetBillPrinter(section,true) ?? os.TryGetDocumentPrinter(section,true)
-                ?? throw new InvalidOperationException("Настройте принтер пречеков или документов для сборочного чека.");
+            return PrinterForSection(os,order.Tables.FirstOrDefault()?.RestaurantSection);
         }
-        internal static void Print(IOperationService os,IPrinterQueueRef printer,IOrder order,long number)
+        internal static IPrinterQueueRef PrinterForSection(IOperationService os,IRestaurantSection section)
+        {
+            var printer=os.TryGetBillPrinter(section,true);var kind="bill";
+            if(printer==null) {printer=os.TryGetDocumentPrinter(section,true);kind="document";}
+            if(printer==null) throw new InvalidOperationException("Настройте принтер пречеков или документов для сборочного чека.");
+            PickupPhotoRoutes.BindQueue(os,printer,section?.Id,kind);return printer;
+        }
+        internal static void Print(IOperationService os,IPrinterQueueRef printer,IOrder order,long number,
+            string serverOrderId=null,bool printGateHeld=false)
         {
             var doc=new XElement("doc",
                 new XElement("f2",new XElement("center","ЗАКАЗ № "+order.Number)),
@@ -45,6 +56,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
             var draft=LoyaltyFlow.DeserializeJson<ReceiptDraft>(response.Body);
             if(!response.IsSuccessStatusCode || draft?.Items==null || draft.Items.Count==0)
                 throw new InvalidOperationException("Не удалось загрузить состав для сборки. Проверьте заказ перед повторной печатью.");
+            if(serverOrderId!=null && (!Guid.TryParse(serverOrderId,out var expectedOrder)
+                || !Guid.TryParse(draft.Id,out var actualOrder) || expectedOrder!=actualOrder))
+                throw new InvalidOperationException("Состав относится к другому заказу. Печать остановлена для сверки.");
             if(draft.DeliveryResolution?.Unresolved == true)
                 throw new InvalidOperationException("Замена доставки ожидает подтверждения. Печать пока недоступна.");
             if(draft.DeliveryResolution?.Status == "pickup_accepted")
@@ -57,8 +71,17 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 doc.Add(new XElement("left",item.Quantity.ToString("0.###")+" × "+
                     (string.IsNullOrWhiteSpace(item.CustomName) ? item.Name : item.CustomName)));
             doc.Add(new XElement("line"),new XElement("center","Для сборки заказа. Не фискальный чек."));
-            if(!os.Print(printer,(Document)doc,true))
-                throw new InvalidOperationException("Принтер не подтвердил сборочный чек. Проверьте бумагу перед повторной печатью.");
+            using(var lease=printGateHeld ? null : PickupPhotoRoutes.TryReservePrint())
+            {
+                if(!printGateHeld && lease==null) throw new InvalidOperationException("Принтер занят. Дождитесь завершения печати.");
+                var observation=PickupPhotoRoutes.Attach(printer,doc);var success=false;
+                try
+                {
+                    success=os.Print(printer,(Document)doc,true);
+                    if(!success) throw new InvalidOperationException("Принтер не подтвердил сборочный чек. Проверьте бумагу перед повторной печатью.");
+                }
+                finally {PickupPhotoRoutes.Complete(observation,success,serverOrderId,order.Id,number,draft.PickupPhotoId);}
+            }
         }
     }
 }

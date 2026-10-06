@@ -30,6 +30,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
     [DataContract] internal sealed class ReceiptDraft
     {
         [DataMember(Name="id")] public string Id {get;set;}
+        [DataMember(Name="pickupPhotoId")] public string PickupPhotoId {get;set;}
         [DataMember(Name="items")] public List<ReceiptDraftItem> Items {get;set;}
         [DataMember(Name="merchandiseTotal")] public decimal MerchandiseTotal {get;set;}
         [DataMember(Name="deliveryResolution")] public DeliveryResolution DeliveryResolution {get;set;}

@@ -45,6 +45,23 @@ test('deferred tablet receipt is permitted once; cancelled, refunded and mismatc
   ])
     assert.throws(() => receiptDraft({ ...order, ...changes }));
 });
+test('receipt draft identifies an attached pickup photo without exposing the image', () => {
+  const photoId = randomUUID();
+  const order = {
+    id: randomUUID(),
+    order_number: 147,
+    status: 'paid',
+    fulfillment_status: 'preparing',
+    subtotal: 35,
+    cart_items: [{ iikoProductId: randomUUID(), price: 35, quantity: 1 }],
+  };
+  assert.equal(receiptDraft(order).pickupPhotoId, null);
+  const draft = receiptDraft({ ...order, pickup_photo_id: photoId });
+  assert.equal(draft.pickupPhotoId, photoId);
+  assert.equal(draft.id, order.id);
+  assert.equal(draft.number, order.order_number);
+  assert.equal('pickupPhotoUrl' in draft, false);
+});
 test('unresolved replacement cannot print; accepted draft retains replacement badge and requested time', () => {
   const order = {
     status: 'paid',

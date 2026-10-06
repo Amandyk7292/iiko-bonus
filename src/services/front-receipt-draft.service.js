@@ -58,6 +58,7 @@ function receiptDraft(order, optionsVersion = 0) {
     number: Number(order.order_number),
     deliveryResolution: deliveryResolution(order),
     scheduledAt: order.scheduled_at || order.pickup_time || null,
+    pickupPhotoId: order.pickup_photo_id || null,
     items,
     merchandiseTotal:
       Number(order.subtotal) - Number(order.discount_amount || 0) - Number(order.bonus_spent || 0),

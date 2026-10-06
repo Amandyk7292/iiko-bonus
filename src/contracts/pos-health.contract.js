@@ -33,6 +33,10 @@ const posHealthHeartbeatSchema = z
         'image_unsupported',
         'paper_too_narrow',
         'driver_unavailable',
+        'ambiguous_printer',
+        'device_unmapped',
+        'printer_not_local',
+        'invalid_printer_id',
         'invalid_width',
         'journal_unhealthy',
         'queue_full',
@@ -42,7 +46,7 @@ const posHealthHeartbeatSchema = z
       ])
       .optional()
       .default('unknown'),
-    photoPrinterKind: z.enum(['receipt', 'bill', 'document']).optional(),
+    photoPrinterKind: z.enum(['receipt', 'bill', 'document', 'device']).optional(),
     photoPrinterWidthDots: z.union([z.literal(384), z.literal(576)]).optional(),
     queues: queueSchema,
     statuses: z

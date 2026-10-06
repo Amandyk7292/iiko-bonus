@@ -20,6 +20,9 @@ using Resto.Front.Api;
 using Resto.Front.Api.Data.Device;
 using Resto.Front.Api.Data.Device.Settings;
 using Resto.Front.Api.Data.Organization;
+using Resto.Front.Api.Data.Organization.Sections;
+
+using Resto.Front.Api.Data.Orders;
 using Resto.Front.Api.Data.Print;
 using Resto.Front.Api.IikoBonusPlugin;
 
@@ -39,6 +42,12 @@ internal sealed class Services:IServiceProvider
 {
     internal IOperationService Operations;
     public object GetService(Type type)=>type==typeof(IOperationService)?Operations:null;
+}
+internal sealed class Disposable:IDisposable
+{
+    private readonly Action action;
+    internal Disposable(Action action){this.action=action;}
+    public void Dispose(){action();}
 }
 internal sealed class FakeHttp:HttpMessageHandler
 {
@@ -61,8 +70,20 @@ internal static class Program
     private static readonly Assembly Plugin=typeof(LoyaltyFlow).Assembly;
     private static readonly Type Worker=Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.PickupPhotoSync",true);
     private static readonly Type Raster=Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.PickupPhotoRaster",true);
+    private static readonly Type Routes=Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.PickupPhotoRoutes",true);
+    private static readonly Type AssemblyTicket=Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.AssemblyTicket",true);
     private static readonly Guid TerminalId=Guid.NewGuid(),BranchId=Guid.NewGuid(),PrinterId=Guid.NewGuid(),
-        BillPrinterId=Guid.NewGuid(),DocumentPrinterId=Guid.NewGuid();
+        BillPrinterId=Guid.NewGuid(),DocumentPrinterId=Guid.NewGuid(),BillDeviceId=Guid.NewGuid(),DocumentDeviceId=Guid.NewGuid(),SectionId=Guid.NewGuid();
+    private static Guid frontOrderId;
+    private static IRestaurantSection section;
+    private static ITable table;
+    private static Func<ValueTuple<Guid,Document>,Document> beforeFormat;
+    private static IDisposable routeSubscription;
+    private static int probePrints,assemblyPrints;
+    private static bool suppressCallback,multipleTargets;
+    private static bool draftMismatch,noPhoto;
+    private static Guid? terminalOverride;
+    private static ManualResetEvent probeGate;
     private static readonly Services services=new Services();
     private static readonly PrinterDriverParameters driver=new PrinterDriverParameters();
     private static readonly PrinterDriverParameters billDriver=new PrinterDriverParameters(),documentDriver=new PrinterDriverParameters();
@@ -97,13 +118,33 @@ internal static class Program
         var encoder=new PngBitmapEncoder();encoder.Frames.Add(frame);
         using(var output=new MemoryStream()){encoder.Save(output);return output.ToArray();}
     }
-    private static void Scenario()
+    private static void RestartRoutes(int timeout=30)
+    {
+        routeSubscription?.Dispose();routeSubscription=(IDisposable)Call(Routes,"Start",null,services.Operations,timeout);
+    }
+    private static void LearnAssembly()
+    {
+        var order=Proxy.Make<IOrder>(call=>call.MethodName=="get_Id" ? (object)frontOrderId :
+            call.MethodName=="get_Number" ? 42 : call.MethodName=="get_Tables" ? new[]{table} : null);
+        var queue=Call(AssemblyTicket,"Printer",null,services.Operations,order);
+        Call(AssemblyTicket,"Print",null,services.Operations,queue,order,1057L,orderId,false);
+    }
+    private static bool ReadyAfterProbe()
+    {
+        Call(Worker,"PrinterReady",null,services.Operations);
+        SpinWait.SpinUntil(()=>!(bool)Routes.GetProperty("PrintBusy",Static).GetValue(null),3000);
+        return (bool)Call(Worker,"PrinterReady",null,services.Operations);
+    }
+    private static void Scenario(bool mapped=true)
     {
         orderId=Guid.NewGuid().ToString();photoId=Guid.NewGuid().ToString();status="pending";
         printed=completed=claims=releases=httpCalls=0;failAck=failDownload=failPrinter=failClaim=badHash=false;printResult=true;
-        printerPresent=true;billPresent=documentPresent=receiptQueryFails=false;receiptQueries=0;lastPrintedPrinter=Guid.Empty;
+        printerPresent=true;billPresent=true;documentPresent=receiptQueryFails=false;receiptQueries=0;lastPrintedPrinter=Guid.Empty;
+        probePrints=assemblyPrints=0;suppressCallback=multipleTargets=false;probeGate=null;frontOrderId=Guid.NewGuid();
+        draftMismatch=noPhoto=false;terminalOverride=null;
         printGate=null;image=Png();SetDriver();SetDriverParameters(billDriver);SetDriverParameters(documentDriver);
         Environment.SetEnvironmentVariable("IIKO_PICKUP_PHOTO_WIDTH_DOTS",null);
+        RestartRoutes();if(mapped) LearnAssembly();
     }
     private static HttpResponseMessage Reply(HttpRequestMessage request)
     {
@@ -157,27 +198,49 @@ internal static class Program
         data=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"state-"+Guid.NewGuid());Directory.CreateDirectory(data);
         Environment.SetEnvironmentVariable("IIKO_LOYALTY_DATA_DIR",data);
         Environment.SetEnvironmentVariable("IIKO_LOYALTY_API_BASE_URL","https://audit.invalid/api/loyalty");
-        var terminal=Proxy.Make<ITerminal>(call=>call.MethodName=="get_Id"?(object)TerminalId:null);
+        var terminal=Proxy.Make<ITerminal>(call=>call.MethodName=="get_Id"?(object)(terminalOverride??TerminalId):null);
         var printer=Proxy.Make<IPrinterQueueRef>(call=>call.MethodName=="get_Id"?(object)PrinterId:true);
         var bill=Proxy.Make<IPrinterQueueRef>(call=>call.MethodName=="get_Id"?(object)BillPrinterId:true);
         var documentPrinter=Proxy.Make<IPrinterQueueRef>(call=>call.MethodName=="get_Id"?(object)DocumentPrinterId:true);
         var device=Proxy.Make<IPrintingDeviceInfo>(call=>call.MethodName=="get_Id"?(object)PrinterId:null);
-        var billDevice=Proxy.Make<IPrintingDeviceInfo>(call=>call.MethodName=="get_Id"?(object)BillPrinterId:null);
-        var documentDevice=Proxy.Make<IPrintingDeviceInfo>(call=>call.MethodName=="get_Id"?(object)DocumentPrinterId:null);
+        var billDevice=Proxy.Make<IPrintingDeviceInfo>(call=>call.MethodName=="get_Id"?(object)BillDeviceId:null);
+        var documentDevice=Proxy.Make<IPrintingDeviceInfo>(call=>call.MethodName=="get_Id"?(object)DocumentDeviceId:null);
+        section=Proxy.Make<IRestaurantSection>(call=>call.MethodName=="get_Id"?(object)SectionId:null);
+        table=Proxy.Make<ITable>(call=>call.MethodName=="get_IsActive"?(object)true:call.MethodName=="get_RestaurantSection"?section:null);
         services.Operations=Proxy.Make<IOperationService>(call=>{
             switch(call.MethodName)
             {
                 case "GetHostTerminal":return terminal;
+                case "GetHostTerminalRestaurantSections":return new[]{section};
+                case "GetTables":return new[]{table};
+                case "RegisterBeforeFormatDocumentHandler":beforeFormat=(Func<ValueTuple<Guid,Document>,Document>)call.Args[0];return new Disposable(()=>beforeFormat=null);
                 case "TryGetReceiptChequePrinter":receiptQueries++;if(receiptQueryFails)throw new IOException("Receipt query failed");return printerPresent?printer:null;
-                case "TryGetBillPrinter":return billPresent?bill:null;
-                case "TryGetDocumentPrinter":return documentPresent?documentPrinter:null;
-                case "TryGetPrintingDeviceInfoById":return (Guid)call.Args[0]==BillPrinterId?billDevice:(Guid)call.Args[0]==DocumentPrinterId?documentDevice:device;
-                case "GetPrinterDriverParameters":return ((IPrintingDeviceInfo)call.Args[0]).Id==BillPrinterId?billDriver:((IPrintingDeviceInfo)call.Args[0]).Id==DocumentPrinterId?documentDriver:driver;
+                case "TryGetBillPrinter":if(call.Args[0]!=section || !(bool)call.Args[1])throw new Exception("Wrong automatic assembly section");return billPresent?bill:null;
+                case "TryGetDocumentPrinter":if(call.Args[0]!=section || !(bool)call.Args[1])throw new Exception("Wrong automatic assembly section");return documentPresent?documentPrinter:null;
+                case "GetPrintingDeviceInfos":return new[]{device,documentDevice,billDevice};
+                case "TryGetPrintingDeviceInfoById":throw new Exception("Queue UUID must not be used as physical printer UUID");
+                case "GetPrinterDriverParameters":return ((IPrintingDeviceInfo)call.Args[0]).Id==BillDeviceId?billDriver:((IPrintingDeviceInfo)call.Args[0]).Id==DocumentDeviceId?documentDriver:driver;
                 case "Print":
+                    var payload=(Document)call.Args[1];
+                    var markup=payload.Markup;
+                    if(call.Args[0] is IPrinterQueueRef queue)
+                    {
+                        if(call.Args.Length!=3 || !(bool)call.Args[2])throw new Exception("Assembly/probe must wait for printer completion");
+                        var target=queue.Id==BillPrinterId?BillDeviceId:DocumentDeviceId;
+                        if(!suppressCallback)
+                        {
+                            var formatted=beforeFormat?.Invoke((target,payload));
+                            if(multipleTargets)beforeFormat?.Invoke((PrinterId,payload));
+                            if(formatted!=null)markup=formatted.Markup;
+                            if(markup.Descendants("section").Any())throw new Exception("Private route marker leaked to paper");
+                        }
+                        if(markup.Value.Contains("проверка фотопечати")){Interlocked.Increment(ref probePrints);probeGate?.WaitOne();}
+                        else Interlocked.Increment(ref assemblyPrints);
+                        return printResult;
+                    }
+                    if(call.Args.Length!=2)throw new Exception("Physical photo target uses bool-returning SDK overload");
                     Interlocked.Increment(ref printed);
-                    lastPrintedPrinter=((IPrinterQueueRef)call.Args[0]).Id;
-                    if((bool)call.Args[2]!=true)throw new Exception("Must wait for printer completion");
-                    var markup=((Document)call.Args[1]).Markup;
+                    lastPrintedPrinter=((IPrintingDeviceInfo)call.Args[0]).Id;
                     var photo=markup.Element("image");
                     if(photo==null || markup.Descendants("fiscal").Any())throw new Exception("Separate non-fiscal raster missing");
                     var bytes=Convert.FromBase64String(photo.Value);
@@ -199,8 +262,10 @@ internal static class Program
         pairing.GetField("state",Static).SetValue(null,state);pairing.GetField("loaded",Static).SetValue(null,true);
         Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.PickupPhotoTransport",true).GetField("client",Static)
             .SetValue(null,new HttpClient(new FakeHttp{Reply=Reply}));
-        RasterBounds();PrinterCapability();PrintAndAck();PrintFailures();PreparationRecovery();LostClaim();Timeout();LedgerRetention();CorruptJournal();
-        Check(Plugin.GetName().Version.ToString(3)=="1.14.1","printer selection fix has version 1.14.1");
+        typeof(LoyaltyFlow).GetField("_httpClient",Static).SetValue(null,new HttpClient(new FakeHttp{Reply=request=>
+            Json("{\"id\":\""+(draftMismatch?Guid.NewGuid().ToString():orderId)+"\",\"pickupPhotoId\":"+(noPhoto?"null":"\""+photoId+"\"")+",\"items\":[{\"name\":\"Test\",\"quantity\":1}]}")}));
+        RasterBounds();PrinterCapability();RouteFailures();PrintAndAck();PrintFailures();PreparationRecovery();LostClaim();Timeout();LedgerRetention();RouteStorage();CorruptJournal();
+        Check(Plugin.GetName().Version.ToString(3)=="1.14.2","physical assembly printer fix has version 1.14.2");
         Console.WriteLine("PASS: "+assertions+" photo-print assertions; intercepted HTTP and SDK only, no physical printer.");
         PluginContext.Uninitialize();
     }
@@ -223,51 +288,93 @@ internal static class Program
     }
     private static void PrinterCapability()
     {
-        Scenario();Check((bool)Call(Worker,"PrinterReady",null,services.Operations),"configured image-capable receipt printer advertised");
-        SetDriver(false);Check(!(bool)Call(Worker,"PrinterReady",null,services.Operations),"text-only printer does not enable customer photo offer");
-        SetDriver(true,300);Check(!(bool)Call(Worker,"PrinterReady",null,services.Operations),"too-narrow printer does not enable customer photo offer");
-        SetDriver();printerPresent=false;Check(!(bool)Call(Worker,"PrinterReady",null,services.Operations),"missing receipt printer does not enable customer photo offer");
-        printerPresent=true;Environment.SetEnvironmentVariable("IIKO_PICKUP_PHOTO_WIDTH_DOTS","576");
-        Check((int)Call(Worker,"PrintableWidth",null,services.Operations)==384,"58mm printer safely caps configured 576-dot image");
-        SetDriver(true,576);Check((int)Call(Worker,"PrintableWidth",null,services.Operations)==576,"80mm printer can use configured 576-dot image");
-        SetDriver(true,null);Check((int)Call(Worker,"PrintableWidth",null,services.Operations)==384,"unknown page width never authorizes a 576-dot image");
+        Scenario(false);Check(ReadyAfterProbe(),"one non-fiscal probe resolves automatic assembly queue to a distinct physical UUID");
+        Check(probePrints==1 && assemblyPrints==0 && printed==0 && receiptQueries==0,"startup probe submits only one service strip, without fiscal/receipt calls");
+        Check(ReadyAfterProbe() && probePrints==1,"every heartbeat reuses confirmed route without another probe");
+        SetDriverParameters(billDriver,false);Check(!(bool)Call(Worker,"PrinterReady",null,services.Operations),"text-only assembly driver never falls back to another image-capable printer");
+        SetDriverParameters(billDriver,true,300);Check(!(bool)Call(Worker,"PrinterReady",null,services.Operations),"too-narrow assembly printer does not enable customer photo offer");
+        SetDriverParameters(billDriver);billPresent=false;Check(!(bool)Call(Worker,"PrinterReady",null,services.Operations),"missing assembly queue does not select the fiscal printer");
+        billPresent=true;Environment.SetEnvironmentVariable("IIKO_PICKUP_PHOTO_WIDTH_DOTS","576");
+        Check((int)Call(Worker,"PrintableWidth",null,services.Operations)==384,"58mm actual printer safely caps configured 576-dot image");
+        SetDriverParameters(billDriver,true,576);Check((int)Call(Worker,"PrintableWidth",null,services.Operations)==576,"80mm actual printer can use configured 576-dot image");
+        SetDriverParameters(billDriver,true,null);Check((int)Call(Worker,"PrintableWidth",null,services.Operations)==384,"unknown page width never authorizes a 576-dot image");
         Environment.SetEnvironmentVariable("IIKO_PICKUP_PHOTO_WIDTH_DOTS","999");Check(!(bool)Call(Worker,"PrinterReady",null,services.Operations),"invalid local paper width fails closed");
-        Scenario();printerPresent=false;billPresent=true;
-        Check((bool)Call(Worker,"PrinterReady",null,services.Operations),"configured image-capable bill printer enables photo when receipt printer is absent");
-        printerPresent=true;SetDriver(false);
-        Check((bool)Call(Worker,"PrinterReady",null,services.Operations),"text-only receipt printer falls back to compatible bill printer");
-        SetDriverParameters(billDriver,true,400,10,10);
-        Check(!(bool)Call(Worker,"PrinterReady",null,services.Operations),"printable width subtracts both margins before selection");
-        documentPresent=true;
-        Check((bool)Call(Worker,"PrinterReady",null,services.Operations),"too-narrow bill printer falls back to compatible document printer");
-        receiptQueryFails=true;billPresent=false;
-        Check((bool)Call(Worker,"PrinterReady",null,services.Operations),"failed receipt lookup does not block compatible document printer");
-        Scenario();var worker=NewWorker();SetDriver(false);
+        Scenario(false);billPresent=false;documentPresent=true;
+        Check(ReadyAfterProbe(),"automatic assembly document fallback is observed when its bill queue is absent");
+        SetDriverParameters(documentDriver,true,400,10,10);
+        Check(!(bool)Call(Worker,"PrinterReady",null,services.Operations),"physical printable width subtracts both margins");
+        Scenario();var worker=NewWorker();SetDriverParameters(billDriver,false);
         var readiness=new object[]{services.Operations,null};
         Check((string)Worker.GetMethod("ReadinessStatus",Instance).Invoke(worker,readiness)=="image_unsupported" && readiness[1]==null,
-            "unsupported image driver is diagnosed without falsely advertising readiness");
-        billPresent=true;readiness=new object[]{services.Operations,null};
+            "unsupported configured assembly image driver is diagnosed without false readiness");
+        SetDriverParameters(billDriver);readiness=new object[]{services.Operations,null};
         Check((string)Worker.GetMethod("ReadinessStatus",Instance).Invoke(worker,readiness)=="ready" &&
-            (string)readiness[1].GetType().GetProperty("Kind",Instance).GetValue(readiness[1])=="bill",
-            "readiness diagnostics identify selected compatible bill printer");Dispose(worker);
+            (string)readiness[1].GetType().GetProperty("Kind",Instance).GetValue(readiness[1])=="device",
+            "readiness describes the observed physical device");
+        using(var lease=(IDisposable)Call(Routes,"TryReservePrint",null))
+        {
+            Check((bool)Worker.GetProperty("CanAcceptJobs",Instance).GetValue(worker) &&
+                (string)Call(Worker,"ReadinessStatus",worker,services.Operations,null)=="ready",
+                "brief ordinary printer activity queues work without blinking the customer photo offer");
+            Tick(worker);Check(claims==0 && printed==0,"busy shared printer gate blocks photo polling and claims");
+        }
+        Dispose(worker);
+    }
+    private static void RouteFailures()
+    {
+        Scenario(false);printResult=false;Check(!ReadyAfterProbe(),"negative control-print completion never confirms a route");
+        printResult=true;Check(!ReadyAfterProbe() && probePrints==1,"failed probe is not automatically replayed by heartbeats");
+        var worker=NewWorker();Tick(worker);Check(claims==0 && printed==0,"probe capability cannot authorize an order without a successful assembly binding");Dispose(worker);
+        Scenario(false);suppressCallback=true;Check(!ReadyAfterProbe(),"successful SDK return without physical callback observation fails closed");
+        Scenario(false);multipleTargets=true;Check(!ReadyAfterProbe(),"one assembly route reporting multiple physical devices fails closed");
+        Scenario();multipleTargets=true;LearnAssembly();
+        Check(!(bool)Call(Worker,"PrinterReady",null,services.Operations),"an ambiguous newer observation invalidates previously confirmed readiness");
+        Scenario(false);probeGate=new ManualResetEvent(false);RestartRoutes(1);
+        Call(Worker,"PrinterReady",null,services.Operations);
+        SpinWait.SpinUntil(()=>probePrints==1,3000);Thread.Sleep(1200);
+        worker=NewWorker();Check(!(bool)Worker.GetProperty("CanAcceptJobs",Instance).GetValue(worker),"timed-out probe retains its shared flight and disables new photo offers");
+        Tick(worker);Check(claims==0 && printed==0,"hung probe never takes a photo claim or overlaps another SDK print");
+        for(var i=0;i<3;i++)Call(Worker,"PrinterReady",null,services.Operations);
+        Check(probePrints==1,"hung service probe is submitted once per startup route");
+        probeGate.Set();SpinWait.SpinUntil(()=>!(bool)Routes.GetProperty("PrintBusy",Static).GetValue(null),3000);Thread.Sleep(30);
+        Check(!ReadyAfterProbe() && probePrints==1,"late probe completion does not turn an uncertain strip into authorization");
+        Dispose(worker);probeGate.Dispose();probeGate=null;
+        Scenario();RestartRoutes();worker=NewWorker();Tick(worker);
+        Check(printed==1 && lastPrintedPrinter==BillDeviceId,"restart restores successful order-to-physical-printer mapping without reprinting assembly");Dispose(worker);
+        Scenario(false);printResult=false;try{LearnAssembly();}catch(TargetInvocationException){}
+        printResult=true;worker=NewWorker();Tick(worker);Check(claims==0 && printed==0,"failed ordinary assembly print cannot persist a photo route");Dispose(worker);
+        Scenario();photoId=Guid.NewGuid().ToString();worker=NewWorker();Tick(worker);
+        Check(printed==0 && claims==0,"changed attachment UUID cannot use another photo's assembly binding");Dispose(worker);
+        Scenario();var pairType=Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.PosPairingState",true);
+        var pair=Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.PosPairing",true).GetField("state",Static).GetValue(null);
+        pairType.GetProperty("BranchId").SetValue(pair,Guid.NewGuid().ToString());
+        var selection=Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.PickupPhotoPrinter",true);
+        var args=new object[]{services.Operations,orderId,photoId,1057L,null,null};
+        Check(!(bool)selection.GetMethod("TrySelectForOrder",Static).Invoke(null,args),"re-pairing another branch cannot reuse historical order mapping");
+        pairType.GetProperty("BranchId").SetValue(pair,BranchId.ToString());
+        terminalOverride=Guid.NewGuid();args=new object[]{services.Operations,orderId,photoId,1057L,null,null};
+        Check(!(bool)selection.GetMethod("TrySelectForOrder",Static).Invoke(null,args),"another terminal cannot reuse the same branch's order binding");terminalOverride=null;
+        Scenario(false);draftMismatch=true;try{LearnAssembly();}catch(TargetInvocationException){}
+        Check(assemblyPrints==0,"mismatched receipt draft identity is rejected before ordinary SDK print");
+        Scenario();billPresent=false;documentPresent=true;LearnAssembly();worker=NewWorker();Tick(worker);
+        Check(printed==1 && lastPrintedPrinter==BillDeviceId,"manual assembly reprint after route change retains the original order photo target");Dispose(worker);
     }
     private static void PrintAndAck()
     {
-        Scenario();printerPresent=false;billPresent=true;var fallbackWorker=NewWorker();Tick(fallbackWorker);
-        Check(printed==1 && status=="printed" && lastPrintedPrinter==BillPrinterId && receiptQueries==1,
-            "photo strip prints once on the exact inspected bill printer with one selection");Dispose(fallbackWorker);
-        Scenario();SetDriver(false);documentPresent=true;fallbackWorker=NewWorker();Tick(fallbackWorker);
-        Check(printed==1 && status=="printed" && lastPrintedPrinter==DocumentPrinterId,
-            "image-capable document printer prints the separate strip when receipt driver is text-only");Dispose(fallbackWorker);
         Scenario();var worker=NewWorker();Tick(worker);
-        Check(printed==1 && status=="printed","paid accepted photo job prints and acknowledges once");
+        Check(printed==1 && status=="printed" && lastPrintedPrinter==BillDeviceId && BillDeviceId!=BillPrinterId && receiptQueries==0,
+            "photo prints on the physical device that printed its assembly ticket, never on queue UUID or fiscal printer");
         Tick(worker);Check(printed==1,"repeated polling never prints a completed strip twice");Dispose(worker);
+        Scenario(false);billPresent=false;documentPresent=true;LearnAssembly();worker=NewWorker();Tick(worker);
+        Check(printed==1 && status=="printed" && lastPrintedPrinter==DocumentDeviceId,
+            "order using the assembly document fallback prints photo on that exact historical device");Dispose(worker);
         Scenario();failAck=true;worker=NewWorker();Tick(worker);
         Check(printed==1 && status=="printing","lost acknowledgement retains printed local tombstone");Dispose(worker);
-        worker=NewWorker();Tick(worker);Check(printed==1 && status=="printed" && completed==2,"restart retries acknowledgement without printing");Dispose(worker);
+        Check(RouteBindings().Values.Cast<object>().Any(entry=>(string)entry.GetType().GetProperty("OrderId").GetValue(entry)==orderId),"unacknowledged printed photo retains durable route evidence");
+        RestartRoutes();worker=NewWorker();Tick(worker);Check(printed==1 && status=="printed" && completed==2,"restart retries acknowledgement without printing");Dispose(worker);
+        Check(!RouteBindings().Values.Cast<object>().Any(entry=>(string)entry.GetType().GetProperty("OrderId").GetValue(entry)==orderId),"confirmed photo acknowledgement alone retires its route binding");
         Check(!Directory.GetFiles(data).Any(p=>p.EndsWith(".png") || p.EndsWith(".bmp")),"local journal never stores customer photo bytes");
-    }
-    private static void PrintFailures()
+    }    private static void PrintFailures()
     {
         Scenario();printResult=false;var worker=NewWorker();Tick(worker);
         Check(printed==1 && status=="uncertain","printer negative completion is uncertain, not safe to replay");Tick(worker);
@@ -353,6 +460,22 @@ internal static class Program
         Check(printed==0 && completed==1 && status=="printed","a full journal still recovers confirmed-print acknowledgements without a second strip");
         Check((bool)Worker.GetProperty("CanAcceptJobs",Instance).GetValue(worker),"successful reconciliation releases capacity for new photo jobs");
         Dispose(worker);
+    }
+    private static IDictionary RouteBindings() => (IDictionary)Routes.GetField("bindings",Static).GetValue(null);
+    private static void RouteStorage()
+    {
+        Scenario(false);noPhoto=true;var count=RouteBindings().Count;LearnAssembly();
+        Check(RouteBindings().Count==count,"ordinary orders without attached photos never consume durable photo route capacity");
+        Scenario(false);var pathField=Routes.GetField("path",Static);var original=(string)pathField.GetValue(null);
+        var blocked=Path.Combine(data,"blocked-routes");Directory.CreateDirectory(blocked+".tmp");pathField.SetValue(null,blocked);
+        LearnAssembly();var worker=NewWorker();
+        Check(assemblyPrints==1 && (string)Call(Worker,"ReadinessStatus",worker,services.Operations,null)=="journal_unhealthy",
+            "route storage failure after physical success disables photos without failing or replaying ordinary assembly");
+        Dispose(worker);pathField.SetValue(null,original);
+        Scenario(false);File.WriteAllText(original,"invalid route journal");RestartRoutes();worker=NewWorker();Tick(worker);
+        Check(printed==0 && claims==0 && (string)Call(Worker,"ReadinessStatus",worker,services.Operations,null)=="journal_unhealthy",
+            "corrupt printer binding journal fails closed without stale backup selection or photo claims");
+        Check(Directory.GetFiles(data,"BulkaPickupPhotoRoutes.json.corrupt-*").Length==1,"damaged route journal retained for reconciliation");Dispose(worker);
     }
     private static void CorruptJournal()
     {

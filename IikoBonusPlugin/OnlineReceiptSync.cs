@@ -210,13 +210,19 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 else
                 {
                     var printer=AssemblyTicket.Printer(os,order);
-                    var printClaim=Action(os,"assembly-claim",job.OrderId,order);
-                    if(printClaim.Status=="print")
+                    using(var lease=PickupPhotoRoutes.TryReservePrint())
                     {
-                        AssemblyTicket.Print(os,printer,order,job.Number);
-                        saved.AssemblyPrinted=true;
-                        DurableJsonFile.Write(path,ledger);
-                        Action(os,"assembly-complete",job.OrderId,order);
+                        // Never take a server print claim while the shared printer
+                        // is still busy with a control strip or photo SDK call.
+                        if(lease==null) return;
+                        var printClaim=Action(os,"assembly-claim",job.OrderId,order);
+                        if(printClaim.Status=="print")
+                        {
+                            AssemblyTicket.Print(os,printer,order,job.Number,job.OrderId,true);
+                            saved.AssemblyPrinted=true;
+                            DurableJsonFile.Write(path,ledger);
+                            Action(os,"assembly-complete",job.OrderId,order);
+                        }
                     }
                 }
             }

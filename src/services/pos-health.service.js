@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const realtime = require('./realtime.service');
 
 const ACTIVE_CASE_STATUSES = ['open', 'retrying'];
 const STALE_DEVICE_MS = 2 * 60 * 1000;
@@ -205,12 +206,25 @@ function healthStatus(payload, policy) {
   return 'healthy';
 }
 
+async function photoPrinterAvailability(branchId, db) {
+  try {
+    const { data, error } = await db
+      .rpc('pickup_photo_printer_ready', { p_branch: branchId, p_terminal: null })
+      .abortSignal(AbortSignal.timeout(2000));
+    return !error && typeof data === 'boolean' ? data : null;
+  } catch (_) {
+    // Optional invalidation must not stop register telemetry on an RPC outage.
+    return null;
+  }
+}
+
 async function recordHeartbeat(branchId, payload, db = supabase) {
   const policy = await getPolicy(db);
   const cases = telemetryCases(branchId, payload.terminalId, payload);
   const activeKeys = new Set(cases.map((item) => item.source_key));
   const now = new Date().toISOString();
   const status = healthStatus(payload, policy);
+  const photoAvailableBefore = await photoPrinterAvailability(branchId, db);
   const { data: device, error } = await db
     .from('pos_devices')
     .update({
@@ -243,6 +257,14 @@ async function recordHeartbeat(branchId, payload, db = supabase) {
       statusCode: 401,
       code: 'POS_DEVICE_UNAUTHORIZED',
     });
+  }
+  const photoAvailableAfter = await photoPrinterAvailability(branchId, db);
+  if (
+    photoAvailableBefore !== null &&
+    photoAvailableAfter !== null &&
+    photoAvailableBefore !== photoAvailableAfter
+  ) {
+    realtime.publishClientChange(['checkout'], { branchId });
   }
   await upsertCases(cases, db);
   await resolveMissingTelemetryCases(payload.terminalId, activeKeys, db);
