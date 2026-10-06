@@ -25,6 +25,7 @@ export interface CashierCatalog {
 export interface CashierStockChange {
   expectedRevision: number;
   sourceQuantity?: number;
+  stockReason?: 'receipt' | 'correction';
   manualStop?: boolean;
   useIiko?: true;
   unit?: 'шт' | 'кг';

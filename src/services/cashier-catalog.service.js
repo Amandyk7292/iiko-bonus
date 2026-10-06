@@ -165,6 +165,11 @@ async function updateCashierProduct(admin, productId, payload) {
   const { expectedRevision, preorderStop, ...changes } = payload;
   if (preorder && Object.keys(changes).length)
     throw Object.assign(new Error('Для предзаказа меняется только стоп-лист'), { statusCode: 400 });
+  // Older web cashiers edit an absolute physical count without sending a reason.
+  // Preserve that meaning while the browser refreshes to the current client.
+  if (changes.sourceQuantity !== undefined && changes.stockReason === undefined) {
+    changes.stockReason = 'correction';
+  }
   const { data, error } = await supabase.rpc(
     preorder ? 'update_preorder_stop' : 'update_cashier_inventory',
     preorder
@@ -189,9 +194,18 @@ async function updateCashierProduct(admin, productId, payload) {
           ? 'Остаток уже изменился. Проверьте новые данные и повторите сохранение.'
           : error.code === 'P0001'
             ? error.message
-            : 'Не удалось сохранить остаток',
+            : error.code === '22023'
+              ? 'Проверьте количество и единицу товара.'
+              : 'Не удалось сохранить остаток',
       ),
-      { statusCode: ['40001', 'P0001', '40P01', '55P03'].includes(error.code) ? 409 : 503 },
+      {
+        statusCode:
+          error.code === '22023'
+            ? 400
+            : ['40001', 'P0001', '40P01', '55P03'].includes(error.code)
+              ? 409
+              : 503,
+      },
     );
   realtime.publish(
     'menu.updated',

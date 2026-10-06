@@ -29,8 +29,7 @@ function StockRow({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [imageFailed, setImageFailed] = useState(false);
-  const stale =
-    draft !== null && (baseRevision !== product.revision || baseUnit !== unit);
+  const stale = draft !== null && (baseRevision !== product.revision || baseUnit !== unit);
   const editingUnit = draft === null ? unit : baseUnit;
   const quantity = draft ?? product.sourceQuantity?.toString() ?? '';
   const numericQuantity = Number(quantity.replace(',', '.'));
@@ -149,7 +148,13 @@ function StockRow({
                 type="button"
                 className="btn-classic"
                 disabled={saving || !valid || stale}
-                onClick={() => void save({ sourceQuantity: numericQuantity, unit: editingUnit })}
+                onClick={() =>
+                  void save({
+                    sourceQuantity: numericQuantity,
+                    stockReason: 'correction',
+                    unit: editingUnit,
+                  })
+                }
               >
                 {saving ? 'Сохраняем…' : 'Сохранить'}
               </button>
@@ -168,7 +173,9 @@ function StockRow({
             </>
           )}
         </div>
-        <span className="cashier-reserved">В заказах: {product.reserved} {unit}</span>
+        <span className="cashier-reserved">
+          В заказах: {product.reserved} {unit}
+        </span>
         {product.stockSource === 'manual' && product.isIikoProduct && frontConnected && (
           <button
             type="button"
