@@ -243,5 +243,6 @@ module.exports = {
   createDeviceChallenge,
   verifyChallenge,
   checkAndroidVerdict,
+  androidVerdict,
   verifyDeviceProof,
 };

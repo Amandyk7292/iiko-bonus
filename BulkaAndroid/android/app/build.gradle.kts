@@ -96,4 +96,6 @@ flutter {
 
 dependencies {
     implementation("com.google.android.play:integrity:1.6.0")
+    implementation("com.google.android.gms:play-services-fitness:21.2.0")
+    testImplementation("junit:junit:4.13.2")
 }

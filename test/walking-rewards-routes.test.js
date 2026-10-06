@@ -104,4 +104,64 @@ test('all walking endpoints require a customer session, bind the account and rej
     400,
   );
   assert.equal(calls.length, 2);
+  const android = { ...identity, platform: 'android', dayOffsets: [0, 1] };
+  const batch = await fetch(base + '/challenge', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(android),
+  });
+  assert.equal(batch.status, 200);
+  assert.equal(calls[2].id, owner.id);
+  assert.equal(calls[2].body.platform, 'android');
+  assert.deepEqual(calls[2].body.dayOffsets, [0, 1]);
+  const opaqueProof = 'opaque-integrity.token_with-url-safe.characters';
+  for (const [suffix, body] of [
+    [
+      '/device',
+      {
+        deviceId: identity.deviceId,
+        keyId: identity.keyId,
+        platform: 'android',
+        challenge: 'x'.repeat(40),
+        attestation: opaqueProof,
+      },
+    ],
+    [
+      '/sync',
+      {
+        deviceId: identity.deviceId,
+        keyId: identity.keyId,
+        platform: 'android',
+        challenge: 'x'.repeat(40),
+        payload: JSON.stringify({ source: 'android_local_recording', measurements: [] }),
+        assertion: opaqueProof,
+      },
+    ],
+  ]) {
+    const accepted = await fetch(base + suffix, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+    assert.equal(accepted.status, 200);
+    assert.equal(accepted.headers.get('Cache-Control'), 'private, no-store');
+    assert.equal(calls.at(-1).id, owner.id);
+  }
+  for (const patch of [
+    { dayOffsets: [0, 0] },
+    { dayOffsets: [7] },
+    { steps: 10000 },
+    { customerId: crypto.randomUUID() },
+  ])
+    assert.equal(
+      (
+        await fetch(base + '/challenge', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ ...android, ...patch }),
+        })
+      ).status,
+      400,
+    );
+  assert.equal(calls.length, 5);
 });

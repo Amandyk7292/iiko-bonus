@@ -6,10 +6,16 @@ class WalkingRewardsNative {
   static const channel = MethodChannel('com.bulka.bonus/walking_rewards');
   static bool get isIOS =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+  static bool get isAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  static bool get isSupportedPlatform => isIOS || isAndroid;
   static Future<Map<String, dynamic>> capabilities() async {
-    if (!isIOS) return {'supported': false, 'authorized': false};
+    if (!isSupportedPlatform) return {'supported': false, 'authorized': false};
     try {
-      return await invoke('capabilities');
+      // This native probe answers synchronously without permission, sensor or
+      // network work. Reserve the timed proof operation for explicit sync.
+      return await channel.invokeMapMethod<String, dynamic>('capabilities') ??
+          {'supported': false, 'authorized': false};
     } on MissingPluginException {
       return {'supported': false, 'authorized': false};
     } on PlatformException {
@@ -29,5 +35,19 @@ class WalkingRewardsNative {
       {};
   static Future<void> openSettings() async {
     await channel.invokeMethod<bool>('openSettings');
+  }
+
+  static Future<void> stop() async {
+    if (!isAndroid) return;
+    try {
+      final stopped = await channel
+          .invokeMethod<bool>('stop')
+          .timeout(const Duration(seconds: 45));
+      if (stopped != true) {
+        throw PlatformException(code: 'WALKING_STOP_FAILED');
+      }
+    } on MissingPluginException {
+      // An installed older Android binary has no walking subscription.
+    }
   }
 }

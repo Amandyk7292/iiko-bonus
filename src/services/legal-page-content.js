@@ -1245,7 +1245,7 @@ const pages = {
       title: 'Политика конфиденциальности Bulka',
       description:
         'Как Bulka обрабатывает персональные данные, сведения о заказах, доставке и платежах.',
-      updated: 'Дата обновления: 2 октября 2026 года',
+      updated: 'Дата обновления: 6 октября 2026 года',
       body: `
         <section>
           <h2>Какие данные мы используем</h2>
@@ -1253,12 +1253,13 @@ const pages = {
             необязательные данные профиля и электронной почты, адреса доставки, геопозицию выбранной
             точки, историю заказов, состав и сумму платежей, возвраты, бонусные операции, выбранный
             язык и технические идентификаторы push-уведомлений.</p>
-          <p>При добровольном подключении функции «Шаги за бонусы» на iPhone Bulka получает
-            дневное число шагов из шагомера Core Motion, дату, подтверждение подлинности приложения
-            Apple App Attest и технический идентификатор устройства для защиты от повторных наград.
+          <p>При добровольном подключении функции «Шаги за бонусы» Bulka получает дневное число шагов и дату:
+            на iPhone — из шагомера Core Motion, на Android — из локального шагомера Google Play services Recording API.
+            На Android подсчёт начинается после подключения и разрешения доступа к физической активности и продолжается в фоне.
+            Bulka также получает подтверждение подлинности приложения Apple App Attest или Google Play Integrity и технический идентификатор устройства для защиты от повторных наград.
             Ручные записи из «Здоровья», маршруты и другие данные здоровья не запрашиваются.
-            Синхронизацию можно отключить в профиле. Дневные итоги и начисления сохраняются
-            для проверки бонусных операций и доступны в выгрузке данных аккаунта.</p>
+            Данные шагов используются только для этой функции и защиты бонусных начислений, не используются для рекламы и не продаются третьим лицам.
+            Синхронизацию можно отключить в профиле. Дневные итоги и начисления сохраняются для проверки бонусных операций и доступны в выгрузке данных аккаунта.</p>
           <p>При карточной оплате Bulka может получить от банка результат операции, платёжную
             систему, последние четыре цифры, месяц и год окончания действия карты, код авторизации
             и идентификатор транзакции. Если клиент явно согласился сохранить карту, Bulka также
@@ -1321,7 +1322,7 @@ const pages = {
       title: 'Bulka құпиялылық саясаты',
       description:
         'Bulka жеке деректерді, тапсырыс, жеткізу және төлем туралы мәліметтерді қалай өңдейді.',
-      updated: 'Жаңартылған күні: 2026 жылғы 2 қазан',
+      updated: 'Жаңартылған күні: 2026 жылғы 6 қазан',
       body: `
         <section>
           <h2>Қандай деректерді пайдаланамыз</h2>
@@ -1330,13 +1331,13 @@ const pages = {
             таңдалған нүктенің геопозициясын, тапсырыстар тарихын, төлем құрамы мен сомасын,
             қайтаруларды, бонустық операцияларды, таңдалған тілді және push-хабарламалардың
             техникалық идентификаторларын өңдейді.</p>
-          <p>iPhone құрылғысында «Қадамдар үшін бонустар» функциясын ерікті түрде қосқанда Bulka
-            Core Motion қадам санағышынан күндік қадам санын, күнін, Apple App Attest растауын және
-            қайталама сыйақыдан қорғау үшін құрылғының техникалық идентификаторын алады.
-            «Денсаулық» қолданбасына қолмен енгізілген жазбалар, бағыттар және өзге денсаулық
-            деректері сұралмайды. Синхрондауды профильде өшіруге болады. Күндік нәтижелер мен
-            есептеулер бонустық операцияларды тексеру үшін сақталады және аккаунт деректерінің
-            жүктемесіне қосылады.</p>
+          <p>«Қадамдар үшін бонустар» функциясын ерікті түрде қосқанда Bulka күндік қадам саны мен күнін алады:
+            iPhone құрылғысында — Core Motion қадам санағышынан, Android құрылғысында — Google Play services Recording API жергілікті қадам санағышынан.
+            Android жүйесінде санау функцияны қосып, физикалық белсенділікке рұқсат бергеннен кейін басталады және фонда жалғасады.
+            Bulka қайталама сыйақыдан қорғау үшін Apple App Attest немесе Google Play Integrity растауын және құрылғының техникалық идентификаторын да алады.
+            «Денсаулық» қолданбасына қолмен енгізілген жазбалар, бағыттар және өзге денсаулық деректері сұралмайды.
+            Қадам деректері тек осы функция мен бонус есептеулерін қорғау үшін пайдаланылады, жарнама үшін пайдаланылмайды және үшінші тұлғаларға сатылмайды.
+            Синхрондауды профильде өшіруге болады. Күндік нәтижелер мен есептеулер бонустық операцияларды тексеру үшін сақталады және аккаунт деректерінің жүктемесіне қосылады.</p>
           <p>Картамен төлеу кезінде Bulka банктен операция нәтижесін, төлем жүйесін, картаның соңғы
             төрт санын, жарамдылық мерзімінің айы мен жылын, авторизация кодын және транзакция
             идентификаторын ала алады. Клиент картаны сақтауға анық келіссе, Bulka келесі сатып
@@ -1397,7 +1398,7 @@ const pages = {
       title: 'Bulka privacy policy',
       description:
         'How Bulka processes personal data and information about orders, delivery and payments.',
-      updated: 'Updated on 2 October 2026',
+      updated: 'Updated on 6 October 2026',
       body: `
         <section>
           <h2>Data we use</h2>
@@ -1405,12 +1406,11 @@ const pages = {
             number, optional profile and email information, delivery addresses, the geolocation of
             a selected point, order history, payment contents and amounts, refunds, bonus
             transactions, selected language and technical push-notification identifiers.</p>
-          <p>If you voluntarily enable Steps for Bonuses on iPhone, Bulka receives the daily step
-            count from the Core Motion pedometer, the date, an Apple App Attest proof and a technical
-            device identifier to prevent duplicate rewards. Manually entered Health records,
-            routes and other health data are not requested. You can turn off synchronisation in
-            your profile. Daily totals and credits are retained to verify bonus transactions and
-            are included in your account data export.</p>
+          <p>If you voluntarily enable Steps for Bonuses, Bulka receives daily step counts and dates from Core Motion on iPhone or the local Google Play services Recording API on Android.
+            On Android, counting starts after you enable the feature and grant physical activity access, and continues in the background.
+            Bulka also receives an Apple App Attest or Google Play Integrity proof and a technical device identifier to prevent duplicate rewards.
+            Manually entered Health records, routes and other health data are not requested. Step data is used only for this feature and to protect bonus credits; it is not used for advertising or sold to third parties.
+            You can turn off synchronisation in your profile. Daily totals and credits are retained to verify bonus transactions and are included in your account data export.</p>
           <p>For card payments, Bulka may receive the operation result, payment network, last four
             card digits, expiry month and year, authorisation code and transaction identifier. If
             the customer expressly agrees to save the card, Bulka also receives a ForteBank token,

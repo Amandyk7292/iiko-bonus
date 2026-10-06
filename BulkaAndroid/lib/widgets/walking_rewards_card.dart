@@ -19,8 +19,10 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
   bool _supported = false;
   bool _consent = false;
   bool _busy = false;
+  bool _disconnecting = false;
   bool _failed = false;
   bool _permission = false;
+  bool _requiresPlayServicesUpdate = false;
   String? _failureMessage;
   @override
   void initState() {
@@ -41,65 +43,108 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
   }
 
   Future<void> _load() async {
+    if (_busy) return;
+    final session = widget.api.sessionCacheScope;
     final capabilities = await WalkingRewardsNative.capabilities();
     final consent = await widget.api.walkingConsent();
-    if (!mounted) return;
+    if (!mounted || session != widget.api.sessionCacheScope || _busy) return;
     setState(() {
       _supported = capabilities['supported'] == true;
       _consent = consent;
+      _requiresPlayServicesUpdate =
+          capabilities['requiresPlayServicesUpdate'] == true;
+      if (WalkingRewardsNative.isAndroid) {
+        _permission =
+            consent &&
+            capabilities['authorized'] != true &&
+            !_requiresPlayServicesUpdate;
+        _failed = _permission;
+      }
     });
-    if (_supported && consent) await _sync();
+    if (_supported &&
+        consent &&
+        !_requiresPlayServicesUpdate &&
+        (!WalkingRewardsNative.isAndroid ||
+            capabilities['authorized'] == true)) {
+      await _sync(force: !WalkingRewardsNative.isAndroid);
+    }
   }
 
   Future<void> _connect() async {
+    if (_busy) return;
+    final session = widget.api.sessionCacheScope;
     final allowed = await showModalBottomSheet<bool>(
       context: context,
       builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _walkingText('Шаги за бонусы', 'Қадамдар үшін бонустар'),
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                _walkingText(
-                  'Разрешите доступ к шагомеру iPhone. Для начисления Bulka получит число шагов и дату. Ручные записи и маршруты не передаются.',
-                  'iPhone қадам санағышына рұқсат беріңіз. Бонус есептеу үшін Bulka қадам санын және күнін алады. Қолмен енгізілген жазбалар мен бағыттар жіберілмейді.',
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _walkingText('Шаги за бонусы', 'Қадамдар үшін бонустар'),
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-              ),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: Text(
-                  _walkingText(
-                    'Разрешить и подключить',
-                    'Рұқсат беру және қосу',
+                const SizedBox(height: 12),
+                Text(
+                  WalkingRewardsNative.isAndroid
+                      ? _walkingText(
+                          'После подключения телефон считает шаги в фоне. Bulka получает число шагов за день и дату для начисления бонусов. Отключить можно здесь.',
+                          'Қосылғаннан кейін телефон қадамдарды фондық режимде санайды. Bulka бонус есептеу үшін күндік қадам санын және күнін алады. Осы жерден өшіруге болады.',
+                        )
+                      : _walkingText(
+                          'Разрешите доступ к шагомеру iPhone. Для начисления Bulka получит число шагов и дату. Ручные записи и маршруты не передаются.',
+                          'iPhone қадам санағышына рұқсат беріңіз. Бонус есептеу үшін Bulka қадам санын және күнін алады. Қолмен енгізілген жазбалар мен бағыттар жіберілмейді.',
+                        ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: Text(
+                    _walkingText(
+                      'Разрешить и подключить',
+                      'Рұқсат беру және қосу',
+                    ),
                   ),
                 ),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text(_walkingText('Не сейчас', 'Қазір емес')),
-              ),
-            ],
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text(_walkingText('Не сейчас', 'Қазір емес')),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
-    if (allowed != true || !mounted) return;
-    await widget.api.setWalkingConsent(true);
-    if (!mounted) return;
-    setState(() => _consent = true);
-    await _sync();
+    if (allowed != true ||
+        !mounted ||
+        session != widget.api.sessionCacheScope) {
+      return;
+    }
+    try {
+      await widget.api.setWalkingConsent(true);
+      if (!mounted || session != widget.api.sessionCacheScope) return;
+      setState(() => _consent = true);
+      await _sync(requestPermission: WalkingRewardsNative.isAndroid);
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    }
   }
 
-  Future<void> _sync() async {
+  Future<void> _sync({
+    bool force = true,
+    bool requestPermission = false,
+  }) async {
     if (_busy) return;
+    final session = widget.api.sessionCacheScope;
+    bool isCurrent() =>
+        mounted &&
+        session == widget.api.sessionCacheScope &&
+        _consent &&
+        !_disconnecting;
     setState(() {
       _busy = true;
       _failed = false;
@@ -107,29 +152,38 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
       _failureMessage = null;
     });
     try {
-      await widget.api.syncWalking(force: true);
+      await widget.api.syncWalking(
+        force: force,
+        requestPermission: requestPermission,
+      );
       // A balance refresh cannot turn an accepted step measurement into a
       // failed sync. Keep the confirmed progress if this separate read fails.
-      if (mounted) {
+      if (isCurrent()) {
         try {
           await widget.onReward();
         } catch (_) {}
       }
     } on PlatformException catch (error) {
-      if (mounted) {
+      if (isCurrent()) {
         setState(() {
           _failed = true;
           _permission = error.code == 'WALKING_PERMISSION';
+          _requiresPlayServicesUpdate =
+              error.code == 'WALKING_PLAY_SERVICES_UPDATE';
           if (error.code == 'WALKING_BUSY') {
             _failureMessage = _walkingText(
-              'Проверка iPhone ещё идёт. Повторите чуть позже.',
-              'iPhone тексеріліп жатыр. Сәл кейін қайталаңыз.',
+              WalkingRewardsNative.isAndroid
+                  ? 'Проверка ещё идёт. Повторите позже.'
+                  : 'Проверка iPhone ещё идёт. Повторите чуть позже.',
+              WalkingRewardsNative.isAndroid
+                  ? 'Тексеру жүріп жатыр. Кейін қайталаңыз.'
+                  : 'iPhone тексеріліп жатыр. Сәл кейін қайталаңыз.',
             );
           }
         });
       }
     } on TimeoutException {
-      if (mounted) {
+      if (isCurrent()) {
         setState(() {
           _failed = true;
           _failureMessage = _walkingText(
@@ -139,9 +193,43 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _failed = true);
+      if (isCurrent()) setState(() => _failed = true);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _busy = _disconnecting);
+    }
+  }
+
+  Future<void> _disconnect() async {
+    if (_disconnecting || (_busy && !WalkingRewardsNative.isAndroid)) return;
+    final session = widget.api.sessionCacheScope;
+    setState(() {
+      _disconnecting = true;
+      _busy = true;
+      _failed = false;
+      _permission = false;
+    });
+    try {
+      await widget.api.setWalkingConsent(false);
+      if (mounted && session == widget.api.sessionCacheScope) {
+        setState(() => _consent = false);
+      }
+    } catch (_) {
+      if (mounted && session == widget.api.sessionCacheScope) {
+        setState(() {
+          _failed = true;
+          _failureMessage = _walkingText(
+            'Не удалось отключить шагомер. Повторите.',
+            'Қадам санағышы өшірілмеді. Қайталаңыз.',
+          );
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _disconnecting = false;
+          _busy = false;
+        });
+      }
     }
   }
 
@@ -221,8 +309,12 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
                     child: Text(
                       _permission
                           ? _walkingText(
-                              'Разрешите «Движение и фитнес» в настройках iPhone',
-                              'iPhone баптауларында «Қозғалыс және фитнес» рұқсатын беріңіз',
+                              WalkingRewardsNative.isAndroid
+                                  ? 'Разрешите доступ к шагам в настройках телефона'
+                                  : 'Разрешите «Движение и фитнес» в настройках iPhone',
+                              WalkingRewardsNative.isAndroid
+                                  ? 'Телефон баптауларында қадамдарға рұқсат беріңіз'
+                                  : 'iPhone баптауларында «Қозғалыс және фитнес» рұқсатын беріңіз',
                             )
                           : _failureMessage ??
                                 _walkingText(
@@ -234,7 +326,23 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
                 const SizedBox(height: 8),
                 if (_busy)
                   const LinearProgressIndicator()
-                else if (!_consent)
+                else if (_requiresPlayServicesUpdate) ...[
+                  Text(
+                    _walkingText(
+                      'Обновите сервисы Google Play для шагомера',
+                      'Қадам санағышы үшін Google Play қызметтерін жаңартыңыз',
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: WalkingRewardsNative.openSettings,
+                    child: Text(
+                      _walkingText(
+                        'Обновить сервисы Google Play',
+                        'Google Play қызметтерін жаңарту',
+                      ),
+                    ),
+                  ),
+                ] else if (!_consent)
                   FilledButton(
                     onPressed: _connect,
                     child: Text(
@@ -245,11 +353,26 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
                     ),
                   )
                 else if (_permission)
-                  TextButton(
-                    onPressed: WalkingRewardsNative.openSettings,
-                    child: Text(
-                      _walkingText('Открыть настройки', 'Баптауларды ашу'),
-                    ),
+                  Wrap(
+                    spacing: 12,
+                    children: [
+                      TextButton(
+                        onPressed: WalkingRewardsNative.openSettings,
+                        child: Text(
+                          _walkingText('Открыть настройки', 'Баптауларды ашу'),
+                        ),
+                      ),
+                      if (WalkingRewardsNative.isAndroid)
+                        FilledButton(
+                          onPressed: _connect,
+                          child: Text(
+                            _walkingText(
+                              'Подключить шагомер',
+                              'Қадам санағышын қосу',
+                            ),
+                          ),
+                        ),
+                    ],
                   )
                 else
                   Wrap(
@@ -260,14 +383,17 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
                         onPressed: _sync,
                         child: Text(_walkingText('Обновить', 'Жаңарту')),
                       ),
-                      TextButton(
-                        onPressed: () async {
-                          await widget.api.setWalkingConsent(false);
-                          if (mounted) setState(() => _consent = false);
-                        },
-                        child: Text(_walkingText('Отключить', 'Өшіру')),
-                      ),
+                      if (!WalkingRewardsNative.isAndroid)
+                        TextButton(
+                          onPressed: _disconnect,
+                          child: Text(_walkingText('Отключить', 'Өшіру')),
+                        ),
                     ],
+                  ),
+                if (WalkingRewardsNative.isAndroid && _consent)
+                  TextButton(
+                    onPressed: _disconnecting ? null : _disconnect,
+                    child: Text(_walkingText('Отключить', 'Өшіру')),
                   ),
               ],
             ),

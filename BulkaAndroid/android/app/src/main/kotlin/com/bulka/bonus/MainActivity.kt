@@ -23,6 +23,7 @@ import java.util.Locale
 import java.net.HttpCookie
 
 class MainActivity : FlutterActivity() {
+    private var walkingRewards: WalkingRewardsBridge? = null
     private val orderStatusChannel = "com.bulka.bonus/order_status"
     private val orderNotificationChannel = "bulka_order_status"
     private val staffOrderNotificationChannel = "bulka_staff_orders"
@@ -69,6 +70,12 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        walkingRewards?.dispose()
+        walkingRewards = WalkingRewardsBridge(this)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.bulka.bonus/walking_rewards")
+            .setMethodCallHandler { call, result ->
+                walkingRewards?.handle(call, result) ?: result.error("WALKING_DEVICE_ERROR", null, null)
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.bulka.bonus/referral_device")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -123,6 +130,17 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        if (walkingRewards?.onRequestPermissionsResult(requestCode) == true) return
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    }
+
+    override fun onDestroy() {
+        walkingRewards?.dispose()
+        walkingRewards = null
+        super.onDestroy()
     }
 
     private fun installAdminCookie(payload: Map<*, *>, result: MethodChannel.Result) {
