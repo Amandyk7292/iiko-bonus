@@ -95,7 +95,7 @@ extension WalkingRewardsApi on BulkaApiClient {
 
     if (!WalkingRewardsNative.isIOS || !await walkingConsent()) return;
     checkSession();
-    final status = await _get('/customer/walking');
+    final status = await _get('/api/customer/walking');
     checkSession();
     if (status['enabled'] != true) return;
     final date = _asString(status['date']);
@@ -108,14 +108,14 @@ extension WalkingRewardsApi on BulkaApiClient {
     );
     final identity = await WalkingRewardsNative.invoke('identity');
     checkSession();
-    var proof = await _post('/customer/walking/challenge', {
+    var proof = await _post('/api/customer/walking/challenge', {
       ...identity,
       'purpose': 'steps',
       'dayOffset': 0,
     });
     checkSession();
     if (proof['registered'] != true) {
-      final registration = await _post('/customer/walking/challenge', {
+      final registration = await _post('/api/customer/walking/challenge', {
         ...identity,
         'purpose': 'register',
       });
@@ -125,7 +125,7 @@ extension WalkingRewardsApi on BulkaApiClient {
         'challenge': registration['challenge'],
       });
       checkSession();
-      await _post('/customer/walking/device', {
+      await _post('/api/customer/walking/device', {
         ...identity,
         'challenge': registration['challenge'],
         ...attestation,
@@ -146,7 +146,7 @@ extension WalkingRewardsApi on BulkaApiClient {
         continue;
       }
       if (offset > 0) {
-        proof = await _post('/customer/walking/challenge', {
+        proof = await _post('/api/customer/walking/challenge', {
           ...identity,
           'purpose': 'steps',
           'dayOffset': offset,
@@ -170,7 +170,7 @@ extension WalkingRewardsApi on BulkaApiClient {
         'challenge': proof['challenge'],
       });
       checkSession();
-      final result = await _post('/customer/walking/sync', {
+      final result = await _post('/api/customer/walking/sync', {
         ...identity,
         'challenge': proof['challenge'],
         ...measured,

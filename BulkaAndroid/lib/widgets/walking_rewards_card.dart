@@ -21,6 +21,7 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
   bool _busy = false;
   bool _failed = false;
   bool _permission = false;
+  String? _failureMessage;
   @override
   void initState() {
     super.initState();
@@ -103,15 +104,38 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
       _busy = true;
       _failed = false;
       _permission = false;
+      _failureMessage = null;
     });
     try {
       await widget.api.syncWalking(force: true);
-      if (mounted) await widget.onReward();
+      // A balance refresh cannot turn an accepted step measurement into a
+      // failed sync. Keep the confirmed progress if this separate read fails.
+      if (mounted) {
+        try {
+          await widget.onReward();
+        } catch (_) {}
+      }
     } on PlatformException catch (error) {
       if (mounted) {
         setState(() {
           _failed = true;
           _permission = error.code == 'WALKING_PERMISSION';
+          if (error.code == 'WALKING_BUSY') {
+            _failureMessage = _walkingText(
+              'Проверка iPhone ещё идёт. Повторите чуть позже.',
+              'iPhone тексеріліп жатыр. Сәл кейін қайталаңыз.',
+            );
+          }
+        });
+      }
+    } on TimeoutException {
+      if (mounted) {
+        setState(() {
+          _failed = true;
+          _failureMessage = _walkingText(
+            'Проверка заняла слишком долго. Повторите чуть позже.',
+            'Тексеру ұзаққа созылды. Сәл кейін қайталаңыз.',
+          );
         });
       }
     } catch (_) {
@@ -200,10 +224,11 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
                               'Разрешите «Движение и фитнес» в настройках iPhone',
                               'iPhone баптауларында «Қозғалыс және фитнес» рұқсатын беріңіз',
                             )
-                          : _walkingText(
-                              'Не удалось обновить шаги. Попробуйте ещё раз.',
-                              'Қадамдар жаңартылмады. Қайталап көріңіз.',
-                            ),
+                          : _failureMessage ??
+                                _walkingText(
+                                  'Не удалось обновить шаги. Попробуйте ещё раз.',
+                                  'Қадамдар жаңартылмады. Қайталап көріңіз.',
+                                ),
                     ),
                   ),
                 const SizedBox(height: 8),

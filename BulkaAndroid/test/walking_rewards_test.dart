@@ -40,6 +40,7 @@ void main() {
   var missingBridge = false;
   var days = <Map<String, dynamic>>[];
   var permissionDenied = false;
+  var registered = true;
   Completer<Map<String, String>>? measurementGate;
   setUp(() {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
@@ -49,6 +50,7 @@ void main() {
     days = [];
     missingBridge = false;
     permissionDenied = false;
+    registered = true;
     measurementGate = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(WalkingRewardsNative.channel, (call) async {
@@ -59,6 +61,9 @@ void main() {
           }
           if (call.method == 'identity') {
             return {'deviceId': 'a' * 64, 'keyId': 'native-key'};
+          }
+          if (call.method == 'attest') {
+            return {'attestation': 'native-attestation'};
           }
           if (call.method == 'measure') {
             if (permissionDenied) {
@@ -82,6 +87,9 @@ void main() {
           return http.Response(jsonEncode({'success': true}), 200);
         }
         requests.add(request);
+        if (!request.url.path.startsWith('/api/customer/walking')) {
+          return http.Response(jsonEncode({'error': 'Not found'}), 404);
+        }
         Map<String, dynamic> response = {'success': true};
         if (request.url.path.endsWith('/walking')) {
           response.addAll({
@@ -94,7 +102,7 @@ void main() {
         if (request.url.path.endsWith('/challenge')) {
           final offset = (jsonDecode(request.body) as Map)['dayOffset'] ?? 0;
           response.addAll({
-            'registered': true,
+            'registered': registered,
             'challenge': 'server-challenge',
             'period': offset == 0
                 ? period
@@ -126,6 +134,26 @@ void main() {
     expect(requests, isEmpty);
     expect(calls, isEmpty);
   });
+  test(
+    'first registration uses the real customer API routes before sending signed steps',
+    () async {
+      registered = false;
+      await api.setWalkingConsent(true);
+      await api.syncWalking();
+      expect(
+        requests.map((request) => '${request.method} ${request.url.path}'),
+        [
+          'GET /api/customer/walking',
+          'POST /api/customer/walking/challenge',
+          'POST /api/customer/walking/challenge',
+          'POST /api/customer/walking/device',
+          'POST /api/customer/walking/sync',
+        ],
+      );
+      expect(calls.where((call) => call.method == 'attest'), hasLength(1));
+      expect(api.walkingProgress.value!.steps, 1234);
+    },
+  );
   test(
     'automatic sync coalesces requests and forwards only native signed data with server day boundaries',
     () async {
@@ -225,6 +253,26 @@ void main() {
       },
     );
   }
+  iosWidgetTest(
+    'a failed balance refresh preserves successfully synchronized steps',
+    (tester) async {
+      await api.setWalkingConsent(true);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: WalkingRewardsCard(
+              api: api,
+              onReward: () async => throw const FormatException('profile'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('1 234 / 10 000'), findsOneWidget);
+      expect(find.textContaining('Не удалось обновить шаги'), findsNothing);
+      expect(find.text('Обновить'), findsOneWidget);
+    },
+  );
   iosWidgetTest(
     'the existing iOS binary without the bridge hides the feature safely',
     (tester) async {

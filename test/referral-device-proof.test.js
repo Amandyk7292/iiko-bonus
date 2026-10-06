@@ -4,6 +4,14 @@ const { randomUUID, generateKeyPairSync } = require('node:crypto');
 const jwt = require('jsonwebtoken');
 const configPath = require.resolve('../src/config/supabase');
 const supabase = {};
+const diagnostics = [];
+const loggerPath = require.resolve('../src/config/logger');
+require.cache[loggerPath] = {
+  id: loggerPath,
+  filename: loggerPath,
+  loaded: true,
+  exports: { logger: { warn: (fields, message) => diagnostics.push({ fields, message }) } },
+};
 require.cache[configPath] = {
   id: configPath,
   filename: configPath,
@@ -146,12 +154,16 @@ test('Apple persistent claim rejects a new Keychain identity and reserves legiti
     assert.equal((await check()).blocked, true);
     assert.equal(writes.length, 0);
     assert.equal(calls.length, 1, 'must not clear or overwrite the previous Apple claim');
-    calls = [];
-    bits = 'Bit State Not Found';
-    assert.equal((await check()).blocked, false);
-    assert.equal(writes[0].customer_id, id);
-    assert.equal(calls[1].body.bit0, true);
-    assert.equal(calls[1].body.bit1, false);
+    for (const sentinel of ['Bit State Not Found', 'Failed to find bit state']) {
+      calls = [];
+      diagnostics.length = 0;
+      bits = sentinel;
+      assert.equal((await check()).blocked, false);
+      assert.equal(writes.at(-1).customer_id, id);
+      assert.equal(calls[1].body.bit0, true);
+      assert.equal(calls[1].body.bit1, false);
+      assert.equal(diagnostics.length, 0, 'an Apple success is not a verification failure');
+    }
     calls = [];
     owner = { customer_id: id };
     bits = { bit0: true, bit1: true };
@@ -180,4 +192,101 @@ test('Apple persistent claim rejects a new Keychain identity and reserves legiti
       else process.env[name] = previousEnv[name];
     }
   }
+});
+
+test('Apple failures report only safe stages and known reasons without tokens, keys or raw responses', async (t) => {
+  const previousFetch = global.fetch;
+  const previousFrom = supabase.from;
+  const names = [
+    'APPLE_DEVICECHECK_TEAM_ID',
+    'APPLE_DEVICECHECK_KEY_ID',
+    'APPLE_DEVICECHECK_PRIVATE_KEY',
+  ];
+  const previousEnv = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+  const key = generateKeyPairSync('ec', { namedCurve: 'P-256' }).privateKey.export({
+    type: 'pkcs8',
+    format: 'pem',
+  });
+  process.env.APPLE_DEVICECHECK_TEAM_ID = 'TESTTEAM';
+  process.env.APPLE_DEVICECHECK_KEY_ID = 'TESTKEY';
+  process.env.APPLE_DEVICECHECK_PRIVATE_KEY = key;
+  t.after(() => {
+    global.fetch = previousFetch;
+    supabase.from = previousFrom;
+    for (const name of names) {
+      if (previousEnv[name] === undefined) delete process.env[name];
+      else process.env[name] = previousEnv[name];
+    }
+  });
+  supabase.from = () => ({
+    select() {
+      return this;
+    },
+    eq() {
+      return this;
+    },
+    async maybeSingle() {
+      return { data: null, error: null };
+    },
+    async upsert() {
+      assert.fail('an Apple verification failure must not reserve a referral owner');
+    },
+  });
+  const customerId = randomUUID();
+  const deviceToken = 'private-native-device-token';
+  const proof = {
+    challenge: createDeviceChallenge(customerId, ios, null).challenge,
+    token: deviceToken,
+  };
+  for (const [status, body, stage, reason] of [
+    [401, 'Unable to verify authorization token', 'http', 'authorization_invalid'],
+    [401, 'Bit State Not Found', 'http', 'unrecognized_response'],
+    [404, 'Failed to find bit state', 'http', 'unrecognized_response'],
+    [400, 'Bad Device Token', 'http', 'device_token_malformed'],
+    [429, 'Too Many Requests', 'http', 'rate_limited'],
+    [403, `unknown raw body: ${deviceToken}; ${proof.challenge}`, 'http', 'unrecognized_response'],
+    [200, `unknown raw body: ${deviceToken}`, 'response', 'response_not_json'],
+    [200, '{"bit0":true}', 'response', 'response_invalid_bits'],
+  ]) {
+    diagnostics.length = 0;
+    global.fetch = async () => ({
+      status,
+      ok: status === 200,
+      async text() {
+        return body;
+      },
+    });
+    await assert.rejects(verifyDeviceProof(customerId, ios, null, proof), { statusCode: 503 });
+    assert.equal(diagnostics.length, 1);
+    assert.deepEqual(diagnostics[0].fields, {
+      event: 'referral_apple_devicecheck_failed',
+      action: 'query_two_bits',
+      stage,
+      reason,
+      providerStatus: status,
+    });
+    const logged = JSON.stringify(diagnostics);
+    for (const secret of [deviceToken, proof.challenge, customerId, ios.id, key, 'unknown raw']) {
+      assert.equal(logged.includes(secret), false, `must not log ${secret.slice(0, 12)}`);
+    }
+  }
+  for (const [error, reason] of [
+    [new Error(`network error carrying ${deviceToken}`), 'transport_failed'],
+    [Object.assign(new Error(deviceToken), { name: 'TimeoutError' }), 'transport_timeout'],
+  ]) {
+    diagnostics.length = 0;
+    global.fetch = async () => {
+      throw error;
+    };
+    await assert.rejects(verifyDeviceProof(customerId, ios, null, proof), { statusCode: 503 });
+    assert.equal(diagnostics[0].fields.stage, 'request');
+    assert.equal(diagnostics[0].fields.reason, reason);
+    assert.equal(diagnostics[0].fields.providerStatus, null);
+    assert.equal(JSON.stringify(diagnostics).includes(deviceToken), false);
+  }
+  diagnostics.length = 0;
+  delete process.env.APPLE_DEVICECHECK_PRIVATE_KEY;
+  await assert.rejects(verifyDeviceProof(customerId, ios, null, proof), { statusCode: 503 });
+  assert.equal(diagnostics[0].fields.stage, 'authorization');
+  assert.equal(diagnostics[0].fields.reason, 'authorization_failed');
 });

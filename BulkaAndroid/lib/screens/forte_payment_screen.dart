@@ -381,6 +381,7 @@ class FortePaymentScreen extends StatefulWidget {
     this.cardSetup = false,
     this.personalAccountTopup = false,
     this.statusTimeout = const Duration(minutes: 30),
+    this.checkoutViewBuilder,
     super.key,
   });
 
@@ -392,6 +393,8 @@ class FortePaymentScreen extends StatefulWidget {
   final bool personalAccountTopup;
   @visibleForTesting
   final Duration statusTimeout;
+  @visibleForTesting
+  final Widget Function(ValueChanged<Uri> onReturn)? checkoutViewBuilder;
 
   @override
   State<FortePaymentScreen> createState() => _FortePaymentScreenState();
@@ -407,6 +410,8 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
   bool _opening = false;
   bool _embeddedCheckoutVisible = false;
   bool _checkoutReturned = false;
+  bool _closeConfirmationPending = false;
+  bool _cancelledReturnPending = false;
   bool _cardSaved = false;
   String? _refundStatus;
   late final String? _session;
@@ -570,6 +575,22 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
     if (_checkoutReturned) return;
     final result = forteCheckoutReturnFromUri(uri);
     if (result == null) return;
+    if (widget.cardSetup && result == ForteCheckoutReturn.cancelled) {
+      // A cancelled form is not a verified bank failure. Return immediately;
+      // the caller retains the operation and reconciles it without a modal.
+      setState(() {
+        _checkoutReturned = true;
+        _embeddedCheckoutVisible = false;
+        _opening = false;
+      });
+      if (_closeConfirmationPending) {
+        // The top route is a bool confirmation dialog, not this payment page.
+        _cancelledReturnPending = true;
+      } else {
+        _finish();
+      }
+      return;
+    }
     setState(() {
       _checkoutReturned = true;
       _embeddedCheckoutVisible = false;
@@ -601,39 +622,51 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
   }
 
   Future<void> _requestClose() async {
+    if (_closeConfirmationPending) return;
     if (_paid || _terminalFailure) {
       _finish();
       return;
     }
-    final shouldClose =
-        await showDialog<bool>(
-          context: context,
-          animationStyle: BulkaMotion.reduced(context)
-              ? AnimationStyle.noAnimation
-              : null,
-          builder: (dialogContext) => BulkaActionDialog(
-            title: Text('forte_payment_close_confirm_title'.tr),
-            content: Text('forte_payment_close_confirm_hint'.tr),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: Text('cancel_btn'.tr),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: Text('close_tooltip'.tr),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-    if (!mounted || !shouldClose) return;
+    _closeConfirmationPending = true;
+    var shouldClose = false;
+    try {
+      shouldClose =
+          await showDialog<bool>(
+            context: context,
+            animationStyle: BulkaMotion.reduced(context)
+                ? AnimationStyle.noAnimation
+                : null,
+            builder: (dialogContext) => BulkaActionDialog(
+              title: Text('forte_payment_close_confirm_title'.tr),
+              content: Text('forte_payment_close_confirm_hint'.tr),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: Text('cancel_btn'.tr),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: Text('close_tooltip'.tr),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+    } finally {
+      _closeConfirmationPending = false;
+    }
+    if (!mounted) return;
+    if (_cancelledReturnPending) {
+      _finish();
+      return;
+    }
+    if (!shouldClose) return;
     setState(() {
       _checkoutReturned = true;
       _embeddedCheckoutVisible = false;
       _opening = false;
     });
-    await _checkStatus(manual: true);
+    if (!widget.cardSetup) await _checkStatus(manual: true);
     if (mounted) _finish();
   }
 
@@ -738,22 +771,28 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
                 child: Stack(
                   children: [
                     Positioned.fill(
-                      child: ForteCheckoutWebView(
-                        key: ValueKey('forte-webview-${widget.operationId}'),
-                        initialUri: _embeddedCheckoutUri!,
-                        onProgress: (_) {},
-                        acceptLanguage: forteCheckoutAcceptLanguage(
-                          AppLang.current,
-                        ),
-                        semanticLabel: 'forte_secure_page'.tr,
-                        isReturnUri: (uri) =>
-                            forteCheckoutReturnFromUri(uri) != null,
-                        onReturn: _handleCheckoutReturn,
-                        onReady: _handleEmbeddedReady,
-                        onUnavailable: _handleEmbeddedUnavailable,
-                        openExternalUri: _openExternalCheckoutUri,
-                        onExternalOpenFailed: _showExternalOpenError,
-                      ),
+                      child:
+                          widget.checkoutViewBuilder?.call(
+                            _handleCheckoutReturn,
+                          ) ??
+                          ForteCheckoutWebView(
+                            key: ValueKey(
+                              'forte-webview-${widget.operationId}',
+                            ),
+                            initialUri: _embeddedCheckoutUri!,
+                            onProgress: (_) {},
+                            acceptLanguage: forteCheckoutAcceptLanguage(
+                              AppLang.current,
+                            ),
+                            semanticLabel: 'forte_secure_page'.tr,
+                            isReturnUri: (uri) =>
+                                forteCheckoutReturnFromUri(uri) != null,
+                            onReturn: _handleCheckoutReturn,
+                            onReady: _handleEmbeddedReady,
+                            onUnavailable: _handleEmbeddedUnavailable,
+                            openExternalUri: _openExternalCheckoutUri,
+                            onExternalOpenFailed: _showExternalOpenError,
+                          ),
                     ),
                   ],
                 ),

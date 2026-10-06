@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const jwt = require('jsonwebtoken');
 const { supabase } = require('../config/supabase');
+const { logger } = require('../config/logger');
 
 const packageName = 'com.bulka.bonus';
 const hash = (text) => crypto.createHash('sha256').update(text).digest('hex');
@@ -110,12 +111,38 @@ function appleAuthorization() {
   });
 }
 
+// Only these static classifications may enter logs. Never log Apple's raw
+// response or exception: either may contain credentials or a device token.
+const appleResponseReasons = new Map([
+  ['Invalid Authorization Token', 'authorization_invalid'],
+  ['Unable to verify authorization token', 'authorization_invalid'],
+  ['Authorization Token Expired', 'authorization_expired'],
+  ['Bad Authorization Token', 'authorization_malformed'],
+  ['Missing or badly formatted authorization token', 'authorization_malformed'],
+  ['Bad Device Token', 'device_token_malformed'],
+  ['Missing or badly formatted device token', 'device_token_malformed'],
+  ['Invalid Device Token', 'device_token_invalid'],
+  ['Bad Timestamp', 'timestamp_invalid'],
+  ['Bad Payload', 'payload_invalid'],
+  ['Bad Bits', 'bits_invalid'],
+  ['Forbidden', 'forbidden'],
+  ['Too Many Requests', 'rate_limited'],
+  ['Server Error', 'provider_error'],
+  ['Service Unavailable', 'provider_unavailable'],
+]);
+
 async function appleRequest(action, token, values = {}) {
+  let stage = 'authorization';
+  let reason = 'authorization_failed';
+  let providerStatus = null;
   try {
+    const authorization = appleAuthorization();
+    stage = 'request';
+    reason = 'transport_failed';
     const response = await fetch(`https://api.devicecheck.apple.com/v1/${action}`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${appleAuthorization()}`,
+        Authorization: `Bearer ${authorization}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -126,14 +153,35 @@ async function appleRequest(action, token, values = {}) {
       }),
       signal: AbortSignal.timeout(15000),
     });
-    if (!response.ok) throw unavailable();
+    providerStatus = Number.isInteger(response.status) ? response.status : null;
+    if (!response.ok) {
+      stage = 'http';
+      const text = await response.text().catch(() => '');
+      reason = appleResponseReasons.get(text.trim()) || 'unrecognized_response';
+      throw unavailable();
+    }
     if (action !== 'query_two_bits') return null;
+    stage = 'response';
+    reason = 'response_unreadable';
     const text = await response.text();
-    if (text.trim() === 'Bit State Not Found') return { bit0: false, bit1: false };
+    // Apple has used both exact success bodies for a device with no stored bits.
+    // Only HTTP success qualifies; an error status never grants eligibility.
+    if (['Bit State Not Found', 'Failed to find bit state'].includes(text.trim())) {
+      return { bit0: false, bit1: false };
+    }
+    reason = 'response_not_json';
     const result = JSON.parse(text);
+    reason = 'response_invalid_bits';
     if (typeof result.bit0 !== 'boolean' || typeof result.bit1 !== 'boolean') throw unavailable();
     return result;
-  } catch {
+  } catch (error) {
+    if (stage === 'request' && ['TimeoutError', 'AbortError'].includes(error?.name)) {
+      reason = 'transport_timeout';
+    }
+    logger.warn(
+      { event: 'referral_apple_devicecheck_failed', action, stage, reason, providerStatus },
+      'Apple referral device verification failed',
+    );
     throw unavailable();
   }
 }
