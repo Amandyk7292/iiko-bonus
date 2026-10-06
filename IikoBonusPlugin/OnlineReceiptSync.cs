@@ -19,17 +19,19 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private Dictionary<string,AutomaticReceiptJob> ledger=new Dictionary<string,AutomaticReceiptJob>();
         private bool storageHealthy;
         private readonly SharedStockGuard importer;
+        private readonly PickupPhotoSync photos;
         private readonly Timer timer;
         private int busy;
         private volatile bool disposed;
         private volatile int pendingCount;
         internal string StatusText {get;private set;}="Онлайн-чеки: ожидание привязки кассы";
         internal int PendingCount => pendingCount;
-        internal OnlineReceiptSync(SharedStockGuard guard)
+        internal OnlineReceiptSync(SharedStockGuard guard):this(guard,null,true) { }
+        internal OnlineReceiptSync(SharedStockGuard guard,PickupPhotoSync photos=null,bool startTimer=true)
         {
-            importer=guard;
+            importer=guard;this.photos=photos;
             TryLoad();
-            timer=new Timer(Tick,null,TimeSpan.FromSeconds(8),TimeSpan.FromSeconds(5));
+            if(startTimer) timer=new Timer(Tick,null,TimeSpan.FromSeconds(8),TimeSpan.FromSeconds(5));
         }
         private bool TryLoad()
         {
@@ -96,6 +98,21 @@ namespace Resto.Front.Api.IikoBonusPlugin
             return items.GroupBy(x=>x.ProductId).OrderBy(g=>g.Key)
                 .Select(g=>new GuardItem {ProductId=g.Key,Quantity=g.Sum(x=>x.Quantity)}).ToList();
         }
+        internal static void AcknowledgeAssembly(IOperationService os,string id,IOrder order)
+        {
+            if(Action(os,"assembly-complete",id,order).Status!="printed")
+                throw new InvalidOperationException("Сервер не подтвердил сборочный чек.");
+            PickupPhotoRoutes.ForgetAssemblyAcknowledged(LoyaltyFlow.BranchId,os.GetHostTerminal().Id.ToString(),id,order.Id);
+        }
+        internal static void CompleteReceipt(IOperationService os,string id,IOrder order)
+        {
+            var branch=LoyaltyFlow.BranchId;var terminal=os.GetHostTerminal().Id.ToString();
+            if(Action(os,"complete",id,order).Status!="completed")
+                throw new InvalidOperationException("Сервер ещё не подтвердил закрытие чека.");
+            // Closed orders cannot dispatch new gift/assembly work. Retire only
+            // their route; irreversible photo evidence and any SDK flight stay.
+            PickupPhotoRoutes.ForgetCompletedOrder(branch,terminal,id,order.Id);
+        }
         internal static IPaymentType FindPaymentType(IOperationService os)
         {
             var types=os.GetPaymentTypes().Where(p=>p.Kind==PaymentTypeKind.External && p.IsEnabled && !p.ProcessAsDiscount
@@ -116,7 +133,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 foreach(var job in jobs.Jobs)
                 {
                     if(disposed) break;
-                    try { Process(job,os); StatusText="Онлайн-чеки: переданы в iikoFront"; }
+                    try { if(Process(job,os)) StatusText="Онлайн-чеки: переданы в iikoFront"; }
                     catch(Exception error)
                     {
                         StatusText="Онлайн-чек №"+job.Number+": "+error.Message;
@@ -141,7 +158,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 if(jobs.Jobs.Count==0) return "Сервер не сообщает незавершённых заданий для этой кассы.";
                 var result=new List<string>();
                 foreach(var job in jobs.Jobs) {
-                    try { Process(job,os); result.Add("№"+job.Number+": обработан текущий доступный этап"); }
+                    try { result.Add(Process(job,os) ? "№"+job.Number+": обработан текущий доступный этап" : StatusText); }
                     catch(Exception error) {
                         result.Add("№"+job.Number+": "+error.Message);
                         try {Action(os,"problem",job.OrderId,error:error.Message.Substring(0,Math.Min(400,error.Message.Length)));} catch {}
@@ -150,14 +167,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 return string.Join("\n\n",result);
             } finally {Interlocked.Exchange(ref busy,0);}
         }
-        private void Process(AutomaticReceiptJob job,IOperationService os)
+        private bool Process(AutomaticReceiptJob job,IOperationService os)
         {
             var paymentType=job.FiscalDue ? FindPaymentType(os) : null;
             var terminal=os.GetHostTerminal();
             if(os.GetHostTerminalsGroup().MainTerminal?.Id!=terminal.Id && !os.IsConnectedToMainTerminal())
                 throw new InvalidOperationException("Нет связи с главной кассой. Чек сохранён в очереди.");
             var claim=Action(os,"claim",job.OrderId);
-            if(claim.Status=="completed") return;
+            if(claim.Status=="completed") return true;
             if(!ledger.TryGetValue(job.OrderId,out var saved))
             {saved=job;ledger.Add(job.OrderId,saved);DurableJsonFile.Write(path,ledger);}
             if(claim.ReceiptId!=null) saved.ReceiptId=claim.ReceiptId;
@@ -203,30 +220,47 @@ namespace Resto.Front.Api.IikoBonusPlugin
             DurableJsonFile.Write(path,ledger);
             Action(os,"bind",job.OrderId,order);
             if(order.Status==OrderStatus.Deleted) throw new InvalidOperationException("Связанный чек удалён. Нужна сверка.");
-            if(order.Status==OrderStatus.Closed) {Action(os,"complete",job.OrderId,order);return;}
+            if(order.Status==OrderStatus.Closed) {CompleteReceipt(os,job.OrderId,order);return true;}
             if(job.AssemblyStatus!="printed")
             {
-                if(saved.AssemblyPrinted) Action(os,"assembly-complete",job.OrderId,order);
-                else
+                if(saved.AssemblyPrinted)
                 {
+                    if(job.FiscalDue) {try {AcknowledgeAssembly(os,job.OrderId,order);} catch { }}
+                    else AcknowledgeAssembly(os,job.OrderId,order);
+                }
+                else if(!job.FiscalDue)
+                {
+                    var draft=AssemblyTicket.LoadDraft(job.Number,job.OrderId);
                     var printer=AssemblyTicket.Printer(os,order);
+                    PickupPhotoPrinterSelection selected=null;
+                    var photoFirst=draft.PickupPhotoId!=null;
+                    if(photoFirst && (photos==null || !PickupPhotoPrinter.TryPrepareForOrder(os,printer,job.OrderId,order.Id,
+                        draft.PickupPhotoId,job.Number,out selected,out _)))
+                    {StatusText="Онлайн-чек №"+job.Number+": ожидаем принтер фотоленты";return false;}
                     using(var lease=PickupPhotoRoutes.TryReservePrint())
                     {
-                        // Never take a server print claim while the shared printer
-                        // is still busy with a control strip or photo SDK call.
-                        if(lease==null) return;
+                        // Never take a server print claim while the shared
+                        // printer is busy with a control strip or photo call.
+                        if(lease==null) {StatusText="Онлайн-чек №"+job.Number+": принтер занят";return false;}
+                        if(photoFirst)
+                        {
+                            var result=photos.BeforeAssembly(os,job.OrderId,draft.PickupPhotoId,job.Number,selected,lease);
+                            if(result!=PickupPhotoOutcome.Printed) {StatusText=photos.StatusText;return false;}
+                        }
                         var printClaim=Action(os,"assembly-claim",job.OrderId,order);
                         if(printClaim.Status=="print")
                         {
-                            AssemblyTicket.Print(os,printer,order,job.Number,job.OrderId,true);
+                            AssemblyTicket.Print(os,printer,order,job.Number,job.OrderId,true,draft,selected);
                             saved.AssemblyPrinted=true;
                             DurableJsonFile.Write(path,ledger);
-                            Action(os,"assembly-complete",job.OrderId,order);
+                            AcknowledgeAssembly(os,job.OrderId,order);
                         }
                     }
                 }
             }
-            if(!job.FiscalDue) return;
+            // Handover bypasses all new optional assembly/photo work, including
+            // another order's busy image printer. Never invent assembly proof.
+            if(!job.FiscalDue) return true;
             order=importer.ImportReceipt(order,job.Number,os,false);
             if(Action(os,"verify",job.OrderId,order).Status!="verified") throw new InvalidOperationException("Оплата Bulka не подтверждена");
             if(order.Payments.Count==0)
@@ -240,8 +274,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
             os.PayOrder(order,true,os.GetDefaultCredentials(),null);
             order=os.GetOrderById(order.Id);
             if(order.Status!=OrderStatus.Closed) throw new InvalidOperationException("iikoFront ещё не подтвердил закрытие чека");
-            Action(os,"complete",job.OrderId,order);
+            CompleteReceipt(os,job.OrderId,order);
+            return true;
         }
-        public void Dispose() {disposed=true;timer.Dispose();}
+        public void Dispose() {disposed=true;timer?.Dispose();}
     }
 }

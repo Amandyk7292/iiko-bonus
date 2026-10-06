@@ -88,17 +88,17 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 _sharedStock = new SharedStockGuard();
                 try { _offlineReceipts=new OfflineReceiptSync(); }
                 catch(Exception error) {PluginContext.Log.Error("Bulka offline receipt journal: "+error.Message);}
+                try { _pickupPhotos = new PickupPhotoSync(); }
+                catch { PluginContext.Log.Error("Bulka pickup photo worker could not start"); }
                 try
                 {
                     _onlinePaymentRegistration = PluginContext.Operations.RegisterPaymentSystem(new OnlinePaymentProcessor(),false,
                         Resto.Front.Api.Data.Payments.FiscalPaymentTypeGroup.NonCash);
-                    _automaticReceipts = new OnlineReceiptSync(_sharedStock);
+                    _automaticReceipts = new OnlineReceiptSync(_sharedStock,_pickupPhotos);
                 }
                 catch(Exception error) { PluginContext.Log.Error("Bulka online payment registration: " + error.Message); }
-                try { _pickupPhotos = new PickupPhotoSync(); }
-                catch { PluginContext.Log.Error("Bulka pickup photo worker could not start"); }
                 _assemblyReprintButton = RegisterOrderAction("Сборочный чек Bulka",
-                    (ValueTuple<IOrder,IOperationService,IViewManager> args) => AssemblyTicket.Reprint(args.Item1,args.Item2,args.Item3));
+                    (ValueTuple<IOrder,IOperationService,IViewManager> args) => AssemblyTicket.Reprint(args.Item1,args.Item2,args.Item3,_pickupPhotos));
                 _inbox = new OnlineOrderInbox();
                 _pairingMenu = PluginContext.Operations.AddButtonToPluginsMenu("Привязать кассу", args => PosPairing.Show(args.Item1));
                 _updateMenu = PluginContext.Operations.AddButtonToPluginsMenu("Проверить обновления Bulka", args => PluginUpdateFlow.Show(args.Item1));

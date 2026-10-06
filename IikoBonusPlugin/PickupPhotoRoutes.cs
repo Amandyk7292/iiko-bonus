@@ -24,6 +24,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember] public string QueueId {get;set;}
         [DataMember] public string SectionId {get;set;}
         [DataMember] public string Kind {get;set;}
+        [DataMember(EmitDefaultValue=false)] public string Phase {get;set;}
+        [DataMember] public bool PhotoAcknowledged {get;set;}
     }
 
     // The SDK's queue UUID is not a physical printing-device UUID. Observe the
@@ -56,10 +58,20 @@ namespace Resto.Front.Api.IikoBonusPlugin
             internal bool Ambiguous,Expired;
             internal int Generation;
         }
-        private sealed class Lease:IDisposable
+        internal sealed class Lease:IDisposable
         {
             private int released;
-            public void Dispose(){if(Interlocked.Exchange(ref released,1)==0) printGate.Release();}
+            private int disposalRequested;
+            private Task flight;
+            internal void Track(Task pending) {flight=pending;}
+            private void Release(){if(Interlocked.Exchange(ref released,1)==0) printGate.Release();}
+            public void Dispose()
+            {
+                if(Interlocked.Exchange(ref disposalRequested,1)!=0) return;
+                var pending=flight;
+                if(pending==null || pending.IsCompleted) Release();
+                else pending.ContinueWith(_=>Release(),TaskContinuationOptions.ExecuteSynchronously);
+            }
         }
         private sealed class Subscription:IDisposable
         {
@@ -74,7 +86,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         }
         internal static bool PrintBusy => printGate.CurrentCount==0;
         internal static bool UncertainPrintBusy => uncertainProbeFlight && PrintBusy;
-        internal static IDisposable TryReservePrint() => printGate.Wait(0) ? new Lease() : null;
+        internal static Lease TryReservePrint() => printGate.Wait(0) ? new Lease() : null;
         private static string BindingKey(string branch,string terminal,string order) => branch+"|"+terminal+"|"+order;
         private static bool Valid(Dictionary<string,PickupPhotoRouteBinding> entries) => entries.Count<=MaximumBindings && entries.All(pair=>
             pair.Value!=null && pair.Key==BindingKey(pair.Value.BranchId,pair.Value.TerminalId,pair.Value.OrderId)
@@ -83,7 +95,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
             && Guid.TryParse(pair.Value.PhotoId,out _)
             && Guid.TryParse(pair.Value.DeviceId,out _) && Guid.TryParse(pair.Value.QueueId,out _)
             && (pair.Value.SectionId=="none" || Guid.TryParse(pair.Value.SectionId,out _))
-            && pair.Value.Number>0 && new[]{"bill","document"}.Contains(pair.Value.Kind));
+            && pair.Value.Number>0 && new[]{"bill","document"}.Contains(pair.Value.Kind)
+            && (pair.Value.Phase==null || new[]{"reserved","assembly_printed","assembly_acknowledged"}.Contains(pair.Value.Phase)));
         internal static IDisposable Start(IOperationService os,int timeoutSeconds=30)
         {
             int ownGeneration;
@@ -169,7 +182,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 var key=BindingKey(route.Branch,route.Terminal,serverOrderId);
                 var binding=new PickupPhotoRouteBinding {BranchId=route.Branch,TerminalId=route.Terminal,OrderId=serverOrderId,
                     FrontOrderId=frontOrderId.Value.ToString(),PhotoId=photoId,Number=number,DeviceId=observation.Device.Value.ToString(),
-                    QueueId=route.Queue.ToString(),SectionId=route.Section,Kind=route.Kind};
+                    QueueId=route.Queue.ToString(),SectionId=route.Section,Kind=route.Kind,Phase="assembly_printed"};
                 // Never replace evidence of an earlier successful assembly print.
                 if(bindings.TryGetValue(key,out var previous))
                 {
@@ -177,16 +190,25 @@ namespace Resto.Front.Api.IikoBonusPlugin
                         {healthy=false;PickupPhotoPrinter.Diagnose("route_journal",route.Queue,"binding_conflict");}
                     else if(previous.DeviceId!=binding.DeviceId)
                         PickupPhotoPrinter.Diagnose("route_retained",Guid.Parse(previous.DeviceId),"original_assembly_device");
+                    else
+                    {
+                        previous.Phase="assembly_printed";
+                        SaveBindings(route.Queue);
+                    }
                     return;
                 }
                 if(!healthy || bindings.Count>=MaximumBindings)
                     {healthy=false;PickupPhotoPrinter.Diagnose("route_journal",route.Queue,"capacity");return;}
                 bindings.Add(key,binding);
-                try {DurableJsonFile.Write(path,bindings);}
-                catch(Exception error) {healthy=false;PickupPhotoPrinter.Diagnose("route_journal",route.Queue,error.GetType().Name);}
+                SaveBindings(route.Queue);
                 // A storage failure must not turn a successfully printed assembly
                 // ticket into a failed receipt that another worker might reprint.
             }
+        }
+        private static void SaveBindings(Guid? queue)
+        {
+            try {DurableJsonFile.Write(path,bindings);}
+            catch(Exception error) {healthy=false;PickupPhotoPrinter.Diagnose("route_journal",queue,error.GetType().Name);}
         }
         private static async Task Probe(IOperationService os,IPrinterQueueRef queue,Route route,IDisposable lease)
         {
@@ -234,8 +256,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 queue=AssemblyTicket.PrinterForSection(os,table?.RestaurantSection);
             }
             catch(Exception error) {reason="not_configured";PickupPhotoPrinter.Diagnose("assembly_queue",null,error.GetType().Name);return false;}
+            return TryQueueDevice(os,queue,out device,out reason);
+        }
+        internal static bool TryQueueDevice(IOperationService os,IPrinterQueueRef queue,out Guid device,out string reason)
+        {
+            device=Guid.Empty;reason="device_unmapped";
             lock(gate)
             {
+                if(!initialized) return false;if(!healthy){reason="journal_unhealthy";return false;}
                 if(!queues.TryGetValue(queue,out var route)) return false;
                 if(confirmed.TryGetValue(route.Key,out device)) {reason="ready";return true;}
                 if(probes.TryGetValue(route.Key,out reason)) return false;
@@ -245,6 +273,74 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 // retry for a failed/uncertain control strip during this startup.
                 Task.Run(()=>Probe(os,queue,route,lease));return false;
             }
+        }
+        internal static bool ReserveOrder(IOperationService os,IPrinterQueueRef queue,string orderId,Guid frontOrder,
+            string photoId,long number,Guid device,out string reason)
+        {
+            reason="device_unmapped";
+            var terminal=os.GetHostTerminal().Id.ToString();var branch=LoyaltyFlow.BranchId;
+            lock(gate)
+            {
+                if(!initialized || !healthy || !queues.TryGetValue(queue,out var route)) return false;
+                if(route.Terminal!=terminal || route.Branch!=branch) return false;
+                if(!Guid.TryParse(orderId,out _) || !Guid.TryParse(photoId,out _) || number<=0 || frontOrder==Guid.Empty) return false;
+                var key=BindingKey(route.Branch,route.Terminal,orderId);
+                if(bindings.TryGetValue(key,out var existing))
+                {
+                    if(existing.FrontOrderId!=frontOrder.ToString() || existing.PhotoId!=photoId || existing.Number!=number)
+                        {reason="journal_unhealthy";return false;}
+                    if(existing.Phase!="reserved") return false;
+                    // The reservation pins the exact original route and physical
+                    // target across restarts; a new section/queue needs review.
+                    if(existing.QueueId!=route.Queue.ToString() || existing.SectionId!=route.Section || existing.Kind!=route.Kind
+                        || existing.DeviceId!=device.ToString()) return false;
+                    reason="ready";return true;
+                }
+                if(!confirmed.TryGetValue(route.Key,out var confirmedDevice) || confirmedDevice!=device) return false;
+                if(bindings.Count>=MaximumBindings) {reason="queue_full";return false;}
+                bindings.Add(key,new PickupPhotoRouteBinding {BranchId=route.Branch,TerminalId=route.Terminal,OrderId=orderId,
+                    FrontOrderId=frontOrder.ToString(),PhotoId=photoId,Number=number,DeviceId=device.ToString(),
+                    QueueId=route.Queue.ToString(),SectionId=route.Section,Kind=route.Kind,Phase="reserved"});
+                SaveBindings(route.Queue);reason=healthy ? "ready" : "journal_unhealthy";return healthy;
+            }
+        }
+        internal static void ConfirmAssembly(string branch,string terminal,string orderId,Guid frontOrder,
+            string photoId,long number,Guid device)
+        {
+            lock(gate)
+            {
+                var key=BindingKey(branch,terminal,orderId);
+                if(!healthy || !bindings.TryGetValue(key,out var binding) || binding.FrontOrderId!=frontOrder.ToString()
+                    || binding.PhotoId!=photoId || binding.Number!=number || binding.DeviceId!=device.ToString()) return;
+                binding.Phase="assembly_printed";
+                SaveBindings(null);
+            }
+        }
+        internal static void ForgetAssemblyAcknowledged(string branch,string terminal,string orderId,Guid frontOrder)
+        {
+            lock(gate)
+            {
+                var key=BindingKey(branch,terminal,orderId);
+                if(!healthy || !bindings.TryGetValue(key,out var binding) || binding.FrontOrderId!=frontOrder.ToString()
+                    || (binding.Phase!="assembly_printed" && binding.Phase!=null)) return;
+                binding.Phase="assembly_acknowledged";
+                if(binding.PhotoAcknowledged) bindings.Remove(key);
+                SaveBindings(null);
+            }
+        }
+        internal static void ForgetCompletedOrder(string branch,string terminal,string orderId,Guid frontOrder)
+        {
+            lock(gate)
+            {
+                var key=BindingKey(branch,terminal,orderId);
+                if(!healthy || !bindings.TryGetValue(key,out var binding) || binding.FrontOrderId!=frontOrder.ToString()) return;
+                bindings.Remove(key);SaveBindings(null);
+            }
+        }
+        internal static bool IsReserved(string branch,string terminal,string orderId,string photoId,long number)
+        {
+            lock(gate) return initialized && healthy && bindings.TryGetValue(BindingKey(branch,terminal,orderId),out var binding)
+                && binding.Phase=="reserved" && binding.PhotoId==photoId && binding.Number==number;
         }
         internal static bool TryOrderDevice(IOperationService os,string orderId,string photoId,long number,out Guid device,out string reason)
         {
@@ -258,15 +354,27 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 device=Guid.Parse(binding.DeviceId);reason="ready";return true;
             }
         }
+        internal static bool TryRecoveryDevice(IOperationService os,string orderId,Guid frontOrder,string photoId,long number,
+            out Guid device,out string reason)
+        {
+            device=Guid.Empty;reason="device_unmapped";
+            var terminal=os.GetHostTerminal().Id.ToString();var branch=LoyaltyFlow.BranchId;
+            lock(gate)
+            {
+                if(!initialized || !healthy || !bindings.TryGetValue(BindingKey(branch,terminal,orderId),out var binding)
+                    || binding.FrontOrderId!=frontOrder.ToString() || binding.Number!=number || binding.PhotoId!=photoId) return false;
+                device=Guid.Parse(binding.DeviceId);reason="ready";return true;
+            }
+        }
         internal static void ForgetAcknowledged(string branch,string terminal,string orderId,string photoId,long number)
         {
             lock(gate)
             {
                 var key=BindingKey(branch,terminal,orderId);
                 if(!healthy || !bindings.TryGetValue(key,out var binding) || binding.PhotoId!=photoId || binding.Number!=number) return;
-                bindings.Remove(key);
-                try {DurableJsonFile.Write(path,bindings);}
-                catch(Exception error) {healthy=false;PickupPhotoPrinter.Diagnose("route_journal",null,error.GetType().Name);}
+                binding.PhotoAcknowledged=true;
+                if(binding.Phase==null || binding.Phase=="assembly_acknowledged") bindings.Remove(key);
+                SaveBindings(null);
             }
         }
     }

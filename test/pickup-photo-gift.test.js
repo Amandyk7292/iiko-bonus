@@ -24,6 +24,12 @@ async function fixture(t) {
   await db.exec(
     fs.readFileSync('supabase/migrations/20261006153000_pickup_photo_gifts.sql', 'utf8'),
   );
+  await db.exec(
+    fs.readFileSync(
+      'supabase/migrations/20261006235400_pickup_photo_before_handover_guard.sql',
+      'utf8',
+    ),
+  );
   const customer = crypto.randomUUID(),
     other = crypto.randomUUID(),
     branch = crypto.randomUUID(),
@@ -418,4 +424,96 @@ test('definite pre-print release can retry; refunds remove only never-started jo
     'printed',
     'already printed acknowledgement is not replayed',
   );
+});
+
+test('a pending photo cannot start printing after pickup handover', async (t) => {
+  const f = await fixture(t),
+    photo = await f.upload(),
+    checkout = crypto.randomUUID();
+  await f.reserve(checkout, photo);
+  const id = await f.order(checkout, photo, { status: 'paid', kitchen: 'preparing' });
+  assert.equal(
+    (await f.call('list_pickup_photo_print_jobs', [f.branch, f.terminal])).jobs.length,
+    1,
+  );
+  await f.db.query(
+    "update kaspi_orders set kitchen_status='handed_over',fulfillment_status='completed' where id=$1",
+    [id],
+  );
+  assert.deepEqual((await f.call('list_pickup_photo_print_jobs', [f.branch, f.terminal])).jobs, []);
+  assert.equal((await f.action(id, 'claim')).error, 'order_unavailable');
+  assert.equal(
+    (await f.call('pickup_photo_print_image', [f.branch, f.terminal, id])).error,
+    'job_unavailable',
+  );
+  const job = (
+    await f.db.query(
+      'select status,terminal_id,claimed_at from pickup_photo_print_jobs where order_id=$1',
+      [id],
+    )
+  ).rows[0];
+  assert.deepEqual(job, { status: 'pending', terminal_id: null, claimed_at: null });
+});
+
+test('handover between photo claim and image retrieval denies printing but preserves a durable acknowledgement', async (t) => {
+  const f = await fixture(t),
+    photo = await f.upload(),
+    checkout = crypto.randomUUID();
+  await f.reserve(checkout, photo);
+  const id = await f.order(checkout, photo, { status: 'paid', kitchen: 'preparing' });
+  assert.equal((await f.action(id, 'claim')).status, 'print');
+  assert.equal(
+    (await f.call('pickup_photo_print_image', [f.branch, f.terminal, id])).image,
+    'YQ==',
+  );
+  await f.db.query("update kaspi_orders set kitchen_status='ready' where id=$1", [id]);
+  assert.equal(
+    (await f.call('pickup_photo_print_image', [f.branch, f.terminal, id])).image,
+    'YQ==',
+  );
+  await f.db.query(
+    "update kaspi_orders set kitchen_status='handed_over',fulfillment_status='completed' where id=$1",
+    [id],
+  );
+  assert.equal(
+    (await f.call('pickup_photo_print_image', [f.branch, f.terminal, id])).error,
+    'job_unavailable',
+    'a claim does not authorize a late image download after handover',
+  );
+  assert.equal((await f.action(id, 'claim')).status, 'uncertain');
+  assert.equal(
+    (await f.action(id, 'complete')).status,
+    'printed',
+    'a durable acknowledgement of an earlier physical print remains valid',
+  );
+  assert.equal((await f.action(id, 'complete')).status, 'printed');
+  assert.equal((await f.action(id, 'claim')).status, 'printed');
+  assert.equal(
+    (await f.call('pickup_photo_print_image', [f.branch, f.terminal, id])).error,
+    'job_unavailable',
+  );
+  assert.deepEqual((await f.call('list_pickup_photo_print_jobs', [f.branch, f.terminal])).jobs, []);
+});
+
+test('claimed photo image access requires an accepted kitchen state and stays private', async (t) => {
+  const f = await fixture(t),
+    photo = await f.upload(),
+    checkout = crypto.randomUUID();
+  await f.reserve(checkout, photo);
+  const id = await f.order(checkout, photo, { status: 'paid', kitchen: 'preparing' });
+  assert.equal((await f.action(id, 'claim')).status, 'print');
+  for (const kitchen of ['new', null, 'handed_over']) {
+    await f.db.query('update kaspi_orders set kitchen_status=$1 where id=$2', [kitchen, id]);
+    assert.equal(
+      (await f.call('pickup_photo_print_image', [f.branch, f.terminal, id])).error,
+      'job_unavailable',
+    );
+  }
+  for (const role of ['anon', 'authenticated']) {
+    await assert.rejects(
+      f.db.exec(`set role ${role}; select pickup_photo_print_image(null,null,null)`),
+      /permission denied/,
+    );
+    await f.db.exec('reset role');
+  }
 });

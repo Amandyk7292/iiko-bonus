@@ -63,7 +63,7 @@ internal sealed class FakeHttp:HttpMessageHandler
     [DataMember(Name="terminalId")] public string Terminal {get;set;}
     [DataMember(Name="orderId")] public string Order {get;set;}
 }
-internal static class Program
+internal static partial class Program
 {
     private const BindingFlags Static=BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public;
     private const BindingFlags Instance=BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
@@ -80,6 +80,8 @@ internal static class Program
     private static Func<ValueTuple<Guid,Document>,Document> beforeFormat;
     private static IDisposable routeSubscription;
     private static int probePrints,assemblyPrints;
+    private static readonly List<string> printSequence=new List<string>();
+    private static readonly List<Guid> printTargets=new List<Guid>();
     private static bool suppressCallback,multipleTargets;
     private static bool draftMismatch,noPhoto;
     private static Guid? terminalOverride;
@@ -91,6 +93,7 @@ internal static class Program
     private static byte[] image;
     private static int printed,completed,claims,releases,httpCalls,assertions,receiptQueries;
     private static bool failAck,failDownload,failPrinter,failClaim,badHash,printerPresent=true,printResult=true;
+    private static bool handoverAfterDownload,handedOver;
     private static bool billPresent,documentPresent,receiptQueryFails;
     private static Guid lastPrintedPrinter;
     private static ManualResetEvent printGate;
@@ -98,6 +101,22 @@ internal static class Program
     private static object Call(Type type,string name,object target,params object[] args)=>type.GetMethod(name,target==null?Static:Instance).Invoke(target,args);
     private static object NewWorker(int timeout=30)=>Activator.CreateInstance(Worker,Instance,null,new object[]{false,timeout},null);
     private static void Tick(object worker)=>Call(Worker,"Tick",worker,new object[]{null});
+    private static IOrder TestOrder()=>Proxy.Make<IOrder>(call=>call.MethodName=="get_Id" ? (object)frontOrderId :
+        call.MethodName=="get_Number" ? 42 : call.MethodName=="get_Tables" ? new[]{table} :
+        call.MethodName=="get_ExternalNumber" ? "Bulka:"+orderId : null);
+    private static object Selection()
+    {
+        var queue=Call(AssemblyTicket,"Printer",null,services.Operations,TestOrder());
+        var args=new object[]{services.Operations,queue,orderId,frontOrderId,photoId,1057L,null,null};
+        return (bool)Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.PickupPhotoPrinter",true)
+            .GetMethod("TryPrepareForOrder",Static).Invoke(null,args) ? args[6] : null;
+    }
+    private static string Attempt(object worker)
+    {
+        var selected=Selection();if(selected==null) return "Pending";
+        using(var lease=(IDisposable)Call(Routes,"TryReservePrint",null))
+            return lease==null ? "Pending" : Call(Worker,"BeforeAssembly",worker,services.Operations,orderId,photoId,1057L,selected,lease).ToString();
+    }
     private static void Dispose(object worker)=>((IDisposable)worker).Dispose();
     private static HttpResponseMessage Json(string body,HttpStatusCode code=HttpStatusCode.OK)=>new HttpResponseMessage(code){Content=new StringContent(body,Encoding.UTF8,"application/json")};
     private static string Success(string state)=>"{\"success\":true,\"status\":\""+state+"\",\"number\":1057,\"photoId\":\""+photoId+"\"}";
@@ -124,15 +143,18 @@ internal static class Program
     }
     private static void LearnAssembly()
     {
-        var order=Proxy.Make<IOrder>(call=>call.MethodName=="get_Id" ? (object)frontOrderId :
-            call.MethodName=="get_Number" ? 42 : call.MethodName=="get_Tables" ? new[]{table} : null);
+        var order=TestOrder();
         var queue=Call(AssemblyTicket,"Printer",null,services.Operations,order);
-        Call(AssemblyTicket,"Print",null,services.Operations,queue,order,1057L,orderId,false);
+        Call(AssemblyTicket,"Print",null,services.Operations,queue,order,1057L,orderId,false,null,null);
     }
     private static bool ReadyAfterProbe()
     {
         Call(Worker,"PrinterReady",null,services.Operations);
         SpinWait.SpinUntil(()=>!(bool)Routes.GetProperty("PrintBusy",Static).GetValue(null),3000);
+        SpinWait.SpinUntil(()=>(bool)Call(Worker,"PrinterReady",null,services.Operations) ||
+            (!((bool)Routes.GetProperty("PrintBusy",Static).GetValue(null)) &&
+             !((IDictionary)Routes.GetField("probes",Static).GetValue(null)).Values.Cast<object>()
+                .Any(state=>(string)state=="print_in_progress")),3000);
         return (bool)Call(Worker,"PrinterReady",null,services.Operations);
     }
     private static void Scenario(bool mapped=true)
@@ -140,11 +162,12 @@ internal static class Program
         orderId=Guid.NewGuid().ToString();photoId=Guid.NewGuid().ToString();status="pending";
         printed=completed=claims=releases=httpCalls=0;failAck=failDownload=failPrinter=failClaim=badHash=false;printResult=true;
         printerPresent=true;billPresent=true;documentPresent=receiptQueryFails=false;receiptQueries=0;lastPrintedPrinter=Guid.Empty;
-        probePrints=assemblyPrints=0;suppressCallback=multipleTargets=false;probeGate=null;frontOrderId=Guid.NewGuid();
+        probePrints=assemblyPrints=0;printSequence.Clear();printTargets.Clear();suppressCallback=multipleTargets=false;probeGate=null;frontOrderId=Guid.NewGuid();
         draftMismatch=noPhoto=false;terminalOverride=null;
+        handoverAfterDownload=handedOver=false;
         printGate=null;image=Png();SetDriver();SetDriverParameters(billDriver);SetDriverParameters(documentDriver);
         Environment.SetEnvironmentVariable("IIKO_PICKUP_PHOTO_WIDTH_DOTS",null);
-        RestartRoutes();if(mapped) LearnAssembly();
+        RestartRoutes();if(mapped) {ReadyAfterProbe();Selection();}
     }
     private static HttpResponseMessage Reply(HttpRequestMessage request)
     {
@@ -155,11 +178,13 @@ internal static class Program
             || request.Headers.GetValues("X-Bulka-Terminal-Id").Single()!=TerminalId.ToString())
             throw new Exception("Wrong private POS request credentials");
         var path=request.RequestUri.AbsolutePath;
-        if(path.EndsWith("/poll")) return Json("{\"success\":true,\"jobs\":[{\"orderId\":\""+orderId+"\",\"photoId\":\""+photoId+"\",\"number\":1057,\"status\":\""+status+"\"}]}");
+        if(path.EndsWith("/poll")) return handedOver ? Json("{\"success\":true,\"jobs\":[]}") :
+            Json("{\"success\":true,\"jobs\":[{\"orderId\":\""+orderId+"\",\"photoId\":\""+photoId+"\",\"number\":1057,\"status\":\""+status+"\"}]}");
         if(path.EndsWith("/image"))
         {
             if(!request.RequestUri.Query.Contains("widthDots=384")) throw new Exception("Unbounded image width");
             if(failDownload) return Json("{}",HttpStatusCode.ServiceUnavailable);
+            if(handoverAfterDownload) handedOver=true;
             var response=new HttpResponseMessage(HttpStatusCode.OK){Content=new ByteArrayContent(image)};
             response.Content.Headers.ContentType=new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
             response.Headers.TryAddWithoutValidation("X-Content-SHA256",badHash?new string('0',64):(string)Call(Raster,"Hash",null,image));
@@ -238,9 +263,18 @@ internal static class Program
                         else Interlocked.Increment(ref assemblyPrints);
                         return printResult;
                     }
-                    if(call.Args.Length!=2)throw new Exception("Physical photo target uses bool-returning SDK overload");
+                    if(call.Args.Length!=2)throw new Exception("Physical photo/assembly target uses bool-returning SDK overload");
+                    var actual=((IPrintingDeviceInfo)call.Args[0]).Id;
+                    var physicalFormatted=beforeFormat?.Invoke((actual,payload));
+                    if(physicalFormatted!=null)markup=physicalFormatted.Markup;
+                    if(markup.Descendants("section").Any())throw new Exception("Private route marker leaked to paper");
+                    if(markup.Element("image")==null)
+                    {
+                        Interlocked.Increment(ref assemblyPrints);lock(printSequence){printSequence.Add("assembly");printTargets.Add(actual);}
+                        return printResult;
+                    }
                     Interlocked.Increment(ref printed);
-                    lastPrintedPrinter=((IPrintingDeviceInfo)call.Args[0]).Id;
+                    lastPrintedPrinter=actual;lock(printSequence){printSequence.Add("photo");printTargets.Add(actual);}
                     var photo=markup.Element("image");
                     if(photo==null || markup.Descendants("fiscal").Any())throw new Exception("Separate non-fiscal raster missing");
                     var bytes=Convert.FromBase64String(photo.Value);
@@ -264,8 +298,9 @@ internal static class Program
             .SetValue(null,new HttpClient(new FakeHttp{Reply=Reply}));
         typeof(LoyaltyFlow).GetField("_httpClient",Static).SetValue(null,new HttpClient(new FakeHttp{Reply=request=>
             Json("{\"id\":\""+(draftMismatch?Guid.NewGuid().ToString():orderId)+"\",\"pickupPhotoId\":"+(noPhoto?"null":"\""+photoId+"\"")+",\"items\":[{\"name\":\"Test\",\"quantity\":1}]}")}));
-        RasterBounds();PrinterCapability();RouteFailures();PrintAndAck();PrintFailures();PreparationRecovery();LostClaim();Timeout();LedgerRetention();RouteStorage();CorruptJournal();
-        Check(Plugin.GetName().Version.ToString(3)=="1.14.2","physical assembly printer fix has version 1.14.2");
+        RasterBounds();PrinterCapability();RouteFailures();PrintAndAck();PrintFailures();PreparationRecovery();FreshDispatchGuard();LostClaim();Timeout();LedgerRetention();RouteStorage();CorruptJournal();
+        PhotoFirstIntegration();
+        Check(Plugin.GetName().Version.ToString(3)=="1.14.3","photo-first assembly orchestration has version 1.14.3");
         Console.WriteLine("PASS: "+assertions+" photo-print assertions; intercepted HTTP and SDK only, no physical printer.");
         PluginContext.Uninitialize();
     }
@@ -324,7 +359,7 @@ internal static class Program
     {
         Scenario(false);printResult=false;Check(!ReadyAfterProbe(),"negative control-print completion never confirms a route");
         printResult=true;Check(!ReadyAfterProbe() && probePrints==1,"failed probe is not automatically replayed by heartbeats");
-        var worker=NewWorker();Tick(worker);Check(claims==0 && printed==0,"probe capability cannot authorize an order without a successful assembly binding");Dispose(worker);
+        var worker=NewWorker();Tick(worker);Check(claims==0 && printed==0,"timer cannot start a new photo even after control-route proof");Dispose(worker);
         Scenario(false);suppressCallback=true;Check(!ReadyAfterProbe(),"successful SDK return without physical callback observation fails closed");
         Scenario(false);multipleTargets=true;Check(!ReadyAfterProbe(),"one assembly route reporting multiple physical devices fails closed");
         Scenario();multipleTargets=true;LearnAssembly();
@@ -339,8 +374,8 @@ internal static class Program
         probeGate.Set();SpinWait.SpinUntil(()=>!(bool)Routes.GetProperty("PrintBusy",Static).GetValue(null),3000);Thread.Sleep(30);
         Check(!ReadyAfterProbe() && probePrints==1,"late probe completion does not turn an uncertain strip into authorization");
         Dispose(worker);probeGate.Dispose();probeGate=null;
-        Scenario();RestartRoutes();worker=NewWorker();Tick(worker);
-        Check(printed==1 && lastPrintedPrinter==BillDeviceId,"restart restores successful order-to-physical-printer mapping without reprinting assembly");Dispose(worker);
+        Scenario();RestartRoutes();worker=NewWorker();Attempt(worker);
+        Check(printed==1 && lastPrintedPrinter==BillDeviceId,"restart restores reserved exact order-to-physical-printer mapping before assembly");Dispose(worker);
         Scenario(false);printResult=false;try{LearnAssembly();}catch(TargetInvocationException){}
         printResult=true;worker=NewWorker();Tick(worker);Check(claims==0 && printed==0,"failed ordinary assembly print cannot persist a photo route");Dispose(worker);
         Scenario();photoId=Guid.NewGuid().ToString();worker=NewWorker();Tick(worker);
@@ -356,54 +391,91 @@ internal static class Program
         Check(!(bool)selection.GetMethod("TrySelectForOrder",Static).Invoke(null,args),"another terminal cannot reuse the same branch's order binding");terminalOverride=null;
         Scenario(false);draftMismatch=true;try{LearnAssembly();}catch(TargetInvocationException){}
         Check(assemblyPrints==0,"mismatched receipt draft identity is rejected before ordinary SDK print");
-        Scenario();billPresent=false;documentPresent=true;LearnAssembly();worker=NewWorker();Tick(worker);
-        Check(printed==1 && lastPrintedPrinter==BillDeviceId,"manual assembly reprint after route change retains the original order photo target");Dispose(worker);
+        Scenario();LearnAssembly();billPresent=false;documentPresent=true;LearnAssembly();worker=NewWorker();Tick(worker);
+        args=new object[]{services.Operations,orderId,photoId,1057L,null,null};
+        Check((bool)selection.GetMethod("TrySelectForOrder",Static).Invoke(null,args) &&
+            ((IPrintingDeviceInfo)args[4].GetType().GetProperty("Printer",Instance).GetValue(args[4])).Id==BillDeviceId,
+            "manual assembly reprint after route change retains original physical route evidence");
+        Check(printed==0,"legacy assembly-first order is never automatically given a late photo");Dispose(worker);
     }
     private static void PrintAndAck()
     {
-        Scenario();var worker=NewWorker();Tick(worker);
+        Scenario();var worker=NewWorker();Attempt(worker);
         Check(printed==1 && status=="printed" && lastPrintedPrinter==BillDeviceId && BillDeviceId!=BillPrinterId && receiptQueries==0,
-            "photo prints on the physical device that printed its assembly ticket, never on queue UUID or fiscal printer");
-        Tick(worker);Check(printed==1,"repeated polling never prints a completed strip twice");Dispose(worker);
-        Scenario(false);billPresent=false;documentPresent=true;LearnAssembly();worker=NewWorker();Tick(worker);
+            "photo prints on the confirmed physical assembly route before any assembly, never on queue UUID or fiscal printer");
+        Attempt(worker);Tick(worker);Check(printed==1,"repeated orchestration and polling never prints a completed strip twice");Dispose(worker);
+        Scenario(false);billPresent=false;documentPresent=true;ReadyAfterProbe();worker=NewWorker();Attempt(worker);
         Check(printed==1 && status=="printed" && lastPrintedPrinter==DocumentDeviceId,
-            "order using the assembly document fallback prints photo on that exact historical device");Dispose(worker);
-        Scenario();failAck=true;worker=NewWorker();Tick(worker);
+            "order using the assembly document fallback prints photo on that exact confirmed device");Dispose(worker);
+        Scenario();failAck=true;worker=NewWorker();Attempt(worker);
         Check(printed==1 && status=="printing","lost acknowledgement retains printed local tombstone");Dispose(worker);
         Check(RouteBindings().Values.Cast<object>().Any(entry=>(string)entry.GetType().GetProperty("OrderId").GetValue(entry)==orderId),"unacknowledged printed photo retains durable route evidence");
         RestartRoutes();worker=NewWorker();Tick(worker);Check(printed==1 && status=="printed" && completed==2,"restart retries acknowledgement without printing");Dispose(worker);
-        Check(!RouteBindings().Values.Cast<object>().Any(entry=>(string)entry.GetType().GetProperty("OrderId").GetValue(entry)==orderId),"confirmed photo acknowledgement alone retires its route binding");
+        Check(RouteBindings().Values.Cast<object>().Any(entry=>(string)entry.GetType().GetProperty("OrderId").GetValue(entry)==orderId),"photo acknowledgement retains reserved route until assembly physically succeeds");
+        LearnAssembly();Check(RouteBindings().Values.Cast<object>().Any(entry=>(string)entry.GetType().GetProperty("OrderId").GetValue(entry)==orderId),
+            "physical assembly retains exact route through receipt-journal and server-ACK recovery window");
+        Call(Routes,"ForgetAssemblyAcknowledged",null,BranchId.ToString(),TerminalId.ToString(),orderId,frontOrderId);
+        Check(!RouteBindings().Values.Cast<object>().Any(entry=>(string)entry.GetType().GetProperty("OrderId").GetValue(entry)==orderId),
+            "confirmed assembly and photo acknowledgements together retire the route binding");
         Check(!Directory.GetFiles(data).Any(p=>p.EndsWith(".png") || p.EndsWith(".bmp")),"local journal never stores customer photo bytes");
     }    private static void PrintFailures()
     {
-        Scenario();printResult=false;var worker=NewWorker();Tick(worker);
+        Scenario();printResult=false;var worker=NewWorker();Attempt(worker);
         Check(printed==1 && status=="uncertain","printer negative completion is uncertain, not safe to replay");Tick(worker);
         Check(printed==1,"uncertain print is never retried automatically");Dispose(worker);
-        Scenario();failPrinter=true;worker=NewWorker();Tick(worker);Dispose(worker);worker=NewWorker();Tick(worker);
+        Scenario();failPrinter=true;worker=NewWorker();Attempt(worker);Dispose(worker);worker=NewWorker();Attempt(worker);
         Check(printed==1 && status=="uncertain","printer exception survives restart without duplicate strip");Dispose(worker);
     }
     private static void PreparationRecovery()
     {
-        Scenario();failDownload=true;var worker=NewWorker();Tick(worker);
+        Scenario();failDownload=true;var worker=NewWorker();Attempt(worker);
         Check(printed==0 && releases==1 && status=="pending","definite download failure releases only before printing");
-        failDownload=false;Tick(worker);Check(printed==1 && status=="printed","pre-print download failure can recover automatically");Dispose(worker);
-        Scenario();image=Png(gray:true);worker=NewWorker();Tick(worker);
-        Check(printed==0 && releases==1,"invalid raster never enters printer queue");image=Png();Tick(worker);
+        failDownload=false;Attempt(worker);Check(printed==1 && status=="printed","pre-print download failure can recover through before-assembly orchestration");Dispose(worker);
+        Scenario();image=Png(gray:true);worker=NewWorker();Attempt(worker);
+        Check(printed==0 && releases==1,"invalid raster never enters printer queue");image=Png();Attempt(worker);
         Check(printed==1,"corrected private image can print after definite preparation failure");Dispose(worker);
-        Scenario();badHash=true;worker=NewWorker();Tick(worker);
+        Scenario();badHash=true;worker=NewWorker();Attempt(worker);
         Check(printed==0 && releases==1,"mismatched server image checksum is rejected before printing");Dispose(worker);
     }
     private static void LostClaim()
     {
-        Scenario();status="printing";var worker=NewWorker();Tick(worker);
+        Scenario();status="printing";var worker=NewWorker();Attempt(worker);
         Check(printed==0 && status=="uncertain" && claims==0,"server claim without local proof is reconciled, never replayed");Dispose(worker);
-        Scenario();failClaim=true;worker=NewWorker();Tick(worker);
-        Check(printed==0 && status=="printing","lost claim response never starts a speculative print");Tick(worker);
+        Scenario();failClaim=true;worker=NewWorker();Attempt(worker);
+        Check(printed==0 && status=="printing","lost claim response never starts a speculative print");Attempt(worker);
         Check(printed==0 && status=="uncertain" && claims==1,"claim timeout is reconciled without taking a second claim");Dispose(worker);
+    }
+    private static void FreshDispatchGuard()
+    {
+        Scenario();handoverAfterDownload=true;var worker=NewWorker();
+        Check(Attempt(worker)=="Pending" && printed==0 && releases==1 && !Ledger(worker).Contains(orderId),
+            "fresh post-download kitchen revalidation blocks photo dispatch after handover without leaving started evidence");Dispose(worker);
+        Scenario();frontOrderId=Guid.NewGuid();worker=NewWorker();
+        Check(Attempt(worker)=="Pending" && printed==0 && claims==0,"reserved route cannot be reused by a different linked Front order");Dispose(worker);
+        Scenario();billPresent=false;documentPresent=true;worker=NewWorker();
+        Check(Attempt(worker)=="Pending" && printed==0 && claims==0,"changed assembly queue cannot silently reuse another reserved route");Dispose(worker);
+        Scenario();LearnAssembly();worker=NewWorker();
+        Check(Attempt(worker)=="Pending" && printed==0 && claims==0,"already printed legacy assembly cannot authorize photo-first dispatch later");
+        Tick(worker);Check(printed==0 && claims==0,"reconciliation timer never adds a late photo to an assembly-first order");Dispose(worker);
+        Scenario();worker=NewWorker();Check(Attempt(worker)=="Printed","closed-order route cleanup fixture keeps confirmed photo proof");
+        Call(Routes,"ForgetCompletedOrder",null,BranchId.ToString(),TerminalId.ToString(),orderId,Guid.NewGuid());
+        Check(RouteBindings().Values.Cast<object>().Any(entry=>(string)entry.GetType().GetProperty("OrderId").GetValue(entry)==orderId),
+            "route retirement cannot cross a different linked Front order");
+        Call(Routes,"ForgetCompletedOrder",null,Guid.NewGuid().ToString(),TerminalId.ToString(),orderId,frontOrderId);
+        Check(RouteBindings().Values.Cast<object>().Any(entry=>(string)entry.GetType().GetProperty("OrderId").GetValue(entry)==orderId),
+            "route retirement cannot cross a different paired branch");
+        using(var lease=(IDisposable)Call(Routes,"TryReservePrint",null))
+        {
+            Call(Routes,"ForgetCompletedOrder",null,BranchId.ToString(),TerminalId.ToString(),orderId,frontOrderId);
+            Check(!RouteBindings().Values.Cast<object>().Any(entry=>(string)entry.GetType().GetProperty("OrderId").GetValue(entry)==orderId)
+                && Ledger(worker).Contains(orderId) && (bool)Routes.GetProperty("PrintBusy",Static).GetValue(null),
+                "confirmed closed-order cleanup retires only route while keeping photo evidence and shared flight lease");
+        }
+        Dispose(worker);
     }
     private static void Timeout()
     {
-        Scenario();printGate=new ManualResetEvent(false);var worker=NewWorker(1);Tick(worker);
+        Scenario();printGate=new ManualResetEvent(false);var worker=NewWorker(1);Attempt(worker);
         Check(printed==1 && status=="uncertain","bounded SDK wait records uncertain outcome");var calls=httpCalls;Tick(worker);
         Check(!(bool)Worker.GetProperty("CanAcceptJobs",Instance).GetValue(worker),"unfinished printer call prevents advertising new photo jobs");
         Check((string)Call(Worker,"ReadinessStatus",worker,services.Operations,null)=="print_in_progress","heartbeat diagnoses a pending physical printer call without advertising readiness");

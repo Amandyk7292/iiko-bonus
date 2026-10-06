@@ -84,6 +84,25 @@ namespace Resto.Front.Api.IikoBonusPlugin
             if(!PickupPhotoRoutes.TryOrderDevice(os,orderId,photoId,number,out var deviceId,out reason)) return false;
             return PrepareDevice(os,deviceId,out selected,out reason);
         }
+        internal static bool TryPrepareForOrder(IOperationService os,Resto.Front.Api.Data.Print.IPrinterQueueRef queue,
+            string orderId,Guid frontOrderId,string photoId,long number,out PickupPhotoPrinterSelection selected,out string reason)
+        {
+            selected=null;
+            if(PickupPhotoRoutes.TryOrderDevice(os,orderId,photoId,number,out var existing,out reason))
+                return PickupPhotoRoutes.ReserveOrder(os,queue,orderId,frontOrderId,photoId,number,existing,out reason)
+                    && PrepareDevice(os,existing,out selected,out reason);
+            if(!PickupPhotoRoutes.TryQueueDevice(os,queue,out var device,out reason)
+                || !PrepareDevice(os,device,out selected,out reason)) return false;
+            if(!PickupPhotoRoutes.ReserveOrder(os,queue,orderId,frontOrderId,photoId,number,device,out reason)) {selected=null;return false;}
+            return true;
+        }
+        internal static bool TrySelectForRecovery(IOperationService os,string orderId,Guid frontOrderId,string photoId,long number,
+            out PickupPhotoPrinterSelection selected,out string reason)
+        {
+            selected=null;
+            return PickupPhotoRoutes.TryRecoveryDevice(os,orderId,frontOrderId,photoId,number,out var device,out reason)
+                && PrepareDevice(os,device,out selected,out reason);
+        }
         internal static string StatusMessage(string status)
         {
             switch(status)
