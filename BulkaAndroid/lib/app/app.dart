@@ -5,9 +5,12 @@ bool shouldProbeStaffSession({
   required bool isWeb,
   required bool isAuthenticated,
   required Uri currentUri,
+  bool hasPreviousWebSession = false,
 }) =>
     !isWeb ||
     isAuthenticated ||
+    hasPreviousWebSession ||
+    currentUri.path == '/profile' ||
     currentUri.path.startsWith('/admin') ||
     isStaffDesktopUri(currentUri);
 
@@ -116,6 +119,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   final _api = BulkaApiClient(sessionRecoveryKey: SessionStore.recoveryKey);
   late final _staff = widget.staffSession ?? StaffAccountSession();
   late final Future<void> _staffReady;
+  Future<void>? _staffRestoreTask;
   int _cashierKitchenRequest = 0;
   bool _staffPortalOpen = false;
   String _lastStaffIdentity = '';
@@ -209,18 +213,31 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     );
   }
 
-  Future<void> _restoreStaffSessionIfRelevant() {
-    if (!shouldProbeStaffSession(
-      isWeb: kIsWeb,
-      isAuthenticated: _staff.isAuthenticated,
-      currentUri: currentClientUri(),
-    )) {
-      return Future<void>.value();
-    }
-    _restoringStaff = true;
-    return _staff.restore().whenComplete(() {
+  Future<void> _restoreStaffSessionIfRelevant() =>
+      _staffRestoreTask ??= _restoreRelevantStaffSession().whenComplete(
+        () => _staffRestoreTask = null,
+      );
+
+  Future<void> _restoreRelevantStaffSession() async {
+    // Read the non-secret hint before the route gate. A refreshed page has no
+    // in-memory identity even though the browser still holds its HttpOnly cookie.
+    if (kIsWeb && mounted) setState(() => _restoringStaff = true);
+    try {
+      final hasPreviousWebSession = await _staff.readPreviousWebSession();
+      if (!mounted ||
+          !shouldProbeStaffSession(
+            isWeb: kIsWeb,
+            isAuthenticated: _staff.isAuthenticated,
+            hasPreviousWebSession: hasPreviousWebSession,
+            currentUri: currentClientUri(),
+          )) {
+        return;
+      }
+      if (mounted) setState(() => _restoringStaff = true);
+      await _staff.restore();
+    } finally {
       if (mounted) setState(() => _restoringStaff = false);
-    });
+    }
   }
 
   @override
@@ -1809,6 +1826,17 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         onLogout: _logoutStaff,
         kitchenRequest: _cashierKitchenRequest,
         nativePushEnabled: widget.nativeCashierPushEnabled,
+      );
+    }
+    if (kIsWeb &&
+        !_staff.isAuthenticated &&
+        (_restoringStaff ||
+            (_staff.hasPreviousWebSession && _staff.error != null))) {
+      return StaffSessionRestorationScreen(
+        key: const ValueKey('app-stage-staff-restoration'),
+        loading: _restoringStaff,
+        error: _staff.error,
+        onRetry: _restoreStaffSessionIfRelevant,
       );
     }
     if (_staffDesktopMode) {

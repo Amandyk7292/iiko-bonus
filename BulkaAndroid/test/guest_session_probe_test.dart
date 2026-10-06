@@ -41,4 +41,36 @@ void main() {
       isTrue,
     );
   });
+
+  test(
+    'profile restores existing web cookies even before the hint existed',
+    () {
+      expect(
+        shouldProbeStaffSession(
+          isWeb: true,
+          isAuthenticated: false,
+          currentUri: Uri(path: '/profile'),
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'returning staff restores on every public route after a page reload',
+    () {
+      for (final path in ['/', '/catalog', '/cart', '/locations', '/profile']) {
+        expect(
+          shouldProbeStaffSession(
+            isWeb: true,
+            isAuthenticated: false,
+            hasPreviousWebSession: true,
+            currentUri: Uri(path: path),
+          ),
+          isTrue,
+          reason: path,
+        );
+      }
+    },
+  );
 }

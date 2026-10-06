@@ -26,6 +26,7 @@ class StaffApiClient {
   final Uri _base;
   final SessionStorageBackend _storage;
   final bool _browserTransport;
+  int _browserSessionEpoch = 0;
   String? _token;
   String branchId = '';
   List<String> branchIds = [];
@@ -36,14 +37,31 @@ class StaffApiClient {
   Future<Map<String, dynamic>?> restore() async {
     if (!_browserTransport) _token = await _storage.read(key: sessionKey);
     if (!_browserTransport && _token == null) return null;
+    // A new verification attempt supersedes older, possibly timed-out cookie
+    // requests. Their late responses must not revoke a subsequently restored login.
+    if (_browserTransport) ++_browserSessionEpoch;
+    final restoringEpoch = _browserSessionEpoch;
     try {
-      return Map<String, dynamic>.from(
+      final user = Map<String, dynamic>.from(
         (await request('/session'))['user'] as Map,
       );
+      if (_browserTransport && restoringEpoch != _browserSessionEpoch) {
+        throw const StaffApiException(
+          409,
+          'SESSION_CHANGED',
+          'Сессия изменилась. Повторите запрос.',
+        );
+      }
+      _markBrowserSessionVerified();
+      return user;
     } on StaffApiException catch (error) {
       if (error.status == 401) return null;
       rethrow;
     }
+  }
+
+  void _markBrowserSessionVerified() {
+    if (_browserTransport) ++_browserSessionEpoch;
   }
 
   /// Imports only a server-issued native session. Web keeps its HttpOnly cookie
@@ -134,6 +152,7 @@ class StaffApiClient {
       if (error.status != 401) rethrow;
     }
     _token = null;
+    if (_browserTransport) ++_browserSessionEpoch;
     branchId = '';
     branchIds = [];
     if (!_browserTransport) await _storage.delete(key: sessionKey);
@@ -165,6 +184,7 @@ class StaffApiClient {
             queryParameters: {...baseUri.queryParameters, ...query},
           );
     final sentToken = authenticated ? _token : null;
+    final sentBrowserEpoch = _browserSessionEpoch;
     final request = http.Request(method, uri)..followRedirects = false;
     request.headers.addAll({
       'Accept': 'application/json',
@@ -196,7 +216,9 @@ class StaffApiClient {
           .send(request)
           .then(http.Response.fromStream)
           .timeout(const Duration(seconds: 120));
-      if (response.statusCode == 401) _invalidate(sentToken);
+      if (response.statusCode == 401) {
+        _invalidate(sentToken, sentBrowserEpoch);
+      }
       return response;
     } on TimeoutException {
       throw const StaffApiException(
@@ -213,12 +235,14 @@ class StaffApiClient {
     }
   }
 
-  void _invalidate(String? sentToken) {
+  void _invalidate(String? sentToken, int sentBrowserEpoch) {
     // A response from a previous login must not sign out the new session.
+    if (_browserTransport && sentBrowserEpoch != _browserSessionEpoch) return;
     if (!_browserTransport && (sentToken == null || sentToken != _token)) {
       return;
     }
     _token = null;
+    if (_browserTransport) ++_browserSessionEpoch;
     branchId = '';
     branchIds = [];
     _sessionCleanup = _browserTransport
@@ -330,6 +354,7 @@ class StaffApiClient {
 
   Stream<Map<String, dynamic>> events({String? lastEventId}) async* {
     final sentToken = _token;
+    final sentBrowserEpoch = _browserSessionEpoch;
     final request = http.Request(
       'GET',
       _base
@@ -352,7 +377,9 @@ class StaffApiClient {
         .send(request)
         .timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) {
-      if (response.statusCode == 401) _invalidate(sentToken);
+      if (response.statusCode == 401) {
+        _invalidate(sentToken, sentBrowserEpoch);
+      }
       _decode(
         await http.Response.fromStream(
           response,
@@ -404,6 +431,7 @@ class StaffApiClient {
       );
     }
     final sentToken = _token;
+    final sentBrowserEpoch = _browserSessionEpoch;
     final request = http.MultipartRequest(
       'POST',
       _base.resolve('/admin/api$endpoint'),
@@ -435,7 +463,9 @@ class StaffApiClient {
         .send(request)
         .then(http.Response.fromStream)
         .timeout(const Duration(seconds: 120));
-    if (response.statusCode == 401) _invalidate(sentToken);
+    if (response.statusCode == 401) {
+      _invalidate(sentToken, sentBrowserEpoch);
+    }
     return _decode(response);
   }
 
@@ -455,6 +485,7 @@ class StaffApiClient {
       throw ArgumentError('Invalid voice message');
     }
     final sentToken = _token;
+    final sentBrowserEpoch = _browserSessionEpoch;
     final request = http.MultipartRequest(
       'POST',
       _base.resolve('/admin/api/whatsapp/conversations/$conversationId/voice'),
@@ -479,7 +510,9 @@ class StaffApiClient {
         .send(request)
         .then(http.Response.fromStream)
         .timeout(const Duration(seconds: 120));
-    if (response.statusCode == 401) _invalidate(sentToken);
+    if (response.statusCode == 401) {
+      _invalidate(sentToken, sentBrowserEpoch);
+    }
     return _decode(response);
   }
 }

@@ -214,4 +214,72 @@ void main() {
     expect(count, 1);
     api.close();
   });
+
+  test(
+    'browser verification rejects stale 401 but a current 401 revokes',
+    () async {
+      final oldResponse = Completer<http.Response>();
+      var unauthorized = 0;
+      var currentStatus = 200;
+      final api = StaffApiClient(
+        browserTransport: true,
+        client: MockClient((request) async {
+          if (request.url.path.endsWith('/old')) return oldResponse.future;
+          return http.Response(
+            '{"user":{"username":"cashier","role":"cashier"}}',
+            currentStatus,
+          );
+        }),
+      );
+      api.onUnauthorized = () => unauthorized++;
+      final pending = api.request('/old');
+      final failure = expectLater(pending, throwsA(isA<StaffApiException>()));
+      expect((await api.restore())?['role'], 'cashier');
+      oldResponse.complete(http.Response('{}', 401));
+      await failure;
+      expect(unauthorized, 0);
+      currentStatus = 401;
+      await expectLater(
+        api.request('/orders'),
+        throwsA(isA<StaffApiException>()),
+      );
+      expect(unauthorized, 1);
+      api.close();
+    },
+  );
+
+  test(
+    'a late successful browser verification does not supersede a newer probe',
+    () async {
+      final oldResponse = Completer<http.Response>();
+      final newResponse = Completer<http.Response>();
+      var calls = 0;
+      var unauthorized = 0;
+      final api = StaffApiClient(
+        browserTransport: true,
+        client: MockClient(
+          (_) => ++calls == 1 ? oldResponse.future : newResponse.future,
+        ),
+      );
+      api.onUnauthorized = () => unauthorized++;
+      final oldProbe = api.restore();
+      final stale = expectLater(
+        oldProbe,
+        throwsA(
+          isA<StaffApiException>().having(
+            (e) => e.code,
+            'code',
+            'SESSION_CHANGED',
+          ),
+        ),
+      );
+      final newProbe = api.restore();
+      oldResponse.complete(http.Response('{"user":{"role":"cashier"}}', 200));
+      await stale;
+      newResponse.complete(http.Response('{}', 401));
+      expect(await newProbe, isNull);
+      expect(unauthorized, 1);
+      api.close();
+    },
+  );
 }
