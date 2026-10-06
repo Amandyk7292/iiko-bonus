@@ -21,6 +21,21 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'Қайта түсіру',
     'en': 'Retake',
   },
+  'checkout_photo_mirror': {
+    'ru': 'Отразить',
+    'kk': 'Айнадай көрсету',
+    'en': 'Flip',
+  },
+  'checkout_photo_use': {
+    'ru': 'Использовать фото',
+    'kk': 'Фотосуретті пайдалану',
+    'en': 'Use photo',
+  },
+  'checkout_photo_prepare_error': {
+    'ru': 'Не удалось прочитать фото. Переснимите.',
+    'kk': 'Фото оқылмады. Қайта түсіріңіз.',
+    'en': 'Could not read the photo. Retake it.',
+  },
   'checkout_photo_remove': {
     'ru': 'Убрать фото',
     'kk': 'Фотосуретті жою',

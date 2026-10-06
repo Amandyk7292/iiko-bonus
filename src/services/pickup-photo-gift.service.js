@@ -138,6 +138,30 @@ async function reserveCheckoutPhoto(customerId, checkoutId, payload, checkout, d
   return id;
 }
 
+function liftPhotoGrey(pixels) {
+  const histogram = new Uint32Array(256);
+  for (const pixel of pixels) histogram[pixel]++;
+  const middle = Math.ceil(pixels.length / 2);
+  let count = 0,
+    median = 0;
+  for (; median < 255; median++) {
+    count += histogram[median];
+    if (count >= middle) break;
+  }
+  // Thermal dots spread on paper. Lift dark photos more, while keeping the
+  // curve bounded and monotonic instead of stretching their contrast.
+  const exponent = 0.52 + 0.18 * Math.min(1, median / 192);
+  const lookup = new Uint8Array(256);
+  for (let value = 0; value < 256; value++) {
+    lookup[value] = Math.round(48 + 207 * Math.pow(value / 255, exponent));
+  }
+  lookup[255] = 255;
+  // The photo's black floor limits solid ink; logo/text are composed later.
+  const output = Buffer.allocUnsafe(pixels.length);
+  for (let index = 0; index < pixels.length; index++) output[index] = lookup[pixels[index]];
+  return output;
+}
+
 function ditherGrey(pixels, width, height) {
   const current = new Float32Array(width + 2),
     next = new Float32Array(width + 2);
@@ -170,7 +194,10 @@ async function renderStrip(image, number, widthDots = 384) {
     .greyscale()
     .raw()
     .toBuffer({ resolveWithObject: true });
-  const mono = await sharp(ditherGrey(raw.data, raw.info.width, raw.info.height), {
+  if (raw.info.channels !== 1 || raw.data.length !== raw.info.width * raw.info.height) {
+    throw fail('PICKUP_PHOTO_PRINT_FORMAT', 'Не удалось подготовить фото для печати.', 409);
+  }
+  const mono = await sharp(ditherGrey(liftPhotoGrey(raw.data), raw.info.width, raw.info.height), {
     raw: { width: raw.info.width, height: raw.info.height, channels: 1 },
   })
     .png()
@@ -262,6 +289,7 @@ module.exports = {
   deleteCustomerPhoto,
   reserveCheckoutPhoto,
   assertExistingPhoto,
+  liftPhotoGrey,
   ditherGrey,
   renderStrip,
   listPrintJobs,

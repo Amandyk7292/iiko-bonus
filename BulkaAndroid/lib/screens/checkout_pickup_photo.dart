@@ -218,20 +218,27 @@ class _CheckoutPickupPhotoSectionState
       }
       final bytes = await file.readAsBytes();
       if (!mounted || revision != _revision || !_sameOwner) return;
+      await pickup_photo_orientation.loadLibrary();
+      final choices = await compute(
+        pickup_photo_orientation.preparePickupPhoto,
+        bytes,
+      );
+      if (!mounted || revision != _revision || !_sameOwner) return;
+      final selected = await _choosePhoto(choices);
+      if (selected == null ||
+          !mounted ||
+          revision != _revision ||
+          !_sameOwner ||
+          widget.locked) {
+        return;
+      }
       final previousId = _photoId ?? _restoringId;
       setState(() {
-        _bytes = bytes;
+        _bytes = selected;
         _photoId = null;
         _restoringId = null;
         _expired = false;
-        _mimeType =
-            file.mimeType == 'image/png' ||
-                file.name.toLowerCase().endsWith('.png')
-            ? 'image/png'
-            : file.mimeType == 'image/webp' ||
-                  file.name.toLowerCase().endsWith('.webp')
-            ? 'image/webp'
-            : 'image/jpeg';
+        _mimeType = 'image/jpeg';
       });
       _publish();
       await _uploadPhoto(revision, previousId: previousId);
@@ -240,6 +247,8 @@ class _CheckoutPickupPhotoSectionState
         setState(
           () => _error = error is ApiException
               ? localizeErrorMessage(error)
+              : error is FormatException
+              ? 'checkout_photo_prepare_error'.tr
               : 'checkout_photo_capture_error'.tr,
         );
       }
@@ -249,6 +258,99 @@ class _CheckoutPickupPhotoSectionState
         _publish();
       }
     }
+  }
+
+  Future<Uint8List?> _choosePhoto(Map<String, Uint8List> choices) {
+    var mirrored = false;
+    return showModalBottomSheet<Uint8List>(
+      context: context,
+      sheetAnimationStyle: BulkaMotion.sheetStyle(context),
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      constraints: const BoxConstraints(maxWidth: 560),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final selected = choices[mirrored ? 'mirrored' : 'original']!;
+          return SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              0,
+              20,
+              16 + MediaQuery.viewPaddingOf(context).bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'checkout_photo_title'.tr,
+                  style: const TextStyle(
+                    fontFamily: _headingFont,
+                    fontWeight: FontWeight.w700,
+                    fontSize: BulkaTypeScale.body,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(BulkaRadii.control),
+                  child: Image.memory(
+                    selected,
+                    key: const ValueKey(
+                      'checkout-pickup-photo-confirm-preview',
+                    ),
+                    height: min(
+                      360.0,
+                      MediaQuery.sizeOf(context).height * 0.45,
+                    ),
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.center,
+                  child: Semantics(
+                    toggled: mirrored,
+                    child: TextButton(
+                      key: const ValueKey('checkout-mirror-pickup-photo'),
+                      style: TextButton.styleFrom(
+                        backgroundColor: mirrored
+                            ? Theme.of(context).colorScheme.primaryContainer
+                            : null,
+                      ),
+                      onPressed: () =>
+                          setSheetState(() => mirrored = !mirrored),
+                      child: Text('checkout_photo_mirror'.tr),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        key: const ValueKey('checkout-cancel-pickup-photo'),
+                        onPressed: () => Navigator.pop(context),
+                        child: Text('cancel_btn'.tr),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: FilledButton(
+                        key: const ValueKey('checkout-use-pickup-photo'),
+                        onPressed: () => Navigator.pop(context, selected),
+                        child: Text('checkout_photo_use'.tr),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _uploadPhoto(int revision, {String? previousId}) async {
