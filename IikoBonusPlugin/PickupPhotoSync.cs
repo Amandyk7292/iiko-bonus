@@ -22,9 +22,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private const int RetainedAcknowledged=2048;
         private volatile int unconfirmedCount;
         internal string StatusText {get;private set;}="Фото в подарок: ожидание привязки кассы";
-        internal bool CanAcceptJobs => storageHealthy && !disposed
-            && unconfirmedCount<MaximumUnconfirmed
-            && (printerFlight==null || printerFlight.IsCompleted);
+        internal bool CanAcceptJobs
+        {
+            get
+            {
+                var flight=printerFlight;
+                return storageHealthy && !disposed && unconfirmedCount<MaximumUnconfirmed
+                    && (flight==null || flight.IsCompleted);
+            }
+        }
         internal PickupPhotoSync(bool startTimer=true,int timeoutSeconds=30)
         {
             printTimeout=TimeSpan.FromSeconds(Math.Max(1,Math.Min(60,timeoutSeconds)));
@@ -50,30 +56,23 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 return false;
             }
         }
-        internal static IPrinterQueueRef Printer(IOperationService os) => os.TryGetReceiptChequePrinter(true);
         internal static int PrintableWidth(IOperationService os)
         {
-            var printer=Printer(os);
-            if(printer==null) throw new InvalidOperationException("Кассовый принтер не настроен.");
-            var device=os.TryGetPrintingDeviceInfoById(printer.Id);
-            var parameters=device==null ? null : os.GetPrinterDriverParameters(device);
-            if(parameters?.CanPrintImage!=true) throw new InvalidOperationException("Принтер не поддерживает фотопечать.");
-            var width=PickupPhotoRaster.WidthDots;
-            if(parameters.PageWidth.HasValue)
-            {
-                var printable=(long)parameters.PageWidth.Value-Math.Max(0,parameters.MarginLeft)-Math.Max(0,parameters.MarginRight);
-                if(printable<384) throw new InvalidOperationException("Недостаточная ширина ленты для фотопечати.");
-                if(printable<width) width=384;
-            }
-            return width;
+            if(!PickupPhotoPrinter.TrySelect(os,out var selected,out var reason))
+                throw new InvalidOperationException(PickupPhotoPrinter.StatusMessage(reason));
+            return selected.WidthDots;
         }
-        internal static bool PrinterReady(IOperationService os)
+        internal static bool PrinterReady(IOperationService os) => PickupPhotoPrinter.TrySelect(os,out _,out _);
+        internal string ReadinessStatus(IOperationService os,out PickupPhotoPrinterSelection selected)
         {
-            try
-            {
-                return PrintableWidth(os)>0;
-            }
-            catch {return false;}
+            selected=null;
+            if(disposed) return "stopped";
+            if(!storageHealthy) return "journal_unhealthy";
+            if(unconfirmedCount>=MaximumUnconfirmed) return "queue_full";
+            var flight=printerFlight;
+            if(flight!=null && !flight.IsCompleted) return "print_in_progress";
+            PickupPhotoPrinter.TrySelect(os,out selected,out var status);
+            return status;
         }
         private void Tick(object state)
         {
@@ -146,9 +145,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
             {
                 StatusText="Фото в подарок: сверка незавершённых заданий; новая печать приостановлена";return;
             }
-            if(!PrinterReady(os)) {StatusText="Фото в подарок: настройте кассовый принтер с печатью изображений";return;}
-            var printer=Printer(os);
-            var widthDots=PrintableWidth(os);
+            if(!PickupPhotoPrinter.TrySelect(os,out var selected,out var printerStatus))
+                {StatusText=PickupPhotoPrinter.StatusMessage(printerStatus);return;}
+            // Keep the exact inspected printer and width through claim/download/print.
+            var printer=selected.Printer;
+            var widthDots=selected.WidthDots;
             var claim=Action(terminalId,job.OrderId,"claim");
             if(claim.Status!="print") return;
             var printStarted=false;

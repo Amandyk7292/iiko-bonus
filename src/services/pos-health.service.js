@@ -226,6 +226,9 @@ async function recordHeartbeat(branchId, payload, db = supabase) {
         queues: payload.queues,
         statuses: payload.statuses,
         photoPrinterReady: payload.photoPrinterReady === true,
+        photoPrinterStatus: payload.photoPrinterStatus || 'unknown',
+        photoPrinterKind: payload.photoPrinterKind || null,
+        photoPrinterWidthDots: payload.photoPrinterWidthDots || null,
       },
       last_error: payload.errors[0]?.message || null,
     })

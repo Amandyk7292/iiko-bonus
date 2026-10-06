@@ -61,13 +61,17 @@ internal static class Program
     private static readonly Assembly Plugin=typeof(LoyaltyFlow).Assembly;
     private static readonly Type Worker=Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.PickupPhotoSync",true);
     private static readonly Type Raster=Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.PickupPhotoRaster",true);
-    private static readonly Guid TerminalId=Guid.NewGuid(),BranchId=Guid.NewGuid(),PrinterId=Guid.NewGuid();
+    private static readonly Guid TerminalId=Guid.NewGuid(),BranchId=Guid.NewGuid(),PrinterId=Guid.NewGuid(),
+        BillPrinterId=Guid.NewGuid(),DocumentPrinterId=Guid.NewGuid();
     private static readonly Services services=new Services();
     private static readonly PrinterDriverParameters driver=new PrinterDriverParameters();
+    private static readonly PrinterDriverParameters billDriver=new PrinterDriverParameters(),documentDriver=new PrinterDriverParameters();
     private static string data,orderId,photoId,status;
     private static byte[] image;
-    private static int printed,completed,claims,releases,httpCalls,assertions;
+    private static int printed,completed,claims,releases,httpCalls,assertions,receiptQueries;
     private static bool failAck,failDownload,failPrinter,failClaim,badHash,printerPresent=true,printResult=true;
+    private static bool billPresent,documentPresent,receiptQueryFails;
+    private static Guid lastPrintedPrinter;
     private static ManualResetEvent printGate;
     private static void Check(bool value,string label){if(!value)throw new Exception(label);assertions++;Console.WriteLine("PASS: "+label);}
     private static object Call(Type type,string name,object target,params object[] args)=>type.GetMethod(name,target==null?Static:Instance).Invoke(target,args);
@@ -77,11 +81,13 @@ internal static class Program
     private static HttpResponseMessage Json(string body,HttpStatusCode code=HttpStatusCode.OK)=>new HttpResponseMessage(code){Content=new StringContent(body,Encoding.UTF8,"application/json")};
     private static string Success(string state)=>"{\"success\":true,\"status\":\""+state+"\",\"number\":1057,\"photoId\":\""+photoId+"\"}";
     private static void SetDriver(bool images=true,int? width=384)
+        => SetDriverParameters(driver,images,width);
+    private static void SetDriverParameters(PrinterDriverParameters target,bool images=true,int? width=384,int left=0,int right=0)
     {
-        driver.GetType().GetProperty("CanPrintImage").SetValue(driver,images);
-        driver.GetType().GetProperty("PageWidth").SetValue(driver,width);
-        driver.GetType().GetProperty("MarginLeft").SetValue(driver,0);
-        driver.GetType().GetProperty("MarginRight").SetValue(driver,0);
+        target.GetType().GetProperty("CanPrintImage").SetValue(target,images);
+        target.GetType().GetProperty("PageWidth").SetValue(target,width);
+        target.GetType().GetProperty("MarginLeft").SetValue(target,left);
+        target.GetType().GetProperty("MarginRight").SetValue(target,right);
     }
     private static byte[] Png(int width=384,int height=32,bool gray=false)
     {
@@ -95,7 +101,8 @@ internal static class Program
     {
         orderId=Guid.NewGuid().ToString();photoId=Guid.NewGuid().ToString();status="pending";
         printed=completed=claims=releases=httpCalls=0;failAck=failDownload=failPrinter=failClaim=badHash=false;printResult=true;
-        printerPresent=true;printGate=null;image=Png();SetDriver();
+        printerPresent=true;billPresent=documentPresent=receiptQueryFails=false;receiptQueries=0;lastPrintedPrinter=Guid.Empty;
+        printGate=null;image=Png();SetDriver();SetDriverParameters(billDriver);SetDriverParameters(documentDriver);
         Environment.SetEnvironmentVariable("IIKO_PICKUP_PHOTO_WIDTH_DOTS",null);
     }
     private static HttpResponseMessage Reply(HttpRequestMessage request)
@@ -152,16 +159,23 @@ internal static class Program
         Environment.SetEnvironmentVariable("IIKO_LOYALTY_API_BASE_URL","https://audit.invalid/api/loyalty");
         var terminal=Proxy.Make<ITerminal>(call=>call.MethodName=="get_Id"?(object)TerminalId:null);
         var printer=Proxy.Make<IPrinterQueueRef>(call=>call.MethodName=="get_Id"?(object)PrinterId:true);
+        var bill=Proxy.Make<IPrinterQueueRef>(call=>call.MethodName=="get_Id"?(object)BillPrinterId:true);
+        var documentPrinter=Proxy.Make<IPrinterQueueRef>(call=>call.MethodName=="get_Id"?(object)DocumentPrinterId:true);
         var device=Proxy.Make<IPrintingDeviceInfo>(call=>call.MethodName=="get_Id"?(object)PrinterId:null);
+        var billDevice=Proxy.Make<IPrintingDeviceInfo>(call=>call.MethodName=="get_Id"?(object)BillPrinterId:null);
+        var documentDevice=Proxy.Make<IPrintingDeviceInfo>(call=>call.MethodName=="get_Id"?(object)DocumentPrinterId:null);
         services.Operations=Proxy.Make<IOperationService>(call=>{
             switch(call.MethodName)
             {
                 case "GetHostTerminal":return terminal;
-                case "TryGetReceiptChequePrinter":return printerPresent?printer:null;
-                case "TryGetPrintingDeviceInfoById":return device;
-                case "GetPrinterDriverParameters":return driver;
+                case "TryGetReceiptChequePrinter":receiptQueries++;if(receiptQueryFails)throw new IOException("Receipt query failed");return printerPresent?printer:null;
+                case "TryGetBillPrinter":return billPresent?bill:null;
+                case "TryGetDocumentPrinter":return documentPresent?documentPrinter:null;
+                case "TryGetPrintingDeviceInfoById":return (Guid)call.Args[0]==BillPrinterId?billDevice:(Guid)call.Args[0]==DocumentPrinterId?documentDevice:device;
+                case "GetPrinterDriverParameters":return ((IPrintingDeviceInfo)call.Args[0]).Id==BillPrinterId?billDriver:((IPrintingDeviceInfo)call.Args[0]).Id==DocumentPrinterId?documentDriver:driver;
                 case "Print":
                     Interlocked.Increment(ref printed);
+                    lastPrintedPrinter=((IPrinterQueueRef)call.Args[0]).Id;
                     if((bool)call.Args[2]!=true)throw new Exception("Must wait for printer completion");
                     var markup=((Document)call.Args[1]).Markup;
                     var photo=markup.Element("image");
@@ -186,7 +200,7 @@ internal static class Program
         Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.PickupPhotoTransport",true).GetField("client",Static)
             .SetValue(null,new HttpClient(new FakeHttp{Reply=Reply}));
         RasterBounds();PrinterCapability();PrintAndAck();PrintFailures();PreparationRecovery();LostClaim();Timeout();LedgerRetention();CorruptJournal();
-        Check(Plugin.GetName().Version.ToString(3)=="1.14.0","new plugin feature version is 1.14.0");
+        Check(Plugin.GetName().Version.ToString(3)=="1.14.1","printer selection fix has version 1.14.1");
         Console.WriteLine("PASS: "+assertions+" photo-print assertions; intercepted HTTP and SDK only, no physical printer.");
         PluginContext.Uninitialize();
     }
@@ -216,10 +230,35 @@ internal static class Program
         printerPresent=true;Environment.SetEnvironmentVariable("IIKO_PICKUP_PHOTO_WIDTH_DOTS","576");
         Check((int)Call(Worker,"PrintableWidth",null,services.Operations)==384,"58mm printer safely caps configured 576-dot image");
         SetDriver(true,576);Check((int)Call(Worker,"PrintableWidth",null,services.Operations)==576,"80mm printer can use configured 576-dot image");
+        SetDriver(true,null);Check((int)Call(Worker,"PrintableWidth",null,services.Operations)==384,"unknown page width never authorizes a 576-dot image");
         Environment.SetEnvironmentVariable("IIKO_PICKUP_PHOTO_WIDTH_DOTS","999");Check(!(bool)Call(Worker,"PrinterReady",null,services.Operations),"invalid local paper width fails closed");
+        Scenario();printerPresent=false;billPresent=true;
+        Check((bool)Call(Worker,"PrinterReady",null,services.Operations),"configured image-capable bill printer enables photo when receipt printer is absent");
+        printerPresent=true;SetDriver(false);
+        Check((bool)Call(Worker,"PrinterReady",null,services.Operations),"text-only receipt printer falls back to compatible bill printer");
+        SetDriverParameters(billDriver,true,400,10,10);
+        Check(!(bool)Call(Worker,"PrinterReady",null,services.Operations),"printable width subtracts both margins before selection");
+        documentPresent=true;
+        Check((bool)Call(Worker,"PrinterReady",null,services.Operations),"too-narrow bill printer falls back to compatible document printer");
+        receiptQueryFails=true;billPresent=false;
+        Check((bool)Call(Worker,"PrinterReady",null,services.Operations),"failed receipt lookup does not block compatible document printer");
+        Scenario();var worker=NewWorker();SetDriver(false);
+        var readiness=new object[]{services.Operations,null};
+        Check((string)Worker.GetMethod("ReadinessStatus",Instance).Invoke(worker,readiness)=="image_unsupported" && readiness[1]==null,
+            "unsupported image driver is diagnosed without falsely advertising readiness");
+        billPresent=true;readiness=new object[]{services.Operations,null};
+        Check((string)Worker.GetMethod("ReadinessStatus",Instance).Invoke(worker,readiness)=="ready" &&
+            (string)readiness[1].GetType().GetProperty("Kind",Instance).GetValue(readiness[1])=="bill",
+            "readiness diagnostics identify selected compatible bill printer");Dispose(worker);
     }
     private static void PrintAndAck()
     {
+        Scenario();printerPresent=false;billPresent=true;var fallbackWorker=NewWorker();Tick(fallbackWorker);
+        Check(printed==1 && status=="printed" && lastPrintedPrinter==BillPrinterId && receiptQueries==1,
+            "photo strip prints once on the exact inspected bill printer with one selection");Dispose(fallbackWorker);
+        Scenario();SetDriver(false);documentPresent=true;fallbackWorker=NewWorker();Tick(fallbackWorker);
+        Check(printed==1 && status=="printed" && lastPrintedPrinter==DocumentPrinterId,
+            "image-capable document printer prints the separate strip when receipt driver is text-only");Dispose(fallbackWorker);
         Scenario();var worker=NewWorker();Tick(worker);
         Check(printed==1 && status=="printed","paid accepted photo job prints and acknowledges once");
         Tick(worker);Check(printed==1,"repeated polling never prints a completed strip twice");Dispose(worker);
@@ -260,6 +299,7 @@ internal static class Program
         Scenario();printGate=new ManualResetEvent(false);var worker=NewWorker(1);Tick(worker);
         Check(printed==1 && status=="uncertain","bounded SDK wait records uncertain outcome");var calls=httpCalls;Tick(worker);
         Check(!(bool)Worker.GetProperty("CanAcceptJobs",Instance).GetValue(worker),"unfinished printer call prevents advertising new photo jobs");
+        Check((string)Call(Worker,"ReadinessStatus",worker,services.Operations,null)=="print_in_progress","heartbeat diagnoses a pending physical printer call without advertising readiness");
         Check(httpCalls==calls && printed==1,"an unfinished SDK call blocks any further printer submission");
         printGate.Set();var flight=(Task<bool>)Worker.GetField("printerFlight",Instance).GetValue(worker);flight.Wait();
         Tick(worker);Check(printed==1 && status=="uncertain","late physical completion cannot authorize automatic reprint");Dispose(worker);printGate.Dispose();printGate=null;
@@ -302,6 +342,7 @@ internal static class Program
         for(var i=0;i<256;i++) AddLedger(ledger,Guid.NewGuid().ToString(),"uncertain");
         SaveLedger(ledger);Dispose(worker);worker=NewWorker();Tick(worker);
         Check(!(bool)Worker.GetProperty("CanAcceptJobs",Instance).GetValue(worker),"256 unconfirmed strips disable the photo offer after restart");
+        Check((string)Call(Worker,"ReadinessStatus",worker,services.Operations,null)=="queue_full","heartbeat diagnoses a full reconciliation journal");
         Check(printed==0 && claims==0 && Ledger(worker).Count==256,"a full reconciliation journal pauses new claims without discarding evidence");
         Dispose(worker);
 
@@ -316,7 +357,8 @@ internal static class Program
     private static void CorruptJournal()
     {
         Scenario();File.WriteAllText(Path.Combine(data,"BulkaPickupPhotos.json"),"broken journal");var worker=NewWorker();Tick(worker);
-        Check(httpCalls==0 && printed==0,"corrupt journal stops photo printing without falling back to stale backup");Dispose(worker);
+        Check(httpCalls==0 && printed==0,"corrupt journal stops photo printing without falling back to stale backup");
+        Check((string)Call(Worker,"ReadinessStatus",worker,services.Operations,null)=="journal_unhealthy","heartbeat diagnoses corrupted print evidence without enabling a second strip");Dispose(worker);
         Check(!(bool)Worker.GetProperty("CanAcceptJobs",Instance).GetValue(worker),"corrupt journal prevents advertising new photo jobs");
         Check(Directory.GetFiles(data,"BulkaPickupPhotos.json.corrupt-*").Length==1,"damaged original journal retained for reconciliation");
     }

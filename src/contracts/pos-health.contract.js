@@ -25,6 +25,25 @@ const posHealthHeartbeatSchema = z
     connectedToMain: z.boolean(),
     printerStatus: z.enum(['unknown', 'ready', 'missing', 'error']),
     photoPrinterReady: z.boolean().optional().default(false),
+    photoPrinterStatus: z
+      .enum([
+        'unknown',
+        'ready',
+        'not_configured',
+        'image_unsupported',
+        'paper_too_narrow',
+        'driver_unavailable',
+        'invalid_width',
+        'journal_unhealthy',
+        'queue_full',
+        'print_in_progress',
+        'worker_unavailable',
+        'stopped',
+      ])
+      .optional()
+      .default('unknown'),
+    photoPrinterKind: z.enum(['receipt', 'bill', 'document']).optional(),
+    photoPrinterWidthDots: z.union([z.literal(384), z.literal(576)]).optional(),
     queues: queueSchema,
     statuses: z
       .object({

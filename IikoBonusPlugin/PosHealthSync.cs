@@ -43,6 +43,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember(Name="connectedToMain")] public bool ConnectedToMain {get;set;}
         [DataMember(Name="printerStatus")] public string PrinterStatus {get;set;}
         [DataMember(Name="photoPrinterReady")] public bool PhotoPrinterReady {get;set;}
+        [DataMember(Name="photoPrinterStatus")] public string PhotoPrinterStatus {get;set;}
+        [DataMember(Name="photoPrinterKind",EmitDefaultValue=false)] public string PhotoPrinterKind {get;set;}
+        [DataMember(Name="photoPrinterWidthDots",EmitDefaultValue=false)] public int PhotoPrinterWidthDots {get;set;}
         [DataMember(Name="queues")] public PosHealthQueues Queues {get;set;}
         [DataMember(Name="statuses")] public PosHealthStatuses Statuses {get;set;}
         [DataMember(Name="errors")] public List<PosHealthError> Errors {get;set;}
@@ -132,11 +135,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 errors.Add(new PosHealthError {Kind="personal_account",SourceId=item.PaymentId,
                     Message=Safe((item.LastError ?? item.Status)+" · чек "+item.OrderId)});
             var os=PluginContext.Operations;
+            PickupPhotoPrinterSelection photoPrinter=null;
+            var photoStatus=pickupPhotos?.ReadinessStatus(os,out photoPrinter) ?? "worker_unavailable";
             return new PosHealthRequest {
                 TerminalId=os.GetHostTerminal().Id.ToString(),PluginVersion=Version,
                 ApiVersion="V9Preview7",StartedAt=startedAt,ConnectedToMain=ConnectedToMain(),
                 PrinterStatus=PrinterStatus(),
-                PhotoPrinterReady=pickupPhotos?.CanAcceptJobs==true && PickupPhotoSync.PrinterReady(os),
+                PhotoPrinterReady=photoStatus=="ready",PhotoPrinterStatus=photoStatus,
+                PhotoPrinterKind=photoPrinter?.Kind,PhotoPrinterWidthDots=photoPrinter?.WidthDots ?? 0,
                 Queues=new PosHealthQueues {
                     LoyaltyPending=LoyaltyFlow.PendingQueueCount,LoyaltyFailed=LoyaltyFlow.FailedQueueCount,
                     GiftPending=GiftCertificateFlow.PendingQueueCount,GiftFailed=GiftCertificateFlow.FailedQueueCount,
