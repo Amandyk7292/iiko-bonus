@@ -432,6 +432,7 @@ class ForteWidgetService {
     this.forecastEta = forecastEta;
     this.recordEvent = recordEvent;
     this.env = env;
+    this.closedSetupReconcileOffset = 0;
   }
 
   config() {
@@ -1269,7 +1270,30 @@ class ForteWidgetService {
     return this.paymentResponse(savedOrder, providerCheckout.language);
   }
 
+  cardSetupStatusResponse(setup, { canResume = false } = {}) {
+    const locallyResumable =
+      setup.status === 'pending' &&
+      !setup.cancel_requested_at &&
+      Boolean(setup.checkout_token_ciphertext) &&
+      Date.parse(setup.expires_at) > Date.now() &&
+      !String(setup.provider_status || '').startsWith('successful');
+    return {
+      success: true,
+      purpose: 'card-setup',
+      operationId: String(setup.id),
+      status: setup.status || 'pending',
+      paymentStatus: setup.status || 'pending',
+      cardSaved:
+        setup.status === 'paid' || String(setup.provider_status || '').includes('card_saved'),
+      refundStatus: setup.refund_status || null,
+      cancelled: Boolean(setup.cancel_requested_at),
+      canResume: canResume === true && locallyResumable,
+    };
+  }
+
   async cardSetupResponse(setup, language = 'ru') {
+    const state = this.cardSetupStatusResponse(setup, { canResume: true });
+    if (!state.canResume) return state;
     const token = decryptProviderToken(
       setup.checkout_token_ciphertext,
       'card-setup',
@@ -1278,7 +1302,7 @@ class ForteWidgetService {
     );
     const config = this.assertConfigured();
     return {
-      success: true,
+      ...state,
       method: FORTE_PAYMENT_METHOD,
       integration: FORTE_WIDGET_INTEGRATION,
       purpose: 'card-setup',
@@ -1370,6 +1394,32 @@ class ForteWidgetService {
       );
     }
     return data;
+  }
+
+  async cancelCardSetup(operationId, customerId) {
+    const setup = await this.findCardSetup(operationId, customerId);
+    if (setup.cancel_requested_at || setup.status === 'paid') return setup;
+    // Closing the form revokes resumption, not an unconfirmed bank transaction.
+    // Keep its encrypted token so webhooks and reconciliation can finish safely.
+    const { data, error } = await this.db
+      .from('customer_payment_method_setups')
+      .update({ cancel_requested_at: new Date().toISOString() })
+      .eq('id', setup.id)
+      .eq('customer_id', customerId)
+      .eq('provider', FORTE_WIDGET_INTEGRATION)
+      .is('cancel_requested_at', null)
+      .neq('status', 'paid')
+      .select('*')
+      .maybeSingle();
+    if (error) {
+      throw widgetError(
+        'Не удалось подтвердить закрытие привязки карты. Повторите попытку.',
+        503,
+        'FORTE_WIDGET_CARD_SETUP_CANCEL_UNKNOWN',
+        { retryable: true },
+      );
+    }
+    return data || this.findCardSetup(operationId, customerId);
   }
 
   validateCardSetup(setup, normalized, expectedToken, options) {
@@ -1486,6 +1536,9 @@ class ForteWidgetService {
     });
     const providerStatus = mapWidgetStatus(normalized);
     if (setup.status === 'paid') return { setup, status: 'paid' };
+    if (['failed', 'expired'].includes(setup.status) && providerStatus === 'pending') {
+      return { setup, status: setup.status };
+    }
     const requiresRefund = providerStatus === 'paid' && Number(setup.amount) > 0;
     const hasReusableToken =
       providerStatus === 'paid' &&
@@ -1496,7 +1549,7 @@ class ForteWidgetService {
     let cardSaved = false;
 
     if (requiresRefund && setup.refund_status !== 'succeeded') {
-      const { data: processingSetup, error: processingError } = await this.db
+      let processingQuery = this.db
         .from('customer_payment_method_setups')
         .update({
           refund_status: 'processing',
@@ -1506,15 +1559,20 @@ class ForteWidgetService {
         .eq('id', setup.id)
         .eq('customer_id', setup.customer_id)
         .eq('provider', FORTE_WIDGET_INTEGRATION)
+        .eq('status', setup.status);
+      processingQuery =
+        setup.refund_status == null
+          ? processingQuery.is('refund_status', null)
+          : processingQuery.eq('refund_status', setup.refund_status);
+      const { data: processingSetup, error: processingError } = await processingQuery
         .select('*')
         .maybeSingle();
       if (processingError) throw processingError;
-      currentSetup = processingSetup || {
-        ...setup,
-        refund_status: 'processing',
-        refund_error: null,
-        provider_transaction_id: normalized.providerTransactionId || null,
-      };
+      if (!processingSetup) {
+        const current = await this.findCardSetup(setup.id, setup.customer_id);
+        return { setup: current, status: current.status };
+      }
+      currentSetup = processingSetup;
       try {
         refundResult = await this.refundCardSetupPayment(
           currentSetup,
@@ -1532,7 +1590,7 @@ class ForteWidgetService {
           }
         }
         const refundStatus = refundError.refundUncertain ? 'unknown' : 'failed';
-        const { error: refundSaveError } = await this.db
+        const { data: refundSetup, error: refundSaveError } = await this.db
           .from('customer_payment_method_setups')
           .update({
             status: 'pending',
@@ -1546,12 +1604,19 @@ class ForteWidgetService {
           })
           .eq('id', setup.id)
           .eq('customer_id', setup.customer_id)
-          .eq('provider', FORTE_WIDGET_INTEGRATION);
+          .eq('provider', FORTE_WIDGET_INTEGRATION)
+          .eq('status', setup.status)
+          .eq('refund_status', 'processing')
+          .select('*')
+          .maybeSingle();
         if (refundSaveError) {
           console.error(
             `Не удалось сохранить состояние возврата привязки ${setup.id}:`,
             refundSaveError.message,
           );
+        } else if (!refundSetup) {
+          const current = await this.findCardSetup(setup.id, setup.customer_id);
+          return { setup: current, status: current.status };
         }
         throw refundError;
       }
@@ -1565,13 +1630,10 @@ class ForteWidgetService {
       });
       cardSaved = Boolean(method);
     }
-    const canRetry = providerStatus === 'failed' && Date.parse(setup.expires_at) > Date.now();
     const nextStatus =
-      hasReusableToken && !cardSaved
-        ? 'failed'
-        : resolveCardSetupStatus(canRetry ? 'pending' : providerStatus, cardSaved);
+      hasReusableToken && !cardSaved ? 'failed' : resolveCardSetupStatus(providerStatus, cardSaved);
 
-    const { data, error } = await this.db
+    let updateQuery = this.db
       .from('customer_payment_method_setups')
       .update({
         status: nextStatus,
@@ -1596,9 +1658,14 @@ class ForteWidgetService {
       .eq('id', setup.id)
       .eq('customer_id', setup.customer_id)
       .eq('provider', FORTE_WIDGET_INTEGRATION)
-      .eq('status', setup.status)
-      .select('*')
-      .maybeSingle();
+      .eq('status', setup.status);
+    for (const column of ['refund_status', 'provider_status']) {
+      updateQuery =
+        currentSetup[column] == null
+          ? updateQuery.is(column, null)
+          : updateQuery.eq(column, currentSetup[column]);
+    }
+    const { data, error } = await updateQuery.select('*').maybeSingle();
     if (error) throw error;
     if (!data) {
       const current = await this.findCardSetup(setup.id, setup.customer_id);
@@ -1632,12 +1699,30 @@ class ForteWidgetService {
     let normalized = normalizeWidgetCheckout(body);
     this.validateCardSetup(setup, normalized, token);
     normalized = await this.hydrateProviderCard(normalized);
-    return { setup, normalized, token };
+    const checkout = body?.checkout || body || {};
+    return {
+      setup,
+      normalized,
+      token,
+      providerCanResume: checkout.finished === false && checkout.expired === false,
+    };
   }
 
   async syncCardSetup(setupOrOperationId, customerId) {
-    const { setup, normalized, token } = await this.queryCardSetup(setupOrOperationId, customerId);
-    return this.applyProviderCardSetup(setup, normalized, token);
+    const { setup, normalized, token, providerCanResume } = await this.queryCardSetup(
+      setupOrOperationId,
+      customerId,
+    );
+    const result = await this.applyProviderCardSetup(setup, normalized, token);
+    return {
+      ...result,
+      canResume:
+        providerCanResume === true &&
+        !normalized.finished &&
+        !normalized.expired &&
+        mapWidgetStatus(normalized) === 'pending' &&
+        this.cardSetupStatusResponse(result.setup, { canResume: true }).canResume,
+    };
   }
 
   async getCardSetupStatus(operationId, customerId) {
@@ -2025,6 +2110,36 @@ class ForteWidgetService {
     };
   }
 
+  async reconcileClosedCardSetups(cutoff) {
+    const pageSize = 25;
+    const { data, error } = await this.db
+      .from('customer_payment_method_setups')
+      .select('*')
+      .eq('provider', FORTE_WIDGET_INTEGRATION)
+      .eq('status', 'pending')
+      .not('cancel_requested_at', 'is', null)
+      .lt('created_at', cutoff)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(this.closedSetupReconcileOffset, this.closedSetupReconcileOffset + pageSize - 1);
+    if (error) throw error;
+    // Rotate through old unresolved closures without allowing them to starve
+    // current bindings. Restarting the worker safely starts another pass.
+    this.closedSetupReconcileOffset =
+      (data || []).length === pageSize ? this.closedSetupReconcileOffset + pageSize : 0;
+    for (const setup of data || []) {
+      try {
+        await this.syncCardSetup(setup);
+      } catch (syncError) {
+        console.error(
+          `Не удалось сверить закрытую привязку ForteBank ${setup.id}:`,
+          syncError.message,
+        );
+      }
+    }
+    return (data || []).length;
+  }
+
   async reconcileOrders() {
     if (!this.availability()) return 0;
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -2064,7 +2179,8 @@ class ForteWidgetService {
         );
       }
     }
-    return (data || []).length + (setups || []).length;
+    const closedSetupCount = await this.reconcileClosedCardSetups(cutoff);
+    return (data || []).length + (setups || []).length + closedSetupCount;
   }
 }
 

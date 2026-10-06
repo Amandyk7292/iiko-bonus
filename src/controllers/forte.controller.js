@@ -509,35 +509,47 @@ const checkCardSetupStatus = async (req, res) => {
       return res.status(400).json({ error: 'Некорректный идентификатор привязки карты' });
     }
     let setup = await forteWidgetService.getCardSetupStatus(operationId, req.customerAuth.id);
+    let canResume = false;
     if (
       forteWidgetService.availability() &&
       setup.status !== 'paid' &&
       setup.checkout_token_ciphertext
     ) {
       try {
-        await forteWidgetService.syncCardSetup(setup, req.customerAuth.id);
+        const synced = await forteWidgetService.syncCardSetup(setup, req.customerAuth.id);
         setup = await forteWidgetService.getCardSetupStatus(operationId, req.customerAuth.id);
+        canResume = synced.canResume === true;
       } catch (error) {
         console.error('Ошибка прямой сверки привязки карты ForteBank:', error.message);
       }
     }
+    const state = forteWidgetService.cardSetupStatusResponse(setup, { canResume });
     return res.json({
-      ...(req.query?.resume === '1' && setup.status === 'pending'
+      ...(req.query?.resume === '1' && state.canResume
         ? await forteWidgetService.cardSetupResponse(setup, req.query.language || 'ru')
         : {}),
-      success: true,
-      operationId: String(setup.id),
-      status: setup.status || 'pending',
-      paymentStatus: setup.status || 'pending',
-      purpose: 'card-setup',
-      cardSaved:
-        setup.status === 'paid' || String(setup.provider_status || '').includes('card_saved'),
-      refundStatus: setup.refund_status || null,
+      ...state,
     });
   } catch (error) {
     return res
       .status(error.statusCode || 500)
       .json({ error: publicError(error, 'Не удалось проверить привязку карты'), code: error.code });
+  }
+};
+
+const cancelCardSetup = async (req, res) => {
+  try {
+    const setup = await forteWidgetService.cancelCardSetup(
+      req.params.operationId,
+      req.customerAuth.id,
+    );
+    return res.json(forteWidgetService.cardSetupStatusResponse(setup));
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      error: publicError(error, 'Не удалось закрыть привязку карты'),
+      ...(error.code && { code: error.code }),
+      ...(typeof error.retryable === 'boolean' && { retryable: error.retryable }),
+    });
   }
 };
 
@@ -589,6 +601,7 @@ const handleWidgetWebhook = async (req, res) => {
 
 module.exports = {
   availability,
+  cancelCardSetup,
   checkCardSetupStatus,
   checkCheckoutStatus,
   checkStatus,

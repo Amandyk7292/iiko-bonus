@@ -3,6 +3,9 @@ part of '../main.dart';
 const int _maximumSavedPaymentMethods = 3;
 
 String _paymentMethodAddErrorMessage(Object error) {
+  if (error is ApiException && error.code == 'CARD_SETUP_CANCEL_UNAVAILABLE') {
+    return 'card_setup_cancel_error'.tr;
+  }
   if (error is ApiException &&
       error.code == 'FORTE_WIDGET_PAYMENT_METHOD_LIMIT') {
     return 'payment_methods_limit_reached'.tr;
@@ -329,6 +332,14 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
       }
       final operationId = (result['operationId'] ?? '').toString();
       final redirectUrl = (result['redirectUrl'] ?? '').toString();
+      if (operationId.isNotEmpty &&
+          (result['canResume'] == false || result['cancelled'] == true)) {
+        await PendingCardSetupStore.cancel(widget.api, operationId);
+        throw ApiException(
+          'card_setup_failed_hint'.tr,
+          code: 'CARD_SETUP_CLOSED',
+        );
+      }
       if (operationId.isEmpty || redirectUrl.isEmpty) {
         throw ApiException('payment_methods_add_error'.tr);
       }
@@ -343,11 +354,24 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
           ),
         ),
       );
-      if (setupResult != null &&
-          setupResult.outcome != FortePaymentOutcome.pending) {
+      if (!mounted || session != widget.api.sessionCacheScope) return;
+      if (setupResult == null || setupResult.cancelCardSetup) {
+        final cancelled = await PendingCardSetupStore.cancel(
+          widget.api,
+          operationId,
+        );
+        if (!mounted || session != widget.api.sessionCacheScope) return;
+        if (cancelled['cardSaved'] == true ||
+            cancelled['paymentStatus'] == 'paid') {
+          await _load();
+          _selectAddedCard(previousIds);
+        }
+        return;
+      }
+      if (setupResult.outcome != FortePaymentOutcome.pending) {
         await PendingCardSetupStore.clear(widget.api, operationId);
       }
-      if (setupResult?.paid != true || !mounted) return;
+      if (!setupResult.paid || !mounted) return;
       await _load();
       if (!mounted) return;
       _selectAddedCard(previousIds);

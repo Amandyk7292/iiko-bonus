@@ -938,6 +938,13 @@ class BulkaApiClient {
     '?resume=1&language=${Uri.encodeComponent(AppLang.current)}',
   );
 
+  Future<Map<String, dynamic>> cancelForteCardSetup(
+    String operationId,
+  ) => _post(
+    '/api/customer/forte-pay/card-setup/${Uri.encodeComponent(operationId)}/cancel',
+    const {},
+  );
+
   Future<void> removeFortePaymentMethod(String methodId) async {
     final json = await _delete(
       '/api/customer/forte-pay/methods/${Uri.encodeComponent(methodId)}',

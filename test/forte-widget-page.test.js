@@ -18,6 +18,7 @@ async function page(
 ) {
   const elements = new Map();
   let widgetToken;
+  let widgetOptions;
   let navigated;
   let address = new URL(url);
   const element = (name) => {
@@ -71,6 +72,7 @@ async function page(
       clearTimeout() {},
       BeGateway: function (options) {
         widgetToken = options.token;
+        widgetOptions = options;
         this.createWidget = () => {};
       },
     },
@@ -82,6 +84,13 @@ async function page(
     storage,
     token: widgetToken,
     url: address.href,
+    finish: (status) => {
+      widgetOptions.closeWidget(status);
+      return navigated;
+    },
+    get navigated() {
+      return navigated;
+    },
     click: (name) => {
       element(name).listeners.click();
       return navigated;
@@ -89,14 +98,14 @@ async function page(
   };
 }
 
-test('reload preserves the same checkout without exposing its token in the address', async () => {
-  const first = await page(launch);
+test('order reload preserves checkout without exposing its token in the address', async () => {
+  const first = await page(launch.replace('purpose=card-setup', 'purpose=order'));
   assert.equal(first.token, token);
   assert(!first.url.includes(token));
   const second = await page(first.url, first.storage);
   assert.equal(second.token, token);
-  assert.equal(second.elements.get('page-title').textContent, 'Карта қосу');
-  assert(second.click('close-payment').startsWith(`/profile?payment=forte&setup=${id}`));
+  assert.equal(second.elements.get('page-title').textContent, 'Картамен төлеу');
+  assert(second.click('close-payment').startsWith(`/orders?payment=forte&order=${id}`));
   assert.equal(first.storage.size, 0);
 });
 
@@ -129,7 +138,7 @@ test('a recovery error returns to the same card operation for verification', asy
   assert.equal(result.elements.get('back-to-orders').textContent, 'Вернуться к картам');
   assert.equal(
     result.click('back-to-orders'),
-    `/profile?payment=forte&setup=${id}&status=returned`,
+    `/profile?payment=forte&setup=${id}&status=cancelled`,
   );
 });
 
@@ -144,3 +153,49 @@ test('recovery never opens a checkout belonging to a different operation', async
   assert.equal(result.token, undefined);
   assert.equal(result.elements.get('back-to-orders').hidden, false);
 });
+
+test('a fresh card form does not retain bank tokens in tab storage or display verification prose', async () => {
+  const result = await page(launch);
+  assert.equal(result.token, token);
+  assert.equal(result.storage.size, 0);
+  assert.equal(result.elements.get('state-message').textContent, '');
+  assert.equal(result.elements.get('state-message').hidden, true);
+});
+
+test('even an unexpired stored card-form token is checked against the owned server operation', async () => {
+  const storage = new Map([
+    [`bulka-forte-checkout:${id}`, JSON.stringify({ token: 'consumed-fixture-token', purpose: 'card-setup', expiresAt: Date.now() + 60000 })],
+  ]);
+  let requests = 0;
+  const result = await page(`${base}?operation=${id}&purpose=card-setup`, storage, async (url) => {
+    requests++;
+    assert(url.includes(`/card-setup/${id}?resume=1`));
+    return { ok: true, json: async () => ({ paymentStatus: 'pending', canResume: true, redirectUrl: launch }) };
+  });
+  assert.equal(requests, 1);
+  assert.equal(result.token, token);
+  assert.equal(result.storage.size, 0);
+});
+
+for (const state of [
+  { paymentStatus: 'pending', canResume: false },
+  { paymentStatus: 'pending', cardSaved: true },
+  { paymentStatus: 'pending', cancelled: true },
+  { paymentStatus: 'cancelled' },
+]) {
+  test(`card-form recovery returns without opening a consumed/closed token: ${JSON.stringify(state)}`, async () => {
+    const result = await page(`${base}?operation=${id}&purpose=card-setup`, new Map(), async () => ({
+      ok: true,
+      json: async () => ({ ...state, redirectUrl: launch }),
+    }));
+    assert.equal(result.token, undefined);
+    assert.equal(result.navigated, `/profile?payment=forte&setup=${id}&status=returned`);
+  });
+}
+
+for (const status of ['failed', 'error', 'cancelled', undefined]) {
+  test(`closing a failed card form ends the attempt instead of showing a pending page: ${status}`, async () => {
+    const result = await page(launch);
+    assert.equal(result.finish(status), `/profile?payment=forte&setup=${id}&status=cancelled`);
+  });
+}

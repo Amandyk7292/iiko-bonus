@@ -46,29 +46,28 @@
     ru: {
       title: 'Добавление карты',
       loading: 'Открываем форму добавления карты',
-      waiting: 'Банк временно спишет 30 ₸ для проверки и автоматически вернёт их.',
+      waiting: '',
       verifying: 'Проверяем привязку карты',
       error: 'Не удалось открыть добавление карты',
-      errorHint: 'Вернитесь к картам и проверьте результат или продолжите эту же привязку.',
+      errorHint: 'Вернитесь к картам и попробуйте ещё раз.',
       back: 'Вернуться к картам',
     },
     kk: {
       title: 'Карта қосу',
       loading: 'Карта қосу бетін ашып жатырмыз',
-      waiting: 'Банк тексеру үшін уақытша 30 ₸ алып, автоматты түрде қайтарады.',
+      waiting: '',
       verifying: 'Картаның байланыстырылуын тексеріп жатырмыз',
       error: 'Карта қосу бетін ашу мүмкін болмады',
-      errorHint: 'Карталарға оралып, нәтижені тексеріңіз немесе байланыстыруды жалғастырыңыз.',
+      errorHint: 'Карталарға оралып, қайта көріңіз.',
       back: 'Карталарға оралу',
     },
     en: {
       title: 'Link a card',
       loading: 'Opening card linking',
-      waiting:
-        'The bank will temporarily charge 30 ₸ for verification and refund it automatically.',
+      waiting: '',
       verifying: 'Checking card linking',
       error: 'Could not open card linking',
-      errorHint: 'Return to cards to check the result or resume this card linking.',
+      errorHint: 'Return to cards and try again.',
       back: 'Return to cards',
     },
   };
@@ -142,6 +141,7 @@
   closeButton.setAttribute('aria-label', text.close);
   title.textContent = text.loading;
   message.textContent = text.waiting;
+  message.hidden = !text.waiting;
   backButton.textContent = text.back;
 
   const returnUrl = (status) =>
@@ -167,7 +167,9 @@
   };
 
   closeButton.addEventListener('click', () => leave('cancelled'));
-  backButton.addEventListener('click', () => leave('returned'));
+  backButton.addEventListener('click', () =>
+    leave(purpose === 'card-setup' ? 'cancelled' : 'returned'),
+  );
 
   let openTimeout;
   let widgetObserver;
@@ -199,7 +201,9 @@
       window.setTimeout(() => leave(status), 450);
       return;
     }
-    leave(status || 'cancelled');
+    // An error/closed card form ends this attempt. The application cancels its
+    // owned setup and reconciles any late bank result without a pending modal.
+    leave(purpose === 'card-setup' ? 'cancelled' : status || 'cancelled');
   };
 
   const open = async () => {
@@ -208,6 +212,7 @@
         try {
           const saved = JSON.parse(sessionStorage.getItem(storageKey) || 'null');
           if (
+            purpose !== 'card-setup' &&
             saved &&
             saved.expiresAt > Date.now() &&
             saved.purpose === purpose &&
@@ -230,7 +235,13 @@
           );
           if (!response.ok) throw new Error('Resume unavailable');
           const result = await response.json();
-          if (['paid', 'failed', 'expired', 'refunded'].includes(result.paymentStatus)) {
+          if (
+            ['paid', 'failed', 'expired', 'refunded', 'cancelled', 'canceled'].includes(
+              result.paymentStatus,
+            ) ||
+            (purpose === 'card-setup' &&
+              (result.cardSaved === true || result.cancelled === true || result.canResume === false))
+          ) {
             leave('returned');
             return;
           }
@@ -249,15 +260,21 @@
       if (!tokenPattern.test(token)) throw new Error('Checkout unavailable');
       try {
         const saved = JSON.parse(sessionStorage.getItem(storageKey) || 'null');
-        sessionStorage.setItem(
-          storageKey,
-          JSON.stringify({
-            token,
-            purpose,
-            test,
-            expiresAt: saved?.token === token ? saved.expiresAt : Date.now() + 30 * 60 * 1000,
-          }),
-        );
+        if (purpose === 'card-setup') {
+          // Reopening a bank token from tab storage bypasses cancellation and
+          // provider status checks. Card-form recovery always goes via server.
+          sessionStorage.removeItem(storageKey);
+        } else {
+          sessionStorage.setItem(
+            storageKey,
+            JSON.stringify({
+              token,
+              purpose,
+              test,
+              expiresAt: saved?.token === token ? saved.expiresAt : Date.now() + 30 * 60 * 1000,
+            }),
+          );
+        }
       } catch {
         /* Server recovery remains available without storage. */
       }

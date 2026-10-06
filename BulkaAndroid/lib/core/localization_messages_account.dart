@@ -350,6 +350,11 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en':
         'The result could not be verified yet. Your operation is saved; check it when the connection returns.',
   },
+  'card_setup_cancel_error': {
+    'ru': 'Не удалось закрыть привязку карты. Попробуйте ещё раз.',
+    'kk': 'Картаны байланыстыруды жабу мүмкін болмады. Қайта көріңіз.',
+    'en': 'Could not close card linking. Please try again.',
+  },
   'payment_methods_verification_hint': {
     'ru':
         'Для проверки карты банк временно спишет 30 ₸ и автоматически вернёт их. Реквизиты вводятся на защищённой странице ForteBank.',

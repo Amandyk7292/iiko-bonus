@@ -1033,6 +1033,11 @@ router.get(
   validateRequest({ params: forteOperationParamsSchema }),
   forteController.checkCardSetupStatus,
 );
+router.post(
+  '/api/customer/forte-pay/card-setup/:operationId/cancel',
+  validateRequest({ params: forteOperationParamsSchema, body: emptyBodySchema }),
+  forteController.cancelCardSetup,
+);
 router.delete(
   '/api/customer/forte-pay/methods/:methodId',
   validateRequest({

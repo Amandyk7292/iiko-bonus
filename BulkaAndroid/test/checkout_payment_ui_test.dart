@@ -19,6 +19,8 @@ class _PaymentUiApi extends BulkaApiClient {
   bool accountBlocked = false;
   int cardSetupCalls = 0;
   Completer<Map<String, dynamic>>? pendingCardSetup;
+  final cancelledSetups = <String>[];
+  Completer<Map<String, dynamic>>? pendingCancellation;
 
   @override
   Stream<Map<String, dynamic>> get customerEvents => events.stream;
@@ -48,6 +50,24 @@ class _PaymentUiApi extends BulkaApiClient {
       'Bank unavailable',
       code: 'FORTE_WIDGET_CHECKOUT_DISABLED',
     );
+  }
+
+  @override
+  Future<Map<String, dynamic>> checkForteCardSetupStatus(
+    String operationId,
+  ) async => {'paymentStatus': 'pending'};
+
+  @override
+  Future<Map<String, dynamic>> cancelForteCardSetup(String operationId) async {
+    cancelledSetups.add(operationId);
+    return pendingCancellation?.future ??
+        {
+          'success': true,
+          'operationId': operationId,
+          'paymentStatus': 'pending',
+          'cancelled': true,
+          'canResume': false,
+        };
   }
 
   List<Map<String, dynamic>> get cards => [
@@ -394,6 +414,79 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'checkout close cancels binding before re-enabling order submission',
+    (tester) async {
+      final api = await _openCheckout(tester);
+      final setup = api.pendingCardSetup = Completer<Map<String, dynamic>>();
+      final cancel = api.pendingCancellation =
+          Completer<Map<String, dynamic>>();
+      await _openMethods(tester);
+      await tester.tap(find.byKey(const ValueKey('checkout-add-saved-card')));
+      setup.complete({
+        'operationId': 'setup-one',
+        'paymentStatus': 'pending',
+        'redirectUrl': 'https://invalid.example/checkout',
+      });
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Закрыть'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      expect(find.byType(FortePaymentScreen), findsNothing);
+      expect(find.byType(Dialog), findsNothing);
+      expect(api.cancelledSetups, ['setup-one']);
+      expect(
+        tester
+            .widget<GradientButton>(
+              find.byKey(const ValueKey('checkout-submit')),
+            )
+            .onPressed,
+        isNull,
+      );
+      cancel.complete({
+        'success': true,
+        'operationId': 'setup-one',
+        'paymentStatus': 'pending',
+        'cancelled': true,
+        'canResume': false,
+      });
+      await tester.pumpAndSettle();
+      expect(await PendingCardSetupStore.load(api), isNull);
+      expect(find.text('•••• 1328'), findsOneWidget);
+      expect(
+        tester
+            .widget<GradientButton>(
+              find.byKey(const ValueKey('checkout-submit')),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('a non-resumable bank token never opens in checkout', (
+    tester,
+  ) async {
+    final api = await _openCheckout(tester);
+    final setup = api.pendingCardSetup = Completer<Map<String, dynamic>>();
+    await _openMethods(tester);
+    await tester.tap(find.byKey(const ValueKey('checkout-add-saved-card')));
+    setup.complete({
+      'operationId': 'expired-setup',
+      'paymentStatus': 'pending',
+      'canResume': false,
+      'redirectUrl':
+          'https://bulka.com.kz/payments/forte-widget#consumed-token',
+    });
+    await tester.pumpAndSettle();
+    expect(find.byType(FortePaymentScreen), findsNothing);
+    expect(api.cancelledSetups, ['expired-setup']);
+    expect(await PendingCardSetupStore.load(api), isNull);
+    expect(find.text('•••• 1328'), findsOneWidget);
+  });
 
   testWidgets(
     'availability changes safely update an already open payment sheet',

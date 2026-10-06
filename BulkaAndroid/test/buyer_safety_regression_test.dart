@@ -648,11 +648,10 @@ void main() {
 
     await tester.tap(find.byTooltip('Закрыть'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Закрыть'));
-    await tester.pumpAndSettle();
 
     expect(find.text('open-forte'), findsOneWidget);
     expect(result?.outcome, FortePaymentOutcome.pending);
+    expect(result?.cancelCardSetup, isTrue);
   });
 
   test(

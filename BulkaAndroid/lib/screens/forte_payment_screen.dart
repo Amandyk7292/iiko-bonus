@@ -11,12 +11,14 @@ class FortePaymentResult {
     required this.operationId,
     this.checkoutId,
     this.openOrders = false,
+    this.cancelCardSetup = false,
   });
 
   final FortePaymentOutcome outcome;
   final String operationId;
   final String? checkoutId;
   final bool openOrders;
+  final bool cancelCardSetup;
 
   bool get paid => outcome == FortePaymentOutcome.paid;
 }
@@ -411,7 +413,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
   bool _embeddedCheckoutVisible = false;
   bool _checkoutReturned = false;
   bool _closeConfirmationPending = false;
-  bool _cancelledReturnPending = false;
+  bool _finished = false;
   bool _cardSaved = false;
   String? _refundStatus;
   late final String? _session;
@@ -475,7 +477,9 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
       final result = widget.personalAccountTopup
           ? await widget.api.checkPersonalAccountTopup(widget.operationId)
           : widget.cardSetup
-          ? await widget.api.checkForteCardSetupStatus(widget.operationId)
+          ? await widget.api
+                .checkForteCardSetupStatus(widget.operationId)
+                .timeout(const Duration(seconds: 8))
           : await widget.api.checkFortePaymentStatus(widget.operationId);
       if (!mounted || _session != widget.api.sessionCacheScope) return;
       final providerStatus =
@@ -492,6 +496,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
       });
       if (_paid || _terminalFailure) {
         _timer?.cancel();
+        if (widget.cardSetup && !_closeConfirmationPending) _finish();
         if (!widget.cardSetup &&
             !widget.personalAccountTopup &&
             _terminalFailure) {
@@ -575,19 +580,14 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
     if (_checkoutReturned) return;
     final result = forteCheckoutReturnFromUri(uri);
     if (result == null) return;
-    if (widget.cardSetup && result == ForteCheckoutReturn.cancelled) {
-      // A cancelled form is not a verified bank failure. Return immediately;
-      // the caller retains the operation and reconciles it without a modal.
-      setState(() {
-        _checkoutReturned = true;
-        _embeddedCheckoutVisible = false;
-        _opening = false;
-      });
-      if (_closeConfirmationPending) {
-        // The top route is a bool confirmation dialog, not this payment page.
-        _cancelledReturnPending = true;
+    if (widget.cardSetup) {
+      if (forteCardSetupReturnFromUri(uri)?.operationId != widget.operationId) {
+        return;
+      }
+      if (result == ForteCheckoutReturn.cancelled) {
+        unawaited(_cancelAndCloseCardSetup());
       } else {
-        _finish();
+        unawaited(_completeAndCloseCardSetup());
       }
       return;
     }
@@ -603,25 +603,85 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
   FortePaymentResult _result({
     required FortePaymentOutcome outcome,
     bool openOrders = false,
+    bool cancelCardSetup = false,
   }) => FortePaymentResult(
     outcome: outcome,
     operationId: widget.operationId,
     checkoutId: widget.checkoutId,
     openOrders: openOrders,
+    cancelCardSetup: cancelCardSetup,
   );
 
-  void _finish({bool openOrders = false}) {
+  void _finish({bool openOrders = false, bool cancelCardSetup = false}) {
+    if (!mounted || _finished) return;
+    _finished = true;
     final outcome = _paid
         ? FortePaymentOutcome.paid
         : _terminalFailure
         ? FortePaymentOutcome.failed
         : FortePaymentOutcome.pending;
-    Navigator.of(
-      context,
-    ).pop(_result(outcome: outcome, openOrders: openOrders));
+    Navigator.of(context).pop(
+      _result(
+        outcome: outcome,
+        openOrders: openOrders,
+        cancelCardSetup:
+            cancelCardSetup && outcome == FortePaymentOutcome.pending,
+      ),
+    );
+  }
+
+  Future<void> _cancelAndCloseCardSetup() async {
+    if (_finished || _closeConfirmationPending || !mounted) return;
+    if (_paid || _terminalFailure) {
+      _finish();
+      return;
+    }
+    _closeConfirmationPending = true;
+    _checkoutReturned = true;
+    _timer?.cancel();
+    try {
+      await PendingCardSetupStore.markCancellationRequested(
+        widget.api,
+        widget.operationId,
+      ).timeout(const Duration(seconds: 1));
+    } catch (_) {
+      // The owner repeats durable cancellation before a fresh card request.
+    }
+    if (mounted) _finish(cancelCardSetup: true);
+  }
+
+  Future<void> _completeAndCloseCardSetup() async {
+    if (_finished || _closeConfirmationPending || !mounted) return;
+    _checkoutReturned = true;
+    _timer?.cancel();
+    // The return URL is not proof of payment. One short authoritative read
+    // catches success before the periodic poll without replacing the bank
+    // form with an indefinite verification screen. Explicit Close still exits.
+    try {
+      final result = await widget.api
+          .checkForteCardSetupStatus(widget.operationId)
+          .timeout(const Duration(seconds: 2));
+      if (_finished || !mounted || _session != widget.api.sessionCacheScope) {
+        return;
+      }
+      final status = result['cardSaved'] == true
+          ? 'paid'
+          : (result['paymentStatus'] ?? result['status'] ?? 'pending')
+                .toString()
+                .toLowerCase();
+      if (status == 'paid' || isTerminalForteFailure(status)) {
+        setState(() => _paymentStatus = status);
+        _finish();
+        return;
+      }
+    } catch (_) {
+      // Unknown bank results are reconciled by the durable cancellation API.
+    }
+    if (!_finished && mounted) await _cancelAndCloseCardSetup();
   }
 
   Future<void> _requestClose() async {
+    if (widget.cardSetup) return _cancelAndCloseCardSetup();
     if (_closeConfirmationPending) return;
     if (_paid || _terminalFailure) {
       _finish();
@@ -656,10 +716,6 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
       _closeConfirmationPending = false;
     }
     if (!mounted) return;
-    if (_cancelledReturnPending) {
-      _finish();
-      return;
-    }
     if (!shouldClose) return;
     setState(() {
       _checkoutReturned = true;
@@ -679,6 +735,10 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
 
   void _handleEmbeddedUnavailable() {
     if (!mounted || _checkoutReturned) return;
+    if (widget.cardSetup) {
+      unawaited(_cancelAndCloseCardSetup());
+      return;
+    }
     setState(() {
       _embeddedCheckoutVisible = false;
       _opening = false;
