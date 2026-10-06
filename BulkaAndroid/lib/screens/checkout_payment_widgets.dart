@@ -23,6 +23,10 @@ Widget buildCheckoutSavedCardsPanelForTest({
   required ValueChanged<String?> onDefaultResolved,
   required ValueChanged<String> onSelect,
   bool? available = true,
+  bool compact = false,
+  bool personalAccountSelected = false,
+  ValueChanged<bool>? onPersonalAccountAvailable,
+  VoidCallback? onSelectPersonalAccount,
 }) {
   return _CheckoutSavedCardsPanel(
     api: api,
@@ -32,6 +36,10 @@ Widget buildCheckoutSavedCardsPanelForTest({
     onSelect: onSelect,
     onActivate: () {},
     onRetryAvailability: () {},
+    compact: compact,
+    active: !personalAccountSelected,
+    onPersonalAccountAvailable: onPersonalAccountAvailable,
+    onSelectPersonalAccount: onSelectPersonalAccount,
   );
 }
 
@@ -81,6 +89,11 @@ class _CheckoutSavedCardsPanel extends StatefulWidget {
     required this.onActivate,
     required this.onRetryAvailability,
     this.active = true,
+    this.compact = false,
+    this.onPersonalAccountAvailable,
+    this.onSelectPersonalAccount,
+    this.busy = false,
+    this.onBusyChanged,
   });
 
   final BulkaApiClient api;
@@ -91,6 +104,11 @@ class _CheckoutSavedCardsPanel extends StatefulWidget {
   final VoidCallback onActivate;
   final VoidCallback onRetryAvailability;
   final bool active;
+  final bool compact;
+  final ValueChanged<bool>? onPersonalAccountAvailable;
+  final VoidCallback? onSelectPersonalAccount;
+  final bool busy;
+  final ValueChanged<bool>? onBusyChanged;
 
   @override
   State<_CheckoutSavedCardsPanel> createState() =>
@@ -105,6 +123,13 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
   String? _error;
   String? _sessionScope;
   int _loadRevision = 0;
+  _LiveRefresh? _accountLive;
+  final _pickerRevision = ValueNotifier(0);
+  bool _pickerRefreshQueued = false;
+  Map<String, dynamic>? _account;
+  String? _accountError;
+  bool _accountLoading = false;
+  int _accountLoadRevision = 0;
 
   @override
   void initState() {
@@ -116,13 +141,23 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
 
   void _bindLive() {
     _live = _LiveRefresh(widget.api, {'payment.methods.updated'}, () async {
-      if (widget.active && !_adding) await _load();
+      if ((widget.active || widget.compact) && !_adding) await _load();
     });
+    if (widget.compact) {
+      _accountLive = _LiveRefresh(
+        widget.api,
+        {'personal-account.updated'},
+        _loadAccount,
+        busy: () => _accountLoading,
+      )..request(immediate: true);
+    }
   }
 
   @override
   void dispose() {
     _live.dispose();
+    _accountLive?.dispose();
+    _pickerRevision.dispose();
     super.dispose();
   }
 
@@ -131,6 +166,7 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.api != widget.api) {
       _live.dispose();
+      _accountLive?.dispose();
       _bindLive();
     }
     final sessionChanged =
@@ -143,6 +179,13 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
       _methods = const [];
       _loading = false;
       _error = null;
+      if (sessionChanged) {
+        _accountLoadRevision++;
+        _account = null;
+        _accountError = null;
+        _accountLoading = false;
+        _accountLive?.request(immediate: true);
+      }
       _resolveDefault(null);
     }
     if (widget.available == true &&
@@ -151,11 +194,66 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
             (oldWidget.available == null && _methods.isEmpty))) {
       unawaited(_load());
     }
+    _notifyPicker();
+  }
+
+  void _setPaymentState(VoidCallback update) {
+    setState(update);
+    _notifyPicker();
+  }
+
+  void _notifyPicker() {
+    if (_pickerRefreshQueued) return;
+    _pickerRefreshQueued = true;
+    // A payment availability update can arrive while the checkout is building.
+    // The sheet belongs to another route, so notify it after that frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _pickerRefreshQueued = false;
+      if (mounted) _pickerRevision.value++;
+    });
+  }
+
+  Future<void> _loadAccount() async {
+    if (!widget.compact || _accountLoading) return;
+    final revision = ++_accountLoadRevision;
+    final session = widget.api.sessionCacheScope;
+    _setPaymentState(() => _accountLoading = true);
+    try {
+      final account = await widget.api.getPersonalAccount();
+      if (!mounted ||
+          revision != _accountLoadRevision ||
+          session != widget.api.sessionCacheScope) {
+        return;
+      }
+      _setPaymentState(() {
+        _account = account;
+        _accountError = null;
+      });
+      widget.onPersonalAccountAvailable?.call(
+        account['enabled'] == true && account['blocked'] != true,
+      );
+    } catch (error) {
+      if (!mounted ||
+          revision != _accountLoadRevision ||
+          session != widget.api.sessionCacheScope) {
+        return;
+      }
+      _setPaymentState(() => _accountError = localizeErrorMessage(error));
+      if (_account == null) widget.onPersonalAccountAvailable?.call(false);
+      rethrow;
+    } finally {
+      if (mounted && revision == _accountLoadRevision) {
+        _setPaymentState(() => _accountLoading = false);
+      }
+    }
   }
 
   void _resolveDefault(String? methodId) {
+    final revision = _loadRevision;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) widget.onDefaultResolved(methodId);
+      if (mounted && revision == _loadRevision) {
+        widget.onDefaultResolved(methodId);
+      }
     });
   }
 
@@ -176,7 +274,7 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
   Future<void> _load() async {
     if (widget.available != true || _loading) return;
     final revision = ++_loadRevision;
-    setState(() {
+    _setPaymentState(() {
       _loading = true;
       _error = null;
     });
@@ -186,21 +284,21 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
           .take(_maximumSavedPaymentMethods)
           .toList(growable: false);
       if (!mounted || revision != _loadRevision) return;
-      setState(() => _methods = methods);
+      _setPaymentState(() => _methods = methods);
       _resolveDefault(_preferredMethodId(methods));
     } catch (_) {
       if (!mounted || revision != _loadRevision) return;
-      setState(() => _error = 'payment_methods_load_error'.tr);
+      _setPaymentState(() => _error = 'payment_methods_load_error'.tr);
       if (_methods.isEmpty) _resolveDefault(null);
     } finally {
       if (mounted && revision == _loadRevision) {
-        setState(() => _loading = false);
+        _setPaymentState(() => _loading = false);
       }
     }
   }
 
   Future<void> _addCard() async {
-    if (_adding || _loading) return;
+    if (_adding || _loading || widget.busy) return;
     if (_methods.length >= _maximumSavedPaymentMethods) {
       ScaffoldMessenger.of(context).showSnackBar(
         bulkaSnackBar(content: Text('payment_methods_limit_reached'.tr)),
@@ -210,13 +308,15 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
     final previousIds = _methods
         .map((method) => (method['id'] ?? '').toString())
         .toSet();
-    setState(() => _adding = true);
+    _setPaymentState(() => _adding = true);
+    widget.onBusyChanged?.call(true);
     try {
       final session = widget.api.sessionCacheScope;
       final result = await PendingCardSetupStore.createOrResume(widget.api);
       if (!mounted || session != widget.api.sessionCacheScope) return;
       if (result['paymentStatus'] == 'paid') {
         await _load();
+        _selectAddedCard(previousIds);
         return;
       }
       if (isTerminalForteFailure((result['paymentStatus'] ?? '').toString())) {
@@ -230,7 +330,7 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
       if (operationId.isEmpty || redirectUrl.isEmpty) {
         throw ApiException('payment_methods_add_error'.tr);
       }
-      if (!mounted) return;
+      if (!mounted || widget.busy) return;
       final setupResult = await Navigator.of(context).push<FortePaymentResult>(
         MaterialPageRoute(
           builder: (_) => FortePaymentScreen(
@@ -248,18 +348,7 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
       if (setupResult?.paid != true || !mounted) return;
       await _load();
       if (!mounted) return;
-      String? addedMethodId;
-      for (final method in _methods) {
-        final id = (method['id'] ?? '').toString();
-        if (id.isNotEmpty && !previousIds.contains(id)) {
-          addedMethodId = id;
-          break;
-        }
-      }
-      final selectedId = addedMethodId ?? _preferredMethodId(_methods);
-      if (selectedId != null && selectedId.isNotEmpty) {
-        widget.onSelect(selectedId);
-      }
+      _selectAddedCard(previousIds);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -267,13 +356,30 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
         );
       }
     } finally {
-      if (mounted) setState(() => _adding = false);
+      if (mounted) {
+        _setPaymentState(() => _adding = false);
+        widget.onBusyChanged?.call(false);
+      }
+    }
+  }
+
+  void _selectAddedCard(Set<String> previousIds) {
+    if (!mounted || widget.busy) return;
+    final added = _methods.where(
+      (method) => !previousIds.contains((method['id'] ?? '').toString()),
+    );
+    final selectedId = added.isEmpty
+        ? _preferredMethodId(_methods)
+        : (added.first['id'] ?? '').toString();
+    if (selectedId != null && selectedId.isNotEmpty) {
+      widget.onSelect(selectedId);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
+    if (widget.compact) return _buildCompactSelector(context);
     if (!widget.active) {
       return Material(
         key: const ValueKey('checkout-card-payment-choice'),
@@ -392,7 +498,6 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
         key: const ValueKey('checkout-saved-cards-empty'),
         icon: Icons.credit_card_off_rounded,
         message: 'payment_methods_empty'.tr,
-        hint: 'payment_methods_verification_hint'.tr,
         actionLabel: 'payment_methods_add'.tr,
         actionLoading: _adding,
         onAction: _addCard,
@@ -466,22 +571,136 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
     );
   }
 
+  Widget _buildCompactSelector(BuildContext context) {
+    final colors = context.bulkaColors;
+    final selectedId = _preferredMethodId(_methods);
+    final selected = _methods.where((method) => method['id'] == selectedId);
+    final hasCard = widget.active && selected.isNotEmpty;
+    final label = !widget.active
+        ? _accountText('title')
+        : hasCard
+        ? '•••• ${selected.first['lastFour'] ?? ''}'
+        : 'checkout_card_payment'.tr;
+    return Semantics(
+      key: const ValueKey('checkout-payment-selector'),
+      button: true,
+      label: '${'checkout_payment_title'.tr}: $label',
+      child: Material(
+        color: colors.surfaceCream,
+        borderRadius: BorderRadius.circular(BulkaRadii.control),
+        child: InkWell(
+          key: const ValueKey('checkout-choose-card'),
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+          onTap: _adding || widget.busy ? null : _chooseCard,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_adding ||
+                      (widget.active &&
+                          _methods.isEmpty &&
+                          (widget.available == null || _loading)))
+                    SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colors.brandGold,
+                      ),
+                    )
+                  else
+                    Icon(
+                      widget.active
+                          ? Icons.credit_card_outlined
+                          : Icons.account_balance_wallet_outlined,
+                      color: colors.brandBrown,
+                      size: 22,
+                    ),
+                  const SizedBox(width: 9),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 2,
+                      style: TextStyle(
+                        color: colors.brandBrown,
+                        fontWeight: FontWeight.w600,
+                        fontSize: BulkaTypeScale.bodySmall,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: colors.brandBrown,
+                    size: 19,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _chooseCard() async {
+    if (widget.busy) return;
     final selected = await showModalBottomSheet<String>(
       context: context,
       sheetAnimationStyle: BulkaMotion.sheetStyle(context),
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      builder: (sheetContext) => _CheckoutCardPicker(
-        methods: _methods,
-        selectedId: _preferredMethodId(_methods),
+      builder: (sheetContext) => ValueListenableBuilder<int>(
+        valueListenable: _pickerRevision,
+        builder: (context, _, child) => _CheckoutCardPicker(
+          methods: _methods,
+          selectedId: widget.active ? _preferredMethodId(_methods) : null,
+          includePaymentMethods: widget.compact,
+          personalAccount: _account,
+          personalAccountSelected: !widget.active,
+          personalAccountError: _accountError,
+          personalAccountLoading: _accountLoading,
+          cardsAvailable: widget.available,
+          cardsLoading: _loading,
+          cardsError: _error,
+          hostedCardPayment: !widget.api.forteCardSetupAvailable,
+        ),
       ),
     );
-    if (!mounted || selected == null) return;
+    if (!mounted || selected == null || widget.busy) return;
     if (selected == 'add') {
       await _addCard();
+    } else if (selected == 'personal-account') {
+      if (_account?['enabled'] == true && _account?['blocked'] != true) {
+        widget.onSelectPersonalAccount?.call();
+      }
+    } else if (selected == 'topup') {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => PersonalAccountScreen(
+            api: widget.api,
+            initialBalance: _asDouble(_account?['balance']),
+          ),
+        ),
+      );
+      if (mounted) _accountLive?.request(immediate: true);
+    } else if (selected == 'retry-account') {
+      _accountLive?.request(immediate: true);
+    } else if (selected == 'retry-cards') {
+      if (widget.available == true) {
+        unawaited(_load());
+      } else {
+        widget.onRetryAvailability();
+      }
+    } else if (selected == 'hosted-card') {
+      widget.onActivate();
     } else {
-      widget.onSelect(selected);
+      if (_methods.any((method) => method['id'] == selected) &&
+          widget.available == true) {
+        widget.onSelect(selected);
+      }
     }
   }
 }
@@ -532,7 +751,6 @@ class _CheckoutSavedCardsNotice extends StatelessWidget {
     required this.actionLabel,
     required this.onAction,
     this.actionLoading = false,
-    this.hint,
   });
 
   final IconData icon;
@@ -540,7 +758,6 @@ class _CheckoutSavedCardsNotice extends StatelessWidget {
   final String actionLabel;
   final VoidCallback onAction;
   final bool actionLoading;
-  final String? hint;
 
   @override
   Widget build(BuildContext context) {
@@ -569,17 +786,6 @@ class _CheckoutSavedCardsNotice extends StatelessWidget {
               height: 1.35,
             ),
           ),
-          if (hint != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              hint!,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.mutedText,
-                fontSize: BulkaTypeScale.bodySmall,
-              ),
-            ),
-          ],
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,

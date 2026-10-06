@@ -90,34 +90,40 @@ extension _OrdersPayment on _OrdersScreenState {
 }
 
 extension _CheckoutPaymentOptions on _CheckoutScreenState {
-  Widget _buildPaymentOptions() => Column(
-    children: [
-      PersonalAccountOption(
-        api: widget.api,
-        selected: _usePersonalAccount,
-        onAvailable: (available) =>
-            _updateCheckoutState(() => _personalAccountAvailable = available),
-        onSelect: () => _updateCheckoutState(() => _usePersonalAccount = true),
-      ),
-      _CheckoutSavedCardsPanel(
-        active: !_usePersonalAccount,
-        api: widget.api,
-        available: _forteAvailable,
-        selectedMethodId: _usePersonalAccount ? null : _selectedPaymentMethodId,
-        onDefaultResolved: (methodId) {
-          if (_selectedPaymentMethodId == methodId) return;
-          _updateCheckoutState(() => _selectedPaymentMethodId = methodId);
-        },
-        onSelect: (methodId) {
-          _updateCheckoutState(() {
-            _selectedPaymentMethodId = methodId;
-            _usePersonalAccount = false;
-          });
-        },
-        onActivate: () =>
-            _updateCheckoutState(() => _usePersonalAccount = false),
-        onRetryAvailability: () => unawaited(_loadPaymentAvailability()),
-      ),
-    ],
+  Widget _buildPaymentOptions() => _CheckoutSavedCardsPanel(
+    compact: true,
+    busy: _isSubmitting,
+    onBusyChanged: (busy) {
+      if (!mounted || _isManagingPaymentMethod == busy) return;
+      _updateCheckoutState(() => _isManagingPaymentMethod = busy);
+    },
+    active: !_usePersonalAccount,
+    api: widget.api,
+    available: _forteAvailable,
+    selectedMethodId: _selectedPaymentMethodId,
+    onPersonalAccountAvailable: (available) {
+      if (_personalAccountAvailable == available) return;
+      _updateCheckoutState(() => _personalAccountAvailable = available);
+    },
+    onSelectPersonalAccount: () {
+      if (_isSubmitting) return;
+      _updateCheckoutState(() => _usePersonalAccount = true);
+    },
+    onDefaultResolved: (methodId) {
+      if (_selectedPaymentMethodId == methodId) return;
+      _updateCheckoutState(() => _selectedPaymentMethodId = methodId);
+    },
+    onSelect: (methodId) {
+      if (_isSubmitting) return;
+      _updateCheckoutState(() {
+        _selectedPaymentMethodId = methodId;
+        _usePersonalAccount = false;
+      });
+    },
+    onActivate: () {
+      if (_isSubmitting) return;
+      _updateCheckoutState(() => _usePersonalAccount = false);
+    },
+    onRetryAvailability: () => unawaited(_loadPaymentAvailability()),
   );
 }

@@ -4,6 +4,20 @@ extension _CheckoutQuoteState on _CheckoutScreenState {
   bool get _hasUnappliedPromo =>
       _promoController.text.trim() != _appliedPromoCode;
 
+  bool get _hasCurrentQuote =>
+      _canQuote &&
+      _quoteValid &&
+      _quotedTotal != null &&
+      _quoteError == null &&
+      _lastQuotedKey == _currentQuoteKey;
+
+  bool get _canSubmit =>
+      !_isSubmitting &&
+      !_isManagingPaymentMethod &&
+      _selectedPaymentAvailable &&
+      !_hasUnappliedPromo &&
+      _hasCurrentQuote;
+
   // Bonus selection does not change merchandise prices or the delivery token.
   // The server still reserves and verifies the exact bonus amount at payment.
   String get _currentQuoteKey => jsonEncode({
@@ -38,22 +52,43 @@ extension _CheckoutQuoteState on _CheckoutScreenState {
     );
   }
 
-  Future<void> _refreshQuote({bool showFeedback = false}) async {
-    if (!_canQuote || _isSubmitting) return;
+  Future<void> _refreshQuote({
+    bool showFeedback = false,
+    bool allowDuringSubmission = false,
+  }) {
+    if (!_canQuote || (_isSubmitting && !allowDuringSubmission)) {
+      return Future<void>.value();
+    }
     final key = _currentQuoteKey;
     if (_isQuoting) {
       _quotePending = _quotePending || key != _inflightQuoteKey;
       _quoteFeedbackPending = _quoteFeedbackPending || showFeedback;
       if (showFeedback) _updateCheckoutState(() => _isApplyingPromo = true);
-      return;
+      return _quoteFlight ?? Future<void>.value();
     }
     if (_quoteValid &&
         _lastQuotedKey == key &&
         _quoteFreshness?.isActive == true) {
       if (showFeedback) _showPromoFeedback();
-      return;
+      return Future<void>.value();
     }
     final revision = ++_quoteRevision;
+    final flight = _fetchQuote(
+      key: key,
+      revision: revision,
+      showFeedback: showFeedback,
+      allowDuringSubmission: allowDuringSubmission,
+    );
+    _quoteFlight = flight;
+    return flight;
+  }
+
+  Future<void> _fetchQuote({
+    required String key,
+    required int revision,
+    required bool showFeedback,
+    required bool allowDuringSubmission,
+  }) async {
     _inflightQuoteKey = key;
     _updateCheckoutState(() {
       _isQuoting = true;
@@ -88,12 +123,9 @@ extension _CheckoutQuoteState on _CheckoutScreenState {
           ),
         );
         _bonusSpent = (quote['bonusSpent'] as num?)?.floor() ?? 0;
-        _deliveryFee = (quote['deliveryFee'] as num?)?.round() ?? 0;
         _quotedTotal = (quote['total'] as num?)?.round();
         _recalculateBonusSelection();
         _deliveryQuoteToken = quote['deliveryQuoteToken'] as String?;
-        final eta = _asMap(quote['eta']);
-        _etaQuote = eta.isEmpty ? null : eta;
         _quoteValid = _quotedTotal != null;
         _lastQuotedKey = key;
       });
@@ -116,16 +148,23 @@ extension _CheckoutQuoteState on _CheckoutScreenState {
         _quotePending = false;
         _quoteFeedbackPending = false;
         _inflightQuoteKey = null;
+        _quoteFlight = null;
         _updateCheckoutState(() {
           _isQuoting = false;
           _isApplyingPromo = false;
         });
-        if (repeat) unawaited(_refreshQuote(showFeedback: feedback));
+        if (repeat) {
+          await _refreshQuote(
+            showFeedback: feedback,
+            allowDuringSubmission: allowDuringSubmission || _isSubmitting,
+          );
+        }
       }
     }
   }
 
   Future<void> _applyPromo() async {
+    if (_isSubmitting) return;
     FocusScope.of(context).unfocus();
     if (!_canQuote) {
       ScaffoldMessenger.of(

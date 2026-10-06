@@ -186,33 +186,35 @@ void main() {
         await tester.pumpAndSettle();
         if (wallet) {
           expect(
-            find.byKey(const ValueKey('checkout-payment-method')),
+            find.byKey(const ValueKey('checkout-payment-selector')),
             findsOneWidget,
           );
+          await tester.tap(find.byKey(const ValueKey('checkout-choose-card')));
+          await tester.pumpAndSettle();
           await tester.tap(
             find.byKey(const ValueKey('checkout-personal-account')),
           );
           await tester.pumpAndSettle();
           expect(
-            find.byKey(const ValueKey('checkout-card-payment-choice')),
+            find.byKey(const ValueKey('checkout-payment-selector')),
             findsOneWidget,
-          );
-          expect(
-            find.byKey(const ValueKey('checkout-payment-method')),
-            findsNothing,
           );
           expect(find.text('•••• 0000'), findsNothing);
 
+          await tester.tap(find.byKey(const ValueKey('checkout-choose-card')));
+          await tester.pumpAndSettle();
           await tester.tap(
-            find.byKey(const ValueKey('checkout-card-payment-choice')),
+            find.byKey(const ValueKey('checkout-saved-card-card-one')),
           );
           await tester.pumpAndSettle();
           expect(
-            find.byKey(const ValueKey('checkout-payment-method')),
+            find.byKey(const ValueKey('checkout-payment-selector')),
             findsOneWidget,
           );
           expect(find.text('•••• 0000'), findsOneWidget);
 
+          await tester.tap(find.byKey(const ValueKey('checkout-choose-card')));
+          await tester.pumpAndSettle();
           await tester.tap(
             find.byKey(const ValueKey('checkout-personal-account')),
           );

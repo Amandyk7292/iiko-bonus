@@ -25,7 +25,6 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                               _deliveryBranchLocation != null
                         : _branch.trim().isNotEmpty,
                     timeComplete: _usesDelivery || _scheduledSlot != null,
-                    paymentComplete: _selectedPaymentAvailable,
                   ),
                   const SizedBox(height: 16),
                   _SelectedOrderTypeCard(value: _orderType),
@@ -152,15 +151,12 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                   if (!_onlineOrderingDisabled) ...[
                     const SizedBox(height: 24),
                     _buildBonusSwitch(),
-                    const SizedBox(height: 28),
-                    _CheckoutLabel('checkout_payment_title'.tr),
-                    const SizedBox(height: 10),
-                    _buildPaymentOptions(),
                   ],
                   const SizedBox(height: 28),
                   _CheckoutLabel('checkout_comment'.tr),
                   const SizedBox(height: 10),
                   TextField(
+                    key: const ValueKey('checkout-comment-input'),
                     controller: _commentController,
                     minLines: 4,
                     maxLines: 6,
@@ -169,143 +165,12 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                       alignLabelWithHint: true,
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  _buildCheckoutBreakdown(context),
                 ],
               ),
             ),
       bottomNavigationBar: !_preferencesReady
           ? null
           : _buildCheckoutBottomBar(context),
-    );
-  }
-
-  Widget _buildCheckoutBreakdown(BuildContext context) {
-    final colors = context.bulkaColors;
-    return Container(
-      key: const ValueKey('checkout-price-breakdown'),
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(BulkaRadii.card),
-        border: Border.all(
-          color: colors.cardBorder,
-          width: BulkaStrokes.hairline,
-        ),
-        boxShadow: BulkaShadows.card,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'checkout_summary_title'.tr,
-            style: const TextStyle(
-              color: _textDark,
-              fontFamily: _headingFont,
-              fontSize: BulkaTypeScale.titleSmall,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (_quoteError != null) ...[
-            const SizedBox(height: 12),
-            _CheckoutQuoteError(
-              message: _quoteError!,
-              onRetry: _isQuoting ? null : () => _refreshQuote(),
-            ),
-          ],
-          if (_quoteEtaText.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Semantics(
-              liveRegion: true,
-              label: '${'orders_eta'.tr}: $_quoteEtaText. $_quoteEtaConfidence',
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: _bulkaYellow.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(BulkaRadii.control),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.schedule_rounded,
-                      size: 21,
-                      color: _textDark,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _quoteEtaText,
-                            style: const TextStyle(
-                              fontFamily: _headingFont,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          if (_quoteEtaConfidence.isNotEmpty)
-                            Text(
-                              _quoteEtaConfidence,
-                              style: TextStyle(
-                                fontSize: BulkaTypeScale.caption,
-                                color: colors.mutedText,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 14),
-          _CheckoutTotalRow(
-            label: 'checkout_subtotal'.tr,
-            value: '${_formatCartMoney(widget.total)} ₸',
-          ),
-          if (_discount > 0) ...[
-            const SizedBox(height: 8),
-            _CheckoutTotalRow(
-              label: 'checkout_discount'.tr,
-              value: '− ${_formatCartMoney(_discount)} ₸',
-            ),
-          ],
-          if (_usesDelivery) ...[
-            const SizedBox(height: 8),
-            _CheckoutTotalRow(
-              label: 'checkout_delivery_fee'.tr,
-              value: _quotedTotal == null
-                  ? '—'
-                  : _deliveryFee == 0
-                  ? 'checkout_delivery_free'.tr
-                  : '${_formatCartMoney(_deliveryFee)} ₸',
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'checkout_free_delivery_threshold'.tr,
-              style: TextStyle(
-                color: colors.mutedText,
-                fontSize: BulkaTypeScale.caption,
-              ),
-            ),
-          ],
-          if (_useBonuses) ...[
-            const SizedBox(height: 8),
-            _CheckoutTotalRow(
-              label: 'checkout_bonus_spent'.tr,
-              value: _quotedTotal == null
-                  ? '—'
-                  : '− ${_formatCartMoney(_bonusSpent)} ₸',
-            ),
-          ],
-        ],
-      ),
     );
   }
 }

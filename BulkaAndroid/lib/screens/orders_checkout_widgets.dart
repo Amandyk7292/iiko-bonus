@@ -4,16 +4,15 @@ class _CheckoutSteps extends StatelessWidget {
   const _CheckoutSteps({
     required this.addressComplete,
     required this.timeComplete,
-    required this.paymentComplete,
   });
 
   final bool addressComplete;
   final bool timeComplete;
-  final bool paymentComplete;
 
   @override
   Widget build(BuildContext context) {
-    final completed = [addressComplete, timeComplete, paymentComplete];
+    // Selecting a card or an account does not confirm an actual payment.
+    final completed = [addressComplete, timeComplete, false];
     final firstPending = completed.indexWhere((value) => !value);
     final activeIndex = firstPending < 0 ? completed.length - 1 : firstPending;
     final labels = [
@@ -83,6 +82,7 @@ class _CheckoutStepItem extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         AnimatedContainer(
+          key: ValueKey('checkout-step-${index + 1}'),
           duration: BulkaMotion.duration(context, BulkaMotion.fast),
           width: 30,
           height: 30,

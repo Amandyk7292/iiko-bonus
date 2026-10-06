@@ -16,6 +16,8 @@ class _CheckoutApi extends BulkaApiClient {
   int slotDuration = 60;
   bool slotsAvailable = true;
   Completer<List<FulfillmentSlot>>? pendingSlots;
+  Completer<List<BakeryLocation>>? pendingLocations;
+  bool branchAvailable = true;
 
   Map<String, dynamic> quote({int discount = 0, int available = 2000}) => {
     'success': true,
@@ -44,6 +46,10 @@ class _CheckoutApi extends BulkaApiClient {
   @override
   Future<List<BakeryLocation>> getFulfillmentLocations() async {
     directoryLoads++;
+    final waiting = pendingLocations;
+    pendingLocations = null;
+    if (waiting != null) return waiting.future;
+    if (!branchAvailable) return [];
     return const [
       BakeryLocation(
         id: 'branch-one',
@@ -110,6 +116,7 @@ Future<_CheckoutApi> _open(
   int deliveryFee = 0,
   DateTime? scheduledAt,
   DateTime? serverNow,
+  Future<FortePaymentOutcome> Function()? onSubmit,
 }) async {
   appLanguageNotifier.value = 'ru';
   tester.view.physicalSize = const Size(430, 1800);
@@ -138,6 +145,7 @@ Future<_CheckoutApi> _open(
         cartItems: const [
           {'productId': 'bun', 'quantity': 2},
         ],
+        onSubmit: onSubmit,
       ),
     ),
   );
@@ -149,10 +157,7 @@ Future<_CheckoutApi> _open(
   expect(find.text('Время'), findsOneWidget);
   expect(find.text('Оплата'), findsOneWidget);
   expect(find.byKey(const ValueKey('checkout-sticky-action')), findsOneWidget);
-  expect(
-    find.byKey(const ValueKey('checkout-price-breakdown')),
-    findsOneWidget,
-  );
+  expect(find.byKey(const ValueKey('checkout-price-breakdown')), findsNothing);
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
     await api.events.close();
@@ -340,11 +345,10 @@ void main() {
       await tester.tap(_bonus);
       await tester.pump();
       expect(find.text('560 ₸'), findsOneWidget);
-      expect(find.text('− 560 ₸'), findsOneWidget);
       expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
       await tester.tap(_bonus);
       await tester.pump();
-      expect(find.text('1 120 ₸'), findsNWidgets(2));
+      expect(find.text('1 120 ₸'), findsOneWidget);
     }
     expect(api.requests, ['']);
   });
@@ -358,7 +362,7 @@ void main() {
     final controller = tester.widget<TextField>(_promo).controller!;
     controller.selection = const TextSelection.collapsed(offset: 0);
     await tester.pump();
-    expect(find.text('1 120 ₸'), findsNWidgets(2));
+    expect(find.text('1 120 ₸'), findsOneWidget);
     expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
     expect(api.requests.length, 1);
   });
@@ -381,7 +385,7 @@ void main() {
       ),
       findsNothing,
     );
-    expect(find.text('1 120 ₸'), findsNWidgets(2));
+    expect(find.text('1 120 ₸'), findsOneWidget);
     await tester.tap(_bonus);
     await tester.pump();
     expect(find.text('560 ₸'), findsOneWidget);
@@ -392,6 +396,150 @@ void main() {
     expect(api.requests.length, 2);
   });
 
+  testWidgets('unchanged checkout stays actionable throughout live refresh', (
+    tester,
+  ) async {
+    final api = await _open(tester);
+    final locations = await api.getFulfillmentLocations();
+    final directory = api.pendingLocations = Completer<List<BakeryLocation>>();
+    final quote = api.pending = Completer<Map<String, dynamic>>();
+    api.change();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
+    directory.complete(locations);
+    await tester.pump();
+    expect(api.requests.length, 2);
+    for (var second = 0; second < 5; second++) {
+      await tester.pump(const Duration(seconds: 1));
+      expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
+      expect(find.text('1 120 ₸'), findsOneWidget);
+    }
+    quote.complete(api.quote());
+    await tester.pumpAndSettle();
+    expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
+  });
+
+  testWidgets('a failed unchanged-input refresh blocks payment until retry', (
+    tester,
+  ) async {
+    final api = await _open(tester);
+    final waiting = api.pending = Completer<Map<String, dynamic>>();
+    api.change();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
+    waiting.completeError(ApiException('Не удалось проверить цену'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<GradientButton>(_submit).onPressed, isNull);
+    expect(find.text('1 120 ₸'), findsOneWidget);
+    expect(find.byKey(const ValueKey('checkout-quote-error')), findsOneWidget);
+    api.pending = null;
+    api.change();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
+  });
+
+  testWidgets('a tap waits for live validation and starts only one order', (
+    tester,
+  ) async {
+    var submitted = 0;
+    final api = await _open(
+      tester,
+      onSubmit: () async {
+        submitted++;
+        return FortePaymentOutcome.pending;
+      },
+    );
+    final slots = await api.getFulfillmentSlots(
+      branchId: 'branch-one',
+      orderType: 'pickup',
+    );
+    final quote = api.pending = Completer<Map<String, dynamic>>();
+    final schedule = api.pendingSlots = Completer<List<FulfillmentSlot>>();
+    api.change();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(_submit);
+    await tester.pump();
+    await tester.tap(_submit);
+    await tester.pump();
+    expect(submitted, 0);
+    expect(tester.widget<GradientButton>(_submit).loading, isTrue);
+    quote.complete(api.quote());
+    await tester.pump();
+    expect(submitted, 0);
+    schedule.complete(slots);
+    await tester.pumpAndSettle();
+    expect(submitted, 1);
+    expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
+  });
+
+  testWidgets('a price changed after the tap requires a second confirmation', (
+    tester,
+  ) async {
+    var submitted = 0;
+    final api = await _open(
+      tester,
+      onSubmit: () async {
+        submitted++;
+        return FortePaymentOutcome.pending;
+      },
+    );
+    final quote = api.pending = Completer<Map<String, dynamic>>();
+    api.change();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(_submit);
+    await tester.pump();
+    quote.complete({...api.quote(), 'subtotal': 1500, 'total': 1500});
+    await tester.pumpAndSettle();
+    expect(submitted, 0);
+    expect(find.text('1 500 ₸'), findsOneWidget);
+    expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
+    await tester.tap(_submit);
+    await tester.pumpAndSettle();
+    expect(submitted, 1);
+  });
+
+  testWidgets('a failed quote during a tap cannot start payment', (
+    tester,
+  ) async {
+    var submitted = 0;
+    final api = await _open(
+      tester,
+      onSubmit: () async {
+        submitted++;
+        return FortePaymentOutcome.pending;
+      },
+    );
+    final quote = api.pending = Completer<Map<String, dynamic>>();
+    api.change();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(_submit);
+    await tester.pump();
+    quote.completeError(ApiException('Товар недоступен'));
+    await tester.pumpAndSettle();
+    expect(submitted, 0);
+    expect(tester.widget<GradientButton>(_submit).onPressed, isNull);
+    expect(tester.widget<GradientButton>(_submit).loading, isFalse);
+  });
+
+  testWidgets('a removed branch invalidates a previously valid checkout', (
+    tester,
+  ) async {
+    final api = await _open(tester);
+    api.branchAvailable = false;
+    api.change('locations');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(tester.widget<GradientButton>(_submit).onPressed, isNull);
+  });
+
   testWidgets('repeated live events are coalesced and keep totals visible', (
     tester,
   ) async {
@@ -399,7 +547,7 @@ void main() {
     for (var i = 0; i < 8; i++) {
       api.change();
       await tester.pump();
-      expect(find.text('1 120 ₸'), findsNWidgets(2));
+      expect(find.text('1 120 ₸'), findsOneWidget);
     }
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
@@ -425,7 +573,6 @@ void main() {
     await tester.tap(_apply);
     await tester.pumpAndSettle();
     expect(api.requests, ['', 'SALE']);
-    expect(find.text('− 500 ₸'), findsOneWidget);
     expect(find.text('1 500 ₸'), findsOneWidget);
     expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
     await tester.tap(_apply);
@@ -473,7 +620,7 @@ void main() {
     await tester.pump();
     pending.completeError(ApiException('Промокод недействителен'));
     await tester.pumpAndSettle();
-    expect(find.text('1 120 ₸'), findsNWidgets(2));
+    expect(find.text('1 120 ₸'), findsOneWidget);
     expect(tester.widget<GradientButton>(_submit).onPressed, isNull);
     expect(find.byKey(const ValueKey('checkout-quote-error')), findsOneWidget);
   });

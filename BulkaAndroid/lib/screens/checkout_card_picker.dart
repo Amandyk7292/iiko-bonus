@@ -1,10 +1,31 @@
 part of '../main.dart';
 
 class _CheckoutCardPicker extends StatelessWidget {
-  const _CheckoutCardPicker({required this.methods, required this.selectedId});
+  const _CheckoutCardPicker({
+    required this.methods,
+    required this.selectedId,
+    this.includePaymentMethods = false,
+    this.personalAccount,
+    this.personalAccountSelected = false,
+    this.personalAccountError,
+    this.personalAccountLoading = false,
+    this.cardsAvailable = true,
+    this.cardsLoading = false,
+    this.cardsError,
+    this.hostedCardPayment = false,
+  });
 
   final List<Map<String, dynamic>> methods;
   final String? selectedId;
+  final bool includePaymentMethods;
+  final Map<String, dynamic>? personalAccount;
+  final bool personalAccountSelected;
+  final String? personalAccountError;
+  final bool personalAccountLoading;
+  final bool? cardsAvailable;
+  final bool cardsLoading;
+  final String? cardsError;
+  final bool hostedCardPayment;
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +46,10 @@ class _CheckoutCardPicker extends StatelessWidget {
                   const SizedBox(width: 40),
                   Expanded(
                     child: Text(
-                      'checkout_choose_card'.tr,
+                      (includePaymentMethods
+                              ? 'checkout_payment_title'
+                              : 'checkout_choose_card')
+                          .tr,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontFamily: _headingFont,
@@ -51,33 +75,150 @@ class _CheckoutCardPicker extends StatelessWidget {
                 shrinkWrap: true,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 children: [
-                  for (final method in methods)
-                    Semantics(
-                      selected: method['id'] == selectedId,
-                      child: InkWell(
-                        key: ValueKey('checkout-saved-card-${method['id']}'),
-                        onTap: () =>
-                            Navigator.of(context).pop(method['id'].toString()),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 22,
-                            vertical: 12,
+                  if (includePaymentMethods &&
+                      personalAccount?['enabled'] == true)
+                    ListTile(
+                      key: const ValueKey('checkout-personal-account'),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 8,
+                      ),
+                      leading: Icon(
+                        Icons.account_balance_wallet_outlined,
+                        color: colors.brandBrown,
+                      ),
+                      title: Text(_accountText('title')),
+                      subtitle: Text(
+                        personalAccount?['blocked'] == true
+                            ? _accountText('blocked')
+                            : '${_asDouble(personalAccount?['balance']).toStringAsFixed(2)} ₸',
+                      ),
+                      selected: personalAccountSelected,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (personalAccountSelected)
+                            Icon(
+                              Icons.check_circle_rounded,
+                              color: colors.brandBrown,
+                            ),
+                          IconButton(
+                            key: const ValueKey(
+                              'checkout-personal-account-topup',
+                            ),
+                            tooltip: _accountText('topup'),
+                            onPressed: personalAccount?['blocked'] == true
+                                ? null
+                                : () => Navigator.of(context).pop('topup'),
+                            icon: Icon(
+                              Icons.add_circle_outline_rounded,
+                              color: colors.brandBrown,
+                            ),
                           ),
-                          child: _CheckoutCardIdentity(
-                            method: method,
-                            trailing: Icon(
-                              method['id'] == selectedId
-                                  ? Icons.check_circle_rounded
-                                  : Icons.radio_button_unchecked_rounded,
-                              color: method['id'] == selectedId
-                                  ? colors.brandBrown
-                                  : colors.cardBorder,
+                        ],
+                      ),
+                      onTap: personalAccount?['blocked'] == true
+                          ? null
+                          : () => Navigator.of(context).pop('personal-account'),
+                    ),
+                  if (includePaymentMethods &&
+                      personalAccountLoading &&
+                      personalAccount == null)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(
+                        child: SizedBox.square(
+                          dimension: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
+                  if (includePaymentMethods && personalAccountError != null)
+                    ListTile(
+                      key: const ValueKey('checkout-personal-account-error'),
+                      title: Text(_accountText('unavailable')),
+                      subtitle: Text(personalAccountError!),
+                      trailing: IconButton(
+                        tooltip: 'retry_btn'.tr,
+                        onPressed: () =>
+                            Navigator.of(context).pop('retry-account'),
+                        icon: const Icon(Icons.refresh),
+                      ),
+                    ),
+                  if (cardsAvailable == false ||
+                      (cardsError != null && methods.isEmpty))
+                    ListTile(
+                      key: const ValueKey('checkout-saved-cards-unavailable'),
+                      title: Text(
+                        cardsAvailable == false
+                            ? 'checkout_forte_unavailable'.tr
+                            : cardsError!,
+                      ),
+                      trailing: TextButton(
+                        onPressed: () =>
+                            Navigator.of(context).pop('retry-cards'),
+                        child: Text('retry_btn'.tr),
+                      ),
+                    ),
+                  if (methods.isEmpty &&
+                      (cardsLoading || cardsAvailable == null))
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(
+                        child: SizedBox.square(
+                          dimension: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
+                  if (cardsAvailable == true && hostedCardPayment)
+                    ListTile(
+                      key: const ValueKey('checkout-hosted-payment-choice'),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 8,
+                      ),
+                      leading: const _CheckoutCardBrand(brand: ''),
+                      title: Text('checkout_card_payment'.tr),
+                      trailing: !personalAccountSelected
+                          ? Icon(
+                              Icons.check_circle_rounded,
+                              color: colors.brandBrown,
+                            )
+                          : null,
+                      onTap: () => Navigator.of(context).pop('hosted-card'),
+                    ),
+                  if (cardsAvailable != false && !hostedCardPayment)
+                    for (final method in methods)
+                      Semantics(
+                        selected: method['id'] == selectedId,
+                        child: InkWell(
+                          key: ValueKey('checkout-saved-card-${method['id']}'),
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(method['id'].toString()),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 22,
+                              vertical: 12,
+                            ),
+                            child: _CheckoutCardIdentity(
+                              method: method,
+                              trailing: Icon(
+                                method['id'] == selectedId
+                                    ? Icons.check_circle_rounded
+                                    : Icons.radio_button_unchecked_rounded,
+                                color: method['id'] == selectedId
+                                    ? colors.brandBrown
+                                    : colors.cardBorder,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  if (methods.length < _maximumSavedPaymentMethods)
+                  if (cardsAvailable == true &&
+                      !hostedCardPayment &&
+                      methods.length < _maximumSavedPaymentMethods)
                     ListTile(
                       key: const ValueKey('checkout-add-saved-card'),
                       contentPadding: const EdgeInsets.symmetric(
@@ -86,10 +227,9 @@ class _CheckoutCardPicker extends StatelessWidget {
                       ),
                       leading: const _CheckoutCardBrand(brand: '', add: true),
                       title: Text('checkout_add_new_card'.tr),
-                      subtitle: Text('payment_methods_verification_hint'.tr),
                       onTap: () => Navigator.of(context).pop('add'),
                     )
-                  else
+                  else if (methods.length >= _maximumSavedPaymentMethods)
                     const Padding(
                       padding: EdgeInsets.all(20),
                       child: _CheckoutSavedCardsLimitNotice(

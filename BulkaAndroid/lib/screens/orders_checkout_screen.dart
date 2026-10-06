@@ -53,6 +53,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   bool _deliveryAvailable = false;
   bool _deliveryAvailabilityChecked = false;
   bool _isSubmitting = false;
+  bool _isManagingPaymentMethod = false;
   bool _isQuoting = false;
   bool _quotePending = false;
   bool _quoteFeedbackPending = false;
@@ -63,6 +64,8 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   String? _inflightQuoteKey;
   String? _lastQuotedKey;
   Timer? _quoteFreshness;
+  Future<void>? _quoteFlight;
+  Future<void>? _liveCheckoutFlight;
   bool _isSelectingBranch = false;
   bool _isSelectingAddress = false;
   bool _isSelectingTime = false;
@@ -81,11 +84,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   int? _bonusAvailable;
   int _bonusMaximum = 0;
   int _bonusSpent = 0;
-  int _deliveryFee = 0;
   int? _quotedTotal;
   String? _deliveryQuoteToken;
   String? _quoteError;
-  Map<String, dynamic>? _etaQuote;
   int _branchTimezoneOffsetMinutes = 300;
   int _quoteRevision = 0;
   String _checkoutId = _newCheckoutId();
@@ -127,7 +128,11 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         'loyalty',
       },
       _refreshLiveCheckout,
-      busy: () => !_preferencesReady || _isSubmitting || _isQuoting,
+      busy: () =>
+          !_preferencesReady ||
+          _isSubmitting ||
+          _isManagingPaymentMethod ||
+          _isQuoting,
       acceptEvent: _matchesCheckoutBranch,
     );
     _scheduleEvents = widget.api.customerEvents.listen((event) {
@@ -347,7 +352,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 
   Future<void> _selectBranch() async {
-    if (_isSelectingBranch) return;
+    if (_isSelectingBranch || _isSubmitting) return;
     setState(() => _isSelectingBranch = true);
     try {
       final selected = await Navigator.of(context).push<String>(
@@ -364,11 +369,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _branch = selected;
         _branchId = prefs.getString('selected_bakery_location_id');
         _scheduledSlot = null;
-        _deliveryFee = 0;
         _quoteValid = false;
         _quotedTotal = null;
         _quoteError = null;
-        _etaQuote = null;
       });
       await _persistDraft();
     } finally {
@@ -377,7 +380,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 
   Future<void> _selectDeliveryAddress() async {
-    if (_isSelectingAddress) return;
+    if (_isSelectingAddress || _isSubmitting) return;
     setState(() => _isSelectingAddress = true);
     try {
       final selected = await Navigator.of(context).push<DeliveryAddress>(
@@ -390,11 +393,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       setState(() {
         _deliveryAddress = selected;
         _scheduledSlot = null;
-        _deliveryFee = 0;
         _quoteValid = false;
         _quotedTotal = null;
         _quoteError = null;
-        _etaQuote = null;
       });
       await _persistDraft();
     } finally {
@@ -403,7 +404,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 
   Future<void> _selectScheduledTime() async {
-    if (_isSelectingTime) return;
+    if (_isSelectingTime || _isSubmitting) return;
     if (!_usesDelivery && _branch.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         bulkaSnackBar(content: Text('checkout_branch_required'.tr)),
@@ -474,47 +475,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       (_usesDelivery || _scheduledSlot != null) &&
       (_usesDelivery
           ? _deliveryAddress != null && _deliveryBranchLocation != null
-          : _branch.trim().isNotEmpty);
-
-  String get _quoteEtaText {
-    final eta = _etaQuote;
-    if (eta == null) return '';
-    final minimumInstant = DateTime.tryParse(_asString(eta['minAt']));
-    final maximumInstant = DateTime.tryParse(_asString(eta['maxAt']));
-    if (minimumInstant != null && maximumInstant != null) {
-      final minimum = branchWallClock(
-        minimumInstant,
-        _branchTimezoneOffsetMinutes,
-      );
-      final maximum = branchWallClock(
-        maximumInstant,
-        _branchTimezoneOffsetMinutes,
-      );
-      final start = _clockLabel(minimum);
-      final end = _clockLabel(maximum);
-      return 'checkout_eta_window'.trArgs({
-        'date': formatUiDate(context, minimum),
-        'min': start,
-        'max': end,
-      });
-    }
-    final minimumMinutes = (eta['minMinutes'] as num?)?.round();
-    final maximumMinutes = (eta['maxMinutes'] as num?)?.round();
-    if (minimumMinutes != null && maximumMinutes != null) {
-      return 'order_eta_range_minutes'.trArgs({
-        'min': minimumMinutes,
-        'max': maximumMinutes,
-      });
-    }
-    return '';
-  }
-
-  String get _quoteEtaConfidence {
-    final confidence = _asString(_etaQuote?['confidence']);
-    return const {'low', 'medium', 'high'}.contains(confidence)
-        ? 'order_eta_confidence_$confidence'.tr
-        : '';
-  }
+          : _branch.trim().isNotEmpty &&
+                _effectiveLocation?.active == true &&
+                _effectiveLocation?.supports(_orderType.wireValue) == true);
 
   Future<bool> _revalidateScheduledSlot() async {
     if (_usesDelivery) return true;
@@ -523,6 +486,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 
   Future<void> _submit() async {
+    if (_isManagingPaymentMethod) return;
     if (_onlineOrderingDisabled) {
       ScaffoldMessenger.of(context).showSnackBar(
         bulkaSnackBar(content: Text('checkout_online_ordering_disabled'.tr)),
@@ -562,25 +526,79 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     }
     if (_isSubmitting) return;
     if (_hasUnappliedPromo) return;
-    if (!_quoteValid ||
-        _quotedTotal == null ||
-        _isQuoting ||
-        _quoteError != null) {
+    if (!_hasCurrentQuote) {
       await _refreshQuote();
       return;
     }
+    final submittedQuoteKey = _currentQuoteKey;
+    final submittedTotal = _quotedTotal;
+    final submittedBonusSpent = _bonusSpent;
+    final submittedUseBonuses = _useBonuses;
+    final submittedUsePersonalAccount = _usePersonalAccount;
+    final submittedPaymentMethodId = _selectedPaymentMethodId;
     setState(() => _isSubmitting = true);
     try {
+      // Background refresh keeps the button steady. A tap still waits for the
+      // latest server checks before creating a payment, using only this cart.
+      await _liveCheckoutFlight;
+      await _quoteFlight;
+      if (!mounted) return;
       if (!await _revalidateScheduledSlot()) {
         if (mounted) setState(() => _isSubmitting = false);
         return;
       }
+      await _refreshQuote(allowDuringSubmission: true);
+      if (!mounted) return;
+      if (!_hasCurrentQuote ||
+          !_selectedPaymentAvailable ||
+          _hasUnappliedPromo ||
+          _currentQuoteKey != submittedQuoteKey ||
+          _quotedTotal != submittedTotal ||
+          _bonusSpent != submittedBonusSpent ||
+          _useBonuses != submittedUseBonuses ||
+          _usePersonalAccount != submittedUsePersonalAccount ||
+          (!_usePersonalAccount &&
+              _selectedPaymentMethodId != submittedPaymentMethodId)) {
+        setState(() => _isSubmitting = false);
+        // A refreshed price requires another explicit tap at the new amount.
+        if (_hasCurrentQuote &&
+            (_quotedTotal != submittedTotal ||
+                _bonusSpent != submittedBonusSpent)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            bulkaSnackBar(content: Text('checkout_price_checked'.tr)),
+          );
+        }
+        return;
+      }
+      // Freeze the validated request before asynchronous draft persistence.
+      // Later UI or account updates must not change the amount or card paid.
+      final details = _CheckoutDetails(
+        checkoutId: _checkoutId,
+        paymentMethod: submittedUsePersonalAccount
+            ? 'personal_account'
+            : 'forte_card',
+        expectedTotal: submittedTotal!.toDouble(),
+        orderType: _orderType,
+        savedPaymentMethodId: submittedUsePersonalAccount
+            ? null
+            : submittedPaymentMethodId,
+        useBonuses: submittedUseBonuses,
+        bonusSpent: submittedBonusSpent,
+        deliveryQuoteToken: _deliveryQuoteToken,
+        preorderFulfillmentType: _isPreorder ? 'pickup' : null,
+        branch: _usesDelivery ? null : _branch,
+        branchId: _usesDelivery ? null : _branchId,
+        scheduledAt: _usesDelivery ? null : _scheduledSlot!.value,
+        deliveryAddress: _usesDelivery ? _deliveryAddress : null,
+        promoCode: _appliedPromoCode,
+        comment: _commentController.text.trim(),
+      );
       final prefs = await SharedPreferences.getInstance();
       // Keep the id before the network call. A crash after the order is
       // created but before the response is received must still retry the
       // same idempotent request after restart.
       await Future.wait([
-        prefs.setString(_draftKey('checkout_id'), _checkoutId),
+        prefs.setString(_draftKey('checkout_id'), details.checkoutId),
         if (widget.cartRevision != null)
           prefs.setString(
             _draftKey('checkout_cart_revision'),
@@ -591,29 +609,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           DateTime.now().toUtc().toIso8601String(),
         ),
       ]);
-      final outcome = await widget.onSubmit(
-        _CheckoutDetails(
-          checkoutId: _checkoutId,
-          paymentMethod: _usePersonalAccount
-              ? 'personal_account'
-              : 'forte_card',
-          expectedTotal: _quotedTotal?.toDouble(),
-          orderType: _orderType,
-          savedPaymentMethodId: _usePersonalAccount
-              ? null
-              : _selectedPaymentMethodId,
-          useBonuses: _useBonuses,
-          bonusSpent: _bonusSpent,
-          deliveryQuoteToken: _deliveryQuoteToken,
-          preorderFulfillmentType: _isPreorder ? 'pickup' : null,
-          branch: _usesDelivery ? null : _branch,
-          branchId: _usesDelivery ? null : _branchId,
-          scheduledAt: _usesDelivery ? null : _scheduledSlot!.value,
-          deliveryAddress: _usesDelivery ? _deliveryAddress : null,
-          promoCode: _appliedPromoCode,
-          comment: _commentController.text.trim(),
-        ),
-      );
+      final outcome = await widget.onSubmit(details);
       if (mounted && outcome == FortePaymentOutcome.paid) {
         final prefs = await SharedPreferences.getInstance();
         await Future.wait([

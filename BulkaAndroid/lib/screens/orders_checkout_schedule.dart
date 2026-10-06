@@ -1,13 +1,24 @@
 part of '../main.dart';
 
 extension _CheckoutScheduleState on _CheckoutScreenState {
-  Future<void> _refreshLiveCheckout() async {
+  Future<void> _refreshLiveCheckout() {
+    final running = _liveCheckoutFlight;
+    if (running != null) return running;
+    late final Future<void> result;
+    result = _fetchLiveCheckout().whenComplete(() {
+      if (identical(_liveCheckoutFlight, result)) _liveCheckoutFlight = null;
+    });
+    _liveCheckoutFlight = result;
+    return result;
+  }
+
+  Future<void> _fetchLiveCheckout() async {
     final refreshSchedule = _scheduleNeedsRefresh;
     _scheduleNeedsRefresh = false;
-    // A server invalidation supersedes the cached quote even when the cart is unchanged.
+    // Refresh even a fresh quote after a server event, but keep an unchanged
+    // checkout actionable while that check is running. Submission awaits it.
     _quoteRevision++;
     _quoteFreshness?.cancel();
-    _updateCheckoutState(() => _quoteValid = false);
     if (refreshSchedule) {
       _scheduleRevision++;
       if (_isSelectingTime) _scheduleOptions.value = null;
@@ -26,16 +37,29 @@ extension _CheckoutScheduleState on _CheckoutScreenState {
         if (branch != null) _branch = branch.name;
       });
       if (refreshSchedule && (_scheduledSlot != null || _isSelectingTime)) {
-        if (!await _loadScheduleOptions()) return;
+        if (!await _loadScheduleOptions()) {
+          if (mounted) {
+            _updateCheckoutState(() {
+              _quoteValid = false;
+              _quoteError = _scheduleError;
+            });
+          }
+          return;
+        }
         if (_scheduledSlot != null) await _applyScheduleToSelection();
       }
-      await _refreshQuote();
+      await _refreshQuote(allowDuringSubmission: true);
     } catch (error) {
       _scheduleNeedsRefresh = _scheduleNeedsRefresh || refreshSchedule;
-      if (mounted && refreshSchedule) {
-        _updateCheckoutState(() => _quoteError = localizeErrorMessage(error));
-        _scheduleError = localizeErrorMessage(error);
-        _scheduleOptions.value = const [];
+      if (mounted) {
+        _updateCheckoutState(() {
+          _quoteValid = false;
+          _quoteError = localizeErrorMessage(error);
+        });
+        if (refreshSchedule) {
+          _scheduleError = localizeErrorMessage(error);
+          _scheduleOptions.value = const [];
+        }
       }
       rethrow;
     }
@@ -116,7 +140,6 @@ extension _CheckoutScheduleState on _CheckoutScreenState {
       if (current == null) {
         _quoteValid = false;
         _quoteError = null;
-        _etaQuote = null;
       }
     });
     if (current == null) {
