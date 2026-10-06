@@ -30,7 +30,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
     // The SDK's queue UUID is not a physical printing-device UUID. Observe the
     // configured assembly route through the supported before-format callback.
-    internal static class PickupPhotoRoutes
+    internal static partial class PickupPhotoRoutes
     {
         private const string Marker="BulkaPhotoPrinterRoute";
         private const int MaximumBindings=8192;
@@ -73,17 +73,6 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 else pending.ContinueWith(_=>Release(),TaskContinuationOptions.ExecuteSynchronously);
             }
         }
-        private sealed class Subscription:IDisposable
-        {
-            private readonly IDisposable handler;
-            private readonly int ownGeneration;
-            internal Subscription(IDisposable handler,int ownGeneration){this.handler=handler;this.ownGeneration=ownGeneration;}
-            public void Dispose()
-            {
-                lock(gate) {if(generation==ownGeneration) initialized=false;}
-                handler?.Dispose();
-            }
-        }
         internal static bool PrintBusy => printGate.CurrentCount==0;
         internal static bool UncertainPrintBusy => uncertainProbeFlight && PrintBusy;
         internal static Lease TryReservePrint() => printGate.Wait(0) ? new Lease() : null;
@@ -97,26 +86,6 @@ namespace Resto.Front.Api.IikoBonusPlugin
             && (pair.Value.SectionId=="none" || Guid.TryParse(pair.Value.SectionId,out _))
             && pair.Value.Number>0 && new[]{"bill","document"}.Contains(pair.Value.Kind)
             && (pair.Value.Phase==null || new[]{"reserved","assembly_printed","assembly_acknowledged"}.Contains(pair.Value.Phase)));
-        internal static IDisposable Start(IOperationService os,int timeoutSeconds=30)
-        {
-            int ownGeneration;
-            lock(gate)
-            {
-                initialized=false;healthy=false;generation++;ownGeneration=generation;
-                observations.Clear();confirmed.Clear();probes.Clear();probeTimeoutSeconds=Math.Max(1,Math.Min(60,timeoutSeconds));
-                path=Path.Combine(LoyaltyFlow.DataDirectoryPath,"BulkaPickupPhotoRoutes.json");
-                try {bindings=DurableJsonFile.ReadValidated<Dictionary<string,PickupPhotoRouteBinding>>(path,Valid,false);healthy=true;}
-                catch {bindings=new Dictionary<string,PickupPhotoRouteBinding>();PickupPhotoPrinter.Diagnose("route_journal",null,"invalid");}
-            }
-            try
-            {
-                var handler=os.RegisterBeforeFormatDocumentHandler(BeforeFormat);
-                if(handler==null) {PickupPhotoPrinter.Diagnose("route_callback",null,"null");return null;}
-                lock(gate) {initialized=true;}
-                return new Subscription(handler,ownGeneration);
-            }
-            catch(Exception error) {PickupPhotoPrinter.Diagnose("route_callback",null,error.GetType().Name);return null;}
-        }
         internal static void BindQueue(IOperationService os,IPrinterQueueRef queue,Guid? section,string kind)
         {
             if(queue==null) return;
@@ -127,7 +96,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 route.Key=branch+"|"+terminal+"|"+route.Queue+"|"+route.Section+"|"+kind;
                 lock(gate) {queues.Remove(queue);queues.Add(queue,route);}
             }
-            catch(Exception error) {PickupPhotoPrinter.Diagnose("route_queue",null,error.GetType().Name);}
+            catch(Exception error)
+            {
+                lock(gate) startupDiagnostic="route_queue_failed type="+error.GetType().Name;
+                PickupPhotoPrinter.Diagnose("route_queue",null,error.GetType().Name);
+            }
         }
         internal static Observation Attach(IPrinterQueueRef queue,XElement doc)
         {
@@ -140,8 +113,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 return observation;
             }
         }
-        private static Document BeforeFormat(ValueTuple<Guid,Document> args)
+        private static Document BeforeFormat(ValueTuple<Guid,Document> args,int callbackGeneration)
         {
+            lock(gate) {if(callbackGeneration!=generation || !initialized) return null;}
             if(args.Item2?.Markup==null) return null;
             var doc=new XElement(args.Item2.Markup);
             var markers=doc.Descendants("section").Where(item=>(string)item.Attribute("name")==Marker).ToArray();
@@ -152,7 +126,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 var nonce=(string)marker.Attribute("data");marker.Remove();
                 lock(gate)
                 {
-                    if(nonce==null || !observations.TryGetValue(nonce,out var observation)
+                    if(callbackGeneration!=generation || !initialized || nonce==null || !observations.TryGetValue(nonce,out var observation)
                         || observation.Expired || observation.Generation!=generation) continue;
                     if(args.Item1==Guid.Empty || (observation.Device.HasValue && observation.Device!=args.Item1))
                         observation.Ambiguous=true;
@@ -210,42 +184,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
             try {DurableJsonFile.Write(path,bindings);}
             catch(Exception error) {healthy=false;PickupPhotoPrinter.Diagnose("route_journal",queue,error.GetType().Name);}
         }
-        private static async Task Probe(IOperationService os,IPrinterQueueRef queue,Route route,IDisposable lease)
-        {
-            Observation observation=null;
-            Task<bool> flight=null;
-            try
-            {
-                var doc=new XElement("doc",new XElement("center","Bulka — проверка фотопечати"));
-                observation=Attach(queue,doc);
-                if(observation==null) {lock(gate) probes[route.Key]="device_unmapped";return;}
-                flight=Task.Run(()=>{try{return os.Print(queue,(Document)doc,true);}finally{lease.Dispose();}});
-                if(await Task.WhenAny(flight,Task.Delay(TimeSpan.FromSeconds(probeTimeoutSeconds)))!=flight)
-                {
-                    lock(gate) {observation.Expired=true;if(observation.Generation==generation) probes[route.Key]="driver_unavailable";}
-                    uncertainProbeFlight=true;
-                    PickupPhotoPrinter.Diagnose("route_probe",route.Queue,"timeout");
-                    // Keep the gate until the SDK call truly finishes, even after
-                    // timeout/dispose. Neither a heartbeat nor a job may replay it.
-                    try {await flight;} catch { } finally {uncertainProbeFlight=false;}
-                    Complete(observation,false);return;
-                }
-                var result=await flight;
-                Complete(observation,result);
-                lock(gate) {if(observation.Generation==generation && !confirmed.ContainsKey(route.Key)
-                    && probes.TryGetValue(route.Key,out var state) && state=="print_in_progress") probes[route.Key]="device_unmapped";}
-                if(!result) PickupPhotoPrinter.Diagnose("route_probe",route.Queue,"negative_completion");
-            }
-            catch(Exception error)
-            {
-                Complete(observation,false);lock(gate) {if(observation?.Generation==generation) probes[route.Key]="driver_unavailable";}
-                PickupPhotoPrinter.Diagnose("route_probe",route.Queue,error.GetType().Name);
-            }
-            finally {if(flight==null) lease.Dispose();}
-        }
         internal static bool TryDefaultDevice(IOperationService os,out Guid device,out string reason)
         {
             device=Guid.Empty;reason="device_unmapped";
+            EnsureRegistration();
             lock(gate) {if(!initialized) return false;if(!healthy){reason="journal_unhealthy";return false;}}
             IPrinterQueueRef queue;
             try
@@ -261,17 +203,20 @@ namespace Resto.Front.Api.IikoBonusPlugin
         internal static bool TryQueueDevice(IOperationService os,IPrinterQueueRef queue,out Guid device,out string reason)
         {
             device=Guid.Empty;reason="device_unmapped";
+            EnsureRegistration();
             lock(gate)
             {
                 if(!initialized) return false;if(!healthy){reason="journal_unhealthy";return false;}
-                if(!queues.TryGetValue(queue,out var route)) return false;
-                if(confirmed.TryGetValue(route.Key,out device)) {reason="ready";return true;}
-                if(probes.TryGetValue(route.Key,out reason)) return false;
+                if(queue==null || !queues.TryGetValue(queue,out var route)) return false;
+                if(confirmed.TryGetValue(route.Key,out device)) {reason="ready";startupDiagnostic=null;return true;}
+                if(probes.TryGetValue(route.Key,out reason) && (!probeAttempts.TryGetValue(route.Key,out var previous)
+                    || previous.InFlight || !previous.Retryable || previous.Attempts>=MaximumStartupAttempts || utcNow()<previous.RetryAt)) return false;
                 var lease=TryReservePrint();if(lease==null) {reason="print_in_progress";return false;}
+                if(!probeAttempts.TryGetValue(route.Key,out var attempt))
+                    {attempt=new ProbeAttempt {Generation=generation};probeAttempts[route.Key]=attempt;}
+                attempt.Attempts++;attempt.InFlight=true;attempt.Retryable=false;startupDiagnostic=null;
                 probes[route.Key]="print_in_progress";reason="print_in_progress";
-                // Record the attempt before invoking the SDK. There is no timer
-                // retry for a failed/uncertain control strip during this startup.
-                Task.Run(()=>Probe(os,queue,route,lease));return false;
+                Task.Run(()=>Probe(os,queue,route,attempt,lease));return false;
             }
         }
         internal static bool ReserveOrder(IOperationService os,IPrinterQueueRef queue,string orderId,Guid frontOrder,

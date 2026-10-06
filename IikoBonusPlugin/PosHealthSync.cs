@@ -137,6 +137,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
             var os=PluginContext.Operations;
             PickupPhotoPrinterSelection photoPrinter=null;
             var photoStatus=pickupPhotos?.ReadinessStatus(os,out photoPrinter) ?? "worker_unavailable";
+            var photoDiagnostic=photoStatus=="print_in_progress" ? PickupPhotoRoutes.DiagnosticStatus : PickupPhotoPrinter.ReadinessDiagnostic;
+            if((photoStatus=="device_unmapped" || photoStatus=="driver_unavailable" || photoStatus=="ambiguous_printer"
+                || photoStatus=="print_in_progress") && !string.IsNullOrEmpty(photoDiagnostic))
+                errors.Insert(0,new PosHealthError {Kind="plugin_health",SourceId="photo_printer",Message=Safe(photoDiagnostic)});
             return new PosHealthRequest {
                 TerminalId=os.GetHostTerminal().Id.ToString(),PluginVersion=Version,
                 ApiVersion="V9Preview7",StartedAt=startedAt,ConnectedToMain=ConnectedToMain(),

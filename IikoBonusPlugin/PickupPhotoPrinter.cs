@@ -18,6 +18,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
     {
         private static readonly object diagnosticGate=new object();
         private static readonly Dictionary<string,string> diagnostics=new Dictionary<string,string>();
+        private static string readinessDiagnostic;
+        internal static string ReadinessDiagnostic {get {lock(diagnosticGate) return readinessDiagnostic;}}
         internal static void Diagnose(string stage,Guid? deviceId,string detail)
         {
             // Fixed stages, device UUIDs, numeric driver flags and exception types only.
@@ -32,13 +34,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
             try {PluginContext.Log.Info("Bulka photo printer "+key+" "+detail);} catch { }
         }
         private static bool TryPrepare(IOperationService os,IPrintingDeviceInfo device,int requested,
-            out PickupPhotoPrinterSelection selected,out string reason)
+            out PickupPhotoPrinterSelection selected,out string reason,out string diagnostic)
         {
-            selected=null;reason="driver_unavailable";
+            selected=null;reason="driver_unavailable";diagnostic=null;
             try
             {
                 var parameters=os.GetPrinterDriverParameters(device);
-                if(parameters==null) {Diagnose("parameters",device.Id,"null");return false;}
+                if(parameters==null) {diagnostic="physical_parameters_missing";Diagnose("parameters",device.Id,"null");return false;}
                 Diagnose("parameters",device.Id,"image="+parameters.CanPrintImage+" width="+parameters.PageWidth+
                     " left="+parameters.MarginLeft+" right="+parameters.MarginRight);
                 if(!parameters.CanPrintImage) {reason="image_unsupported";return false;}
@@ -51,11 +53,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 }
                 selected=new PickupPhotoPrinterSelection(device,width,"device");reason="ready";return true;
             }
-            catch(Exception error) {Diagnose("parameters",device.Id,error.GetType().Name);return false;}
+            catch(Exception error) {diagnostic="physical_parameters_failed type="+error.GetType().Name;Diagnose("parameters",device.Id,error.GetType().Name);return false;}
         }
         private static bool PrepareDevice(IOperationService os,Guid deviceId,out PickupPhotoPrinterSelection selected,out string reason)
+            => PrepareDevice(os,deviceId,out selected,out reason,out _);
+        private static bool PrepareDevice(IOperationService os,Guid deviceId,out PickupPhotoPrinterSelection selected,out string reason,out string diagnostic)
         {
-            selected=null;reason="driver_unavailable";
+            selected=null;reason="driver_unavailable";diagnostic=null;
             int requested;
             try {requested=PickupPhotoRaster.WidthDots;}
             catch {reason="invalid_width";return false;}
@@ -64,18 +68,25 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 // Only an observed physical UUID is authoritative. Inventory is
                 // used for an exact lookup, never to choose an unrelated printer.
                 var devices=os.GetPrintingDeviceInfos();
-                if(devices==null) {Diagnose("inventory",deviceId,"null");return false;}
+                if(devices==null) {diagnostic="physical_inventory_missing";Diagnose("inventory",deviceId,"null");return false;}
                 var device=devices.FirstOrDefault(item=>item!=null && item.Id==deviceId);
-                if(device==null) {reason="device_unmapped";Diagnose("observed_device",deviceId,"not_found");return false;}
-                return TryPrepare(os,device,requested,out selected,out reason);
+                if(device==null) {reason="device_unmapped";diagnostic="physical_device_missing";Diagnose("observed_device",deviceId,"not_found");return false;}
+                return TryPrepare(os,device,requested,out selected,out reason,out diagnostic);
             }
-            catch(Exception error) {Diagnose("observed_device",deviceId,error.GetType().Name);return false;}
+            catch(Exception error) {diagnostic="physical_inventory_failed type="+error.GetType().Name;Diagnose("observed_device",deviceId,error.GetType().Name);return false;}
         }
         internal static bool TrySelect(IOperationService os,out PickupPhotoPrinterSelection selected,out string reason)
         {
             selected=null;
-            if(!PickupPhotoRoutes.TryDefaultDevice(os,out var deviceId,out reason)) return false;
-            return PrepareDevice(os,deviceId,out selected,out reason);
+            if(!PickupPhotoRoutes.TryDefaultDevice(os,out var deviceId,out reason))
+            {
+                var routeDiagnostic=PickupPhotoRoutes.DiagnosticStatus;
+                lock(diagnosticGate) readinessDiagnostic=routeDiagnostic;
+                return false;
+            }
+            var ready=PrepareDevice(os,deviceId,out selected,out reason,out var diagnostic);
+            lock(diagnosticGate) readinessDiagnostic=ready ? null : diagnostic;
+            return ready;
         }
         internal static bool TrySelectForOrder(IOperationService os,string orderId,string photoId,long number,
             out PickupPhotoPrinterSelection selected,out string reason)

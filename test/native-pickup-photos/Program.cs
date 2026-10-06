@@ -78,6 +78,12 @@ internal static partial class Program
     private static IRestaurantSection section;
     private static ITable table;
     private static Func<ValueTuple<Guid,Document>,Document> beforeFormat;
+    private static readonly object callbackGate=new object();
+    private static readonly List<Func<ValueTuple<Guid,Document>,Document>> formatCallbacks=new List<Func<ValueTuple<Guid,Document>,Document>>();
+    private static int callbackRegistrations,callbackDisposals;
+    private static bool registrationThrows,registrationReturnsNull,queuePrinterThrows;
+    private static ManualResetEvent registrationWait,registrationEntered;
+    private static DateTime? retryNow;
     private static IDisposable routeSubscription;
     private static int probePrints,assemblyPrints;
     private static readonly List<string> printSequence=new List<string>();
@@ -118,6 +124,48 @@ internal static partial class Program
             return lease==null ? "Pending" : Call(Worker,"BeforeAssembly",worker,services.Operations,orderId,photoId,1057L,selected,lease).ToString();
     }
     private static void Dispose(object worker)=>((IDisposable)worker).Dispose();
+    private static IDisposable RegisterCallback(Func<ValueTuple<Guid,Document>,Document> callback)
+    {
+        Interlocked.Increment(ref callbackRegistrations);
+        var entered=registrationEntered;var waiting=registrationWait;
+        entered?.Set();waiting?.WaitOne();
+        if(registrationThrows) throw new IOException("Fake registration unavailable before any print");
+        if(registrationReturnsNull) return null;
+        lock(callbackGate) {formatCallbacks.Add(callback);beforeFormat=callback;}
+        return new Disposable(()=>
+        {
+            Interlocked.Increment(ref callbackDisposals);
+            lock(callbackGate)
+            {
+                formatCallbacks.Remove(callback);
+                if(beforeFormat==callback) beforeFormat=formatCallbacks.LastOrDefault();
+            }
+        });
+    }
+    private static Document FormatDocument(Guid target,Document document)
+    {
+        Func<ValueTuple<Guid,Document>,Document>[] callbacks;
+        lock(callbackGate) callbacks=formatCallbacks.ToArray();
+        var formatted=document;
+        foreach(var callback in callbacks) formatted=callback((target,formatted)) ?? formatted;
+        return formatted;
+    }
+    private static int ActiveCallbacks {get {lock(callbackGate) return formatCallbacks.Count;}}
+    private static void UseRetryClock()
+    {
+        retryNow=DateTime.UtcNow;
+        Routes.GetField("utcNow",Static).SetValue(null,new Func<DateTime>(()=>retryNow ?? DateTime.UtcNow));
+    }
+    private static void AdvanceRetryClock(int seconds) {retryNow=retryNow.Value.AddSeconds(seconds);}
+    private static bool PrinterReady() => (bool)Call(Worker,"PrinterReady",null,services.Operations);
+    private static bool RegistrationBusy => (bool)Routes.GetProperty("RegistrationBusy",Static).GetValue(null);
+    private static string StartupDiagnostic => (string)Routes.GetProperty("DiagnosticStatus",Static).GetValue(null);
+    private static string ReadinessDiagnostic => (string)Plugin.GetType("Resto.Front.Api.IikoBonusPlugin.PickupPhotoPrinter",true)
+        .GetProperty("ReadinessDiagnostic",Static).GetValue(null);
+    private static void WaitUntil(Func<bool> condition,string label)
+    {
+        if(!SpinWait.SpinUntil(condition,3000)) throw new Exception("Timed out: "+label);
+    }
     private static HttpResponseMessage Json(string body,HttpStatusCode code=HttpStatusCode.OK)=>new HttpResponseMessage(code){Content=new StringContent(body,Encoding.UTF8,"application/json")};
     private static string Success(string state)=>"{\"success\":true,\"status\":\""+state+"\",\"number\":1057,\"photoId\":\""+photoId+"\"}";
     private static void SetDriver(bool images=true,int? width=384)
@@ -164,6 +212,9 @@ internal static partial class Program
         printerPresent=true;billPresent=true;documentPresent=receiptQueryFails=false;receiptQueries=0;lastPrintedPrinter=Guid.Empty;
         probePrints=assemblyPrints=0;printSequence.Clear();printTargets.Clear();suppressCallback=multipleTargets=false;probeGate=null;frontOrderId=Guid.NewGuid();
         draftMismatch=noPhoto=false;terminalOverride=null;
+        registrationThrows=registrationReturnsNull=queuePrinterThrows=false;registrationWait=registrationEntered=null;
+        retryNow=null;
+        Routes.GetField("beforeProbe",Static).SetValue(null,null);
         handoverAfterDownload=handedOver=false;
         printGate=null;image=Png();SetDriver();SetDriverParameters(billDriver);SetDriverParameters(documentDriver);
         Environment.SetEnvironmentVariable("IIKO_PICKUP_PHOTO_WIDTH_DOTS",null);
@@ -238,7 +289,7 @@ internal static partial class Program
                 case "GetHostTerminal":return terminal;
                 case "GetHostTerminalRestaurantSections":return new[]{section};
                 case "GetTables":return new[]{table};
-                case "RegisterBeforeFormatDocumentHandler":beforeFormat=(Func<ValueTuple<Guid,Document>,Document>)call.Args[0];return new Disposable(()=>beforeFormat=null);
+                case "RegisterBeforeFormatDocumentHandler":return RegisterCallback((Func<ValueTuple<Guid,Document>,Document>)call.Args[0]);
                 case "TryGetReceiptChequePrinter":receiptQueries++;if(receiptQueryFails)throw new IOException("Receipt query failed");return printerPresent?printer:null;
                 case "TryGetBillPrinter":if(call.Args[0]!=section || !(bool)call.Args[1])throw new Exception("Wrong automatic assembly section");return billPresent?bill:null;
                 case "TryGetDocumentPrinter":if(call.Args[0]!=section || !(bool)call.Args[1])throw new Exception("Wrong automatic assembly section");return documentPresent?documentPrinter:null;
@@ -254,18 +305,19 @@ internal static partial class Program
                         var target=queue.Id==BillPrinterId?BillDeviceId:DocumentDeviceId;
                         if(!suppressCallback)
                         {
-                            var formatted=beforeFormat?.Invoke((target,payload));
-                            if(multipleTargets)beforeFormat?.Invoke((PrinterId,payload));
+                            var formatted=FormatDocument(target,payload);
+                            if(multipleTargets)FormatDocument(PrinterId,payload);
                             if(formatted!=null)markup=formatted.Markup;
                             if(markup.Descendants("section").Any())throw new Exception("Private route marker leaked to paper");
                         }
                         if(markup.Value.Contains("проверка фотопечати")){Interlocked.Increment(ref probePrints);probeGate?.WaitOne();}
                         else Interlocked.Increment(ref assemblyPrints);
+                        if(queuePrinterThrows) throw new IOException("Fake queue printer failed after dispatch");
                         return printResult;
                     }
                     if(call.Args.Length!=2)throw new Exception("Physical photo/assembly target uses bool-returning SDK overload");
                     var actual=((IPrintingDeviceInfo)call.Args[0]).Id;
-                    var physicalFormatted=beforeFormat?.Invoke((actual,payload));
+                    var physicalFormatted=FormatDocument(actual,payload);
                     if(physicalFormatted!=null)markup=physicalFormatted.Markup;
                     if(markup.Descendants("section").Any())throw new Exception("Private route marker leaked to paper");
                     if(markup.Element("image")==null)
@@ -298,9 +350,9 @@ internal static partial class Program
             .SetValue(null,new HttpClient(new FakeHttp{Reply=Reply}));
         typeof(LoyaltyFlow).GetField("_httpClient",Static).SetValue(null,new HttpClient(new FakeHttp{Reply=request=>
             Json("{\"id\":\""+(draftMismatch?Guid.NewGuid().ToString():orderId)+"\",\"pickupPhotoId\":"+(noPhoto?"null":"\""+photoId+"\"")+",\"items\":[{\"name\":\"Test\",\"quantity\":1}]}")}));
-        RasterBounds();PrinterCapability();RouteFailures();PrintAndAck();PrintFailures();PreparationRecovery();FreshDispatchGuard();LostClaim();Timeout();LedgerRetention();RouteStorage();CorruptJournal();
+        RasterBounds();PrinterCapability();RouteFailures();StartupRecovery();PrintAndAck();PrintFailures();PreparationRecovery();FreshDispatchGuard();LostClaim();Timeout();LedgerRetention();RouteStorage();CorruptJournal();
         PhotoFirstIntegration();
-        Check(Plugin.GetName().Version.ToString(3)=="1.14.3","photo-first assembly orchestration has version 1.14.3");
+        Check(Plugin.GetName().Version.ToString(3)=="1.14.4","safe startup recovery and photo-first orchestration have version 1.14.4");
         Console.WriteLine("PASS: "+assertions+" photo-print assertions; intercepted HTTP and SDK only, no physical printer.");
         PluginContext.Uninitialize();
     }
@@ -397,6 +449,191 @@ internal static partial class Program
             ((IPrintingDeviceInfo)args[4].GetType().GetProperty("Printer",Instance).GetValue(args[4])).Id==BillDeviceId,
             "manual assembly reprint after route change retains original physical route evidence");
         Check(printed==0,"legacy assembly-first order is never automatically given a late photo");Dispose(worker);
+    }
+    private static void StartupRecovery()
+    {
+        RegistrationRecovery();
+
+        Scenario(false);UseRetryClock();suppressCallback=true;printResult=false;
+        Check(!ReadyAfterProbe() && probePrints==1,"a definite SDK false without physical observation leaves startup mapping unavailable");
+        Check(StartupDiagnostic?.StartsWith("probe_negative_unobserved")==true && StartupDiagnostic.Contains("retry=pending")
+            && ReadinessDiagnostic==StartupDiagnostic,"definite startup failure exposes a fixed retryable stage in readiness diagnostics");
+        printResult=true;suppressCallback=false;
+        Parallel.For(0,12,_=>PrinterReady());
+        Check(probePrints==1,"concurrent heartbeats cannot retry a definite startup failure before its deadline");
+        AdvanceRetryClock(29);PrinterReady();
+        Check(probePrints==1,"definite startup probe retry preserves the full initial thirty-second spacing");
+        AdvanceRetryClock(1);
+        Check(ReadyAfterProbe() && probePrints==2,"a delayed definite startup retry recovers the exact physical assembly printer");
+        Check(StartupDiagnostic==null && ReadinessDiagnostic==null,"successful definite startup recovery clears stale printer diagnostics");
+        Check(printed==0 && assemblyPrints==0 && claims==0 && httpCalls==0 && ActiveCallbacks==1,
+            "startup recovery emits no customer photo, order claim or assembly and retains one observer");
+
+        Scenario(false);UseRetryClock();suppressCallback=true;printResult=false;
+        Check(!ReadyAfterProbe() && probePrints==1,"bounded startup retry begins with one definite no-observation failure");
+        AdvanceRetryClock(30);ReadyAfterProbe();
+        Check(probePrints==2,"definite startup retry permits one second attempt after thirty seconds");
+        AdvanceRetryClock(59);PrinterReady();
+        Check(probePrints==2,"a second definite failure waits sixty seconds before the final retry");
+        AdvanceRetryClock(1);ReadyAfterProbe();
+        Check(probePrints==3,"definite startup retry reaches its third bounded attempt");
+        AdvanceRetryClock(3600);printResult=true;suppressCallback=false;
+        Parallel.For(0,12,_=>PrinterReady());
+        Check(!ReadyAfterProbe() && probePrints==3,"exhausted definite startup failures never create an unbounded service-strip loop");
+        Check(StartupDiagnostic?.Contains("retry=exhausted")==true,"bounded startup failure exposes exhausted retry state without hiding its cause");
+
+        foreach(var mode in new[]{"observed_false","unobserved_true","exception","ambiguous"})
+        {
+            Scenario(false);UseRetryClock();
+            printResult=mode!="observed_false";suppressCallback=mode=="unobserved_true";
+            queuePrinterThrows=mode=="exception";multipleTargets=mode=="ambiguous";
+            Check(!ReadyAfterProbe() && probePrints==1,"uncertain startup result fails closed: "+mode);
+            Check(StartupDiagnostic?.Contains("retry=blocked")==true && !StartupDiagnostic.Contains(orderId)
+                && !StartupDiagnostic.Contains(photoId) && !StartupDiagnostic.Contains(new string('p',48)) && !StartupDiagnostic.Contains("Fake"),
+                "uncertain startup diagnostic is blocked and excludes raw SDK/customer/credential values: "+mode);
+            printResult=true;suppressCallback=queuePrinterThrows=multipleTargets=false;
+            foreach(var delay in new[]{30,60,3600})
+            {
+                AdvanceRetryClock(delay);Parallel.For(0,8,_=>PrinterReady());
+                Check(!ReadyAfterProbe() && probePrints==1,"uncertain startup result never auto-replays after delayed heartbeats: "+mode+"/"+delay);
+            }
+        }
+
+        Scenario(false);UseRetryClock();
+        var queue=Call(AssemblyTicket,"Printer",null,services.Operations,TestOrder());
+        var doc=new XElement("doc",new XElement("center","Stale generation fixture"));
+        var oldObservation=Call(Routes,"Attach",null,queue,doc);var oldCallback=beforeFormat;
+        RestartRoutes();
+        var formatted=oldCallback((BillDeviceId,(Document)doc));
+        Call(Routes,"Complete",null,oldObservation,true,null,null,0L,null);
+        Check(ActiveCallbacks==1 && oldCallback!=beforeFormat &&
+            formatted==null &&
+            ((IDictionary)Routes.GetField("confirmed",Static).GetValue(null)).Count==0,
+            "an old-generation callback cannot mutate metadata, confirm or revive the current printer route");
+        var currentDoc=new XElement("doc",new XElement("center","Current generation fixture"));
+        var currentObservation=Call(Routes,"Attach",null,queue,currentDoc);
+        Check(oldCallback((PrinterId,(Document)currentDoc))==null && currentDoc.Descendants("section").Any(),
+            "a stale chained callback leaves the current generation's route marker for its active observer");
+        formatted=beforeFormat((BillDeviceId,(Document)currentDoc));
+        Call(Routes,"Complete",null,currentObservation,false,null,null,0L,null);
+        Check(formatted!=null && !formatted.Markup.Descendants("section").Any(),
+            "the active callback observes and removes its own generation's route metadata");
+        Check(ReadyAfterProbe() && probePrints==1,"only the current registered observer can recover a new startup route");
+        DeferredProbeRecovery();
+    }
+    private static void RegistrationRecovery()
+    {
+        foreach(var failure in new[]{"throw","null"})
+        {
+            Scenario(false);UseRetryClock();var initial=callbackRegistrations;
+            registrationThrows=failure=="throw";registrationReturnsNull=failure=="null";RestartRoutes();
+            Check(routeSubscription!=null && ActiveCallbacks==0 && callbackRegistrations==initial+1 && !PrinterReady(),
+                "startup registration "+failure+" retains a disposable recovery owner without printer readiness");
+            Check(StartupDiagnostic?.StartsWith("callback_registration_failed")==true && StartupDiagnostic.Contains("retry=pending")
+                && ReadinessDiagnostic==StartupDiagnostic && !StartupDiagnostic.Contains("Fake") && !StartupDiagnostic.Contains(orderId),
+                "registration "+failure+" reports only a fixed failure stage and retry state");
+            registrationThrows=registrationReturnsNull=false;
+            Parallel.For(0,12,_=>PrinterReady());AdvanceRetryClock(29);PrinterReady();
+            Check(callbackRegistrations==initial+1 && probePrints==0,"registration "+failure+" cannot loop before its thirty-second deadline");
+            AdvanceRetryClock(1);PrinterReady();
+            WaitUntil(()=>callbackRegistrations==initial+2 && !RegistrationBusy,"registration recovery "+failure);
+            Check(ReadyAfterProbe() && ActiveCallbacks==1 && callbackRegistrations==initial+2 && probePrints==1,
+                "registration "+failure+" recovers later with one observer and one exact-route probe");
+            Check(StartupDiagnostic==null && ReadinessDiagnostic==null,"registration "+failure+" recovery clears prior readiness diagnostics");
+            Parallel.For(0,12,_=>PrinterReady());
+            Check(callbackRegistrations==initial+2 && probePrints==1 && assemblyPrints==0 && printed==0 && claims==0,
+                "registered recovery stays stable without duplicate subscriptions or customer work");
+        }
+
+        Scenario(false);UseRetryClock();registrationThrows=true;var baseline=callbackRegistrations;RestartRoutes();
+        AdvanceRetryClock(30);PrinterReady();WaitUntil(()=>callbackRegistrations==baseline+2 && !RegistrationBusy,"second failed registration");
+        AdvanceRetryClock(59);PrinterReady();
+        Check(callbackRegistrations==baseline+2,"second registration failure waits sixty seconds before its final attempt");
+        AdvanceRetryClock(1);PrinterReady();WaitUntil(()=>callbackRegistrations==baseline+3 && !RegistrationBusy,"third failed registration");
+        AdvanceRetryClock(3600);registrationThrows=false;Parallel.For(0,12,_=>PrinterReady());
+        Check(!PrinterReady() && callbackRegistrations==baseline+3 && ActiveCallbacks==0 && probePrints==0,
+            "failed callback registration is capped at three attempts per startup generation");
+
+        Scenario(false);UseRetryClock();registrationReturnsNull=true;RestartRoutes();registrationReturnsNull=false;
+        using(var waiting=new ManualResetEvent(false))
+        using(var entered=new ManualResetEvent(false))
+        {
+            registrationWait=waiting;registrationEntered=entered;AdvanceRetryClock(30);PrinterReady();
+            WaitUntil(()=>entered.WaitOne(0),"registration blocked before disposal");
+            var registrations=callbackRegistrations;var disposals=callbackDisposals;
+            routeSubscription.Dispose();routeSubscription=null;registrationWait=registrationEntered=null;waiting.Set();
+            WaitUntil(()=>callbackDisposals>disposals && ActiveCallbacks==0,"disposed late callback registration");
+            AdvanceRetryClock(3600);Parallel.For(0,12,_=>PrinterReady());
+            Check(!PrinterReady() && callbackRegistrations==registrations && ActiveCallbacks==0 && probePrints==0,
+                "a late successful registration after disposal is immediately removed and cannot revive readiness");
+        }
+
+        Scenario(false);UseRetryClock();registrationReturnsNull=true;RestartRoutes();registrationReturnsNull=false;
+        using(var waiting=new ManualResetEvent(false))
+        using(var entered=new ManualResetEvent(false))
+        {
+            registrationWait=waiting;registrationEntered=entered;AdvanceRetryClock(30);PrinterReady();
+            WaitUntil(()=>entered.WaitOne(0),"old registration blocked before newer Start");
+            registrationWait=registrationEntered=null;RestartRoutes();
+            var disposals=callbackDisposals;waiting.Set();
+            WaitUntil(()=>callbackDisposals>disposals && ActiveCallbacks==1,"stale registration removed after newer Start");
+            Check(ReadyAfterProbe() && ActiveCallbacks==1 && probePrints==1 && printed==0 && assemblyPrints==0,
+                "a stale registration return cannot replace or dispose the new generation's observer");
+        }
+    }
+    private static void DeferredProbeRecovery()
+    {
+        foreach(var replacement in new[]{"dispose","restart"})
+        {
+            Scenario(false);UseRetryClock();
+            using(var waiting=new ManualResetEvent(false))
+            using(var entered=new ManualResetEvent(false))
+            {
+                Routes.GetField("beforeProbe",Static).SetValue(null,new Action(()=>{entered.Set();waiting.WaitOne();}));
+                try
+                {
+                    PrinterReady();WaitUntil(()=>entered.WaitOne(0),"queued probe before "+replacement);
+                    Check((bool)Routes.GetProperty("PrintBusy",Static).GetValue(null) && probePrints==0,
+                        "a queued startup probe holds one lease before any SDK dispatch: "+replacement);
+                    Routes.GetField("beforeProbe",Static).SetValue(null,null);
+                    if(replacement=="restart") RestartRoutes();
+                    else {routeSubscription.Dispose();routeSubscription=null;}
+                    PrinterReady();
+                    Check(probePrints==0,"a replaced queued probe cannot overlap new startup work: "+replacement);
+                    waiting.Set();WaitUntil(()=>!(bool)Routes.GetProperty("PrintBusy",Static).GetValue(null),"stale queued probe exits");
+                    Check(probePrints==0 && ((IDictionary)Routes.GetField("confirmed",Static).GetValue(null)).Count==0,
+                        "a stale queued probe never attaches or dispatches under the newer generation: "+replacement);
+                    if(replacement=="restart")
+                        Check(ReadyAfterProbe() && probePrints==1 && ActiveCallbacks==1,
+                            "the replacement startup recovers only through its own observer and single service probe");
+                    else
+                    {
+                        AdvanceRetryClock(3600);PrinterReady();
+                        Check(probePrints==0 && ActiveCallbacks==0,"disposing queued startup work cannot trigger a late retry or callback");
+                    }
+                }
+                finally
+                {
+                    Routes.GetField("beforeProbe",Static).SetValue(null,null);waiting.Set();
+                    WaitUntil(()=>!(bool)Routes.GetProperty("PrintBusy",Static).GetValue(null),"queued probe cleanup");
+                }
+            }
+        }
+
+        Scenario(false);UseRetryClock();
+        using(var waiting=new ManualResetEvent(false))
+        {
+            probeGate=waiting;RestartRoutes(1);PrinterReady();WaitUntil(()=>probePrints==1,"physical startup probe in flight");
+            Thread.Sleep(1200);RestartRoutes(1);Parallel.For(0,8,_=>PrinterReady());
+            Check(probePrints==1 && (bool)Routes.GetProperty("PrintBusy",Static).GetValue(null),
+                "timeout plus restart retains the actual SDK lease and cannot submit a competing strip");
+            waiting.Set();WaitUntil(()=>!(bool)Routes.GetProperty("PrintBusy",Static).GetValue(null),"old physical probe exits");
+            Check(((IDictionary)Routes.GetField("confirmed",Static).GetValue(null)).Count==0,
+                "late old-generation physical completion cannot authorize the new startup route");
+            probeGate=null;
+            Check(ReadyAfterProbe() && probePrints==2 && assemblyPrints==0 && printed==0,
+                "after the old SDK call ends only the new startup's independent service probe can recover readiness");
+        }
     }
     private static void PrintAndAck()
     {
