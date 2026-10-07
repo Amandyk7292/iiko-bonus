@@ -21,8 +21,7 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                 children: [
                   _CheckoutSteps(
                     addressComplete: _usesDelivery
-                        ? _deliveryAddress != null &&
-                              _deliveryBranchLocation != null
+                        ? _deliveryAddress?.hasValidCoordinates == true
                         : _branch.trim().isNotEmpty,
                     timeComplete: _usesDelivery || _scheduledSlot != null,
                   ),

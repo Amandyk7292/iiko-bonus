@@ -443,6 +443,11 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'en':
         'No time slots are available for this location. Choose another location.',
   },
+  'checkout_delivery_no_slots': {
+    'ru': 'Нет свободного времени доставки. Попробуйте позже.',
+    'kk': 'Жеткізуге бос уақыт жоқ. Кейінірек көріңіз.',
+    'en': 'No delivery times are available. Please try later.',
+  },
   'checkout_time_expired': {
     'ru': 'Это время уже недоступно. Выберите новый интервал.',
     'kk': 'Бұл уақыт енді қолжетімсіз. Жаңа аралықты таңдаңыз.',

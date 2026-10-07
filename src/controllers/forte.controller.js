@@ -9,9 +9,11 @@ const { deliveryBudget } = require('../services/delivery-budget.service');
 const {
   priceCheckoutDelivery,
   FREE_DELIVERY_THRESHOLD,
+  readDeliveryQuoteSelection,
 } = require('../services/checkout-delivery-pricing.service');
 const { getCitiesWithPoints } = require('../services/location.service');
-const { normalizeOrderType, validateCheckout } = require('../services/checkout.service');
+const { normalizeOrderType } = require('../services/checkout.service');
+const { resolveCheckout } = require('../services/delivery-branch.service');
 const {
   reserveCheckoutPhoto,
   assertExistingPhoto,
@@ -108,7 +110,7 @@ const quotePayment = async (req, res) => {
       throwOnError: true,
       applyDeliveryAvailability: false,
     });
-    const checkout = validateCheckout(req.body, cities);
+    const checkout = await resolveCheckout(req.body, cities);
     let pricing = await priceOrder(req.body?.items, req.body?.promoCode, {
       deliveryFee: checkout.deliveryFee,
       branchId: checkout.branchId,
@@ -149,6 +151,7 @@ const quotePayment = async (req, res) => {
       promoCode: pricing.promoCode,
       branchId: checkout.branchId,
       deliveryDistanceKm: checkout.deliveryDistanceKm,
+      scheduledAt: checkout.scheduledAt,
       eta,
       freeDeliveryThreshold: FREE_DELIVERY_THRESHOLD,
       deliveryQuoteToken: deliveryQuote.deliveryQuoteToken,
@@ -211,7 +214,15 @@ const createPayment = async (req, res) => {
         throwOnError: true,
         applyDeliveryAvailability: false,
       });
-      const checkout = validateCheckout(req.body, cities);
+      const selection =
+        normalizeOrderType(req.body?.orderType ?? req.body?.fulfillmentType) === 'delivery' &&
+        req.body?.deliveryQuoteToken
+          ? readDeliveryQuoteSelection(req.body.deliveryQuoteToken, { customerId })
+          : {};
+      const checkout = await resolveCheckout(req.body, cities, {
+        ...selection,
+        excludeRequestId: checkoutId,
+      });
       // Resolve immutable photo ownership before creating any shared money hold.
       checkout.pickupPhotoId = await reserveCheckoutPhoto(
         customerId,

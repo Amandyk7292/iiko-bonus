@@ -25,11 +25,13 @@ async function fixture(run) {
     hours: { daily: { open: '08:00', close: '23:30' } },
   };
   const reservations = [];
+  const locations = new Map([['branch', location]]);
   const database = {
     async rpc(name, args) {
       assert.equal(name, 'fulfillment_slot_usage');
       const used = new Map();
       for (const reservation of reservations) {
+        if ((reservation.branchId || 'branch') !== args.p_branch) continue;
         if (args.p_exclude_request && reservation.client_request_id === args.p_exclude_request)
           continue;
         if (
@@ -53,11 +55,13 @@ async function fixture(run) {
       return { data: [...used].map(([startsAt, used]) => ({ startsAt, used })), error: null };
     },
     from(table) {
+      let branchId;
       return {
         select() {
           return this;
         },
-        eq() {
+        eq(key, value) {
+          if (key === 'id') branchId = value;
           return this;
         },
         gte() {
@@ -66,7 +70,7 @@ async function fixture(run) {
         lt() {
           return this;
         },
-        maybeSingle: async () => ({ data: structuredClone(location), error: null }),
+        maybeSingle: async () => ({ data: structuredClone(locations.get(branchId)), error: null }),
         in: async () => {
           assert.equal(table, 'fulfillment_slot_reservations');
           return { data: reservations, error: null };
@@ -87,6 +91,7 @@ async function fixture(run) {
     await run({
       location,
       reservations,
+      locations,
       now,
       list: (options = {}) =>
         service.listAvailableSlots({
@@ -127,6 +132,141 @@ test('changed slot interval counts every existing reservation inside the new buc
       [2, 1],
     );
   }));
+
+for (const unavailable of ['closed', 'full']) {
+  test(`ASAP fallback uses real slot calculation when the nearer branch is ${unavailable}`, async () =>
+    fixture(async ({ location, locations, reservations, now }) => {
+      const near = structuredClone(location);
+      near.id = 'near';
+      if (unavailable === 'closed')
+        near.hours = {
+          thu: { open: '08:00', close: '20:00' },
+          fri: { open: '08:00', close: '20:00' },
+        };
+      else
+        for (let count = 0; count < near.delivery_slot_capacity; count++)
+          reservations.push({
+            branchId: 'near',
+            scheduled_at: '2026-09-10T18:00:00Z',
+            status: 'committed',
+          });
+      // Tomorrow's normal opening must not delay ASAP when another branch has
+      // availability today. The same rule applies if today's last slot is full.
+      if (unavailable === 'full')
+        near.hours = {
+          thu: { open: '23:00', close: '23:30' },
+          fri: { open: '08:00', close: '20:00' },
+        };
+      locations.set('near', near);
+      const points = [near, location].map((point, index) => ({
+        ...point,
+        deliveryEnabled: true,
+        latitude: 43.65 + index * 0.01,
+        longitude: 51.2,
+      }));
+      const { resolveCheckout } = require('../src/services/delivery-branch.service');
+      const result = await resolveCheckout(
+        {
+          orderType: 'delivery',
+          scheduledAt: null,
+          items: [],
+          deliveryAddress: {
+            city: 'Актау',
+            address: '12 микрорайон, 1',
+            latitude: 43.65,
+            longitude: 51.2,
+          },
+        },
+        [{ name: 'Актау', points }],
+        { now },
+      );
+      assert.equal(result.branchId, 'branch');
+      assert.equal(result.scheduledAt, '2026-09-10T18:00:00.000Z');
+    }));
+}
+
+test('ASAP never offers a real fully reserved branch when every delivery interval is full', async () =>
+  fixture(async ({ location, reservations, now }) => {
+    location.hours = {
+      thu: { open: '23:00', close: '23:30' },
+      fri: { open: '08:00', close: '20:00' },
+    };
+    for (let count = 0; count < location.delivery_slot_capacity; count++)
+      reservations.push({
+        scheduled_at: '2026-09-10T18:00:00Z',
+        status: 'committed',
+      });
+    const { resolveCheckout } = require('../src/services/delivery-branch.service');
+    await assert.rejects(
+      resolveCheckout(
+        {
+          orderType: 'delivery',
+          scheduledAt: null,
+          items: [],
+          deliveryAddress: {
+            city: 'Актау',
+            address: '12 микрорайон, 1',
+            latitude: 43.65,
+            longitude: 51.2,
+          },
+        },
+        [
+          {
+            name: 'Актау',
+            points: [{ ...location, deliveryEnabled: true, latitude: 43.65, longitude: 51.2 }],
+          },
+        ],
+        { now },
+      ),
+      (error) => error.code === 'CHECKOUT_DELIVERY_SLOT_UNAVAILABLE',
+    );
+  }));
+
+for (const schedule of ['overnight', 'round the clock']) {
+  test(`ASAP preserves real ${schedule} availability across midnight`, async () =>
+    fixture(async ({ location, locations, reservations, now }) => {
+      location.hours = { thu: { open: '22:00', close: '02:30' }, fri: { closed: true } };
+      location.round_the_clock = schedule === 'round the clock';
+      for (let count = 0; count < location.delivery_slot_capacity; count++)
+        reservations.push({ scheduled_at: '2026-09-10T18:00:00Z', status: 'committed' });
+      const farther = {
+        ...location,
+        id: 'farther',
+        round_the_clock: false,
+        hours: { daily: { open: '08:00', close: '23:30' } },
+      };
+      locations.set(farther.id, farther);
+      const { resolveCheckout } = require('../src/services/delivery-branch.service');
+      const result = await resolveCheckout(
+        {
+          orderType: 'delivery',
+          scheduledAt: null,
+          items: [],
+          deliveryAddress: {
+            city: 'Актау',
+            address: '12 микрорайон, 1',
+            latitude: 43.65,
+            longitude: 51.2,
+          },
+        },
+        [
+          {
+            name: 'Актау',
+            points: [location, farther].map((point, index) => ({
+              ...point,
+              deliveryEnabled: true,
+              latitude: 43.65 + index * 0.01,
+              longitude: 51.2,
+            })),
+          },
+        ],
+        { now },
+      );
+      assert.equal(result.branchId, 'branch');
+      assert.equal(result.scheduledAt, '2026-09-10T19:00:00.000Z'); // 00:00 continuation.
+      assert.ok(Date.parse(result.scheduledAt) - now.getTime() <= 86400000);
+    }));
+}
 
 test('all supported intervals agree with checkout for ordinary, overnight and 24/7 grids', async () =>
   fixture(async ({ list, location, now }) => {

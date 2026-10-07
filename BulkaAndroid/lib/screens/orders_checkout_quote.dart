@@ -27,7 +27,6 @@ extension _CheckoutQuoteState on _CheckoutScreenState {
     'type': _orderType.wireValue,
     'branch': _usesDelivery ? null : _branch,
     'branchId': _usesDelivery ? null : _branchId,
-    'deliveryBranch': _usesDelivery ? _deliveryBranchLocation?.id : null,
     'address': _usesDelivery ? _deliveryAddress?.toOrderPayload() : null,
     'scheduledAt': _usesDelivery ? null : _scheduledSlot?.value,
     'promo': _appliedPromoCode,
@@ -57,7 +56,7 @@ extension _CheckoutQuoteState on _CheckoutScreenState {
     bool showFeedback = false,
     bool allowDuringSubmission = false,
   }) {
-    if (!_canQuote || (_isSubmitting && !allowDuringSubmission)) {
+    if (!mounted || !_canQuote || (_isSubmitting && !allowDuringSubmission)) {
       return Future<void>.value();
     }
     final key = _currentQuoteKey;
@@ -127,6 +126,10 @@ extension _CheckoutQuoteState on _CheckoutScreenState {
         _quotedTotal = (quote['total'] as num?)?.round();
         _recalculateBonusSelection();
         _deliveryQuoteToken = quote['deliveryQuoteToken'] as String?;
+        if (_usesDelivery) {
+          _deliveryAvailable = true;
+          _deliveryAvailabilityChecked = true;
+        }
         _quoteValid = _quotedTotal != null;
         _lastQuotedKey = key;
       });

@@ -8,6 +8,44 @@ const priceCheckoutDelivery = (context, options) =>
   realPriceCheckoutDelivery(context, { probe: async () => {}, ...options });
 const { getJwtSecret } = require('../src/services/auth.service');
 
+test('signed delivery selection binds customer, branch and reserved time for ASAP payment', async () => {
+  const {
+    readDeliveryQuoteSelection,
+  } = require('../src/services/checkout-delivery-pricing.service');
+  const quoted = context();
+  const now = 1800000000;
+  const result = await priceCheckoutDelivery(quoted, {
+    phase: 'quote',
+    version: 1,
+    now,
+    estimate: async () => 1000,
+    assertAvailable: async () => {},
+    budget: { check: async () => {} },
+  });
+  assert.deepEqual(
+    readDeliveryQuoteSelection(result.deliveryQuoteToken, {
+      now,
+      customerId: quoted.customerId,
+    }),
+    {
+      preferredBranchId: quoted.checkout.branchId,
+      preferredScheduledAt: quoted.checkout.scheduledAt,
+    },
+  );
+  for (const options of [
+    { now, customerId: 'another-customer' },
+    { now: now + 901, customerId: quoted.customerId },
+  ])
+    assert.throws(
+      () => readDeliveryQuoteSelection(result.deliveryQuoteToken, options),
+      (error) => error.code === 'CHECKOUT_QUOTE_CHANGED',
+    );
+  assert.throws(
+    () => readDeliveryQuoteSelection('invalid-token', { now }),
+    (error) => error.code === 'CHECKOUT_QUOTE_CHANGED',
+  );
+});
+
 test('checkout contracts accept signed quotes and reject a client-supplied fee', () => {
   const {
     checkoutQuoteBodySchema,

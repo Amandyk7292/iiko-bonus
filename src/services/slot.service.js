@@ -40,6 +40,7 @@ async function listAvailableSlots({
   horizonHours = null,
   db = supabase,
   excludeRequestId = null,
+  env = process.env,
 }) {
   if (!['pickup', 'delivery', 'preorder'].includes(orderType)) {
     throw slotError('Некорректный способ получения заказа');
@@ -53,20 +54,26 @@ async function listAvailableSlots({
     .eq('id', branchId)
     .maybeSingle();
   if (error) throw error;
-  if (!location || location.active === false) throw slotError('Филиал больше недоступен', 404);
+  if (!location || location.active === false)
+    throw Object.assign(slotError('Филиал больше недоступен', 404), {
+      code: 'CHECKOUT_BRANCH_UNAVAILABLE',
+    });
   const enabled =
     orderType === 'preorder'
       ? location.preorder_enabled
       : orderType === 'delivery'
         ? location.delivery_enabled
         : location.pickup_enabled;
-  if (!enabled) throw slotError('Этот способ получения в филиале временно недоступен');
+  if (!enabled)
+    throw Object.assign(slotError('Этот способ получения в филиале временно недоступен'), {
+      code: 'CHECKOUT_BRANCH_UNAVAILABLE',
+    });
   const rollingDay =
     (horizonHours === 24 || location.round_the_clock === true) && orderType !== 'preorder';
   const safeDays = rollingDay ? 2 : slotHorizonDays(orderType, days);
   const hours = effectiveHours(location);
 
-  const safeOffset = timezoneOffsetMinutes();
+  const safeOffset = timezoneOffsetMinutes(env);
   const localNow = new Date(now.getTime() + safeOffset * 60000);
   const startLocalDay =
     Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate()) +
@@ -97,8 +104,8 @@ async function listAvailableSlots({
   const capacity = capacityFor(location, orderType);
   const lead = Number.parseInt(
     orderType === 'preorder'
-      ? process.env.PREORDER_MIN_LEAD_MINUTES || '1440'
-      : process.env.ORDER_MIN_LEAD_MINUTES || '10',
+      ? env.PREORDER_MIN_LEAD_MINUTES || '1440'
+      : env.ORDER_MIN_LEAD_MINUTES || '10',
     10,
   );
   const floor = orderType === 'preorder' ? 1440 : 0;

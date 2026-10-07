@@ -22,6 +22,8 @@ String localizeErrorMessage(
       return 'checkout_quote_changed'.tr;
     case 'CHECKOUT_DELIVERY_UNAVAILABLE':
       return 'checkout_delivery_estimate_unavailable'.tr;
+    case 'CHECKOUT_DELIVERY_SLOT_UNAVAILABLE':
+      return 'checkout_delivery_no_slots'.tr;
     case 'INVALID_CREDENTIALS':
       return 'error_login'.tr;
     case 'ACCOUNT_NOT_FOUND':

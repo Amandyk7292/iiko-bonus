@@ -114,7 +114,7 @@ router.get('/maps/yandex', (req, res) => {
     (() => {
       'use strict';
       const requestedMode = new URLSearchParams(location.search).get('mode');
-      const defaults = { center:[43.6532,51.1975], selected:[43.6532,51.1975], zoom:13, mode:['admin','dispatch','directory','tracking'].includes(requestedMode) ? requestedMode : 'customer', branches:[], couriers:[], deliveryOrders:[] };
+      const defaults = { center:[43.6532,51.1975], selected:null, zoom:13, mode:['admin','dispatch','directory','tracking'].includes(requestedMode) ? requestedMode : 'customer', branches:[], couriers:[], deliveryOrders:[] };
       let state = {...defaults};
       let map = null;
       let activeBranchId = null;
@@ -122,6 +122,8 @@ router.get('/maps/yandex', (req, res) => {
       let markerRenderTimer = 0;
       let renderedMarkerBand = -1;
       let geocodeSequence = 0;
+      let pointerGesture = null;
+      let customerPan = false;
       // GPS belongs to the viewer, not to the selected delivery address. Keep it
       // across Flutter state refreshes, city filters and marker redraws.
       let userLocation = null;
@@ -131,6 +133,27 @@ router.get('/maps/yandex', (req, res) => {
       const locateButton = document.getElementById('locate');
       if (requestedMode === 'directory') document.body.classList.add('directory');
       const cityPicker = document.getElementById('city-picker');
+      // A center supplied by Flutter or a zoom animation is not an address choice.
+      // Only dragging the map surface can turn a new center into the visible pin.
+      const mapSurface = document.getElementById('map');
+      mapSurface.addEventListener('pointerdown', event => {
+        customerPan = false;
+        pointerGesture = event.isPrimary === false ? null : {
+          id:event.pointerId, x:event.clientX, y:event.clientY
+        };
+      },true);
+      mapSurface.addEventListener('pointermove', event => {
+        if (!pointerGesture || pointerGesture.id !== event.pointerId) return;
+        if (Math.hypot(event.clientX - pointerGesture.x,event.clientY - pointerGesture.y) >= 6) {
+          customerPan = true;
+        }
+      },true);
+      mapSurface.addEventListener('pointerup', () => { pointerGesture = null; },true);
+      mapSurface.addEventListener('pointercancel', () => {
+        pointerGesture = null;
+        customerPan = false;
+      },true);
+      mapSurface.addEventListener('wheel', () => { customerPan = false; },true);
 
       const parse = value => {
         if (typeof value === 'string') { try { return JSON.parse(value); } catch { return null; } }
@@ -338,6 +361,8 @@ router.get('/maps/yandex', (req, res) => {
         }
       };
       const applyState = next => {
+        customerPan = false;
+        window.clearTimeout(cameraTimer);
         state = {...state,...next};
         const cityLabel = typeof state.cityLabel === 'string' ? state.cityLabel : '';
         document.getElementById('city-label').textContent = cityLabel;
@@ -362,7 +387,7 @@ router.get('/maps/yandex', (req, res) => {
         if (!message) return;
         if (message.type === 'state') applyState(message);
         if (message.type === 'fit-tracking') fitTrackingPoints();
-        if (message.type === 'move') applyState({center:message.center,selected:message.selected || state.selected,zoom:message.zoom || state.zoom});
+        if (message.type === 'move') applyState({center:message.center,selected:Object.prototype.hasOwnProperty.call(message,'selected') ? message.selected : state.selected,zoom:message.zoom || state.zoom});
         if (message.type === 'zoom' && map) map.setZoom(Math.max(state.mode === 'admin' ? 4 : 9,Math.min(19,map.getZoom() + Number(message.delta || 0))),{duration:180});
       });
       document.getElementById('zoom-in').addEventListener('click', event => {
@@ -432,6 +457,8 @@ router.get('/maps/yandex', (req, res) => {
         map.events.add('click', event => {
           if (['directory','tracking'].includes(state.mode)) return;
           const coordinates = event.get('coords');
+          customerPan = false;
+          window.clearTimeout(cameraTimer);
           if (state.mode === 'admin') {
             const branches = normalizedBranches();
             if (branches[0]) branches[0].point = coordinates;
@@ -444,8 +471,21 @@ router.get('/maps/yandex', (req, res) => {
         map.events.add('boundschange', event => {
           window.clearTimeout(cameraTimer);
           cameraTimer = window.setTimeout(() => {
-            const center = event.get('newCenter');
-            emit({type:'camera',latitude:center[0],longitude:center[1],zoom:event.get('newZoom')});
+            const center = point(event.get('newCenter'));
+            if (!center) return;
+            const previous = point(event.get('oldCenter'));
+            const zoom = event.get('newZoom');
+            const changedCenter = previous && (Math.abs(center[0] - previous[0]) > 1e-8 || Math.abs(center[1] - previous[1]) > 1e-8);
+            const unchangedZoom = Number(zoom) === Number(event.get('oldZoom'));
+            if (state.mode === 'customer' && customerPan && changedCenter && unchangedZoom &&
+                Math.abs(center[0]) <= 90 && Math.abs(center[1]) <= 180 && (center[0] !== 0 || center[1] !== 0)) {
+              state.center = center;
+              state.selected = center;
+              render();
+              emitSelectedPoint(center,'drag');
+            }
+            customerPan = false;
+            emit({type:'camera',latitude:center[0],longitude:center[1],zoom});
           },120);
           const nextBand = markerBand(event.get('newZoom') ?? map.getZoom());
           if (nextBand !== renderedMarkerBand) {

@@ -48,6 +48,7 @@ function controllerHarness(t) {
     probeBlocked: false,
     photoReservations: [],
     pricingCalls: 0,
+    selections: [],
   };
   const {
     deliveryAvailability,
@@ -147,8 +148,17 @@ function controllerHarness(t) {
   });
   install(t, '../src/services/location.service', { getCitiesWithPoints: async () => [] });
   install(t, '../src/services/checkout.service', {
-    normalizeOrderType() {},
+    normalizeOrderType(value) {
+      return value || checkout.orderType;
+    },
     validateCheckout() {
+      state.validations++;
+      return checkout;
+    },
+  });
+  install(t, '../src/services/delivery-branch.service', {
+    resolveCheckout: async (_payload, _cities, options) => {
+      state.selections.push(options);
       state.validations++;
       return checkout;
     },
@@ -159,7 +169,9 @@ function controllerHarness(t) {
     releasePromotionReservation: async () => {},
   });
   install(t, '../src/services/inventory.service', {
-    reserveCheckout: async () => {},
+    reserveCheckout: async () => {
+      if (state.reservationError) throw state.reservationError;
+    },
     releaseCheckoutRequest: async () => {},
   });
   install(t, '../src/services/yandex-delivery.service', {
@@ -358,6 +370,50 @@ test('missing quote is rejected before reserving goods or charging a saved card'
   assert.equal(payment.statusCode, 409);
   assert.equal(payment.body.code, 'CHECKOUT_QUOTE_CHANGED');
   assert.equal(state.charges.length, 0);
+});
+
+test('ASAP create uses the verified quote branch and time without requiring a client time', async (t) => {
+  const { state, controller, request, checkout } = controllerHarness(t);
+  request.body.scheduledAt = null;
+  const quote = response();
+  await controller.quotePayment(request, quote);
+  assert.equal(quote.body.branchId, checkout.branchId);
+  assert.equal(quote.body.scheduledAt, checkout.scheduledAt);
+  request.body.deliveryQuoteToken = quote.body.deliveryQuoteToken;
+  const payment = response();
+  await controller.createPayment(request, payment);
+  assert.equal(payment.statusCode, 200);
+  assert.deepEqual(state.selections.at(-1), {
+    preferredBranchId: checkout.branchId,
+    preferredScheduledAt: checkout.scheduledAt,
+    excludeRequestId: request.body.checkoutId,
+  });
+  assert.equal(request.body.scheduledAt, null);
+  assert.equal(state.charges.length, 1);
+});
+
+test('a final delivery slot race requests a new quote and releases budget before charging', async (t) => {
+  const { state, controller, request } = controllerHarness(t);
+  const quote = response();
+  await controller.quotePayment(request, quote);
+  request.body.deliveryQuoteToken = quote.body.deliveryQuoteToken;
+  state.reservationError = Object.assign(new Error('Интервал заполнен'), {
+    statusCode: 409,
+    code: 'CHECKOUT_QUOTE_CHANGED',
+  });
+  const released = [];
+  t.mock.method(
+    require('../src/services/delivery-budget.service').deliveryBudget,
+    'releaseUnstarted',
+    async (...args) => released.push(args),
+  );
+  const payment = response();
+  await controller.createPayment(request, payment);
+  assert.equal(payment.statusCode, 409);
+  assert.equal(payment.body.code, 'CHECKOUT_QUOTE_CHANGED');
+  assert.equal(state.charges.length, 0);
+  assert.equal(state.quoteCalls, 1);
+  assert.deepEqual(released, [[request.customerAuth.id, request.body.checkoutId]]);
 });
 
 test('an unconfirmed probe cancellation cannot charge a previously quoted saved card', async (t) => {

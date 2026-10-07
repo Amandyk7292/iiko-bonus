@@ -23,6 +23,33 @@ function signingKey() {
   return crypto.createHmac('sha256', secret).update(QUOTE_AUDIENCE).digest();
 }
 
+function readDeliveryQuoteSelection(
+  token,
+  { now = Math.floor(Date.now() / 1000), customerId } = {},
+) {
+  let quote;
+  try {
+    quote = jwt.verify(token || '', signingKey(), {
+      algorithms: ['HS256'],
+      audience: QUOTE_AUDIENCE,
+      clockTimestamp: now,
+    });
+  } catch {
+    throw quoteError();
+  }
+  if (quote.customerId != null && quote.customerId !== customerId) throw quoteError();
+  if (quote.branchId == null && quote.scheduledAt == null) return {};
+  if (
+    typeof quote.branchId !== 'string' ||
+    !quote.branchId ||
+    quote.branchId.length > 128 ||
+    typeof quote.scheduledAt !== 'string' ||
+    !Number.isFinite(Date.parse(quote.scheduledAt))
+  )
+    throw quoteError();
+  return { preferredBranchId: quote.branchId, preferredScheduledAt: quote.scheduledAt };
+}
+
 function stableJson(value) {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
   if (value && typeof value === 'object') {
@@ -153,6 +180,9 @@ async function priceCheckoutDelivery(
   const deliveryQuoteToken = jwt.sign(
     {
       fingerprint: quoteFingerprint(context),
+      customerId: context.customerId,
+      branchId: checkout.branchId,
+      scheduledAt: checkout.scheduledAt,
       fee,
       courierEstimate,
       iat: now,
@@ -171,4 +201,4 @@ async function priceCheckoutDelivery(
   };
 }
 
-module.exports = { FREE_DELIVERY_THRESHOLD, priceCheckoutDelivery };
+module.exports = { FREE_DELIVERY_THRESHOLD, priceCheckoutDelivery, readDeliveryQuoteSelection };

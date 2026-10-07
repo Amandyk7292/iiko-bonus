@@ -10,6 +10,7 @@ bool _isDeliveryAddressBranch(BakeryLocation location) {
       longitude != null &&
       latitude.isFinite &&
       longitude.isFinite &&
+      (latitude != 0 || longitude != 0) &&
       latitude >= -90 &&
       latitude <= 90 &&
       longitude >= -180 &&
@@ -51,18 +52,23 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   final _commentController = TextEditingController();
   final _searchController = TextEditingController();
   late LatLng _point;
+  late LatLng _mapCenter;
   double _zoom = 14.5;
   List<BakeryLocation> _locations = const [];
   String _address = '';
   late String _city;
   late bool _hasPreferredCenter;
   bool _addressResolved = false;
+  bool _pointOutsideCity = false;
+  bool _streetManuallyEdited = false;
   bool _resolving = false;
   bool _locating = false;
   bool _pointSelected = false;
   bool _locationsLoaded = false;
   bool _locationsFailed = false;
   Timer? _searchDebounce;
+  Timer? _reverseDebounce;
+  int _reverseRevision = 0;
   int _searchRevision = 0;
   bool _searching = false;
   List<Map<String, dynamic>> _searchResults = const [];
@@ -96,6 +102,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
         longitude != null &&
         latitude.isFinite &&
         longitude.isFinite &&
+        (latitude != 0 || longitude != 0) &&
         latitude >= -90 &&
         latitude <= 90 &&
         longitude >= -180 &&
@@ -103,6 +110,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     _point = _hasPreferredCenter
         ? LatLng(latitude!, longitude!)
         : _defaultPoint;
+    _mapCenter = _point;
     final initialCity =
         initialAddress?.location.city.trim() ??
         widget.initialCity?.trim() ??
@@ -117,8 +125,9 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     _apartmentController.text = initialAddress?.apartment ?? '';
     _commentController.text = initialAddress?.courierComment ?? '';
     _address = initialAddress?.location.address ?? 'map_select_point'.tr;
-    _addressResolved = initialAddress != null;
-    _pointSelected = initialAddress != null;
+    _searchController.text = initialAddress?.location.address ?? '';
+    _addressResolved = initialAddress != null && _hasPreferredCenter;
+    _pointSelected = initialAddress != null && _hasPreferredCenter;
     unawaited(_loadLocations());
   }
 
@@ -143,6 +152,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
           if (!_hasPreferredCenter && !_pointSelected && center != null) {
             _city = center.city.trim();
             _point = LatLng(center.latitude!, center.longitude!);
+            _mapCenter = _point;
           }
         });
         if (!_hasPreferredCenter && !_pointSelected && center != null) {
@@ -164,6 +174,8 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     _live.dispose();
     if (widget.api == null) _api.dispose();
     _searchDebounce?.cancel();
+    _reverseDebounce?.cancel();
+    _reverseRevision++;
     _mapController.dispose();
     _titleController.dispose();
     _houseController.dispose();
@@ -253,6 +265,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     final revision = ++_searchRevision;
     final normalized = query.trim();
     setState(() {
+      _streetManuallyEdited = normalized.isNotEmpty;
       _searchResults = const [];
       _searchError = null;
       _searching = normalized.length >= 3;
@@ -283,7 +296,9 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   void _selectSearchResult(Map<String, dynamic> result) {
     final latitude = _asDouble(result['latitude']);
     final longitude = _asDouble(result['longitude']);
-    if (latitude < -90 ||
+    if (!latitude.isFinite ||
+        !longitude.isFinite ||
+        latitude < -90 ||
         latitude > 90 ||
         longitude < -180 ||
         longitude > 180 ||
@@ -294,13 +309,18 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     _searchRevision++;
     _searchController.clear();
     setState(() {
+      _streetManuallyEdited = false;
       _searchResults = const [];
       _searchError = null;
       _searching = false;
     });
     final point = LatLng(latitude, longitude);
     _moveMap(point, 16);
-    _setPoint(point);
+    _setPoint(
+      point,
+      knownAddress: _asString(result['address'] ?? result['displayName']),
+      knownCity: _asString(result['city']),
+    );
   }
 
   void _selectDeliveryCity(String city) {
@@ -314,11 +334,16 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     if (branch == null) return;
     _searchDebounce?.cancel();
     _searchRevision++;
+    _reverseDebounce?.cancel();
+    _reverseRevision++;
     _searchController.clear();
     setState(() {
       _city = city;
       _pointSelected = false;
       _addressResolved = false;
+      _pointOutsideCity = false;
+      _streetManuallyEdited = false;
+      _resolving = false;
       _address = 'map_select_point'.tr;
       _searchResults = const [];
       _searchError = null;
@@ -331,9 +356,10 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     if (!mounted) return;
     setState(() {
       _point = point;
+      _mapCenter = point;
       _zoom = zoom;
     });
-    _mapController.move(point, zoom, selected: point);
+    _mapController.move(point, zoom, selected: _pointSelected ? point : null);
   }
 
   void _zoomBy(double delta) {
@@ -342,51 +368,87 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     _mapController.zoomBy(delta);
   }
 
-  Future<void> _reverseGeocode(LatLng point) async {
-    setState(() => _resolving = true);
+  Future<void> _reverseGeocode(LatLng point, int revision) async {
     try {
-      final result = await _api.reverseDeliveryAddress(
-        latitude: point.latitude,
-        longitude: point.longitude,
-      );
+      final result = await _api
+          .reverseDeliveryAddress(
+            latitude: point.latitude,
+            longitude: point.longitude,
+          )
+          .timeout(const Duration(seconds: 10));
+      if (!mounted || revision != _reverseRevision) return;
       final nextAddress = _cleanAddress(
-        _asString(
-          result['address'] ?? result['displayName'],
-          fallback: 'map_selected_point'.tr,
-        ),
+        _asString(result['address'] ?? result['displayName']).trim(),
       );
-      final resolvedCity = _asString(result['city'], fallback: _city);
-      final inSelectedCity =
-          resolvedCity.trim().toLowerCase() == _city.trim().toLowerCase();
-      if (!mounted) return;
+      final resolvedCity = _asString(result['city']).trim();
+      final outsideCity =
+          resolvedCity.isNotEmpty &&
+          resolvedCity.toLowerCase() != _city.trim().toLowerCase();
       setState(() {
-        _address = nextAddress;
-        _addressResolved = inSelectedCity;
+        _address = nextAddress.isEmpty ? 'map_selected_point'.tr : nextAddress;
+        _addressResolved = nextAddress.isNotEmpty && !outsideCity;
+        _pointOutsideCity = outsideCity;
+        if (!_streetManuallyEdited && _addressResolved) {
+          _searchController.text = nextAddress;
+        }
       });
-      if (!inSelectedCity) {
+      if (outsideCity) {
         _showLocationError('map_delivery_unavailable'.tr);
       }
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || revision != _reverseRevision) return;
       setState(() {
         _address = 'map_selected_point'.tr;
         _addressResolved = false;
       });
     } finally {
-      if (mounted) setState(() => _resolving = false);
+      if (mounted && revision == _reverseRevision) {
+        setState(() => _resolving = false);
+      }
     }
   }
 
-  void _setPoint(LatLng point) {
+  void _setPoint(LatLng point, {String? knownAddress, String? knownCity}) {
+    if (!_validPoint(point)) return;
+    _reverseDebounce?.cancel();
+    final revision = ++_reverseRevision;
+    final address = knownAddress?.trim() ?? '';
+    final city = knownCity?.trim() ?? '';
+    final outsideCity =
+        city.isNotEmpty && city.toLowerCase() != _city.trim().toLowerCase();
     setState(() {
       _point = point;
-      _address = 'map_resolving'.tr;
-      _addressResolved = false;
+      _mapCenter = point;
+      _address = address.isEmpty ? 'map_resolving'.tr : _cleanAddress(address);
+      _addressResolved = address.isNotEmpty && !outsideCity;
       _pointSelected = true;
+      _pointOutsideCity = outsideCity;
+      _resolving = address.isEmpty;
+      if (!_streetManuallyEdited) {
+        _searchController.text = _addressResolved ? _address : '';
+      }
     });
     _mapController.move(point, _zoom, selected: point);
-    unawaited(_reverseGeocode(point));
+    if (address.isNotEmpty) {
+      if (outsideCity) _showLocationError('map_delivery_unavailable'.tr);
+      return;
+    }
+    _reverseDebounce = Timer(const Duration(milliseconds: 300), () {
+      unawaited(_reverseGeocode(point, revision));
+    });
   }
+
+  bool _validPoint(LatLng point) =>
+      point.latitude.isFinite &&
+      point.longitude.isFinite &&
+      point.latitude >= -90 &&
+      point.latitude <= 90 &&
+      point.longitude >= -180 &&
+      point.longitude <= 180 &&
+      (point.latitude != 0 || point.longitude != 0);
+
+  String get _manualStreet =>
+      _streetManuallyEdited ? _searchController.text.trim() : '';
 
   List<YandexMapBranch> get _mapBranches => _locations
       .where(
@@ -408,7 +470,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   DeliveryLocation _selectedLocation() {
     return DeliveryLocation(
       city: _city,
-      address: _address,
+      address: _manualStreet.isNotEmpty ? _manualStreet : _address,
       latitude: _point.latitude,
       longitude: _point.longitude,
     );
@@ -425,18 +487,22 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   }
 
   void _saveAddress() {
+    // Let missing house/name fields show their normal errors while the optional
+    // address lookup is still running for a genuinely chosen delivery point.
+    if (_canSavePoint && !validateBulkaForm(_formKey)) return;
     if (!_canConfirm) {
-      final message = !_pointSelected || !_addressResolved
+      final message = !_pointSelected || !_validPoint(_point)
           ? 'map_select_point'.tr
-          : _resolving || !_locationsLoaded
+          : !_locationsLoaded
           ? 'map_delivery_checking'.tr
           : _locationsFailed
           ? 'map_delivery_check_failed'.tr
-          : 'map_delivery_unavailable'.tr;
+          : _pointOutsideCity || _deliveryMatch == null
+          ? 'map_delivery_unavailable'.tr
+          : 'map_search_not_found'.tr;
       _showLocationError(message);
       return;
     }
-    if (!validateBulkaForm(_formKey)) return;
     Navigator.of(context).pop(
       DeliveryAddress(
         id:
@@ -481,13 +547,18 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     return matches.isEmpty ? null : matches.first;
   }
 
-  bool get _canConfirm =>
+  bool get _canSavePoint =>
       _pointSelected &&
-      _addressResolved &&
-      !_resolving &&
+      _validPoint(_point) &&
+      !_pointOutsideCity &&
       _locationsLoaded &&
       !_locationsFailed &&
       _deliveryMatch != null;
+
+  bool get _canConfirm =>
+      _canSavePoint &&
+      _searchController.text.trim().length >= 3 &&
+      (_streetManuallyEdited || (_addressResolved && !_resolving));
 
   @override
   Widget build(BuildContext context) {
@@ -547,13 +618,16 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                     children: [
                       YandexMapView(
                         controller: _mapController,
-                        center: _point,
+                        center: _mapCenter,
                         selectedPoint: _pointSelected ? _point : null,
                         zoom: _zoom,
                         branches: _mapBranches,
                         semanticLabel: 'map_delivery_branches_title'.tr,
                         unavailableLabel: 'map_unavailable'.tr,
-                        onCameraChanged: (_, zoom) => _zoom = zoom,
+                        onCameraChanged: (center, zoom) {
+                          if (_validPoint(center)) _mapCenter = center;
+                          if (zoom.isFinite) _zoom = zoom;
+                        },
                         onTap: _setPoint,
                       ),
                       if (!kIsWeb)

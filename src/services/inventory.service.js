@@ -337,7 +337,10 @@ async function reserveCheckout({
   });
   if (slotRpcError) {
     await releaseCheckoutRequest(customerId, requestId).catch(() => undefined);
-    throw inventoryError(slotRpcError.message, 409);
+    const error = inventoryError(slotRpcError.message, 409);
+    if (orderType === 'delivery' && slotRpcError.code === 'P0001')
+      error.code = 'CHECKOUT_QUOTE_CHANGED';
+    throw error;
   }
   require('./realtime.service').publish(
     'menu.updated',

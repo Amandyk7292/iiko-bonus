@@ -9,6 +9,9 @@ function runMap(html, mode) {
   const elements = new Map();
   const objects = [];
   const messages = [];
+  const timers = new Map();
+  let nextTimer = 0;
+  const mapEvents = new Map();
   let receive;
   let locate;
   let failLocation;
@@ -50,7 +53,7 @@ function runMap(html, mode) {
         },
       };
       this.behaviors = { enable() {} };
-      this.events = { add() {} };
+      this.events = { add: (name, callback) => mapEvents.set(name, callback) };
     }
     getZoom() {
       return this.zoom;
@@ -72,8 +75,11 @@ function runMap(html, mode) {
   const window = {
     ymaps,
     BulkaMap: { postMessage: (message) => messages.push(JSON.parse(message)) },
-    setTimeout: () => 1,
-    clearTimeout() {},
+    setTimeout: (callback) => {
+      timers.set(++nextTimer, callback);
+      return nextTimer;
+    },
+    clearTimeout: (id) => timers.delete(id),
     addEventListener: (_name, callback) => {
       receive = callback;
     },
@@ -106,6 +112,27 @@ function runMap(html, mode) {
     userMarkers: () =>
       objects.filter((object) => object.options.preset === 'islands#blueCircleDotIcon'),
     accuracyCircles: () => objects.filter((object) => object.options.fillColor === '#2F80ED20'),
+    selectedMarkers: () => objects.filter((object) => object.options.preset === 'islands#blackCircleDotIcon'),
+    bounds: (oldCenter, newCenter, oldZoom = 14, newZoom = oldZoom) => {
+      const values = { oldCenter, newCenter, oldZoom, newZoom };
+      mapEvents.get('boundschange')({ get: (key) => values[key] });
+    },
+    drag: () => {
+      element('map').pointerdown({ pointerId: 1, isPrimary: true, clientX: 100, clientY: 100 });
+      element('map').pointermove({ pointerId: 1, clientX: 150, clientY: 120 });
+      element('map').pointerup();
+    },
+    pinch: () => {
+      element('map').pointerdown({ pointerId: 1, isPrimary: true, clientX: 100, clientY: 100 });
+      element('map').pointerdown({ pointerId: 2, isPrimary: false, clientX: 130, clientY: 120 });
+      element('map').pointermove({ pointerId: 1, clientX: 150, clientY: 120 });
+      element('map').pointerup();
+    },
+    flushTimers: () => {
+      const pending = [...timers.values()];
+      timers.clear();
+      pending.forEach((callback) => callback());
+    },
   };
 }
 
@@ -126,6 +153,52 @@ test('directory only interacts with Bulka branches; delivery retains its GPS mar
     else process.env.YANDEX_MAPS_API_KEY = oldKey;
   });
   const html = await (await fetch(`http://127.0.0.1:${server.address().port}/maps/yandex`)).text();
+  await t.test('delivery pin follows only a deliberate pan, not defaults, zoom or programmatic movement', () => {
+    const map = runMap(html, 'customer');
+    assert.equal(map.selectedMarkers().length, 0, 'Default viewport must not invent a confirmed address');
+    map.state({ mode: 'customer', center: [43.65, 51.16], selected: null, zoom: 14 });
+    map.bounds([43.6532, 51.1975], [43.65, 51.16]);
+    map.flushTimers();
+    assert.equal(map.messages.filter((message) => message.type === 'point').length, 0);
+    map.bounds([43.65, 51.16], [43.651, 51.161], 14, 15);
+    map.flushTimers();
+    assert.equal(map.selectedMarkers().length, 0, 'Zoom must not confirm a map pin');
+    map.pinch();
+    map.bounds([43.651, 51.161], [43.652, 51.162], 15, 16);
+    map.flushTimers();
+    assert.equal(map.messages.filter((message) => message.type === 'point').length, 0);
+    map.drag();
+    map.bounds([43.652, 51.162], [43.661, 51.173], 16);
+    map.bounds([43.661, 51.173], [43.662, 51.174], 16);
+    map.flushTimers();
+    const selected = map.messages.filter((message) => message.type === 'point');
+    assert.equal(selected.length, 1, 'Only the final debounced drag center is selected');
+    assert.equal(JSON.stringify(selected[0]), JSON.stringify({
+      type: 'point', latitude: 43.662, longitude: 51.174, source: 'drag',
+    }));
+    assert.equal(JSON.stringify(map.selectedMarkers()[0].coordinates), '[43.662,51.174]');
+    map.command({ type: 'move', center: [51.12, 71.43], selected: null, zoom: 14 });
+    map.bounds([43.662, 51.174], [51.12, 71.43], 16, 14);
+    map.flushTimers();
+    assert.equal(map.selectedMarkers().length, 0, 'Explicit null clears the old city pin');
+    assert.equal(map.messages.filter((message) => message.type === 'point').length, 1);
+  });
+  await t.test('city changes cancel old drag events and invalid centers cannot become a pin', () => {
+    const map = runMap(html, 'customer');
+    map.state({ center: [43.65, 51.16], selected: null, zoom: 14 });
+    map.drag();
+    map.bounds([43.65, 51.16], [43.661, 51.173]);
+    map.state({ center: [51.12, 71.43], selected: null });
+    map.flushTimers();
+    assert.equal(map.messages.filter((message) => message.type === 'point').length, 0);
+    assert.equal(map.selectedMarkers().length, 0);
+    for (const invalid of [[0, 0], [91, 181]]) {
+      map.drag();
+      map.bounds([51.12, 71.43], invalid);
+      map.flushTimers();
+      assert.equal(map.messages.filter((message) => message.type === 'point').length, 0);
+    }
+  });
   await t.test(
     'tracking distinguishes sender, recipient and courier and preserves manual panning',
     () => {

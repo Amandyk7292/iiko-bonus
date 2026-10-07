@@ -1,10 +1,16 @@
 const ORDER_TYPES = new Set(['pickup', 'delivery', 'preorder']);
 const { effectiveHours, isRoundTheClock } = require('../utils/branch-schedule.util');
+const { normalizeCity } = require('./yandex-delivery-payloads');
 
 const checkoutError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
+const scheduleUnavailable = (message) =>
+  Object.assign(checkoutError(message), {
+    code: 'CHECKOUT_SCHEDULE_UNAVAILABLE',
+  });
 
 const finiteNumber = (value) => {
+  if (value == null || typeof value === 'boolean' || String(value).trim() === '') return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 };
@@ -91,8 +97,27 @@ const haversineDistance = (first, second) => {
   return 6371 * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 };
 
+const deliveryCandidates = (deliveryAddress, cities) =>
+  flattenBranches(cities)
+    .filter(
+      (point) =>
+        point.active &&
+        point.deliveryEnabled &&
+        normalizeCity(point.cityName) === normalizeCity(deliveryAddress.city) &&
+        point.latitude !== null &&
+        Math.abs(point.latitude) <= 90 &&
+        point.longitude !== null &&
+        Math.abs(point.longitude) <= 180,
+    )
+    .map((point) => ({ ...point, deliveryDistanceKm: haversineDistance(deliveryAddress, point) }))
+    .sort(
+      (left, right) =>
+        left.deliveryDistanceKm - right.deliveryDistanceKm ||
+        String(left.id).localeCompare(String(right.id)),
+    );
+
 const resolveBranch = (
-  { branchId, branch, orderType, deliveryAddress, requiresPreorder = false },
+  { branchId, branch, orderType, deliveryAddress, requiresPreorder = false, deliveryBranchId },
   cities,
 ) => {
   const branches = flattenBranches(cities).filter((point) => point.active);
@@ -120,23 +145,17 @@ const resolveBranch = (
     );
   }
   if (orderType === 'delivery') {
-    const configured = branches.filter(
-      (point) =>
-        point.deliveryEnabled &&
-        (!requiresPreorder || point.preorderEnabled) &&
-        point.latitude !== null &&
-        point.longitude !== null,
+    const configured = deliveryCandidates(deliveryAddress, cities).filter(
+      (point) => !requiresPreorder || point.preorderEnabled,
     );
     if (configured.length === 0) {
-      throw checkoutError('Доставка пока не настроена ни для одного филиала', 503);
+      throw checkoutError('Доставка в выбранном городе пока недоступна', 503);
     }
-    selected = configured
-      .map((point) => ({ point, distance: haversineDistance(deliveryAddress, point) }))
-      .sort(
-        (left, right) =>
-          left.distance - right.distance ||
-          String(left.point.id).localeCompare(String(right.point.id)),
-      )[0].point;
+    selected =
+      deliveryBranchId == null
+        ? configured[0]
+        : configured.find((point) => String(point.id) === String(deliveryBranchId));
+    if (!selected) throw checkoutError('Выбранный филиал доставки больше недоступен', 409);
     selected = {
       ...selected,
       deliveryDistanceKm: Number(haversineDistance(deliveryAddress, selected).toFixed(3)),
@@ -192,7 +211,10 @@ const validateBranchHours = (instant, hours, offsetMinutes, slotMinutes = 60) =>
       ? { open: previous.open - 1440, close: previous.close - 1440 }
       : null,
   ].filter(Boolean);
-  if (!schedules.length) throw checkoutError('Расписание выбранного филиала не настроено', 503);
+  if (!schedules.length)
+    throw Object.assign(checkoutError('Расписание выбранного филиала не настроено', 503), {
+      code: 'CHECKOUT_BRANCH_UNAVAILABLE',
+    });
   if (
     !schedules.some((schedule) => {
       const first = Math.ceil(schedule.open / interval) * interval;
@@ -203,8 +225,9 @@ const validateBranchHours = (instant, hours, offsetMinutes, slotMinutes = 60) =>
     const firstSlot = Math.ceil(schedule.open / interval) * interval;
     const clock = (value) =>
       `${String(Math.floor(((value + 1440) % 1440) / 60)).padStart(2, '0')}:${String(((value + 1440) % 1440) % 60).padStart(2, '0')}`;
-    throw checkoutError(
-      `Выберите доступное время с ${clock(firstSlot)} до ${clock(schedule.close)}`,
+    throw Object.assign(
+      checkoutError(`Выберите доступное время с ${clock(firstSlot)} до ${clock(schedule.close)}`),
+      { code: 'CHECKOUT_BRANCH_UNAVAILABLE' },
     );
   }
 };
@@ -250,7 +273,7 @@ const normalizeSchedule = (
   );
   const delta = scheduledAt.getTime() - now.getTime();
   if (delta < minimumLead * 60 * 1000 || delta > 60 * 24 * 60 * 60 * 1000) {
-    throw checkoutError(
+    throw scheduleUnavailable(
       orderType === 'preorder' && delta < 1440 * 60000
         ? 'Предзаказ принимается минимум за 24 часа до получения'
         : 'Выберите доступное время заказа',
@@ -275,9 +298,11 @@ const normalizeSchedule = (
       localScheduled.getTime() >= midnight + 86400000 &&
       localScheduled.getTime() < midnight + todayHours.close * 60000;
     if (roundTheClock && delta > 24 * 60 * 60000)
-      throw checkoutError('Выберите время в ближайшие 24 часа');
+      throw scheduleUnavailable('Выберите время в ближайшие 24 часа');
     if (!sameLocalDay && !overnightContinuation && !roundTheClock) {
-      throw checkoutError('Для самовывоза и доставки выберите время на сегодня');
+      throw Object.assign(checkoutError('Для самовывоза и доставки выберите время на сегодня'), {
+        code: 'CHECKOUT_BRANCH_UNAVAILABLE',
+      });
     }
   }
 
@@ -338,6 +363,7 @@ function validateCheckout(payload, cities, options = {}) {
       orderType: isDelivery ? 'delivery' : orderType,
       deliveryAddress,
       requiresPreorder: orderType === 'preorder',
+      deliveryBranchId: options.deliveryBranchId,
     },
     cities,
   );
@@ -377,6 +403,7 @@ function validateCheckout(payload, cities, options = {}) {
 }
 
 module.exports = {
+  deliveryCandidates,
   normalizeDeliveryAddress,
   normalizeOrderType,
   normalizeSchedule,

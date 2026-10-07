@@ -77,10 +77,9 @@ class YandexMapController extends ChangeNotifier {
       type: 'move',
       payload: {
         'center': [center.latitude, center.longitude],
-        'selected': [
-          (selected ?? center).latitude,
-          (selected ?? center).longitude,
-        ],
+        'selected': selected == null
+            ? null
+            : [selected.latitude, selected.longitude],
         'zoom': zoom,
       },
     );

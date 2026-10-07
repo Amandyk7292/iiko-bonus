@@ -25,17 +25,24 @@ extension _CheckoutScheduleState on _CheckoutScreenState {
     }
     unawaited(_loadPaymentAvailability());
     try {
-      final locations = await widget.api.getFulfillmentLocations();
+      try {
+        final locations = await widget.api.getFulfillmentLocations();
+        if (!mounted) return;
+        _updateCheckoutState(() {
+          _locations = locations;
+          _deliveryAvailable = locations.any(
+            (b) => b.active && b.deliveryEnabled,
+          );
+          _deliveryAvailabilityChecked = true;
+          final branch = locations.where((b) => b.id == _branchId).firstOrNull;
+          if (branch != null) _branch = branch.name;
+        });
+      } catch (_) {
+        // Delivery availability is resolved by the server quote. A directory
+        // refresh failure must not block its independent price request.
+        if (!_usesDelivery) rethrow;
+      }
       if (!mounted) return;
-      _updateCheckoutState(() {
-        _locations = locations;
-        _deliveryAvailable = locations.any(
-          (b) => b.active && b.deliveryEnabled,
-        );
-        _deliveryAvailabilityChecked = true;
-        final branch = locations.where((b) => b.id == _branchId).firstOrNull;
-        if (branch != null) _branch = branch.name;
-      });
       if (refreshSchedule && (_scheduledSlot != null || _isSelectingTime)) {
         if (!await _loadScheduleOptions()) {
           if (mounted) {

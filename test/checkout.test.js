@@ -544,5 +544,8 @@ test('delivery ignores a manually selected branch and chooses the nearest enable
   points[0].points[1].active = false;
   assert.equal(validateCheckout(payload, points, options).branchId, primaryBranchId);
   points[0].points[0].deliveryEnabled = false;
-  assert.throws(() => validateCheckout(payload, points, options), /Доставка пока не настроена/);
+  assert.throws(
+    () => validateCheckout(payload, points, options),
+    /Доставка в выбранном городе пока недоступна/,
+  );
 });

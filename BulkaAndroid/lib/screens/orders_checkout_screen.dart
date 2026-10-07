@@ -162,6 +162,8 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 
   bool _matchesCheckoutBranch(Map<String, dynamic> event) {
+    // Any candidate can become the next available delivery branch.
+    if (_usesDelivery) return true;
     final eventBranch = _asMap(event['data'])['branchId'];
     return eventBranch == null ||
         eventBranch == '' ||
@@ -334,6 +336,8 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
               (location) =>
                   location.active &&
                   location.deliveryEnabled &&
+                  location.city.trim().toLowerCase() ==
+                      address.location.city.trim().toLowerCase() &&
                   (!_isPreorder || location.preorderEnabled) &&
                   location.latitude != null &&
                   location.longitude != null,
@@ -409,6 +413,11 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         ),
       );
       if (!mounted || selected == null) return;
+      if (jsonEncode(_deliveryAddress?.toOrderPayload()) ==
+          jsonEncode(selected.toOrderPayload())) {
+        unawaited(_refreshQuote());
+        return;
+      }
       _quoteRevision++;
       setState(() {
         _deliveryAddress = selected;
@@ -418,6 +427,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _quoteError = null;
       });
       await _persistDraft();
+      unawaited(_refreshQuote());
     } finally {
       if (mounted) setState(() => _isSelectingAddress = false);
     }
@@ -494,7 +504,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       !_onlineOrderingDisabled &&
       (_usesDelivery || _scheduledSlot != null) &&
       (_usesDelivery
-          ? _deliveryAddress != null && _deliveryBranchLocation != null
+          ? _deliveryAddress?.hasValidCoordinates == true
           : _branch.trim().isNotEmpty &&
                 _effectiveLocation?.active == true &&
                 _effectiveLocation?.supports(_orderType.wireValue) == true);

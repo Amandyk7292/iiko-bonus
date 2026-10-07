@@ -2,7 +2,12 @@ part of '../main.dart';
 
 extension _CheckoutScreenStatePreferences on _CheckoutScreenState {
   bool get _deliveryUnavailable =>
-      _usesDelivery && _deliveryAvailabilityChecked && !_deliveryAvailable;
+      _usesDelivery &&
+      _deliveryAvailabilityChecked &&
+      !_deliveryAvailable &&
+      !_isQuoting &&
+      !_hasCurrentQuote &&
+      _quoteError == null;
 
   Future<void> _loadPaymentAvailability() async {
     if (_checkingPaymentAvailability) return;
@@ -78,9 +83,14 @@ extension _CheckoutScreenStatePreferences on _CheckoutScreenState {
       );
       _deliveryAvailabilityChecked = locationsLoaded;
     });
-    if (!_usesDelivery) unawaited(_loadScheduleOptions());
-    if (parsedScheduledAt != null) {
-      await _restoreScheduledSlot(parsedScheduledAt);
+    if (_usesDelivery) {
+      // Delivery is ASAP; its branch and time are resolved by the quote.
+      unawaited(_refreshQuote());
+    } else {
+      unawaited(_loadScheduleOptions());
+      if (parsedScheduledAt != null) {
+        await _restoreScheduledSlot(parsedScheduledAt);
+      }
     }
   }
 }
