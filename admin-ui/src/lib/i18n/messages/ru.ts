@@ -411,6 +411,7 @@ const ru: Record<string, string> = {
   'transactions.onlinePurchase': 'Онлайн-покупка · {{id}}',
   'transactions.onlineRefund': 'Возврат онлайн-покупки · {{id}}',
   'transactions.manual': 'Ручная операция',
+  'transactions.walkingReward': 'Бонус за 10 000 шагов',
   'transactions.expiration': 'Автосгорание',
   'transactions.items': 'Состав заказа',
   'transactions.product': 'Товар',

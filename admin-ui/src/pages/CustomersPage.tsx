@@ -167,7 +167,16 @@ export default function CustomersPage({ user }: CustomersPageProps) {
 
   useAdminRealtimeEvents(
     ['loyalty.balance.updated', 'customer.updated', 'order.created', 'transaction.created'],
-    () => document.visibilityState === 'visible' && void fetchCustomers(),
+    (event) => {
+      if (document.visibilityState !== 'visible') return;
+      void fetchCustomers();
+      if (
+        detailCustomer &&
+        (!event.data.customerId || event.data.customerId === detailCustomer.id)
+      ) {
+        void loadCustomerDetails(detailCustomer);
+      }
+    },
     [fetchCustomers],
   );
 

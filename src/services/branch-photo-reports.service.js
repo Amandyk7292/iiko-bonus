@@ -10,9 +10,8 @@ const {
   fail,
   rows,
   assertScope,
-  resolveLink,
 } = require('./branch-photo-report-access.service');
-const { requireDevice, touchDevice } = require('./branch-photo-devices.service');
+const { requireDevice, touchDevice, resolveDeviceLink } = require('./branch-photo-devices.service');
 const { approvedDeviceCounts } = require('./branch-photo-device-summary.service');
 
 const PURPOSE = 'branch-closing-qr';
@@ -171,7 +170,7 @@ async function ensureQr(admin, branchId, { db = supabase, env = process.env } = 
 }
 
 async function openSession(token, { db = supabase, shift, now = new Date(), deviceToken } = {}) {
-  const { link, branch } = await resolveLink(token, { db });
+  const { link, branch } = await resolveDeviceLink(token, deviceToken, { db, now });
   const device = await requireDevice(deviceToken, branch.id, { db, now });
   if (
     (shift && shift !== 'daily' && !branch.round_the_clock) ||
@@ -223,16 +222,12 @@ async function openSession(token, { db = supabase, shift, now = new Date(), devi
 
 async function resolveSession(token, { db = supabase, now = new Date(), deviceToken } = {}) {
   if (!/^[A-Za-z0-9_-]{43}$/.test(String(token || '')))
-    throw fail('Отсканируйте QR точки заново', 401, 'PHOTO_REPORT_SESSION_EXPIRED');
+    throw fail('Обновляем данные отчёта. Повторите отправку.', 401, 'PHOTO_REPORT_SESSION_EXPIRED');
   const session = await rows(
     db.from('branch_closing_sessions').select('*').eq('token_hash', tokenHash(token)).maybeSingle(),
   );
-  if (!session || new Date(session.expires_at) <= now)
-    throw fail(
-      'Сеанс завершён. Отсканируйте QR точки заново.',
-      401,
-      'PHOTO_REPORT_SESSION_EXPIRED',
-    );
+  if (!session || (session.expires_at != null && new Date(session.expires_at) <= now))
+    throw fail('Обновляем данные отчёта. Повторите отправку.', 401, 'PHOTO_REPORT_SESSION_EXPIRED');
   const device = await requireDevice(deviceToken, session.branch_id, {
     db,
     now,
@@ -258,7 +253,7 @@ async function resolveSession(token, { db = supabase, now = new Date(), deviceTo
     !sameInstant(period.shiftStartsAt, session.shift_starts_at) ||
     !sameInstant(period.shiftEndsAt, session.shift_ends_at)
   )
-    throw fail('Смена изменилась. Обновите страницу.', 401, 'PHOTO_REPORT_SESSION_EXPIRED');
+    throw fail('Смена изменилась. Обновляем данные отчёта.', 401, 'PHOTO_REPORT_SESSION_EXPIRED');
   await touchDevice(device, { db, now });
   return session;
 }

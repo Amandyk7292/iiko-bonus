@@ -387,5 +387,6 @@ test('public camera routes reject an unauthenticated multipart body before readi
     body: '{}',
     headers: { 'content-type': 'application/json' },
   });
-  assert.equal(session.status, 401);
+  assert.equal(session.status, 403);
+  assert.equal((await session.json()).code, 'PHOTO_REPORT_DEVICE_REQUIRED');
 });

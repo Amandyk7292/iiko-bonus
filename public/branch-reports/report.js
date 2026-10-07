@@ -18,6 +18,7 @@
   }
   let context,
     kind,
+    draftBranch,
     stream,
     photos = [],
     sending = false,
@@ -88,15 +89,18 @@
     deviceController = undefined;
     deviceBusy = false;
   };
-  const clearReportState = () => {
+  const clearReportState = ({ preservePhotos = false } = {}) => {
     authGeneration++;
     sessionGeneration++;
     sessionController?.abort();
     sessionController = undefined;
+    if (preservePhotos) draftBranch ||= context?.branch;
     context = undefined;
-    kind = undefined;
     stopCamera();
-    clearPhotos();
+    if (!preservePhotos) {
+      kind = draftBranch = undefined;
+      clearPhotos();
+    }
     element('send-status').textContent = '';
   };
   const setText = (id, text) => {
@@ -108,7 +112,7 @@
       pending: ['Ждём подтверждения', 'Покажите код администратору.'],
       active: ['Планшет подключён', ''],
       revoked: ['Доступ отключён', 'Администратор отключил этот планшет.'],
-      expired: ['Подключение истекло', 'Получите новый код для подключения.'],
+      expired: ['Код истёк', 'Получите новый код для подключения.'],
       wrong_branch: ['Планшет другой точки', 'Откройте QR своей точки.'],
     };
     const [title, message] = messages[device.status];
@@ -131,7 +135,7 @@
       device.status === 'expired' ? 'Новый код' : 'Подключить планшет';
     element('enroll-device').hidden = ['pending', 'wrong_branch', 'active'].includes(device.status);
     element('enroll-device').disabled = deviceBusy || !token;
-    element('check-device').disabled = deviceBusy || !token;
+    element('check-device').disabled = deviceBusy;
     element('device').setAttribute('aria-busy', String(deviceBusy));
   }
   function returnToDevice(code) {
@@ -141,7 +145,9 @@
     device = { status: deviceErrors[code] || 'unregistered' };
     pairingCode = pairingExpiresAt = undefined;
     deviceFailed = false;
-    clearReportState();
+    clearReportState({
+      preservePhotos: photos.length > 0 && !['revoked', 'wrong_branch'].includes(device.status),
+    });
     error();
     element('retry').hidden = true;
     renderDevice();
@@ -183,6 +189,7 @@
               : 'Не удалось отправить. Попробуйте ещё раз.'),
         );
         caught.code = body.code;
+        caught.status = response.status;
         caught.isApiError = true;
         throw caught;
       }
@@ -206,7 +213,7 @@
     renderDevice();
     if (!deviceAllowed) show('device');
     try {
-      if (!token) throw new Error('Откройте QR своей точки.');
+      if (method === 'POST' && !token) throw new Error('Откройте QR своей точки.');
       const response = await request('/device', {
         method,
         headers: { 'X-Bulka-Report-Token': token },
@@ -226,19 +233,37 @@
       pairingExpiresAt = response.expiresAt || response.device.expiresAt;
       deviceAllowed = device.status === 'active';
       if (!deviceAllowed) {
-        clearReportState();
+        clearReportState({
+          preservePhotos:
+            photos.length > 0 &&
+            !['revoked', 'wrong_branch'].includes(device.status) &&
+            (draftBranch || context?.branch)?.id === deviceBranch.id,
+        });
         renderDevice();
         show('device');
-      } else if (!context) {
-        await load();
+      } else {
+        // Approval belongs to the persistent HttpOnly cookie, not the QR link.
+        token = '';
+        try {
+          sessionStorage.removeItem('bulka-closing-qr');
+        } catch {
+          /* Cookie-bound requests work without browser storage. */
+        }
+        if (!context) await load(undefined, { preservePhotos: photos.length > 0 });
       }
       if (generation === deviceGeneration) scheduleDeviceCheck();
     } catch (caught) {
       if (generation !== deviceGeneration || controller.signal.aborted || pageHidden) return;
+      if (deviceErrors[caught.code]) {
+        returnToDevice(caught.code);
+        if (!token && caught.code === 'PHOTO_REPORT_DEVICE_REQUIRED')
+          error('Откройте QR своей точки.');
+        return;
+      }
       deviceFailed = true;
       if (!deviceAllowed) show('device');
       error(
-        !token
+        !token && !deviceAllowed && caught.code === 'PHOTO_REPORT_DEVICE_REQUIRED'
           ? 'Откройте QR своей точки.'
           : caught.isApiError
             ? caught.message
@@ -249,10 +274,11 @@
         deviceBusy = false;
         deviceController = undefined;
         renderDevice();
+        renderPhotos();
       }
     }
   }
-  async function load(shift) {
+  async function load(shift, { preservePhotos = false } = {}) {
     if (!deviceAllowed) {
       renderDevice();
       show('device');
@@ -281,6 +307,11 @@
         pageHidden
       )
         return;
+      const owner = draftBranch || context?.branch;
+      if (preservePhotos && owner?.id !== loaded.branch.id) {
+        clearPhotos();
+        kind = draftBranch = undefined;
+      }
       context = loaded;
       element('branch').textContent = context.branch.name;
       element('city').textContent = context.branch.city;
@@ -304,7 +335,13 @@
           ? 'Отправлен · ' + report.photoCount + ' фото'
           : 'Ещё не отправлен';
       });
-      show('intro');
+      if (preservePhotos && photos.length && kind) {
+        draftBranch = context.branch;
+        renderCaptureContext();
+        renderPhotos();
+        show('capture');
+      } else show('intro');
+      return loaded;
     } catch (caught) {
       if (
         generation !== sessionGeneration ||
@@ -317,12 +354,21 @@
         returnToDevice(caught.code);
         return;
       }
-      element('loading').hidden = true;
+      if (preservePhotos && photos.length && kind) show('capture');
+      else element('loading').hidden = true;
       error(caught.isApiError ? caught.message : 'Нет связи с сервером. Проверьте интернет.');
       element('retry').hidden = false;
     } finally {
       if (generation === sessionGeneration) sessionController = undefined;
     }
+  }
+  function renderCaptureContext() {
+    element('capture-title').textContent = kind === 'hall' ? 'Фотоотчёт зала' : 'Фотоотчёт пекаря';
+    element('capture-date').textContent =
+      context.branch.name +
+      ' · ' +
+      formatDate(context.date) +
+      (context.shift === 'daily' ? '' : ' · ' + (context.shift === 'day' ? '1 смена' : '2 смена'));
   }
   function renderPhotos() {
     element('previews').replaceChildren();
@@ -354,14 +400,14 @@
         ? 'Отправить ' + photos.length + ' фото'
         : 'Отправить отчёт';
     element('take-photo').disabled =
-      !deviceAllowed || photos.length >= 10 || sending || captureBusy;
+      !deviceAllowed || deviceBusy || photos.length >= 10 || sending || captureBusy;
     element('send').disabled =
-      !deviceAllowed || !context || !photos.length || sending || captureBusy;
+      !deviceAllowed || deviceBusy || !context || !photos.length || sending || captureBusy;
     element('back').disabled = sending || captureBusy;
     element('enable-camera').disabled = sending || captureBusy;
   }
   async function openCamera() {
-    if (!deviceAllowed || !context || element('capture').hidden || sending) return;
+    if (!deviceAllowed || deviceBusy || !context || element('capture').hidden || sending) return;
     const authorization = authGeneration;
     error();
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -424,6 +470,7 @@
     const video = element('camera');
     if (
       !deviceAllowed ||
+      deviceBusy ||
       !context ||
       element('capture').hidden ||
       sending ||
@@ -465,7 +512,16 @@
     }
   }
   async function send() {
-    if (!deviceAllowed || !context || !kind || sending || !photos.length || captureBusy) return;
+    if (
+      !deviceAllowed ||
+      deviceBusy ||
+      !context ||
+      !kind ||
+      sending ||
+      !photos.length ||
+      captureBusy
+    )
+      return;
     const authorization = authGeneration;
     const reportContext = context;
     const reportKind = kind;
@@ -480,12 +536,40 @@
     body.append('uploadId', uploadId);
     body.append('kind', reportKind);
     photos.forEach((photo, index) => body.append('photos', photo.blob, 'camera-' + index + '.jpg'));
-    try {
-      await request('/submit', {
+    const submit = (current) =>
+      request('/submit', {
         method: 'POST',
-        headers: { 'X-Bulka-Report-Session': reportContext.sessionToken },
+        headers: { 'X-Bulka-Report-Session': current.sessionToken },
         body,
       });
+    try {
+      try {
+        await submit(reportContext);
+      } catch (caught) {
+        if (!['PHOTO_REPORT_SESSION_EXPIRED', 'PHOTO_REPORT_LINK_INVALID'].includes(caught.code))
+          throw caught;
+        const renewed = await load(reportContext.shift, { preservePhotos: true });
+        if (!deviceAllowed || authorization !== authGeneration || pageHidden) return;
+        if (!renewed) throw new Error('Не удалось обновить данные отчёта.', { cause: caught });
+        const sameInstant = (a, b) => (a && b ? Date.parse(a) === Date.parse(b) : !a && !b);
+        if (
+          renewed.branch.id !== reportContext.branch.id ||
+          renewed.date !== reportContext.date ||
+          renewed.shift !== reportContext.shift ||
+          !sameInstant(renewed.shiftStartsAt, reportContext.shiftStartsAt) ||
+          !sameInstant(renewed.shiftEndsAt, reportContext.shiftEndsAt)
+        ) {
+          // Do not silently attribute an old batch to a different report period.
+          uploadId = undefined;
+          throw Object.assign(
+            new Error('Смена изменилась. Проверьте дату отчёта и повторите отправку.', {
+              cause: caught,
+            }),
+            { isApiError: true },
+          );
+        }
+        await submit(renewed);
+      }
       if (!deviceAllowed || authorization !== authGeneration || pageHidden) return;
       element('success-detail').textContent =
         (reportKind === 'hall' ? 'Зал' : 'Пекарь') +
@@ -520,20 +604,13 @@
   }
   document.querySelectorAll('[data-kind]').forEach((button) =>
     button.addEventListener('click', () => {
-      if (!deviceAllowed || sending || !context) return;
+      if (!deviceAllowed || deviceBusy || sending || !context) return;
       kind = button.dataset.kind;
+      draftBranch = context.branch;
       clearPhotos();
       error();
       show('capture');
-      element('capture-title').textContent =
-        kind === 'hall' ? 'Фотоотчёт зала' : 'Фотоотчёт пекаря';
-      element('capture-date').textContent =
-        context.branch.name +
-        ' · ' +
-        formatDate(context.date) +
-        (context.shift === 'daily'
-          ? ''
-          : ' · ' + (context.shift === 'day' ? '1 смена' : '2 смена'));
+      renderCaptureContext();
       element('send-status').textContent = '';
       void openCamera();
     }),
@@ -560,10 +637,28 @@
   );
   element('next-report').addEventListener('click', () => load(context?.shift));
   element('retry').addEventListener('click', () =>
-    deviceAllowed ? load(context?.shift) : checkDevice(),
+    deviceAllowed ? load(context?.shift, { preservePhotos: photos.length > 0 }) : checkDevice(),
   );
   element('enroll-device').addEventListener('click', () => checkDevice('POST'));
   element('check-device').addEventListener('click', () => checkDevice());
+  element('disconnect-device').addEventListener('click', async () => {
+    if (!deviceAllowed || sending || captureBusy || deviceBusy) return;
+    stopDeviceChecks();
+    deviceBusy = true;
+    element('disconnect-device').disabled = true;
+    stopCamera();
+    try {
+      await request('/device/logout', { method: 'POST', body: '{}' });
+      returnToDevice('PHOTO_REPORT_DEVICE_REVOKED');
+      setText('device-status', 'Планшет отключён');
+      setText('device-message', 'Для подключения откройте QR точки.');
+    } catch {
+      if (!pageHidden) error('Не удалось отключить планшет. Проверьте интернет и повторите.');
+    } finally {
+      deviceBusy = false;
+      element('disconnect-device').disabled = false;
+    }
+  });
   window.addEventListener('pagehide', () => {
     pageHidden = true;
     stopCamera();

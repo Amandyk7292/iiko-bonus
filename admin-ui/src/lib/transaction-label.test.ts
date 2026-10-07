@@ -4,6 +4,11 @@ import { transactionItem, transactionLabel } from './transaction-label';
 const t = (key: string, params?: Record<string, string>) => `${key}:${params?.id || ''}`;
 
 describe('transaction labels', () => {
+  it('shows a walking reward without exposing its internal customer or receipt identity', () => {
+    expect(
+      transactionLabel({ order_id: 'WALKING-2026-10-07-customer-id', type: 'deposit' }, t),
+    ).toBe('transactions.walkingReward:');
+  });
   it('uses the same sequential order number for the purchase and its refund', () => {
     expect(transactionLabel({ order_id: 'kaspi:abc-123', order_number: 100039 }, t)).toBe(
       'transactions.orderNumber:100039',

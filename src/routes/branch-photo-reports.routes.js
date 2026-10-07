@@ -8,7 +8,11 @@ const { openSession, resolveSession, fail } = require('../services/branch-photo-
 const { submitPhotos } = require('../services/branch-photo-upload.service');
 const realtime = require('../services/realtime.service');
 const devices = require('../services/branch-photo-devices.service');
-const { readDeviceCookie, writeDeviceCookie } = require('../utils/branch-photo-device-cookie.util');
+const {
+  readDeviceCookie,
+  writeDeviceCookie,
+  clearDeviceCookie,
+} = require('../utils/branch-photo-device-cookie.util');
 const router = express.Router();
 const headers = (_req, res, next) => {
   res.set({
@@ -78,6 +82,19 @@ router.get('/api/branch-reports/device', async (req, res, next) => {
     next(error);
   }
 });
+router.post(
+  '/api/branch-reports/device/logout',
+  validateRequest({ body: emptyBodySchema }),
+  async (req, res, next) => {
+    try {
+      await devices.disconnect(readDeviceCookie(req));
+      clearDeviceCookie(res);
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 router.post(
   '/api/branch-reports/device',
   deviceRequestLimit,

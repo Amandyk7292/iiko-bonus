@@ -63,6 +63,28 @@ describe('transaction movement display', () => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   });
 
+  it('shows step bonuses as a daily reward instead of cashback or an internal receipt', async () => {
+    apiMocks.getTransactions.mockResolvedValue({
+      transactions: [
+        {
+          ...transaction('deposit'),
+          order_id: 'WALKING-2026-10-07-customer-id',
+          order_number: null,
+          amount: 1000,
+          order_total: null,
+        },
+      ],
+      total: 1,
+    });
+    renderPage();
+    const cells = await cellsFor('deposit');
+    expect(cells[1]).toHaveTextContent('Бонус за 10 000 шагов');
+    expect(cells[6]).toHaveTextContent('+1 000');
+    expect(cells[7]).toHaveTextContent('Бонус за 10 000 шагов');
+    expect(screen.queryByText('Начисление кэшбэка')).not.toBeInTheDocument();
+    expect(screen.queryByText('WALKING-2026-10-07-customer-id')).not.toBeInTheDocument();
+  });
+
   it('distinguishes credits, pending credits, debits and cancelled movements', async () => {
     apiMocks.getTransactions.mockResolvedValue({
       transactions: [

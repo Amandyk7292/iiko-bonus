@@ -21,4 +21,12 @@ function writeDeviceCookie(res, token, env = process.env) {
     maxAge: MAX_AGE,
   });
 }
-module.exports = { COOKIE_NAME, MAX_AGE, readDeviceCookie, writeDeviceCookie };
+function clearDeviceCookie(res, env = process.env) {
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: env.NODE_ENV === 'production',
+    path: '/api/branch-reports',
+  });
+}
+module.exports = { COOKIE_NAME, MAX_AGE, readDeviceCookie, writeDeviceCookie, clearDeviceCookie };

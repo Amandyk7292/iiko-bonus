@@ -1,7 +1,13 @@
 const crypto = require('node:crypto');
 const { supabase } = require('../config/supabase');
 const { credentialHash, encryptSecret, decryptSecret } = require('../utils/secret-envelope.util');
-const { resolveLink, rows, tokenHash, fail } = require('./branch-photo-report-access.service');
+const {
+  resolveLink,
+  branchFields,
+  rows,
+  tokenHash,
+  fail,
+} = require('./branch-photo-report-access.service');
 const CODE_PURPOSE = 'branch-photo-device-code';
 const codeHash = (id, code, env = process.env) =>
   credentialHash(`${id}:${code}`, CODE_PURPOSE, env);
@@ -46,6 +52,27 @@ async function requireDevice(token, branchId, { db = supabase, now = new Date(),
   if (deviceId !== undefined && (!deviceId || d.id !== deviceId)) throw deviceError('unregistered');
   return d;
 }
+async function resolveDeviceLink(qrToken, deviceToken, { db = supabase, now = new Date() } = {}) {
+  // A scanned QR chooses a branch; after approval, the HttpOnly device credential
+  // restores that branch without keeping its reusable QR in browser storage.
+  if (qrToken) return resolveLink(qrToken, { db });
+  const device = await findDevice(deviceToken, { db });
+  const status = deviceStatus(device, now);
+  if (status !== 'active') throw deviceError(status);
+  const [branch, link] = await Promise.all([
+    rows(db.from('bulka_locations').select(branchFields).eq('id', device.branch_id).maybeSingle()),
+    rows(
+      db
+        .from('branch_closing_links')
+        .select('branch_id,generation')
+        .eq('branch_id', device.branch_id)
+        .maybeSingle(),
+    ),
+  ]);
+  if (!branch?.active || !link)
+    throw fail('Точка недоступна. Обратитесь к управляющему.', 401, 'PHOTO_REPORT_LINK_INVALID');
+  return { branch, link };
+}
 async function touchDevice(d, { db = supabase, now = new Date() } = {}) {
   await rows(
     db
@@ -54,6 +81,19 @@ async function touchDevice(d, { db = supabase, now = new Date() } = {}) {
       .eq('id', d.id)
       .eq('status', 'active'),
   );
+}
+async function disconnect(token, { db = supabase } = {}) {
+  const d = await findDevice(token, { db });
+  if (!d) return;
+  // The cookie can revoke only its own device; it cannot select another ID.
+  const result = await rows(
+    db.rpc('revoke_branch_closing_device', {
+      p_id: d.id,
+      p_branch: d.branch_id,
+      p_admin: 'tablet-logout',
+    }),
+  );
+  if (result.error) throw deviceError('unregistered');
 }
 function publicState(branch, d, { now = new Date(), env = process.env } = {}) {
   const response = {
@@ -76,7 +116,7 @@ async function status(
   deviceToken,
   { db = supabase, now = new Date(), env = process.env } = {},
 ) {
-  const { branch } = await resolveLink(qrToken, { db });
+  const { branch } = await resolveDeviceLink(qrToken, deviceToken, { db, now });
   const d = await findDevice(deviceToken, { db });
   if (d?.branch_id === branch.id && d.status === 'active') await touchDevice(d, { db, now });
   return publicState(branch, d, { now, env });
@@ -122,6 +162,8 @@ module.exports = {
   findDevice,
   deviceError,
   requireDevice,
+  resolveDeviceLink,
+  disconnect,
   touchDevice,
   status,
   request,

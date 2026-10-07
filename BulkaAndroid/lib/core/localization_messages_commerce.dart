@@ -889,6 +889,16 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Кэшбэк есептелді',
     'en': 'Cashback earned',
   },
+  'tx_walking_reward': {
+    'ru': 'Бонус за 10 000 шагов',
+    'kk': '10 000 қадам үшін бонус',
+    'en': 'Reward for 10,000 steps',
+  },
+  'balance_walking_credit': {
+    'ru': 'Бонус за 10 000 шагов · {date}',
+    'kk': '10 000 қадам үшін бонус · {date}',
+    'en': 'Reward for 10,000 steps · {date}',
+  },
   'tx_gift': {
     'ru': 'Подарок / Начисление',
     'kk': 'Сыйлық / Бонус қосылды',

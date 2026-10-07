@@ -396,6 +396,7 @@ const en: Record<string, string> = {
   'transactions.onlinePurchase': 'Online purchase · {{id}}',
   'transactions.onlineRefund': 'Online purchase refund · {{id}}',
   'transactions.manual': 'Manual operation',
+  'transactions.walkingReward': 'Reward for 10,000 steps',
   'transactions.expiration': 'Automatic expiration',
   'transactions.items': 'Order items',
   'transactions.product': 'Product',

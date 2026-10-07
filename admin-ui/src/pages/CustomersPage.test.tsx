@@ -1,10 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../lib/i18n';
 import { BrowserRouter } from '../lib/router';
 import { ApiError, type AdminUser } from '../lib/api';
 import CustomersPage from './CustomersPage';
+import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 
 const api = vi.hoisted(() => ({
   getCustomers: vi.fn(),
@@ -86,6 +87,69 @@ it('opens bonus and personal account history for one customer', async () => {
   await user.click(screen.getByRole('tab', { name: /Личный счёт/ }));
   expect(screen.getByText('Пополнение счёта')).toBeInTheDocument();
   expect(api.getCustomerFinancialDetails).toHaveBeenCalledWith('test');
+});
+
+it('shows the walking reward and its credited amount in customer bonus details', async () => {
+  api.getCustomerFinancialDetails.mockResolvedValueOnce({
+    customer,
+    bonus: {
+      balance: 1100,
+      entries: [
+        {
+          id: 'walking',
+          type: 'deposit',
+          amount: 1000,
+          orderId: 'WALKING-2026-10-07-test',
+          description: '10 000 шагов · 2026-10-07',
+          timestamp: '2026-10-07T07:00:00Z',
+        },
+      ],
+    },
+    personalAccount: { balance: 0, entries: [] },
+  });
+  const user = userEvent.setup();
+  show();
+  await user.click(await screen.findByRole('button', { name: 'Детали' }));
+  expect(await screen.findByText('Бонус за 10 000 шагов')).toBeInTheDocument();
+  expect(screen.getByText('10 000 шагов · 2026-10-07')).toBeInTheDocument();
+  expect(screen.getByText('+1 000')).toBeInTheDocument();
+  expect(screen.queryByText('WALKING-2026-10-07-test')).not.toBeInTheDocument();
+});
+
+it('refreshes an open customer bonus history when that customer earns a walking reward', async () => {
+  const user = userEvent.setup();
+  show();
+  await user.click(await screen.findByRole('button', { name: 'Детали' }));
+  expect(await screen.findByText('Компенсация клиенту')).toBeInTheDocument();
+  api.getCustomerFinancialDetails.mockResolvedValueOnce({
+    customer,
+    bonus: {
+      balance: 1100,
+      entries: [
+        {
+          id: 'walking',
+          type: 'deposit',
+          amount: 1000,
+          orderId: 'WALKING-2026-10-07-test',
+          description: '10 000 шагов · 2026-10-07',
+          timestamp: '2026-10-07T07:00:00Z',
+        },
+      ],
+    },
+    personalAccount: { balance: 0, entries: [] },
+  });
+  const listener = vi.mocked(useAdminRealtimeEvents).mock.calls.at(-1)![1];
+  await act(async () =>
+    listener({
+      id: 'walking-event',
+      type: 'transaction.created',
+      occurredAt: '2026-10-07T07:00:00Z',
+      data: { customerId: 'test', source: 'walking' },
+    }),
+  );
+  expect(await screen.findByText('Бонус за 10 000 шагов')).toBeInTheDocument();
+  expect(screen.getByText('+1 000')).toBeInTheDocument();
+  expect(api.getCustomerFinancialDetails).toHaveBeenCalledTimes(2);
 });
 
 it('lets an MFA administrator adjust the personal account with a reason', async () => {

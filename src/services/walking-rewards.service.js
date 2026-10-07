@@ -3,14 +3,18 @@ const jwt = require('jsonwebtoken');
 const cbor = require('cbor');
 const { supabase } = require('../config/supabase');
 const { queueCustomerLoyaltySync } = require('./loyalty-sync.service');
+const { publishWalkingRewardEvents } = require('./walking-reward-events.service');
+const {
+  walkingError,
+  walkingAssertionError,
+  walkingDatabaseError,
+} = require('../utils/walking-error.util');
 const {
   walkingPayloadSchema,
   walkingAndroidPayloadSchema,
 } = require('../contracts/walking-rewards.contract');
 const DAY = 86400000;
 const OFFSET = 5 * 3600000;
-const walkingError = (code, statusCode = 409) =>
-  Object.assign(new Error(code), { code, statusCode });
 const deviceHash = (id) =>
   crypto.createHash('sha256').update(`bulka:walking:v1:${id}`).digest('hex');
 const platformOf = (value) => value.platform || 'ios';
@@ -51,8 +55,13 @@ function verifyWalkingChallenge(customerId, body, purpose) {
       audience: 'bulka-walking-v1',
       subject: customerId,
     });
-  } catch {
-    throw walkingError('WALKING_PROOF_INVALID');
+  } catch (error) {
+    throw walkingError(
+      'WALKING_PROOF_INVALID',
+      409,
+      'challenge',
+      error.name === 'TokenExpiredError' ? 'expired' : 'signature_invalid',
+    );
   }
   if (
     claims.purpose !== purpose ||
@@ -60,7 +69,7 @@ function verifyWalkingChallenge(customerId, body, purpose) {
     claims.keyId !== body.keyId ||
     claims.deviceHash !== deviceHash(body.deviceId)
   )
-    throw walkingError('WALKING_PROOF_INVALID');
+    throw walkingError('WALKING_PROOF_INVALID', 409, 'challenge', 'binding_invalid');
   return claims;
 }
 async function createWalkingChallenge(customerId, body) {
@@ -77,7 +86,7 @@ async function createWalkingChallenge(customerId, body) {
       .select('enabled,starts_on')
       .eq('id', true)
       .single();
-    if (policyError) throw walkingError('WALKING_UNAVAILABLE', 503);
+    if (policyError) throw walkingDatabaseError(policyError, 'challenge_policy');
     periods = periods.filter((day) => day.date >= policy.starts_on);
     if (!policy.enabled || periods.length === 0) throw walkingError('WALKING_UNAVAILABLE', 503);
   }
@@ -86,9 +95,9 @@ async function createWalkingChallenge(customerId, body) {
     .select('device_hash,platform')
     .eq('key_id', body.keyId)
     .maybeSingle();
-  if (error) throw walkingError('WALKING_UNAVAILABLE', 503);
+  if (error) throw walkingDatabaseError(error, 'challenge_key');
   if (key && (key.device_hash !== deviceHash(body.deviceId) || platformOf(key) !== platform))
-    throw walkingError('WALKING_PROOF_INVALID');
+    throw walkingError('WALKING_PROOF_INVALID', 409, 'challenge_key', 'identity_invalid');
   const challenge = jwt.sign(
     {
       purpose: body.purpose,
@@ -143,7 +152,7 @@ async function registerWalkingDevice(customerId, body) {
         allowDevelopmentEnvironment: false,
       });
     } catch {
-      throw walkingError('WALKING_PROOF_INVALID');
+      throw walkingError('WALKING_PROOF_INVALID', 409, 'attestation', 'verification_rejected');
     }
   const { error } = await supabase.from('walking_device_keys').upsert(
     {
@@ -154,19 +163,19 @@ async function registerWalkingDevice(customerId, body) {
     },
     { onConflict: 'key_id', ignoreDuplicates: true },
   );
-  if (error) throw walkingError('WALKING_UNAVAILABLE', 503);
+  if (error) throw walkingDatabaseError(error, 'registration_write');
   const { data: key, error: readError } = await supabase
     .from('walking_device_keys')
     .select('device_hash,public_key,platform')
     .eq('key_id', body.keyId)
     .single();
-  if (readError) throw walkingError('WALKING_UNAVAILABLE', 503);
+  if (readError) throw walkingDatabaseError(readError, 'registration_read');
   if (
     key.device_hash !== deviceHash(body.deviceId) ||
     key.public_key !== verified.publicKey ||
     platformOf(key) !== platform
   )
-    throw walkingError('WALKING_PROOF_INVALID');
+    throw walkingError('WALKING_PROOF_INVALID', 409, 'registration_read', 'identity_invalid');
   return { registered: true };
 }
 async function syncWalkingSteps(customerId, body) {
@@ -178,7 +187,7 @@ async function syncWalkingSteps(customerId, body) {
       JSON.parse(body.payload),
     );
   } catch {
-    throw walkingError('WALKING_PROOF_INVALID');
+    throw walkingError('WALKING_PROOF_INVALID', 409, 'measurement', 'payload_invalid');
   }
   if (
     payload.challenge !== body.challenge ||
@@ -198,16 +207,16 @@ async function syncWalkingSteps(customerId, body) {
             day.endAt !== claims.periods[index].endAt,
         )))
   )
-    throw walkingError('WALKING_PROOF_INVALID');
+    throw walkingError('WALKING_PROOF_INVALID', 409, 'measurement', 'period_invalid');
   const { data: key, error: readError } = await supabase
     .from('walking_device_keys')
     .select('device_hash,public_key,sign_count,platform')
     .eq('key_id', body.keyId)
     .maybeSingle();
-  if (readError) throw walkingError('WALKING_UNAVAILABLE', 503);
-  if (!key) throw walkingError('WALKING_KEY_UNKNOWN');
+  if (readError) throw walkingDatabaseError(readError, 'measurement_key');
+  if (!key) throw walkingError('WALKING_KEY_UNKNOWN', 409, 'measurement_key', 'key_missing');
   if (key.device_hash !== claims.deviceHash || platformOf(key) !== platform)
-    throw walkingError('WALKING_PROOF_INVALID');
+    throw walkingError('WALKING_PROOF_INVALID', 409, 'measurement_key', 'identity_invalid');
   if (platform === 'android') {
     if (key.public_key !== androidPublicKey || !Number.isSafeInteger(Number(key.sign_count)))
       throw walkingError('WALKING_PROOF_INVALID');
@@ -219,12 +228,11 @@ async function syncWalkingSteps(customerId, body) {
       p_challenge_id: claims.jti,
       p_measurements: payload.measurements,
     });
-    if (error) {
-      if (['22023', 'P0001', '23505'].includes(error.code))
-        throw walkingError('WALKING_PROOF_INVALID');
-      throw walkingError('WALKING_UNAVAILABLE', 503);
+    if (error) throw walkingDatabaseError(error, 'apply_android', ['22023', 'P0001', '23505']);
+    if (data.days.some((day) => day.credited === true)) {
+      queueCustomerLoyaltySync(customerId);
+      publishWalkingRewardEvents(customerId, data);
     }
-    if (data.days.some((day) => day.credited === true)) queueCustomerLoyaltySync(customerId);
     return data;
   }
   let verified;
@@ -237,8 +245,8 @@ async function syncWalkingSteps(customerId, body) {
       signCount: Number(key.sign_count),
       ...appIdentity(),
     });
-  } catch {
-    throw walkingError('WALKING_PROOF_INVALID');
+  } catch (error) {
+    throw walkingAssertionError(error);
   }
   const { data, error } = await supabase.rpc('apply_walking_steps', {
     p_customer_id: customerId,
@@ -251,11 +259,11 @@ async function syncWalkingSteps(customerId, body) {
     p_start_at: payload.startAt,
     p_end_at: payload.endAt,
   });
-  if (error) {
-    if (['22023', 'P0001'].includes(error.code)) throw walkingError('WALKING_PROOF_INVALID');
-    throw walkingError('WALKING_UNAVAILABLE', 503);
+  if (error) throw walkingDatabaseError(error, 'apply_ios', ['22023', 'P0001']);
+  if (data.credited === true) {
+    queueCustomerLoyaltySync(customerId);
+    publishWalkingRewardEvents(customerId, data);
   }
-  if (data.credited === true) queueCustomerLoyaltySync(customerId);
   return data;
 }
 async function walkingStatus(customerId) {
@@ -266,14 +274,14 @@ async function walkingStatus(customerId) {
     .select('enabled,starts_on')
     .eq('id', true)
     .single();
-  if (policyError) throw walkingError('WALKING_UNAVAILABLE', 503);
+  if (policyError) throw walkingDatabaseError(policyError, 'status_policy');
   const { data, error } = await supabase
     .from('walking_daily_progress')
     .select('walking_date,steps,reward_amount,credited_at,measurement_end_at')
     .eq('customer_id', customerId)
     .gte('walking_date', walkingPeriod(6, now).date)
     .order('walking_date', { ascending: false });
-  if (error) throw walkingError('WALKING_UNAVAILABLE', 503);
+  if (error) throw walkingDatabaseError(error, 'status_progress');
   return {
     date: today,
     enabled: policy.enabled,

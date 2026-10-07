@@ -300,6 +300,10 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
     _updatePolling();
     try {
       await api.syncWalking(requestPermission: requestPermission);
+      // A throttled call shares the last outcome. Reopening the card must not
+      // clear a failure before a real native/server sync has succeeded.
+      final failure = api.walkingSyncFailure;
+      if (failure != null) throw failure;
       // A balance refresh cannot turn an accepted step measurement into a
       // failed sync. Keep the confirmed progress if this separate read fails.
       final progress = api.walkingProgress.value;

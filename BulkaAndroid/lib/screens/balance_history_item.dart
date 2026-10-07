@@ -126,7 +126,9 @@ class TransactionCard extends StatelessWidget {
     final orderNumber = RegExp(r'^#?\d+$').hasMatch(orderId)
         ? orderId.replaceFirst('#', '')
         : '';
-    final description = purchase
+    final description = transaction.isWalkingReward
+        ? 'balance_walking_credit'.trArgs({'date': transaction.walkingDate!})
+        : purchase
         ? (orderNumber.isEmpty
               ? 'balance_purchase_credit'.tr
               : 'balance_purchase_credit_number'.trArgs({
@@ -153,7 +155,11 @@ class TransactionCard extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  earning ? Icons.add_rounded : Icons.remove_rounded,
+                  transaction.isWalkingReward
+                      ? Icons.directions_walk
+                      : earning
+                      ? Icons.add_rounded
+                      : Icons.remove_rounded,
                   color: color,
                   size: 23,
                 ),

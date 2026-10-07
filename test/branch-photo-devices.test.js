@@ -438,9 +438,10 @@ test('revocation during storage write is checked again in SQL finish; old RPCs a
     'device_required',
   );
   const otherToken = await approveDevice(f.qr, { db: f.db });
-  await f.pg.query('update branch_closing_sessions set device_id=null where token_hash=$1', [
-    service.tokenHash(session.sessionToken),
-  ]);
+  await f.pg.query(
+    "update branch_closing_sessions set device_id=null,expires_at=now()+interval '2 hours' where token_hash=$1",
+    [service.tokenHash(session.sessionToken)],
+  );
   await assert.rejects(
     service.resolveSession(session.sessionToken, { db: f.db, deviceToken: otherToken }),
     { code: 'PHOTO_REPORT_DEVICE_REQUIRED' },
@@ -582,9 +583,12 @@ test('real public/admin routes enforce cookie binding before multipart and rejec
   result = await fetch(`${base}/api/branch-reports/device`, { headers: { ...headers, cookie } });
   assert.match(result.headers.get('set-cookie'), /Max-Age=34560000/);
   assert.equal((await result.json()).device.status, 'active');
+  result = await fetch(`${base}/api/branch-reports/device`, { headers: { cookie } });
+  assert.equal(result.status, 200, 'the cookie restores the branch after the tablet tab reopens');
+  assert.equal((await result.json()).branch.id, A);
   result = await fetch(`${base}/api/branch-reports/session`, {
     method: 'POST',
-    headers: { ...headers, cookie },
+    headers: { 'content-type': 'application/json', cookie },
     body: '{}',
   });
   assert.equal(result.status, 200);
@@ -599,6 +603,34 @@ test('real public/admin routes enforce cookie binding before multipart and rejec
   });
   assert.equal(copied.status, 403);
   assert.equal((await copied.json()).code, 'PHOTO_REPORT_DEVICE_REQUIRED');
+  result = await fetch(`${base}/api/branch-reports/device/logout`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie },
+    body: JSON.stringify({ deviceId: randomUUID() }),
+  });
+  assert.equal(result.status, 400, 'logout cannot select another tablet');
+  assert.equal(
+    (await devices.status(undefined, cookie.split('=')[1], { db: f.db })).device.status,
+    'active',
+  );
+  result = await fetch(`${base}/api/branch-reports/device/logout`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie, 'sec-fetch-site': 'cross-site' },
+    body: '{}',
+  });
+  assert.equal(result.status, 403, 'cross-site logout is rejected');
+  result = await fetch(`${base}/api/branch-reports/device/logout`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie },
+    body: '{}',
+  });
+  assert.equal(result.status, 200);
+  assert.match(
+    result.headers.get('set-cookie'),
+    /bulka_report_device=; Path=\/api\/branch-reports;/,
+  );
+  assert.match(result.headers.get('set-cookie'), /HttpOnly/);
+  assert.match(result.headers.get('set-cookie'), /SameSite=Strict/);
   await adminDevices.revoke(OWNER, pending.device.id, { db: f.db });
   result = await fetch(`${base}/api/branch-reports/submit`, {
     method: 'POST',

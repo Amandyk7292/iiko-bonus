@@ -447,7 +447,13 @@ class BonusTransaction {
     'earning',
   }.contains(type.toLowerCase());
 
+  bool get isWalkingReward =>
+      RegExp(r'^WALKING-\d{4}-\d{2}-\d{2}-').hasMatch(orderId ?? '');
+
+  String? get walkingDate => isWalkingReward ? orderId!.substring(8, 18) : null;
+
   String get label {
+    if (isWalkingReward) return 'tx_walking_reward'.tr;
     return localizeTransactionType(type, isEarning: isEarning);
   }
 

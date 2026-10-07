@@ -25,9 +25,9 @@ const session = (number = 1) => ({
   sessionToken: 'session-' + number,
 });
 
-function page(t, reply) {
+function page(t, reply, url = 'https://bulka.com.kz/branch-reports#t=branch-qr') {
   const dom = new JSDOM(html, {
-    url: 'https://bulka.com.kz/branch-reports#t=branch-qr',
+    url,
     runScripts: 'outside-only',
     pretendToBeVisual: true,
   });
@@ -239,7 +239,7 @@ test('session device failures return to enrollment without silently requesting a
   const codes = {
     PHOTO_REPORT_DEVICE_REQUIRED: /не подключён/,
     PHOTO_REPORT_DEVICE_REVOKED: /отключён/,
-    PHOTO_REPORT_DEVICE_EXPIRED: /истекло/,
+    PHOTO_REPORT_DEVICE_EXPIRED: /Код истёк/,
     PHOTO_REPORT_DEVICE_BRANCH_MISMATCH: /другой точки/,
   };
   for (const [code, message] of Object.entries(codes)) {
@@ -261,7 +261,7 @@ test('session device failures return to enrollment without silently requesting a
   }
 });
 
-test('upload device failures discard unsafe captures and cannot retry the old session', async (t) => {
+test('device reauthorization preserves local captures for the same branch; revocation and branch mismatch discard them', async (t) => {
   for (const code of [
     'PHOTO_REPORT_DEVICE_REQUIRED',
     'PHOTO_REPORT_DEVICE_REVOKED',
@@ -269,9 +269,14 @@ test('upload device failures discard unsafe captures and cannot retry the old se
     'PHOTO_REPORT_DEVICE_BRANCH_MISMATCH',
   ]) {
     let sessions = 0;
+    const preserve = ['PHOTO_REPORT_DEVICE_REQUIRED', 'PHOTO_REPORT_DEVICE_EXPIRED'].includes(code);
     const ui = page(t, async (url, options) => {
       if (url.endsWith('/device')) return response(status('active'));
       if (url.endsWith('/session')) return response(session(++sessions));
+      if (sessions === 2 && preserve) {
+        assert.equal(options.headers['X-Bulka-Report-Session'], 'session-2');
+        return response({ submitted: true });
+      }
       assert.equal(options.headers['X-Bulka-Report-Session'], 'session-1');
       return response({ code, error: 'Device access denied' }, 403);
     });
@@ -287,8 +292,8 @@ test('upload device failures discard unsafe captures and cannot retry the old se
     await flush();
     assert.equal(ui.get('device').hidden, false, code);
     assert.equal(ui.get('capture').hidden, true);
-    assert.equal(ui.w.document.querySelectorAll('.preview').length, 0);
-    assert.equal(captured.revoked(), 1);
+    assert.equal(ui.w.document.querySelectorAll('.preview').length, preserve ? 1 : 0);
+    assert.equal(captured.revoked(), preserve ? 0 : 1);
     assert.ok(captured.stops() >= 1);
     assert.equal(ui.get('send').disabled, true);
     ui.get('send').dispatchEvent(new ui.w.Event('click'));
@@ -299,15 +304,199 @@ test('upload device failures discard unsafe captures and cannot retry the old se
     ui.get('check-device').click();
     await flush();
     assert.equal(sessions, 2, 'a new active confirmation gets a fresh session');
-    assert.equal(ui.get('intro').hidden, false);
+    assert.equal(ui.get(preserve ? 'capture' : 'intro').hidden, false);
+    if (preserve)
+      assert.equal(ui.get('send').disabled, false, 'reauthorization restores the real send button');
     ui.get('send').dispatchEvent(new ui.w.Event('click'));
     await flush();
     assert.equal(
       ui.calls.filter(({ url }) => url.endsWith('/submit')).length,
-      1,
-      'cleared batch is never resent',
+      preserve ? 2 : 1,
+      'only a preserved batch with a fresh active session can be manually resent',
     );
   }
+});
+
+test('an approved tablet opens without QR, URL fragment or browser storage', async (t) => {
+  const ui = page(
+    t,
+    async (url, options) => {
+      assert.equal(options.headers['X-Bulka-Report-Token'], '');
+      return url.endsWith('/device') ? response(status('active')) : response(session());
+    },
+    'https://bulka.com.kz/branch-reports',
+  );
+  ui.start();
+  await flush();
+  assert.equal(ui.get('intro').hidden, false);
+  assert.equal(ui.get('branch').textContent, branch.name);
+  assert.equal(ui.w.localStorage.length, 0);
+  assert.equal(ui.w.sessionStorage.length, 0);
+  assert.equal(ui.calls.length, 2);
+});
+
+test('an expired report session renews automatically and retries the same three photos once with the same upload ID', async (t) => {
+  let sessions = 0;
+  const submissions = [];
+  const ui = page(t, async (url, options) => {
+    if (url.endsWith('/device')) return response(status('active'));
+    if (url.endsWith('/session')) return response(session(++sessions));
+    submissions.push(options);
+    if (submissions.length === 1)
+      return response({ code: 'PHOTO_REPORT_SESSION_EXPIRED', error: 'Сеанс завершён' }, 401);
+    assert.equal(options.headers['X-Bulka-Report-Session'], 'session-2');
+    return response({ submitted: true });
+  });
+  const captured = camera(ui);
+  ui.start();
+  await flush();
+  assert.equal(ui.w.sessionStorage.length, 0, 'approval no longer depends on storing the QR');
+  ui.w.document.querySelector('[data-kind=hall]').click();
+  await flush();
+  for (let index = 0; index < 3; index++) {
+    ui.get('take-photo').click();
+    await flush();
+  }
+  ui.get('send').click();
+  await flush();
+  assert.equal(sessions, 2);
+  assert.equal(submissions.length, 2);
+  assert.equal(
+    submissions[0].body,
+    submissions[1].body,
+    'the original batch and idempotency key are retained',
+  );
+  assert.equal(submissions[1].body.getAll('photos').length, 3);
+  assert.equal(ui.get('success').hidden, false);
+  assert.match(ui.get('success-detail').textContent, /3 фото/);
+  assert.equal(captured.revoked(), 3, 'only successful completion releases the previews');
+  assert.equal(
+    ui.calls.filter(({ url }) => url.endsWith('/device')).length,
+    1,
+    'no pairing request or QR rescan is needed',
+  );
+});
+
+test('failed session renewal preserves three previews and a usable retry button without rescan instructions', async (t) => {
+  let sessions = 0;
+  const ui = page(t, async (url) => {
+    if (url.endsWith('/device')) return response(status('active'));
+    if (url.endsWith('/session'))
+      return ++sessions === 1
+        ? response(session())
+        : response({ error: 'Storage temporarily unavailable' }, 503);
+    return response({ code: 'PHOTO_REPORT_SESSION_EXPIRED', error: 'Сеанс завершён' }, 401);
+  });
+  const captured = camera(ui);
+  ui.start();
+  await flush();
+  ui.w.document.querySelector('[data-kind=hall]').click();
+  await flush();
+  for (let index = 0; index < 3; index++) {
+    ui.get('take-photo').click();
+    await flush();
+  }
+  ui.get('send').click();
+  await flush();
+  assert.equal(ui.get('capture').hidden, false);
+  assert.equal(ui.w.document.querySelectorAll('.preview').length, 3);
+  assert.equal(captured.revoked(), 0);
+  assert.equal(ui.get('send').disabled, false);
+  assert.doesNotMatch(ui.get('error').textContent, /QR|Сеанс завершён/);
+  assert.equal(ui.calls.filter(({ url }) => url.endsWith('/submit')).length, 1);
+});
+
+test('period rollover preserves photos, updates the visible date and waits for a new send instead of silently moving the report', async (t) => {
+  let sessions = 0;
+  const submissions = [];
+  const ui = page(t, async (url, options) => {
+    if (url.endsWith('/device')) return response(status('active'));
+    if (url.endsWith('/session')) {
+      sessions++;
+      return response({ ...session(sessions), date: sessions === 1 ? '2026-10-04' : '2026-10-05' });
+    }
+    submissions.push(options);
+    return submissions.length === 1
+      ? response({ code: 'PHOTO_REPORT_SESSION_EXPIRED' }, 401)
+      : response({ submitted: true });
+  });
+  const captured = camera(ui);
+  ui.start();
+  await flush();
+  ui.w.document.querySelector('[data-kind=hall]').click();
+  await flush();
+  ui.get('take-photo').click();
+  await flush();
+  ui.get('send').click();
+  await flush();
+  assert.equal(submissions.length, 1);
+  assert.equal(ui.w.document.querySelectorAll('.preview').length, 1);
+  assert.equal(captured.revoked(), 0);
+  assert.match(ui.get('capture-date').textContent, /5 октября/);
+  assert.match(ui.get('error').textContent, /Смена изменилась/);
+  assert.equal(ui.get('send').disabled, false);
+  ui.get('send').click();
+  await flush();
+  assert.equal(submissions.length, 2);
+  assert.notEqual(submissions[0].body.get('uploadId'), submissions[1].body.get('uploadId'));
+  assert.equal(submissions[1].headers['X-Bulka-Report-Session'], 'session-2');
+  assert.equal(ui.get('success').hidden, false);
+});
+
+test('network errors keep the paired tablet and its unsent photos without instructing another QR scan', async (t) => {
+  let checks = 0;
+  const ui = page(t, async (url) => {
+    if (url.endsWith('/device')) {
+      if (++checks > 1) throw new Error('network offline');
+      return response(status('active'));
+    }
+    return response(session());
+  });
+  const captured = camera(ui);
+  ui.start();
+  await flush();
+  ui.w.document.querySelector('[data-kind=hall]').click();
+  await flush();
+  ui.get('take-photo').click();
+  await flush();
+  ui.visibility(true);
+  ui.visibility(false);
+  await flush();
+  assert.equal(ui.get('capture').hidden, false);
+  assert.equal(ui.w.document.querySelectorAll('.preview').length, 1);
+  assert.equal(captured.revoked(), 0);
+  assert.match(ui.get('error').textContent, /интернет/);
+  assert.doesNotMatch(ui.get('error').textContent, /QR/);
+  assert.equal(ui.get('send').disabled, false);
+});
+
+test('cookie bootstrap rejection disables a previously paired tablet and manual logout uses no client-selected identity', async (t) => {
+  let revoked = false;
+  const ui = page(t, async (url, options) => {
+    if (url.endsWith('/device/logout')) {
+      assert.equal(options.method, 'POST');
+      assert.equal(options.body, '{}');
+      revoked = true;
+      return response({ success: true });
+    }
+    if (url.endsWith('/device'))
+      return revoked
+        ? response({ code: 'PHOTO_REPORT_DEVICE_REVOKED' }, 403)
+        : response(status('active'));
+    return response(session());
+  });
+  ui.start();
+  await flush();
+  ui.get('disconnect-device').click();
+  await flush();
+  assert.equal(ui.get('device').hidden, false);
+  assert.match(ui.get('device-status').textContent, /отключён/);
+  assert.equal(ui.get('send').disabled, true);
+  ui.get('check-device').click();
+  await flush();
+  assert.equal(ui.get('intro').hidden, true);
+  assert.equal(ui.get('device').hidden, false);
+  assert.equal(ui.calls.filter(({ url }) => url.endsWith('/session')).length, 1);
 });
 
 test('a late camera frame is discarded when device access is revoked during capture', async (t) => {

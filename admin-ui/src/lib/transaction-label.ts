@@ -1,9 +1,13 @@
+export const isWalkingReward = (orderId?: string | null) =>
+  /^WALKING-\d{4}-\d{2}-\d{2}-/.test(orderId || '');
+
 export function transactionLabel(
   transaction: { order_id?: string | null; order_number?: number | null; type?: string },
   t: (key: string, params?: Record<string, string>) => string,
 ) {
   const id = String(transaction.order_id || '');
   const type = String(transaction.type || '');
+  if (isWalkingReward(id)) return t('transactions.walkingReward');
   if (id === 'MANUAL' || type.includes('manual')) return t('transactions.manual');
   if (type === 'expiration' || id === 'EXPIRED_90_DAYS') return t('transactions.expiration');
   if (id.startsWith('kaspi:')) {

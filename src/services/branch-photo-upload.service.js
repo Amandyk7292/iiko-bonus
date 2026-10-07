@@ -5,7 +5,7 @@ const { rows, fail, tokenHash, resolveSession } = require('./branch-photo-report
 const { BUCKET, photoStorage } = require('./branch-photo-storage.service');
 const messages = {
   photo_limit: 'В отчёте должно быть от 1 до 10 снимков.',
-  session_expired: 'Сеанс завершён. Отсканируйте QR точки заново.',
+  session_expired: 'Обновляем данные отчёта. Повторите отправку.',
   link_invalid: 'QR точки больше не действует.',
   already_submitted: 'Этот отчёт уже отправлен.',
   upload_conflict: 'Начните отправку заново.',

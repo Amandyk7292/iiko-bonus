@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import PageState from '../../components/PageState';
 import { useI18n } from '../../lib/i18n';
+import { isWalkingReward } from '../../lib/transaction-label';
 import type {
   CustomerBonusEntry,
   CustomerFinancialDetailsResponse,
@@ -48,7 +49,13 @@ function BonusRow({ entry }: { entry: CustomerBonusEntry }) {
         {entry.amount >= 0 ? '+' : '−'}
       </span>
       <div className="customer-ledger-copy">
-        <strong>{t('customers.bonusOperation')}</strong>
+        <strong>
+          {t(
+            isWalkingReward(entry.orderId)
+              ? 'transactions.walkingReward'
+              : 'customers.bonusOperation',
+          )}
+        </strong>
         <p>{entry.description || t('customers.reasonUnavailable')}</p>
         <small>
           {formatDate(entry.timestamp, { dateStyle: 'short', timeStyle: 'short' })}

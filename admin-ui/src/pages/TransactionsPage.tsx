@@ -9,6 +9,7 @@ import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 import { csvCell } from '../lib/csv';
 import {
+  isWalkingReward,
   transactionItem,
   transactionLabel,
   transactionPresentation,
@@ -298,7 +299,11 @@ export default function TransactionsPage() {
                     ? transaction.items.map(transactionItem)
                     : [];
                   const expanded = expandedId === transaction.id;
-                  const typeLabel = t(transactionTypeKeys[transactionType] ?? 'transaction.other');
+                  const typeLabel = t(
+                    isWalkingReward(transaction.order_id)
+                      ? 'transactions.walkingReward'
+                      : (transactionTypeKeys[transactionType] ?? 'transaction.other'),
+                  );
                   const orderLabel = transactionLabel(transaction, t);
                   return (
                     <Fragment key={transaction.id}>

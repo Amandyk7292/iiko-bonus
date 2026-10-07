@@ -404,6 +404,7 @@ const kk: Record<string, string> = {
   'transactions.onlinePurchase': 'Онлайн сатып алу · {{id}}',
   'transactions.onlineRefund': 'Онлайн сатып алуды қайтару · {{id}}',
   'transactions.manual': 'Қолмен жасалған операция',
+  'transactions.walkingReward': '10 000 қадам үшін бонус',
   'transactions.expiration': 'Автоматты жою',
   'transactions.items': 'Тапсырыс құрамы',
   'transactions.product': 'Тауар',
