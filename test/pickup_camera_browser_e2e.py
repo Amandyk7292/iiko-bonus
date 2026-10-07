@@ -9,12 +9,14 @@ import base64
 import io
 import json
 import sys
+from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import Error, sync_playwright
 
 
 BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:4179"
+OUTPUT_DIR = Path(sys.argv[2]) if len(sys.argv) > 2 else None
 NONCE = "a1" * 16
 MOCK = r"""
 (() => {
@@ -39,9 +41,9 @@ MOCK = r"""
       context.fillStyle = '#0000ff';
       context.fillRect(canvas.width / 2, 0, canvas.width / 2, canvas.height);
       context.fillStyle = '#00ff00';
-      context.fillRect(0, canvas.height * 0.75, canvas.width * 0.2, canvas.height * 0.25);
+      context.fillRect(canvas.width * 0.3, canvas.height * 0.8, canvas.width * 0.1, canvas.height * 0.1);
       context.fillStyle = '#ffff00';
-      context.fillRect(canvas.width * 0.8, canvas.height * 0.75, canvas.width * 0.2, canvas.height * 0.25);
+      context.fillRect(canvas.width * 0.6, canvas.height * 0.8, canvas.width * 0.1, canvas.height * 0.1);
     };
     draw();
     const media = canvas.captureStream(30);
@@ -103,8 +105,8 @@ def wait_event(page, event, count=1):
     )
 
 
-def open_camera(browser, configuration=None, nonce=NONCE):
-    context = browser.new_context(viewport={"width": 400, "height": 700})
+def open_camera(browser, configuration=None, nonce=NONCE, viewport=(400, 700)):
+    context = browser.new_context(viewport={"width": viewport[0], "height": viewport[1]})
     page = context.new_page()
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
@@ -143,16 +145,63 @@ def assert_colour(image, point, colour):
     )
 
 
-def assert_preview(page, front):
-    assert page.locator("#camera").evaluate("video => getComputedStyle(video).objectFit") == "contain"
-    screenshot = Image.open(io.BytesIO(page.locator("#camera").screenshot()))
-    assert screenshot.size == (400, 700)
-    assert_colour(screenshot, (100, 350), "blue" if front else "red")
-    assert_colour(screenshot, (300, 350), "red" if front else "blue")
-    assert_colour(screenshot, (40, 480), "yellow" if front else "green")
-    assert_colour(screenshot, (360, 480), "green" if front else "yellow")
-    assert_colour(screenshot, (200, 100), "black")
-    assert_colour(screenshot, (200, 600), "black")
+def crop_geometry(source_size):
+    """Expected centered 3:4 portrait framing, independent of browser constraints."""
+    width, height = source_size
+    crop_width = min(width, height * 3 / 4)
+    crop_height = crop_width * 4 / 3
+    return ((width - crop_width) / 2, (height - crop_height) / 2,
+            crop_width, crop_height)
+
+
+def source_point(image, source_size, point, front):
+    left, top, width, height = crop_geometry(source_size)
+    x = (point[0] * source_size[0] - left) / width
+    y = (point[1] * source_size[1] - top) / height
+    assert 0 < x < 1 and 0 < y < 1, "Asymmetric calibration marks must remain in frame"
+    if front:
+        x = 1 - x
+    return (min(image.width - 1, int(x * image.width)),
+            min(image.height - 1, int(y * image.height)))
+
+
+def assert_frame_pixels(image, source_size, front):
+    assert_colour(image, (image.width // 4, image.height // 2), "blue" if front else "red")
+    assert_colour(image, (image.width * 3 // 4, image.height // 2), "red" if front else "blue")
+    # Marks are inside the crop, rather than source corners discarded by a portrait crop.
+    # Their projected positions catch an uncropped, stretched or rotated landscape source.
+    assert_colour(image, source_point(image, source_size, (0.35, 0.85), front), "green")
+    assert_colour(image, source_point(image, source_size, (0.65, 0.85), front), "yellow")
+
+
+def assert_preview(page, front, source_size, viewport):
+    assert page.locator("#camera").evaluate("video => getComputedStyle(video).objectFit") == "cover"
+    box = page.locator("#frame").bounding_box()
+    expected_width = min(viewport[0], viewport[1] * 3 / 4)
+    expected_height = expected_width * 4 / 3
+    assert abs(box["width"] - expected_width) <= 1 and abs(box["height"] - expected_height) <= 1, box
+    assert abs(box["x"] - (viewport[0] - expected_width) / 2) <= 1, box
+    assert abs(box["y"] - (viewport[1] - expected_height) / 2) <= 1, box
+    screenshot = Image.open(io.BytesIO(page.locator("#frame").screenshot())).convert("RGB")
+    assert screenshot.height > screenshot.width
+    assert abs(screenshot.width * 4 - screenshot.height * 3) <= 4, screenshot.size
+    assert_frame_pixels(screenshot, source_size, front)
+    full_page = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+    # The portrait frame is centered on black in either screen orientation.
+    if box["y"] > 2:
+        assert_colour(full_page, (viewport[0] // 2, 1), "black")
+        assert_colour(full_page, (viewport[0] // 2, viewport[1] - 2), "black")
+    if box["x"] > 2:
+        assert_colour(full_page, (1, viewport[1] // 2), "black")
+        assert_colour(full_page, (viewport[0] - 2, viewport[1] // 2), "black")
+    return screenshot
+
+
+def assert_pixel_parity(preview, photo):
+    resized = photo.convert("RGB").resize(preview.size, Image.Resampling.LANCZOS)
+    difference = ImageStat.Stat(ImageChops.difference(preview, resized))
+    # JPEG compression, canvas resampling and fractional CSS edges may differ slightly.
+    assert max(difference.mean) < 6, (preview.size, photo.size, difference.mean)
 
 
 def captured_photo(page):
@@ -166,38 +215,48 @@ def captured_photo(page):
     assert image.format == "JPEG"
     assert image.size == (event["width"], event["height"])
     assert 0 < image.width <= 1200 and 0 < image.height <= 1600
+    assert image.height > image.width and image.width * 4 == image.height * 3, image.size
     assert image.getexif().get(274, 1) == 1, "No mirror/rotation EXIF for upload/print to reinterpret"
     return event, image
 
 
-def parity_case(browser, facing):
-    context, page, errors = open_camera(browser)
+def parity_case(browser, facing, source_size, viewport):
+    context, page, errors = open_camera(
+        browser, {"width": source_size[0], "height": source_size[1]}, viewport=viewport
+    )
     try:
         wait_event(page, "ready")
-        assert_preview(page, True)
+        preview = assert_preview(page, True, source_size, viewport)
         # Exercise both direction changes, then capture the requested final lens.
         for count, front in ((2, False), (3, True)):
             page.evaluate("window.BulkaPickupCameraControls.switchCamera()")
             wait_event(page, "ready", count)
-            assert_preview(page, front)
+            preview = assert_preview(page, front, source_size, viewport)
         if facing == "environment":
             page.evaluate("window.BulkaPickupCameraControls.switchCamera()")
             wait_event(page, "ready", 4)
-            assert_preview(page, False)
+            preview = assert_preview(page, False, source_size, viewport)
+        save_artifacts = OUTPUT_DIR is not None and source_size == (640, 480) and viewport == (400, 700) and facing == "user"
+        if save_artifacts:
+            OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+            page.screenshot(path=str(OUTPUT_DIR / "portrait-camera-preview.png"))
         page.evaluate("window.BulkaPickupCameraControls.capture()")
         event, image = captured_photo(page)
         assert event["facingMode"] == facing
-        assert image.size == (640, 480)
+        _, _, crop_width, crop_height = crop_geometry(source_size)
+        scale = min(1, 1200 / crop_width, 1600 / crop_height)
+        assert image.size == (round(crop_width * scale), round(crop_height * scale)), event
         front = facing == "user"
-        assert_colour(image, (160, 240), "blue" if front else "red")
-        assert_colour(image, (480, 240), "red" if front else "blue")
-        assert_colour(image, (64, 448), "yellow" if front else "green")
-        assert_colour(image, (576, 448), "green" if front else "yellow")
+        assert_frame_pixels(image, source_size, front)
+        assert_pixel_parity(preview, image)
+        if save_artifacts:
+            image.save(OUTPUT_DIR / "portrait-camera-photo.jpg")
         page.evaluate("window.BulkaPickupCameraControls.capture(); window.BulkaPickupCameraControls.start(); window.BulkaPickupCameraControls.switchCamera()")
         assert event_count(page, "photo") == 1, "A shutter press must deliver only one photo"
         state = page.evaluate("({ requests: __cameraHarness.requests, tracks: __cameraHarness.tracks.map(record => ({stops: record.stops, state: record.track.readyState})) })")
         assert len(state["requests"]) == (3 if front else 4)
         assert all(request["audio"] is False and "exact" in request["video"]["facingMode"] for request in state["requests"])
+        assert all(request["video"]["aspectRatio"]["ideal"] == 0.75 for request in state["requests"])
         assert all(track == {"stops": 1, "state": "ended"} for track in state["tracks"]), state
         assert_clean(page, errors)
     finally:
@@ -279,20 +338,6 @@ def changed_lens_case(browser):
         context.close()
 
 
-def size_case(browser):
-    context, page, errors = open_camera(browser, {"width": 1600, "height": 2400})
-    try:
-        wait_event(page, "ready")
-        page.evaluate("window.BulkaPickupCameraControls.capture()")
-        event, image = captured_photo(page)
-        assert image.size == (1067, 1600), event
-        assert_colour(image, (image.width // 4, image.height // 2), "blue")
-        assert_colour(image, (image.width * 3 // 4, image.height // 2), "red")
-        assert_clean(page, errors)
-    finally:
-        context.close()
-
-
 def invalid_nonce_case(browser):
     context, page, errors = open_camera(browser, nonce="invalid")
     try:
@@ -326,20 +371,28 @@ def run():
                     passed.append({"browser": name, "checks": 3 if native_media else 2, "result": "Initialization, unsupported camera, nonce, strict CSP passed"})
                     skipped.append({"browser": name, "reason": "Canvas captureStream unsupported; real-stream preview/JPEG pixel and stream lifecycle cases not exercised", "native_media_devices_available": native_media})
                     continue
-                parity_case(browser, "user")
-                parity_case(browser, "environment")
+                parity_checks = 0
+                for source_size in ((640, 480), (1280, 720), (1600, 2400), (600, 800)):
+                    for viewport in ((400, 700), (700, 400)):
+                        for facing in ("user", "environment"):
+                            parity_case(browser, facing, source_size, viewport)
+                            parity_checks += 1
                 failure_cases(browser)
                 late_permission_case(browser)
                 pagehide_case(browser)
                 hidden_case(browser)
                 changed_lens_case(browser)
-                size_case(browser)
                 invalid_nonce_case(browser)
-                passed.append({"browser": name, "checks": 12, "result": "Preview/JPEG pixel parity, front/rear switches, size bounds, one-shot capture, camera cleanup, late permission, lens rejection, nonce, CSP passed"})
+                passed.append({"browser": name, "checks": parity_checks + 9, "portrait_parity_cases": parity_checks, "result": "Centered 3:4 portrait preview/JPEG pixel parity from 4:3, 16:9, tall and portrait sources in portrait/landscape viewports; front/rear switches, size bounds, one-shot capture, camera cleanup, late permission, lens rejection, nonce, CSP passed"})
             finally:
                 browser.close()
-    assert any(result["browser"] == "chromium" for result in passed), "Chromium real-stream parity is required"
-    print(json.dumps({"passed": passed, "skipped": skipped, "physical_iPhone_tested": False}, ensure_ascii=False))
+    assert any(result["browser"] == "chromium" and result.get("portrait_parity_cases", 0) == 16
+               for result in passed), "Chromium real-stream portrait parity is required"
+    result = {"passed": passed, "skipped": skipped, "physical_iPhone_tested": False}
+    if OUTPUT_DIR is not None:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        (OUTPUT_DIR / "browser-result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps(result, ensure_ascii=False))
 
 
 if __name__ == "__main__":

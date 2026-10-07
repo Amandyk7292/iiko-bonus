@@ -83,7 +83,12 @@
     const request = navigator.mediaDevices
       .getUserMedia({
         audio: false,
-        video: { facingMode: { exact: desired }, width: { ideal: 1200 }, height: { ideal: 1600 } },
+        video: {
+          facingMode: { exact: desired },
+          width: { ideal: 1200 },
+          height: { ideal: 1600 },
+          aspectRatio: { ideal: 3 / 4 },
+        },
       })
       .then((media) => {
         if (settled || !active(revision)) {
@@ -160,18 +165,24 @@
     try {
       verifyLens(stream, facingMode);
       const source = frameDimensions();
-      const ratio = Math.min(1, 1200 / source.width, 1600 / source.height);
+      // Camera constraints are preferences: WebKit may still return a wide frame.
+      // Use the same centered 3:4 crop as the visible frame, without rotating pixels.
+      const width = Math.min(source.width, (source.height * 3) / 4);
+      const height = (width * 4) / 3;
+      const left = (source.width - width) / 2;
+      const top = (source.height - height) / 2;
+      const ratio = Math.min(1, 1200 / width, 1600 / height);
       const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(source.width * ratio));
-      canvas.height = Math.max(1, Math.round(source.height * ratio));
+      canvas.width = Math.max(1, Math.round(width * ratio));
+      canvas.height = Math.max(1, Math.round(height * ratio));
       const context = canvas.getContext('2d', { alpha: false });
       if (!context) throw new Error('canvas');
-      // Match the complete, contained preview. Only the verified front lens is mirrored.
+      // Match the visible preview. Only the verified front lens is mirrored.
       if (facingMode === 'user') {
         context.translate(canvas.width, 0);
         context.scale(-1, 1);
       }
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      context.drawImage(video, left, top, width, height, 0, 0, canvas.width, canvas.height);
       const data = canvas.toDataURL('image/jpeg', 0.88);
       if (!data.startsWith('data:image/jpeg;base64,')) throw new Error('jpeg');
       const base64 = data.slice('data:image/jpeg;base64,'.length);

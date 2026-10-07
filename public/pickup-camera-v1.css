@@ -6,11 +6,24 @@ body {
   overflow: hidden;
   background: #000;
 }
+body {
+  display: grid;
+  place-items: center;
+}
+#frame {
+  position: relative;
+  width: min(100vw, 75vh);
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+}
 #camera {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: center;
   visibility: hidden;
 }
 #camera.ready {

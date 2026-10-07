@@ -112,15 +112,15 @@ test('front and rear stay tied to verified actual lens, stop on switch and retur
     nonce,
     type: 'photo',
     facingMode: 'user',
-    width: 1200,
-    height: 675,
+    width: 810,
+    height: 1080,
     mimeType: 'image/jpeg',
     base64: '/9j/2Q==',
   });
   assert.deepEqual(c.transforms, [
-    ['translate', 1200, 0],
+    ['translate', 810, 0],
     ['scale', -1, 1],
-    ['draw', 0, 0, 1200, 675],
+    ['draw', 555, 0, 810, 1080, 0, 0, 810, 1080],
   ]);
   assert.equal(
     c.streams.every((s) => s.track.stops === 1),
@@ -134,7 +134,7 @@ test('rear capture leaves its pixels plain', async (t) => {
   await flush();
   await c.api.switchCamera();
   c.api.capture();
-  assert.deepEqual(c.transforms, [['draw', 0, 0, 1200, 675]]);
+  assert.deepEqual(c.transforms, [['draw', 555, 0, 810, 1080, 0, 0, 810, 1080]]);
   assert.equal(c.messages.at(-1).facingMode, 'environment');
 });
 
@@ -214,8 +214,33 @@ test('the shared 16 megapixel boundary can still be downsampled and captured', a
   c.api.capture();
   assert.equal(c.messages.at(-1).type, 'photo');
   assert.equal(c.messages.at(-1).width, 1200);
-  assert.equal(c.messages.at(-1).height, 1200);
+  assert.equal(c.messages.at(-1).height, 1600);
 });
+
+for (const [width, height, outputWidth, outputHeight, cropTop] of [
+  [1200, 1600, 1200, 1600, 0],
+  [1600, 2400, 1200, 1600, (2400 - (1600 * 4) / 3) / 2],
+]) {
+  test(`portrait ${width}x${height} source keeps an upright bounded 3:4 frame`, async (t) => {
+    const c = camera(t);
+    await flush();
+    Object.defineProperties(c.video, {
+      videoWidth: { value: width },
+      videoHeight: { value: height },
+    });
+    c.api.capture();
+    const photo = c.messages.at(-1);
+    assert.equal(photo.type, 'photo');
+    assert.equal(photo.width, outputWidth);
+    assert.equal(photo.height, outputHeight);
+    assert.deepEqual(c.transforms, [
+      ['translate', outputWidth, 0],
+      ['scale', -1, 1],
+      ['draw', 0, cropTop, width, (width * 4) / 3, 0, 0, outputWidth, outputHeight],
+    ]);
+    assert.equal(c.requests[0].video.aspectRatio.ideal, 3 / 4);
+  });
+}
 
 test('background and pagehide cancel once and release the camera', async (t) => {
   const c = camera(t);
