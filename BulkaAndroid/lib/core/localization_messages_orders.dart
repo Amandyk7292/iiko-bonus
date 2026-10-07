@@ -21,16 +21,6 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'Қайта түсіру',
     'en': 'Retake',
   },
-  'checkout_photo_mirror': {
-    'ru': 'Отразить',
-    'kk': 'Айнадай көрсету',
-    'en': 'Flip',
-  },
-  'checkout_photo_use': {
-    'ru': 'Использовать фото',
-    'kk': 'Фотосуретті пайдалану',
-    'en': 'Use photo',
-  },
   'checkout_photo_prepare_error': {
     'ru': 'Не удалось прочитать фото. Переснимите.',
     'kk': 'Фото оқылмады. Қайта түсіріңіз.',
@@ -56,9 +46,11 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'Фото жүктелмеді. Қайталаңыз немесе жойыңыз.',
     'en': 'Could not load the photo. Retry or remove it.',
   },
-  'checkout_photo_expired': {'ru': 'Срок хранения фото истёк. Переснимите или уберите его.',
+  'checkout_photo_expired': {
+    'ru': 'Срок хранения фото истёк. Переснимите или уберите его.',
     'kk': 'Фотоны сақтау мерзімі өтті. Қайта түсіріңіз немесе жойыңыз.',
-    'en': 'The photo has expired. Retake or remove it.'},
+    'en': 'The photo has expired. Retake or remove it.',
+  },
   'checkout_photo_capture_error': {
     'ru': 'Камера недоступна. Разрешите доступ к ней в настройках.',
     'kk': 'Камера қолжетімсіз. Баптауларда кіруге рұқсат беріңіз.',

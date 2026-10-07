@@ -87,8 +87,10 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
                   .whereType<String>()
                   .map((value) => value.trim())
                   .where((value) => value.isNotEmpty);
-          final locations = await (widget.api ?? BulkaApiClient())
-              .getFulfillmentLocations();
+          final locations =
+              (await (widget.api ?? BulkaApiClient()).getFulfillmentLocations())
+                  .where(_isDeliveryAddressBranch)
+                  .toList();
           BakeryLocation? selectedBranch;
           for (final id in selectedIds) {
             selectedBranch = locations

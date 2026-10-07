@@ -45,6 +45,7 @@ void _androidWidgetTest(String name, Future<void> Function(WidgetTester) body) {
     try {
       await body(tester);
     } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
       debugDefaultTargetPlatformOverride = null;
     }
   });
@@ -55,6 +56,7 @@ void main() {
   late List<http.Request> requests;
   late List<MethodCall> calls;
   late BulkaApiClient api;
+  var now = Duration.zero;
   var missingBridge = false;
   var authorized = true;
   var needsUpdate = false;
@@ -72,6 +74,7 @@ void main() {
   setUp(() {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     SharedPreferences.setMockInitialValues({});
+    now = Duration.zero;
     requests = [];
     calls = [];
     missingBridge = false;
@@ -185,6 +188,7 @@ void main() {
       }),
     );
     api.setSession(accessToken: 'alice-token', cacheScope: 'alice');
+    api.setWalkingClockForTest(() => now);
   });
   tearDown(() {
     api.dispose();
@@ -301,7 +305,7 @@ void main() {
     },
   );
   test(
-    'normal sync never generates a proof for already finished days',
+    'normal sync continues today after credit and skips finished history',
     () async {
       startsOn = '2026-10-05';
       days = [
@@ -310,8 +314,9 @@ void main() {
       ];
       await api.setWalkingConsent(true);
       await api.syncWalking();
-      expect(measurements(), isEmpty);
-      expect(syncs(), isEmpty);
+      expect(measurements(), hasLength(1));
+      expect(syncs(), hasLength(1));
+      expect(api.walkingProgress.value!.steps, 10000);
       expect(api.walkingProgress.value!.rewarded, true);
     },
   );
@@ -337,20 +342,20 @@ void main() {
     },
   );
   test(
-    'concurrent and repeated auto/manual syncs reuse one proof within their throttle',
+    'concurrent and repeated automatic syncs reuse one proof within a minute',
     () async {
       await api.setWalkingConsent(true);
       await Future.wait([
         api.syncWalking(),
-        api.syncWalking(force: true),
+        api.syncWalking(),
         api.autoSyncWalking(),
       ]);
       await api.autoSyncWalking();
-      await api.syncWalking(force: true);
+      await api.syncWalking();
       await api.syncWalking();
       expect(measurements(), hasLength(1));
       expect(syncs(), hasLength(1));
-      // Explicit Connect is the sole intentional permission/throttle bypass.
+      // Explicit Connect can immediately request permission without a user refresh control.
       await api.syncWalking(requestPermission: true);
       expect(measurements(), hasLength(2));
     },
@@ -363,10 +368,7 @@ void main() {
       await api.autoSyncWalking();
       expect(requests, isEmpty);
       expect(calls.where((call) => call.method != 'capabilities'), isEmpty);
-      await expectLater(
-        api.syncWalking(force: true),
-        throwsA(isA<PlatformException>()),
-      );
+      await expectLater(api.syncWalking(), throwsA(isA<PlatformException>()));
       expect(requests, isEmpty);
       await api.syncWalking(requestPermission: true);
       expect(
@@ -495,7 +497,7 @@ void main() {
         (measurements().single.arguments as Map)['requestPermission'],
         true,
       );
-      expect(find.text('4 321 / 10 000'), findsOneWidget);
+      expect(find.text('4 321'), findsOneWidget);
       expect(find.textContaining('Не удалось обновить шаги'), findsNothing);
     },
   );
@@ -515,9 +517,36 @@ void main() {
       await tester.tap(find.text('Разрешить и подключить'));
       await tester.pumpAndSettle();
       expect(measurements(), hasLength(1));
-      expect(find.text('4 321 / 10 000'), findsOneWidget);
+      expect(find.text('4 321'), findsOneWidget);
     },
   );
+  _androidWidgetTest(
+    'Android automatic updates send one signed proof per minute',
+    (tester) async {
+      await api.setWalkingConsent(true);
+      await showCard(tester);
+      expect(measurements(), hasLength(1));
+      now = const Duration(seconds: 59);
+      await tester.pump(const Duration(seconds: 59));
+      expect(measurements(), hasLength(1));
+      serverSteps = 5432;
+      now = const Duration(minutes: 1);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(measurements(), hasLength(2));
+      expect(find.text('5 432'), findsOneWidget);
+      expect(
+        (measurements().last.arguments as Map)['requestPermission'],
+        false,
+      );
+      expect(
+        (jsonDecode(syncs().last.body) as Map).containsKey('steps'),
+        false,
+      );
+      expect(find.text('Обновить'), findsNothing);
+    },
+  );
+
   _androidWidgetTest(
     'Play Services update is actionable and never generates a proof',
     (tester) async {
@@ -571,7 +600,7 @@ void main() {
       await api.setWalkingConsent(true);
       authorized = false;
       await showCard(tester);
-      expect(find.text('0 / 10 000'), findsOneWidget);
+      expect(find.text('—'), findsOneWidget);
       expect(find.text('1 000 бонусов начислено'), findsNothing);
       expect(find.text('Открыть настройки'), findsOneWidget);
     },
@@ -600,8 +629,8 @@ void main() {
       });
       await tester.pumpAndSettle();
       expect(find.text('Открыть настройки'), findsNothing);
-      expect(find.text('Обновить'), findsOneWidget);
-      expect(find.text('4 321 / 10 000'), findsOneWidget);
+      expect(find.text('Обновить'), findsNothing);
+      expect(find.text('4 321'), findsOneWidget);
     },
   );
   _androidWidgetTest(
@@ -623,7 +652,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(measurements(), hasLength(2));
       expect(syncs(), hasLength(1));
-      expect(find.text('4 321 / 10 000'), findsOneWidget);
+      expect(find.text('4 321'), findsOneWidget);
     },
   );
   _androidWidgetTest(
@@ -638,7 +667,10 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: MediaQuery(
-              data: const MediaQueryData(textScaler: TextScaler.linear(1.8)),
+              data: const MediaQueryData(
+                size: Size(320, 900),
+                textScaler: TextScaler.linear(2.0),
+              ),
               child: Scaffold(
                 body: SingleChildScrollView(
                   child: WalkingRewardsCard(

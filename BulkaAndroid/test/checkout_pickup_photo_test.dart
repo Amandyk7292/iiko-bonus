@@ -18,7 +18,21 @@ final _photoBytes = img.encodePng(
   img.Image(width: 2, height: 2, numChannels: 3)
     ..clear(img.ColorRgb8(255, 255, 255)),
 );
-final _preparedPhotoBytes = preparePickupPhoto(_photoBytes)['original']!;
+final _preparedPhotoBytes = preparePickupPhoto(_photoBytes);
+
+class _DeferredPhoto extends XFile {
+  _DeferredPhoto() : super('capture.png', mimeType: 'image/png');
+  final readStarted = Completer<void>();
+  final readResult = Completer<Uint8List>();
+
+  @override
+  Future<int> length() async => _photoBytes.length;
+  @override
+  Future<Uint8List> readAsBytes() {
+    readStarted.complete();
+    return readResult.future;
+  }
+}
 
 class _PhotoApi extends BulkaApiClient {
   String owner = 'customer-one';
@@ -134,47 +148,53 @@ class _PhotoApi extends BulkaApiClient {
 final _capture = find.byKey(const ValueKey('checkout-capture-pickup-photo'));
 final _remove = find.byKey(const ValueKey('checkout-remove-pickup-photo'));
 final _submit = find.byKey(const ValueKey('checkout-submit'));
-final _confirmPreview = find.byKey(
-  const ValueKey('checkout-pickup-photo-confirm-preview'),
+final _attachedPreview = find.byKey(
+  const ValueKey('checkout-pickup-photo-preview'),
 );
-final _mirrorPhoto = find.byKey(const ValueKey('checkout-mirror-pickup-photo'));
-final _usePhoto = find.byKey(const ValueKey('checkout-use-pickup-photo'));
-final _cancelPhoto = find.byKey(const ValueKey('checkout-cancel-pickup-photo'));
 
-Future<void> _captureUntil(WidgetTester tester, Finder ready) async {
+Future<void> _captureUntil(WidgetTester tester, bool Function() ready) async {
   // Native compute runs on a real isolate, outside the widget test's fake clock.
   await tester.runAsync(() async {
     await tester.tap(_capture);
     for (var frame = 0; frame < 500; frame++) {
       await tester.pump();
-      if (ready.evaluate().isNotEmpty) return;
+      if (ready()) return;
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
   });
   await tester.pump(const Duration(milliseconds: 400));
-  expect(ready, findsOneWidget);
+  expect(ready(), isTrue);
 }
 
-Future<void> _capturePreview(WidgetTester tester) =>
-    _captureUntil(tester, _confirmPreview);
-
-Future<void> _captureAndUse(WidgetTester tester) async {
-  await _capturePreview(tester);
-  await _previewAction(tester, _usePhoto);
+Future<void> _captureAndUpload(WidgetTester tester, _PhotoApi api) async {
+  final previousUploads = api.uploads;
+  await _captureUntil(tester, () => api.uploads > previousUploads);
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 300));
 }
 
-Future<void> _previewAction(WidgetTester tester, Finder action) async {
+Future<void> _photoAction(WidgetTester tester, Finder action) async {
   await tester.runAsync(() async {
     await tester.tap(action);
-    // Continue the capture's real-isolate async chain before settling frames.
+    // Continue the real-isolate async chain before settling frames.
     await Future<void>.delayed(Duration.zero);
   });
 }
 
 Uint8List _previewBytes(WidgetTester tester, Finder preview) =>
     (tester.widget<Image>(preview).image as MemoryImage).bytes;
+
+void _expectNoConfirmation() {
+  for (final key in [
+    'checkout-pickup-photo-confirm-preview',
+    'checkout-mirror-pickup-photo',
+    'checkout-use-pickup-photo',
+    'checkout-cancel-pickup-photo',
+  ]) {
+    expect(find.byKey(ValueKey(key)), findsNothing);
+  }
+  expect(find.byType(BottomSheet), findsNothing);
+}
 
 Uint8List _asymmetricPhoto() {
   final image = img.Image(width: 32, height: 20, numChannels: 3);
@@ -338,11 +358,11 @@ void main() {
       expect(api.uploads, 0);
       expect(find.text('checkout_order_type'.tr), findsNothing);
       expect(find.text('checkout_catalog_locked'.tr), findsNothing);
-      await _capturePreview(tester);
+      await _captureAndUpload(tester, api);
       expect(captures, 1);
-      expect(api.uploads, 0);
-      expect(_previewBytes(tester, _confirmPreview), _preparedPhotoBytes);
-      await _previewAction(tester, _usePhoto);
+      expect(api.uploads, 1);
+      expect(_previewBytes(tester, _attachedPreview), _preparedPhotoBytes);
+      _expectNoConfirmation();
       await tester.pumpAndSettle();
       expect(api.uploads, 1);
       expect(
@@ -371,9 +391,9 @@ void main() {
     final api = _PhotoApi();
     String? submittedPhoto = 'must-clear';
     await _open(tester, api, onSubmitted: (id) => submittedPhoto = id);
-    await _captureAndUse(tester);
+    await _captureAndUpload(tester, api);
     await tester.pumpAndSettle();
-    await _previewAction(tester, _remove);
+    await _photoAction(tester, _remove);
     await tester.pumpAndSettle();
     expect(api.removed, [_photoId]);
     expect(
@@ -392,11 +412,11 @@ void main() {
   });
 
   testWidgets(
-    'reflection is reversible and the selected preview is uploaded exactly once',
+    'canonical photo uploads once automatically with the same inline thumbnail',
     (tester) async {
       final original = _asymmetricPhoto();
-      final choices = preparePickupPhoto(original);
-      final api = _PhotoApi()..expectedPhotoBytes = choices['mirrored']!;
+      final prepared = preparePickupPhoto(original);
+      final api = _PhotoApi()..expectedPhotoBytes = prepared;
       await _open(
         tester,
         api,
@@ -406,68 +426,61 @@ void main() {
           mimeType: 'image/png',
         ),
       );
-      await _capturePreview(tester);
-      expect(_previewBytes(tester, _confirmPreview), choices['original']);
-      expect(api.uploads, 0);
-      expect(tester.widget<GradientButton>(_submit).onPressed, isNull);
-      await tester.tap(_mirrorPhoto);
-      await tester.pump();
-      expect(_previewBytes(tester, _confirmPreview), choices['mirrored']);
-      await tester.tap(_mirrorPhoto);
-      await tester.pump();
-      expect(_previewBytes(tester, _confirmPreview), choices['original']);
-      await tester.tap(_mirrorPhoto);
-      await tester.pump();
-      final selected = _previewBytes(tester, _confirmPreview);
-      expect(api.uploads, 0);
-      await _previewAction(tester, _usePhoto);
+      await _captureAndUpload(tester, api);
       await tester.pumpAndSettle();
       expect(api.uploads, 1);
-      expect(api.uploadedPhotoBytes, selected);
-      expect(
-        _previewBytes(
-          tester,
-          find.byKey(const ValueKey('checkout-pickup-photo-preview')),
-        ),
-        selected,
-      );
-      // A replacement starts from its canonical original, independently of
-      // the previous photo's choice. Cancelling does not consume another upload.
-      await _capturePreview(tester);
-      expect(_previewBytes(tester, _confirmPreview), choices['original']);
-      await _previewAction(tester, _cancelPhoto);
-      await tester.pumpAndSettle();
+      expect(api.uploadedPhotoBytes, prepared);
+      expect(_previewBytes(tester, _attachedPreview), prepared);
+      _expectNoConfirmation();
+      await tester.pump(const Duration(seconds: 1));
       expect(api.uploads, 1);
-      expect(api.removed, isEmpty);
-      expect(
-        _previewBytes(
-          tester,
-          find.byKey(const ValueKey('checkout-pickup-photo-preview')),
-        ),
-        selected,
-      );
       expect(tester.takeException(), isNull);
     },
   );
 
-  testWidgets('cancelling the preview uploads nothing and unblocks checkout', (
-    tester,
-  ) async {
-    final api = _PhotoApi();
-    await _open(tester, api);
-    await _capturePreview(tester);
-    await tester.tap(_mirrorPhoto);
-    await tester.pump();
-    await _previewAction(tester, _cancelPhoto);
-    await tester.pumpAndSettle();
-    expect(api.uploads, 0);
-    expect(api.removed, isEmpty);
-    expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
-    expect(
-      find.byKey(const ValueKey('checkout-pickup-photo-preview')),
-      findsNothing,
-    );
-  });
+  testWidgets(
+    'cancelling a native retake preserves the photo and upload quota',
+    (tester) async {
+      final api = _PhotoApi();
+      var captures = 0;
+      String? submittedPhoto;
+      await _open(
+        tester,
+        api,
+        onSubmitted: (id) => submittedPhoto = id,
+        capture: () async {
+          captures++;
+          return captures == 1
+              ? XFile.fromData(
+                  _photoBytes,
+                  name: 'photo.png',
+                  mimeType: 'image/png',
+                )
+              : null;
+        },
+      );
+      await _captureAndUpload(tester, api);
+      await tester.pumpAndSettle();
+      final prefs = await SharedPreferences.getInstance();
+      final draftKey = customerPreferenceKey(
+        'checkout_pickup_photo',
+        api.owner,
+      );
+      final initialDraft = prefs.getString(draftKey);
+      await tester.tap(_capture);
+      await tester.pumpAndSettle();
+      expect(captures, 2);
+      expect(api.uploads, 1);
+      expect(api.removed, isEmpty);
+      expect(prefs.getString(draftKey), initialDraft);
+      expect(_previewBytes(tester, _attachedPreview), _preparedPhotoBytes);
+      _expectNoConfirmation();
+      expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
+      await tester.tap(_submit);
+      await tester.pumpAndSettle();
+      expect(submittedPhoto, _photoId);
+    },
+  );
 
   testWidgets(
     'an unreadable photo has a clear error without using upload quota',
@@ -482,40 +495,102 @@ void main() {
           mimeType: 'image/jpeg',
         ),
       );
-      await _captureUntil(tester, find.text('checkout_photo_prepare_error'.tr));
+      await _captureUntil(
+        tester,
+        () =>
+            find.text('checkout_photo_prepare_error'.tr).evaluate().isNotEmpty,
+      );
       await tester.pumpAndSettle();
       expect(api.uploads, 0);
-      expect(_confirmPreview, findsNothing);
+      _expectNoConfirmation();
       expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
     },
   );
 
-  testWidgets('a preview cannot upload after its customer changes', (
+  testWidgets('a captured photo cannot upload after its customer changes', (
     tester,
   ) async {
     final api = _PhotoApi();
-    await _open(tester, api);
-    await _capturePreview(tester);
+    final result = Completer<XFile?>();
+    var captureStarted = false;
+    await _open(
+      tester,
+      api,
+      capture: () {
+        captureStarted = true;
+        return result.future;
+      },
+    );
+    await _captureUntil(tester, () => captureStarted);
     api.owner = 'customer-two';
-    await _previewAction(tester, _usePhoto);
+    await tester.runAsync(() async {
+      result.complete(XFile.fromData(_photoBytes, name: 'photo.png'));
+      await Future<void>.delayed(Duration.zero);
+    });
     await tester.pump(const Duration(milliseconds: 400));
     expect(api.uploads, 0);
     expect(api.removed, isEmpty);
+    expect(_attachedPreview, findsNothing);
+    _expectNoConfirmation();
   });
 
-  testWidgets('photo confirmation fits a narrow display with enlarged text', (
+  testWidgets('reading a photo cannot upload after its customer changes', (
+    tester,
+  ) async {
+    final api = _PhotoApi();
+    final photo = _DeferredPhoto();
+    await _open(tester, api, capture: () async => photo);
+    await _captureUntil(tester, () => photo.readStarted.isCompleted);
+    api.owner = 'customer-two';
+    await tester.runAsync(() async {
+      photo.readResult.complete(_photoBytes);
+      await Future<void>.delayed(Duration.zero);
+    });
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(api.uploads, 0);
+    expect(api.removed, isEmpty);
+    expect(_attachedPreview, findsNothing);
+  });
+
+  testWidgets('removing a photo invalidates a retake still reading its bytes', (
+    tester,
+  ) async {
+    final api = _PhotoApi();
+    final photo = _DeferredPhoto();
+    var captures = 0;
+    await _open(
+      tester,
+      api,
+      capture: () async {
+        return ++captures == 1 ? XFile.fromData(_photoBytes) : photo;
+      },
+    );
+    await _captureAndUpload(tester, api);
+    await tester.pumpAndSettle();
+    await _captureUntil(tester, () => photo.readStarted.isCompleted);
+    await _photoAction(tester, _remove);
+    await tester.runAsync(() async {
+      photo.readResult.complete(_photoBytes);
+      await Future<void>.delayed(Duration.zero);
+    });
+    await tester.pumpAndSettle();
+    expect(api.uploads, 1);
+    expect(api.removed, [_photoId]);
+    expect(_attachedPreview, findsNothing);
+    expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
+  });
+
+  testWidgets('automatic attachment fits a narrow display with enlarged text', (
     tester,
   ) async {
     final api = _PhotoApi();
     await _open(tester, api, width: 320, height: 640, textScale: 1.5);
     await tester.ensureVisible(_capture);
     await tester.pumpAndSettle();
-    await _capturePreview(tester);
-    expect(tester.takeException(), isNull);
-    await tester.ensureVisible(_usePhoto);
-    await _previewAction(tester, _usePhoto);
+    await _captureAndUpload(tester, api);
     await tester.pumpAndSettle();
     expect(api.uploads, 1);
+    _expectNoConfirmation();
     expect(tester.takeException(), isNull);
   });
 
@@ -525,7 +600,7 @@ void main() {
       final api = _PhotoApi();
       await _open(tester, api);
       final pending = api.pendingUpload = Completer<Map<String, dynamic>>();
-      await _captureAndUse(tester);
+      await _captureAndUpload(tester, api);
       expect(tester.widget<GradientButton>(_submit).onPressed, isNull);
       pending.completeError(ApiException('checkout_photo_upload_error'.tr));
       await tester.pumpAndSettle();
@@ -534,7 +609,7 @@ void main() {
         findsOneWidget,
       );
       expect(tester.widget<GradientButton>(_submit).onPressed, isNull);
-      await _previewAction(tester, _remove);
+      await _photoAction(tester, _remove);
       await tester.pumpAndSettle();
       expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
     },
@@ -613,7 +688,7 @@ void main() {
       expect(find.text('checkout_photo_expired'.tr), findsOneWidget);
       expect(_remove, findsOneWidget);
       expect(tester.widget<GradientButton>(_submit).onPressed, isNull);
-      await _previewAction(tester, _remove);
+      await _photoAction(tester, _remove);
       await tester.pumpAndSettle();
       expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
     },
@@ -663,8 +738,8 @@ void main() {
     final api = _PhotoApi();
     await _open(tester, api);
     final pending = api.pendingUpload = Completer<Map<String, dynamic>>();
-    await _captureAndUse(tester);
-    await _previewAction(tester, _remove);
+    await _captureAndUpload(tester, api);
+    await _photoAction(tester, _remove);
     await tester.pump();
     pending.complete(api.uploaded);
     await tester.pumpAndSettle();
@@ -698,7 +773,7 @@ void main() {
               : 'PICKUP_PHOTO_PRINTER_UNAVAILABLE',
         ),
       );
-      await _captureAndUse(tester);
+      await _captureAndUpload(tester, api);
       await tester.pumpAndSettle();
       await tester.tap(_submit);
       await tester.pumpAndSettle();
@@ -732,7 +807,7 @@ void main() {
           throw ApiException('Revalidate', code: codes[attempt++]);
         },
       );
-      await _captureAndUse(tester);
+      await _captureAndUpload(tester, api);
       await tester.pumpAndSettle();
       for (final _ in codes) {
         await tester.tap(_submit);

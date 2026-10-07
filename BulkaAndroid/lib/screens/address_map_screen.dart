@@ -1,5 +1,21 @@
 part of '../main.dart';
 
+bool _isDeliveryAddressBranch(BakeryLocation location) {
+  final latitude = location.latitude;
+  final longitude = location.longitude;
+  return location.active &&
+      location.deliveryEnabled &&
+      location.city.trim().isNotEmpty &&
+      latitude != null &&
+      longitude != null &&
+      latitude.isFinite &&
+      longitude.isFinite &&
+      latitude >= -90 &&
+      latitude <= 90 &&
+      longitude >= -180 &&
+      longitude <= 180;
+}
+
 class AddressMapScreen extends StatefulWidget {
   const AddressMapScreen({
     this.api,
@@ -54,7 +70,6 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
 
   List<String> get _deliveryCities =>
       _locations
-          .where((location) => location.active && location.deliveryEnabled)
           .map((location) => location.city.trim())
           .where((city) => city.isNotEmpty)
           .toSet()
@@ -109,31 +124,24 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
 
   Future<void> _loadLocations() async {
     try {
-      final locations = await _api.getFulfillmentLocations();
+      final locations = (await _api.getFulfillmentLocations())
+          .where(_isDeliveryAddressBranch)
+          .toList();
       if (mounted) {
-        final delivery = locations
-            .where(
-              (location) =>
-                  location.active &&
-                  location.deliveryEnabled &&
-                  location.latitude != null &&
-                  location.longitude != null,
-            )
-            .toList();
-        final preferred = delivery
+        final preferred = locations
             .where(
               (location) =>
                   location.city.trim().toLowerCase() ==
                   _city.trim().toLowerCase(),
             )
             .firstOrNull;
-        final center = preferred ?? delivery.firstOrNull;
+        final center = preferred ?? locations.firstOrNull;
         setState(() {
           _locations = locations;
           _locationsLoaded = true;
           _locationsFailed = false;
           if (!_hasPreferredCenter && !_pointSelected && center != null) {
-            _city = center.city;
+            _city = center.city.trim();
             _point = LatLng(center.latitude!, center.longitude!);
           }
         });
@@ -300,11 +308,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     final branch = _locations
         .where(
           (location) =>
-              location.active &&
-              location.deliveryEnabled &&
-              location.city == city &&
-              location.latitude != null &&
-              location.longitude != null,
+              location.city.trim().toLowerCase() == city.trim().toLowerCase(),
         )
         .firstOrNull;
     if (branch == null) return;
@@ -387,9 +391,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   List<YandexMapBranch> get _mapBranches => _locations
       .where(
         (location) =>
-            location.latitude != null &&
-            location.longitude != null &&
-            location.active,
+            location.city.trim().toLowerCase() == _city.trim().toLowerCase(),
       )
       .map(
         (location) => YandexMapBranch(
@@ -638,7 +640,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                                     ),
                                   )
                                   .toList(),
-                              onChanged: _deliveryCities.length > 1
+                              onChanged: _deliveryCities.isNotEmpty
                                   ? (city) {
                                       if (city != null) {
                                         _selectDeliveryCity(city);

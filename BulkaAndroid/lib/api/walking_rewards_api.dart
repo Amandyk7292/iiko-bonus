@@ -16,7 +16,10 @@ class WalkingProgress {
 class _WalkingRuntime {
   final progress = ValueNotifier<WalkingProgress?>(null);
   Future<void>? pending;
-  DateTime? attemptedAt;
+  final elapsed = Stopwatch()..start();
+  Duration Function()? clock;
+  Duration? attemptedAt;
+  Duration get now => clock?.call() ?? elapsed.elapsed;
   String? scope;
   final declinedScopes = <String>{};
   int consentRevision = 0;
@@ -29,6 +32,22 @@ extension WalkingRewardsApi on BulkaApiClient {
       _walkingRuntimes[this] ??= _WalkingRuntime();
   ValueNotifier<WalkingProgress?> get walkingProgress =>
       _walkingRuntime.progress;
+  Duration get walkingRefreshDelay {
+    final state = _walkingRuntime;
+    if (state.scope != sessionCacheScope || state.attemptedAt == null) {
+      return Duration.zero;
+    }
+    final remaining =
+        const Duration(minutes: 1) - (state.now - state.attemptedAt!);
+    return remaining > Duration.zero ? remaining : Duration.zero;
+  }
+
+  @visibleForTesting
+  void setWalkingClockForTest(Duration Function() clock) {
+    _walkingRuntime.clock = clock;
+    _walkingRuntime.attemptedAt = null;
+  }
+
   String? get _walkingConsentKey => sessionCacheScope == null
       ? null
       : 'walking_consent_v1_$sessionCacheScope';
@@ -93,10 +112,7 @@ extension WalkingRewardsApi on BulkaApiClient {
     }
   }
 
-  Future<void> syncWalking({
-    bool force = false,
-    bool requestPermission = false,
-  }) {
+  Future<void> syncWalking({bool requestPermission = false}) {
     final state = _walkingRuntime;
     if (state.scope != sessionCacheScope) {
       state.scope = sessionCacheScope;
@@ -104,16 +120,12 @@ extension WalkingRewardsApi on BulkaApiClient {
       state.progress.value = null;
     }
     if (state.pending != null) return state.pending!;
-    final throttle = WalkingRewardsNative.isAndroid
-        ? Duration(minutes: force ? 2 : 15)
-        : const Duration(minutes: 2);
-    if ((!force || WalkingRewardsNative.isAndroid) &&
-        !requestPermission &&
-        state.attemptedAt != null &&
-        DateTime.now().difference(state.attemptedAt!) < throttle) {
+    // Timer, route visibility and app resume share one monotonic minute fence.
+    // Only a deliberate permission connection may start sooner.
+    if (!requestPermission && walkingRefreshDelay > Duration.zero) {
       return Future.value();
     }
-    state.attemptedAt = DateTime.now();
+    state.attemptedAt = state.now;
     final future = _syncWalkingOnce(
       _sessionRevision,
       state.consentRevision,
@@ -160,10 +172,13 @@ extension WalkingRewardsApi on BulkaApiClient {
     final date = _asString(status['date']);
     final days = (status['days'] as List? ?? []).whereType<Map>().toList();
     final today = days.where((day) => day['date'] == date).firstOrNull;
+    final previous = _walkingRuntime.progress.value;
+    final sameDay = previous?.date == date;
     _walkingRuntime.progress.value = WalkingProgress(
       date: date,
-      steps: _asInt(today?['steps']),
-      rewarded: today?['credited'] == true,
+      steps: max(_asInt(today?['steps']), sameDay ? previous!.steps : 0),
+      rewarded: today?['credited'] == true || (sameDay && previous!.rewarded),
+      deviceRewarded: sameDay && previous!.deviceRewarded,
     );
     if (WalkingRewardsNative.isAndroid) {
       await _syncAndroidWalking(
@@ -207,8 +222,8 @@ extension WalkingRewardsApi on BulkaApiClient {
           days.any(
             (d) =>
                 d['date'] == expectedDay &&
-                (d['credited'] == true ||
-                    (offset > 0 && d['complete'] == true)),
+                offset > 0 &&
+                (d['credited'] == true || d['complete'] == true),
           )) {
         continue;
       }
@@ -226,8 +241,8 @@ extension WalkingRewardsApi on BulkaApiClient {
           days.any(
             (d) =>
                 d['date'] == day &&
-                (d['credited'] == true ||
-                    (offset > 0 && d['complete'] == true)),
+                offset > 0 &&
+                (d['credited'] == true || d['complete'] == true),
           )) {
         continue;
       }
@@ -244,11 +259,14 @@ extension WalkingRewardsApi on BulkaApiClient {
       });
       checkSession();
       if (day == date) {
+        final previous = _walkingRuntime.progress.value;
         _walkingRuntime.progress.value = WalkingProgress(
           date: day,
-          steps: _asInt(result['steps']),
-          rewarded: result['rewarded'] == true,
-          deviceRewarded: result['deviceRewarded'] == true,
+          steps: max(_asInt(result['steps']), previous?.steps ?? 0),
+          rewarded: result['rewarded'] == true || previous?.rewarded == true,
+          deviceRewarded:
+              result['deviceRewarded'] == true ||
+              previous?.deviceRewarded == true,
         );
       }
     }
@@ -271,17 +289,14 @@ extension WalkingRewardsApi on BulkaApiClient {
           !days.any(
             (entry) =>
                 entry['date'] == day &&
-                (entry['credited'] == true ||
-                    (offset > 0 && entry['complete'] == true)),
+                offset > 0 &&
+                (entry['credited'] == true || entry['complete'] == true),
           )) {
         offsets.add(offset);
       }
     }
-    // Reconnecting after today's reward must still start local recording for
-    // tomorrow. The server handles this explicit reconnect idempotently.
-    if (offsets.isEmpty && requestPermission && date.compareTo(startsOn) >= 0) {
-      offsets.add(0);
-    }
+    // Today remains measurable after credit. The server updates its count
+    // monotonically and keeps the daily reward idempotent.
     if (offsets.isEmpty) return;
     final identity = await WalkingRewardsNative.invoke('identity');
     checkSession();
@@ -340,11 +355,17 @@ extension WalkingRewardsApi on BulkaApiClient {
         .where((day) => day['date'] == date)
         .firstOrNull;
     if (current != null) {
+      final previous = _walkingRuntime.progress.value;
       _walkingRuntime.progress.value = WalkingProgress(
         date: date,
-        steps: _asInt(current['steps']),
-        rewarded: current['rewarded'] == true || current['credited'] == true,
-        deviceRewarded: current['deviceRewarded'] == true,
+        steps: max(_asInt(current['steps']), previous?.steps ?? 0),
+        rewarded:
+            current['rewarded'] == true ||
+            current['credited'] == true ||
+            previous?.rewarded == true,
+        deviceRewarded:
+            current['deviceRewarded'] == true ||
+            previous?.deviceRewarded == true,
       );
     }
   }

@@ -3,9 +3,9 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
-/// Prepares both choices once, before upload. Camera preference alone cannot
-/// tell us whether a phone has already mirrored its saved selfie.
-Map<String, Uint8List> preparePickupPhoto(Uint8List bytes) {
+/// Applies the saved image's orientation once, before automatic upload.
+/// A camera preference cannot establish an additional horizontal correction.
+Uint8List preparePickupPhoto(Uint8List bytes) {
   try {
     return _preparePickupPhoto(bytes);
   } on FormatException {
@@ -15,7 +15,7 @@ Map<String, Uint8List> preparePickupPhoto(Uint8List bytes) {
   }
 }
 
-Map<String, Uint8List> _preparePickupPhoto(Uint8List bytes) {
+Uint8List _preparePickupPhoto(Uint8List bytes) {
   const maxBytes = 5 * 1024 * 1024;
   if (bytes.isEmpty || bytes.length > maxBytes) {
     throw const FormatException('Invalid photo size');
@@ -59,12 +59,9 @@ Map<String, Uint8List> _preparePickupPhoto(Uint8List bytes) {
     numChannels: 3,
   )..clear(img.ColorRgb8(255, 255, 255));
   img.compositeImage(canonical, resized);
-  final original = img.encodeJpg(canonical, quality: 88).asUnmodifiableView();
-  final mirrored = img
-      .encodeJpg(img.flipHorizontal(img.Image.from(canonical)), quality: 88)
-      .asUnmodifiableView();
-  if (original.length > maxBytes || mirrored.length > maxBytes) {
+  final prepared = img.encodeJpg(canonical, quality: 88).asUnmodifiableView();
+  if (prepared.length > maxBytes) {
     throw const FormatException('Prepared photo too large');
   }
-  return Map.unmodifiable({'original': original, 'mirrored': mirrored});
+  return prepared;
 }

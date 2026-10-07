@@ -27,11 +27,14 @@ const _orientedLayouts = <int, List<String>>{
   8: ['CF', 'BE', 'AD'],
 };
 
-img.Image _asymmetric() {
-  final source = img.Image(width: 3 * _block, height: 2 * _block);
+img.Image _asymmetric({List<String> layout = const ['ABC', 'DEF']}) {
+  final source = img.Image(
+    width: layout.first.length * _block,
+    height: layout.length * _block,
+  );
   for (var y = 0; y < source.height; y++) {
     for (var x = 0; x < source.width; x++) {
-      final letter = 'ABCDEF'[(y ~/ _block) * 3 + x ~/ _block];
+      final letter = layout[y ~/ _block][x ~/ _block];
       final color = _colors[letter]!;
       source.setPixelRgb(x, y, color[0], color[1], color[2]);
     }
@@ -39,7 +42,11 @@ img.Image _asymmetric() {
   return source;
 }
 
-Uint8List _orientedJpeg(int orientation, {bool privateMetadata = false}) {
+Uint8List _orientedJpeg(
+  int orientation, {
+  bool privateMetadata = false,
+  List<String> storedLayout = const ['ABC', 'DEF'],
+}) {
   final exif = img.ExifData();
   exif.imageIfd.orientation = orientation;
   if (privateMetadata) {
@@ -51,9 +58,12 @@ Uint8List _orientedJpeg(int orientation, {bool privateMetadata = false}) {
       ..gpsLongitudeRef = 'E'
       ..gpsLongitude = 71.0;
   }
-  // Inject metadata after encoding, so the fixture really stores ABC/DEF with
+  // Inject metadata after encoding, so the fixture really stores its layout with
   // an orientation tag. JPEG decoding may already bake that tag into pixels.
-  return img.injectJpgExif(img.encodeJpg(_asymmetric(), quality: 100), exif)!;
+  return img.injectJpgExif(
+    img.encodeJpg(_asymmetric(layout: storedLayout), quality: 100),
+    exif,
+  )!;
 }
 
 void _expectColor(img.Pixel pixel, List<int> color) {
@@ -75,9 +85,6 @@ void _expectLayout(Uint8List bytes, List<String> layout) {
     }
   }
 }
-
-List<String> _horizontalInverse(List<String> layout) =>
-    layout.map((row) => row.split('').reversed.join()).toList();
 
 Uint8List _pngDimensions(int width, int height) {
   // A tiny PNG with a valid IHDR claiming large dimensions exercises the
@@ -102,18 +109,33 @@ Uint8List _pngDimensions(int width, int height) {
 void main() {
   group('pickup photo orientation', () {
     for (final entry in _orientedLayouts.entries) {
-      test('EXIF ${entry.key} is applied once before either choice', () {
+      test('EXIF ${entry.key} is applied once to the canonical JPEG', () {
         final source = _orientedJpeg(entry.key);
         expect(img.decodeJpgExif(source)!.imageIfd.orientation, entry.key);
 
-        final choices = preparePickupPhoto(source);
-        _expectLayout(choices['original']!, entry.value);
-        _expectLayout(choices['mirrored']!, _horizontalInverse(entry.value));
-        for (final bytes in choices.values) {
-          expect(img.decodeJpg(bytes)!.exif.isEmpty, isTrue);
-        }
+        final prepared = preparePickupPhoto(source);
+        _expectLayout(prepared, entry.value);
+        expect(img.decodeJpg(prepared)!.exif.isEmpty, isTrue);
       });
     }
+
+    test('EXIF 2 corrects a mirrored stored raster without an extra flip', () {
+      // Raw CBA/FED pixels plus horizontal EXIF reflection display ABC/DEF.
+      // Both the fixture and expected layout are independent of image flips.
+      final source = _orientedJpeg(2, storedLayout: ['CBA', 'FED']);
+      expect(img.decodeJpgExif(source)!.imageIfd.orientation, 2);
+
+      final prepared = preparePickupPhoto(source);
+      _expectLayout(prepared, ['ABC', 'DEF']);
+      expect(img.decodeJpg(prepared)!.exif.isEmpty, isTrue);
+    });
+
+    test('EXIF 1 keeps normal stored pixels without an app-side mirror', () {
+      final source = _orientedJpeg(1);
+      final prepared = preparePickupPhoto(source);
+      _expectLayout(prepared, ['ABC', 'DEF']);
+      expect(img.decodeJpg(prepared)!.exif.isEmpty, isTrue);
+    });
 
     test('removes EXIF and GPS without changing the oriented pixels', () {
       final source = _orientedJpeg(6, privateMetadata: true);
@@ -121,53 +143,41 @@ void main() {
       expect(metadata.imageIfd.imageDescription, isNotNull);
       expect(metadata.gpsIfd.gpsLatitudeRef, 'N');
 
-      final choices = preparePickupPhoto(source);
-      for (final bytes in choices.values) {
-        final exif = img.decodeJpgExif(bytes);
-        expect(exif == null || exif.isEmpty, isTrue);
-        expect(img.decodeJpg(bytes)!.exif.isEmpty, isTrue);
-      }
-      _expectLayout(choices['original']!, _orientedLayouts[6]!);
+      final prepared = preparePickupPhoto(source);
+      final exif = img.decodeJpgExif(prepared);
+      expect(exif == null || exif.isEmpty, isTrue);
+      expect(img.decodeJpg(prepared)!.exif.isEmpty, isTrue);
+      _expectLayout(prepared, _orientedLayouts[6]!);
     });
 
-    test('choices are immutable, reversible and leave source bytes intact', () {
-      final source = _orientedJpeg(7);
-      final before = Uint8List.fromList(source);
-      final choices = preparePickupPhoto(source);
-      final original = choices['original']!;
-      final mirrored = choices['mirrored']!;
-      final originalSnapshot = Uint8List.fromList(original);
-      final mirroredSnapshot = Uint8List.fromList(mirrored);
+    test(
+      'canonical bytes and buffer are immutable and leave source intact',
+      () {
+        final source = _orientedJpeg(7);
+        final before = Uint8List.fromList(source);
+        final prepared = preparePickupPhoto(source);
+        final preparedSnapshot = Uint8List.fromList(prepared);
 
-      expect(() => choices['original'] = source, throwsUnsupportedError);
-      expect(() => choices.clear(), throwsUnsupportedError);
-      expect(() => original[0] = 0, throwsUnsupportedError);
-      expect(
-        () => ByteData.view(mirrored.buffer).setUint8(0, 0),
-        throwsUnsupportedError,
-      );
-      for (var turn = 0; turn < 20; turn++) {
-        final selected = choices[turn.isEven ? 'original' : 'mirrored']!;
-        expect(identical(selected, turn.isEven ? original : mirrored), isTrue);
-      }
-      expect(source, orderedEquals(before));
-      expect(original, orderedEquals(originalSnapshot));
-      expect(mirrored, orderedEquals(mirroredSnapshot));
-      _expectLayout(original, _orientedLayouts[7]!);
-      _expectLayout(mirrored, _horizontalInverse(_orientedLayouts[7]!));
-    });
+        expect(prepared, isA<Uint8List>());
+        expect(() => prepared[0] = 0, throwsUnsupportedError);
+        expect(
+          () => ByteData.view(prepared.buffer).setUint8(0, 0),
+          throwsUnsupportedError,
+        );
+        expect(source, orderedEquals(before));
+        expect(prepared, orderedEquals(preparedSnapshot));
+        _expectLayout(prepared, _orientedLayouts[7]!);
+      },
+    );
 
     for (final format in ['PNG', 'WebP']) {
-      test('accepts $format and prepares both choices as JPEG', () {
+      test('accepts $format and prepares a canonical JPEG', () {
         final source = format == 'PNG'
             ? img.encodePng(_asymmetric())
             : img.encodeWebP(_asymmetric());
-        final choices = preparePickupPhoto(source);
-        for (final bytes in choices.values) {
-          expect(img.findDecoderForData(bytes), isA<img.JpegDecoder>());
-        }
-        _expectLayout(choices['original']!, _orientedLayouts[1]!);
-        _expectLayout(choices['mirrored']!, _orientedLayouts[2]!);
+        final prepared = preparePickupPhoto(source);
+        expect(img.findDecoderForData(prepared), isA<img.JpegDecoder>());
+        _expectLayout(prepared, _orientedLayouts[1]!);
       });
     }
 
@@ -189,14 +199,12 @@ void main() {
           );
         }
       }
-      final choices = preparePickupPhoto(img.encodePng(source));
-      final original = img.decodeJpg(choices['original']!)!;
-      _expectColor(original.getPixel(16, 16), [255, 255, 255]);
-      _expectColor(original.getPixel(48, 16), [255, 127, 127]);
-      _expectColor(original.getPixel(80, 16), [255, 0, 0]);
-      final mirrored = img.decodeJpg(choices['mirrored']!)!;
-      _expectColor(mirrored.getPixel(16, 16), [255, 0, 0]);
-      _expectColor(mirrored.getPixel(80, 16), [255, 255, 255]);
+      final prepared = img.decodeJpg(
+        preparePickupPhoto(img.encodePng(source)),
+      )!;
+      _expectColor(prepared.getPixel(16, 16), [255, 255, 255]);
+      _expectColor(prepared.getPixel(48, 16), [255, 127, 127]);
+      _expectColor(prepared.getPixel(80, 16), [255, 0, 0]);
     });
 
     for (final dimensions in [
@@ -209,13 +217,11 @@ void main() {
         () {
           final source = img.Image(width: dimensions[0], height: dimensions[1]);
           source.clear(img.ColorRgb8(10, 100, 200));
-          final choices = preparePickupPhoto(img.encodePng(source));
-          for (final bytes in choices.values) {
-            final decoded = img.decodeJpg(bytes)!;
-            expect(decoded.width, dimensions[2]);
-            expect(decoded.height, dimensions[3]);
-            expect(bytes.length, lessThanOrEqualTo(5 * 1024 * 1024));
-          }
+          final prepared = preparePickupPhoto(img.encodePng(source));
+          final decoded = img.decodeJpg(prepared)!;
+          expect(decoded.width, dimensions[2]);
+          expect(decoded.height, dimensions[3]);
+          expect(prepared.length, lessThanOrEqualTo(5 * 1024 * 1024));
         },
       );
     }
