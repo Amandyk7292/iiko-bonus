@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { ClipboardList, LoaderCircle } from '../components/BulkaIcons';
 import Modal from '../components/GuardedModal';
 import { useFeedback } from '../components/Feedback';
 import { request } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import ProductionActResolution from './ProductionActResolution';
+import './LocationProductionBinding.css';
 
 type Reference = { id: string; name: string; parentId?: string };
 type Binding = {
@@ -15,6 +16,7 @@ type Binding = {
   enabled: boolean;
   postImmediately: boolean;
 };
+type RequiredField = 'serverId' | 'departmentId' | 'sourceStoreId' | 'targetStoreId';
 type Response = {
   binding: Binding | null;
   directory: { servers: Reference[]; departments: Reference[]; stores: Reference[] };
@@ -48,6 +50,9 @@ export default function LocationProductionBinding({
   const [saving, setSaving] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState('');
+  const [invalidField, setInvalidField] = useState<RequiredField | null>(null);
+  const controls = useRef<Partial<Record<RequiredField, HTMLSelectElement>>>({});
+  const id = useId();
   const generation = useRef(0);
   const path = `/locations/${encodeURIComponent(locationId)}/production-binding`;
 
@@ -62,6 +67,7 @@ export default function LocationProductionBinding({
     const version = ++generation.current;
     setLoading(true);
     setError('');
+    setInvalidField(null);
     try {
       const value = await request<Response>(
         path + (serverId ? `?serverId=${encodeURIComponent(serverId)}` : ''),
@@ -83,55 +89,77 @@ export default function LocationProductionBinding({
     setOpen(false);
   };
   const stores = directory.stores.filter((row) => row.parentId === draft.departmentId);
-  const valid =
-    Boolean(draft.serverId && draft.departmentId && draft.sourceStoreId && draft.targetStoreId) &&
-    directory.departments.some((row) => row.id === draft.departmentId) &&
-    stores.some((row) => row.id === draft.sourceStoreId) &&
-    stores.some((row) => row.id === draft.targetStoreId);
+  const busy = loading || saving || resolving;
+  const fields: [RequiredField, string, Reference[]][] = [
+    ['serverId', 'production.server', directory.servers],
+    ['departmentId', 'production.department', directory.departments],
+    ['sourceStoreId', 'production.source', stores],
+    ['targetStoreId', 'production.target', stores],
+  ];
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
-    if (saving || resolving || loading || !valid) return;
+    if (busy) return;
+    const invalid = fields.find(([key, , rows]) => !rows.some((row) => row.id === draft[key]));
+    if (invalid) {
+      setInvalidField(invalid[0]);
+      setError(
+        invalid[2].length
+          ? t('production.selectRequired', { field: t(invalid[1]) })
+          : t(
+              invalid[0] === 'serverId'
+                ? 'production.noServers'
+                : invalid[0] === 'departmentId'
+                  ? 'production.noDepartments'
+                  : 'production.noStores',
+            ),
+      );
+      controls.current[invalid[0]]?.focus();
+      return;
+    }
     setSaving(true);
     setError('');
+    setInvalidField(null);
+    const version = generation.current;
     try {
       await request(path, { method: 'PUT', body: JSON.stringify(draft) });
+      if (version !== generation.current) return;
       setOpen(false);
       toast(t('production.saved'));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : t('common.error'));
+      if (version === generation.current)
+        setError(caught instanceof Error ? caught.message : t('common.error'));
     } finally {
-      setSaving(false);
+      if (version === generation.current) setSaving(false);
     }
   };
 
-  const select = (
-    key: 'departmentId' | 'sourceStoreId' | 'targetStoreId',
-    title: string,
-    rows: Reference[],
-  ) => (
-    <label className="field-label">
-      {t(title)}
-      <select
-        value={draft[key]}
-        disabled={loading || saving || !draft.serverId}
-        onChange={(event) =>
-          setDraft((current) => ({
-            ...current,
-            [key]: event.target.value,
-            ...(key === 'departmentId' ? { sourceStoreId: '', targetStoreId: '' } : {}),
-          }))
-        }
-      >
-        <option value="">{t('production.choose')}</option>
-        {rows.map((row) => (
-          <option key={row.id} value={row.id}>
-            {row.name}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
+  const changeField = (key: RequiredField, value: string) => {
+    setError('');
+    setInvalidField(null);
+    setDraft((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === 'serverId' ? { departmentId: '', sourceStoreId: '', targetStoreId: '' } : {}),
+      ...(key === 'departmentId' ? { sourceStoreId: '', targetStoreId: '' } : {}),
+    }));
+    if (key === 'serverId') {
+      generation.current++;
+      setLoading(false);
+      setDirectory((current) => ({ ...current, departments: [], stores: [] }));
+      if (value) void load(value);
+    }
+  };
+  const placeholder = (key: RequiredField) => {
+    if (key === 'serverId') return t('production.chooseServer');
+    if (!draft.serverId) return t('production.serverFirst');
+    if (key === 'departmentId')
+      return t(
+        directory.departments.length ? 'production.chooseDepartment' : 'production.noDepartments',
+      );
+    if (!draft.departmentId) return t('production.departmentFirst');
+    return t(stores.length ? 'production.chooseStore' : 'production.noStores');
+  };
 
   return (
     <>
@@ -149,9 +177,37 @@ export default function LocationProductionBinding({
       >
         <ClipboardList aria-hidden="true" size={17} />
       </button>
-      <Modal open={open} onClose={close} title={`${t('production.title')} · ${name}`} size="md">
-        <form className="modal-body form-stack" onSubmit={save} aria-busy={loading || saving}>
-          {error && (
+      <Modal
+        open={open}
+        onClose={close}
+        title={`${t('production.title')} · ${name}`}
+        size="md"
+        dismissDisabled={saving || resolving}
+        footer={
+          <div className="modal-actions production-binding-actions">
+            <button
+              type="button"
+              className="btn-outline"
+              disabled={saving || resolving}
+              onClick={close}
+            >
+              {t('common.cancel')}
+            </button>
+            <button type="submit" form={`${id}-form`} className="btn-classic" disabled={busy}>
+              {saving && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
+              {t(saving ? 'common.saving' : 'production.saveSettings')}
+            </button>
+          </div>
+        }
+      >
+        <form
+          id={`${id}-form`}
+          className="modal-body production-binding-form"
+          onSubmit={save}
+          noValidate
+          aria-busy={busy}
+        >
+          {error && !invalidField && (
             <div className="inline-alert inline-alert-error" role="alert">
               {error}
             </div>
@@ -162,78 +218,79 @@ export default function LocationProductionBinding({
               {t('common.loading')}
             </div>
           )}
-          {!loading && directory.servers.length === 0 && <p>{t('production.noServers')}</p>}
-          <label className="field-label">
-            {t('production.server')}
-            <select
-              value={draft.serverId}
-              disabled={loading || saving}
-              onChange={(event) => {
-                const serverId = event.target.value;
-                setDraft((current) => ({
-                  ...current,
-                  serverId,
-                  departmentId: '',
-                  sourceStoreId: '',
-                  targetStoreId: '',
-                }));
-                setDirectory((current) => ({ ...current, departments: [], stores: [] }));
-                if (serverId) void load(serverId);
-              }}
-            >
-              <option value="">{t('production.choose')}</option>
-              {directory.servers.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          {select('departmentId', 'production.department', directory.departments)}
-          {select('sourceStoreId', 'production.source', stores)}
-          {select('targetStoreId', 'production.target', stores)}
-          <label className="checkbox-field">
+          {!loading && !invalidField && directory.servers.length === 0 && (
+            <p>{t('production.noServers')}</p>
+          )}
+          {fields.map(([key, title, rows]) => (
+            <div key={key} className="production-binding-field">
+              <label htmlFor={`${id}-${key}`} className="production-binding-label">
+                {t(title)}{' '}
+                <span className="production-binding-required" aria-hidden="true">
+                  *
+                </span>
+              </label>
+              <select
+                id={`${id}-${key}`}
+                className="production-binding-control"
+                aria-label={t(title)}
+                ref={(element) => {
+                  controls.current[key] = element || undefined;
+                }}
+                value={draft[key]}
+                required
+                aria-required="true"
+                aria-invalid={invalidField === key || undefined}
+                aria-describedby={invalidField === key ? `${id}-${key}-error` : undefined}
+                disabled={
+                  busy ||
+                  (key !== 'serverId' && !draft.serverId) ||
+                  (['sourceStoreId', 'targetStoreId'].includes(key) && !draft.departmentId)
+                }
+                onChange={(event) => changeField(key, event.target.value)}
+              >
+                <option value="">{placeholder(key)}</option>
+                {rows.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.name}
+                  </option>
+                ))}
+              </select>
+              {invalidField === key && (
+                <p
+                  id={`${id}-${key}-error`}
+                  className="field-error production-binding-error"
+                  role="alert"
+                >
+                  {error}
+                </p>
+              )}
+            </div>
+          ))}
+          <label className="production-binding-checkbox">
             <input
               type="checkbox"
               checked={draft.enabled}
-              disabled={loading || saving}
+              disabled={busy}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, enabled: event.target.checked }))
               }
             />
             {t('production.enabled')}
           </label>
-          <label className="checkbox-field">
+          <label className="production-binding-checkbox">
             <input
               type="checkbox"
               checked={draft.postImmediately}
-              disabled={loading || saving}
+              disabled={busy}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, postImmediately: event.target.checked }))
               }
             />
             {t('production.post')}
           </label>
-          <p className="page-help">
+          <p className="production-binding-hint">
             {t(draft.postImmediately ? 'production.postHint' : 'production.draft')}
           </p>
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-outline"
-              disabled={saving || resolving}
-              onClick={close}
-            >
-              {t('common.cancel')}
-            </button>
-            <button
-              type="submit"
-              className="btn-classic"
-              disabled={loading || saving || resolving || !valid}
-            >
-              {t(saving ? 'common.saving' : 'common.save')}
-            </button>
-          </div>
         </form>
         {open && (
           <ProductionActResolution

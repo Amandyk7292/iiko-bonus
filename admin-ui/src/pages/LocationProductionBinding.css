@@ -1,0 +1,103 @@
+.production-binding-form {
+  display: grid;
+  min-width: 0;
+  gap: 20px;
+}
+
+.production-binding-field {
+  min-width: 0;
+  scroll-margin-block: 20px;
+}
+
+.production-binding-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--sagi-text);
+  font-size: var(--type-body-small);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.production-binding-required {
+  color: var(--focus-ring);
+}
+
+.production-binding-control {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--touch-minimum);
+  padding: 10px 12px;
+  border: 1px solid var(--sagi-border);
+  border-radius: var(--radius-control);
+  background: var(--sagi-bg);
+  color: var(--sagi-text);
+  font: inherit;
+  font-size: var(--type-body);
+  line-height: 1.5;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.production-binding-control:enabled:hover {
+  border-color: var(--sagi-muted);
+}
+
+.production-binding-control[aria-invalid='true'] {
+  border-color: var(--focus-ring);
+}
+
+.production-binding-control:disabled {
+  background: var(--sagi-soft);
+  color: var(--sagi-muted);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.production-binding-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--touch-minimum);
+  color: var(--sagi-text);
+  font-size: var(--type-body-small);
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.production-binding-checkbox > input {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--sagi-green);
+}
+
+.production-binding-control:focus-visible,
+.production-binding-checkbox > input:focus-visible,
+.production-binding-actions > button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.production-binding-hint {
+  margin: -12px 0 0;
+  color: var(--sagi-muted);
+  font-size: var(--type-body-small);
+  line-height: 1.5;
+}
+
+.production-binding-error {
+  margin-bottom: 0;
+}
+
+.production-binding-actions > button {
+  min-height: var(--touch-minimum);
+  min-width: var(--touch-minimum);
+}
+
+@media (max-width: 480px) {
+  .production-binding-actions > button {
+    flex: 1 1 auto;
+  }
+}
