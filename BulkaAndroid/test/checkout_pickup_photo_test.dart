@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:bulka_bonus/core/photo_orientation.dart';
+import 'package:bulka_bonus/core/pickup_camera_protocol.dart';
 import 'package:bulka_bonus/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -308,6 +309,66 @@ Future<void> _render(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'verified camera canvas parity survives automatic attachment without another reflection',
+    (tester) async {
+      // This models the page's completed canvas, whose left and right must be
+      // preserved. It does not make a claim about physical camera hardware.
+      final canvas = img.Image(width: 64, height: 32, numChannels: 3);
+      for (final pixel in canvas) {
+        pixel.setRgb(pixel.x < 32 ? 235 : 20, 90, pixel.y < 16 ? 40 : 200);
+      }
+      final jpeg = img.encodeJpg(canvas, quality: 90);
+      const nonce = '0123456789abcdef0123456789abcdef';
+      final protocol = PickupCameraProtocol(nonce);
+      protocol.receive(
+        jsonEncode({
+          'v': 1,
+          'nonce': nonce,
+          'type': 'ready',
+          'facingMode': 'user',
+          'width': 64,
+          'height': 32,
+        }),
+      );
+      expect(protocol.beginCapture(), isTrue);
+      final received = protocol
+          .receive(
+            jsonEncode({
+              'v': 1,
+              'nonce': nonce,
+              'type': 'photo',
+              'facingMode': 'user',
+              'width': 64,
+              'height': 32,
+              'mimeType': 'image/jpeg',
+              'base64': base64Encode(jpeg),
+            }),
+          )!
+          .bytes!;
+      expect(received, jpeg);
+      final prepared = preparePickupPhoto(received);
+      final api = _PhotoApi()..expectedPhotoBytes = prepared;
+      await _open(
+        tester,
+        api,
+        capture: () async => XFile.fromData(
+          received,
+          name: 'pickup.jpg',
+          mimeType: 'image/jpeg',
+        ),
+      );
+      await _captureAndUpload(tester, api);
+      expect(api.uploads, 1);
+      expect(api.uploadedPhotoBytes, prepared);
+      expect(_previewBytes(tester, _attachedPreview), prepared);
+      final attached = img.decodeJpg(prepared)!;
+      expect(attached.getPixel(4, 4).r, greaterThan(200));
+      expect(attached.getPixel(59, 4).r, lessThan(60));
+      _expectNoConfirmation();
+    },
+  );
+
   testWidgets(
     'optional pickup photo fits alongside the compact payment footer',
     (tester) async {

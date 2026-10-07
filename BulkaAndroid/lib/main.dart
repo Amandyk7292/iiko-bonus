@@ -59,6 +59,7 @@ import 'core/walking_rewards_native.dart';
 import 'firebase_options.dart';
 import 'widgets/admin_portal_webview.dart';
 import 'widgets/forte_checkout_webview.dart';
+import 'widgets/pickup_camera.dart' as pickup_camera;
 import 'widgets/yandex_map/yandex_map.dart';
 part 'api/bulka_api_client.dart';
 part 'screens/checkout_pickup_photo.dart';

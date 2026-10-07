@@ -16,6 +16,16 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'Фото түсіру',
     'en': 'Take a photo',
   },
+  'checkout_photo_switch_camera': {
+    'ru': 'Переключить камеру',
+    'kk': 'Камераны ауыстыру',
+    'en': 'Switch camera',
+  },
+  'checkout_photo_camera_error': {
+    'ru': 'Не удалось открыть камеру. Повторите.',
+    'kk': 'Камера ашылмады. Қайталаңыз.',
+    'en': 'Could not open the camera. Try again.',
+  },
   'checkout_photo_replace': {
     'ru': 'Переснять',
     'kk': 'Қайта түсіру',

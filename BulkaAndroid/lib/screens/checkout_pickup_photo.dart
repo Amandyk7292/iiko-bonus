@@ -203,13 +203,26 @@ class _CheckoutPickupPhotoSectionState
     try {
       final file =
           await (widget.capture?.call() ??
-              ImagePicker().pickImage(
-                source: ImageSource.camera,
-                preferredCameraDevice: CameraDevice.front,
-                imageQuality: 82,
-                maxWidth: 1200,
-                maxHeight: 1600,
-              ));
+              (pickup_camera.usesPickupCamera
+                  ? pickup_camera.capturePickupCamera(
+                      context,
+                      labels: pickup_camera.PickupCameraLabels(
+                        title: 'checkout_photo_title'.tr,
+                        capture: 'checkout_photo_capture'.tr,
+                        switchCamera: 'checkout_photo_switch_camera'.tr,
+                        close: 'cancel_btn'.tr,
+                        retry: 'retry_btn'.tr,
+                        error: 'checkout_photo_camera_error'.tr,
+                        permissionError: 'checkout_photo_capture_error'.tr,
+                      ),
+                    )
+                  : ImagePicker().pickImage(
+                      source: ImageSource.camera,
+                      preferredCameraDevice: CameraDevice.front,
+                      imageQuality: 82,
+                      maxWidth: 1200,
+                      maxHeight: 1600,
+                    )));
       if (file == null || !mounted || revision != _revision || !_sameOwner) {
         return;
       }
