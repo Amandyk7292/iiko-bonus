@@ -7,6 +7,7 @@ export default defineConfig({
   base: '/admin/',
   build: {
     minify: 'terser',
+    terserOptions: { compress: { passes: 2 } },
     rollupOptions: {
       output: {
         manualChunks(id) {
