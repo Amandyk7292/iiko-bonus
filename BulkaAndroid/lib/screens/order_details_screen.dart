@@ -492,7 +492,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
                         children: [
                           Expanded(child: Text(localizedOrderItemName(item))),
                           Text(
-                            '× ${_asInt(item['quantity'], fallback: 1)}',
+                            '× ${orderItemQuantityLabel(item)}',
                             style: const TextStyle(
                               fontFamily: _headingFont,
                               fontWeight: FontWeight.w700,

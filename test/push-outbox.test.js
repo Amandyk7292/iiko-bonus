@@ -30,7 +30,14 @@ const queuedRow = (overrides = {}) => ({
   ...overrides,
 });
 
-function deliveryDb(row) {
+function deliveryDb(
+  row,
+  {
+    owners = row.pending_tokens.map((token) => ({ token, customer_id: row.customer_id })),
+    customer = { id: row.customer_id },
+    ownerError = null,
+  } = {},
+) {
   const updates = [];
   return {
     updates,
@@ -40,6 +47,14 @@ function deliveryDb(row) {
       return { data: [row], error: null };
     },
     from(table) {
+      if (table === 'customer_push_tokens')
+        return { select: () => ({ in: async () => ({ data: owners, error: ownerError }) }) };
+      if (table === 'customers')
+        return {
+          select: () => ({
+            eq: () => ({ maybeSingle: async () => ({ data: customer, error: null }) }),
+          }),
+        };
       assert.equal(table, 'push_notification_outbox');
       return {
         update(values) {
@@ -194,4 +209,87 @@ test('push outbox lease expansion is an immutable follow-up migration', () => {
   assert.match(sql, /add column if not exists lease_token uuid/i);
   assert.match(sql, /lease_token = gen_random_uuid\(\)/i);
   assert.match(sql, /status = 'processing'/i);
+});
+
+for (const [name, options] of Object.entries({
+  'reassigned installation': {
+    owners: [{ token: 'shared-device-token-123', customer_id: 'other-customer' }],
+    customer: { fcm_token: 'shared-device-token-123' },
+  },
+  'unregistered installation': { owners: [], customer: { fcm_token: null } },
+  'deleted customer': { customer: { deleted_at: new Date().toISOString() } },
+})) {
+  test(`queued private push excludes ${name}`, async () => {
+    const db = deliveryDb(queuedRow({ pending_tokens: ['shared-device-token-123'] }), options);
+    let sends = 0;
+    const [result] = await deliverPushOutbox(
+      {
+        sendToken: async () => {
+          sends++;
+          return { delivered: true };
+        },
+      },
+      { db },
+    );
+    assert.equal(sends, 0);
+    assert.equal(result.status, 'skipped');
+  });
+}
+
+test('ownership lookup failure retries without delivering private data', async () => {
+  const db = deliveryDb(queuedRow(), { ownerError: new Error('database unavailable') });
+  let sends = 0;
+  await assert.rejects(
+    deliverPushOutbox(
+      {
+        sendToken: async () => {
+          sends++;
+        },
+      },
+      { db },
+    ),
+    /database unavailable/,
+  );
+  assert.equal(sends, 0);
+  assert.equal(db.updates.at(-1).values.status, 'retry');
+});
+
+test('registered legacy installation still works for its current customer', async () => {
+  const token = 'legacy-device-token-123';
+  const db = deliveryDb(queuedRow({ pending_tokens: [token] }), {
+    owners: [{ token, customer_id: queuedRow().customer_id }],
+    customer: { fcm_token: token },
+  });
+  const sends = [];
+  const [result] = await deliverPushOutbox(
+    {
+      sendToken: async (value) => {
+        sends.push(value);
+        return { delivered: true, terminal: true };
+      },
+    },
+    { db },
+  );
+  assert.deepEqual(sends, [token]);
+  assert.equal(result.status, 'sent');
+});
+
+test('historical transferred token cannot resurrect through an unclaimed legacy value', async () => {
+  const token = 'historical-device-token-123';
+  const db = deliveryDb(queuedRow({ pending_tokens: [token] }), {
+    owners: [],
+    customer: { fcm_token: token },
+  });
+  let sends = 0;
+  const [result] = await deliverPushOutbox(
+    {
+      sendToken: async () => {
+        sends++;
+        return { delivered: true };
+      },
+    },
+    { db },
+  );
+  assert.equal(sends, 0);
+  assert.equal(result.status, 'skipped');
 });

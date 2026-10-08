@@ -474,7 +474,7 @@ export default function WhatsAppPageView({ controller }: { controller: WhatsAppP
                       <span className="whatsapp-recording-dot" aria-hidden="true" />
                       <strong>{formatVoiceDuration(voiceSeconds)}</strong>
                       <span className="whatsapp-voice-recorder-label">
-                        {voiceMode === 'sending' ? 'Отправляем голосовое' : 'Идёт запись'}
+                        {voiceMode === 'sending' ? 'Отправляем голосовое' : voiceMode === 'acquiring' ? 'Включаем микрофон' : 'Идёт запись'}
                       </span>
                       <button
                         type="button"
@@ -490,7 +490,7 @@ export default function WhatsAppPageView({ controller }: { controller: WhatsAppP
                         type="button"
                         className="btn-classic whatsapp-send-button"
                         onClick={() => stopVoiceRecording(true)}
-                        disabled={voiceMode === 'sending'}
+                        disabled={voiceMode !== 'recording'}
                         aria-label="Отправить голосовое"
                         title="Отправить голосовое"
                       >

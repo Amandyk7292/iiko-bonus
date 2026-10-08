@@ -147,11 +147,11 @@ class _PaymentReceiptScreenState extends State<PaymentReceiptScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              '${_asInt(item['quantity'], fallback: 1)} × ${receipt.money(_asDouble(item['unitPrice']))}',
+                              '${orderItemQuantityLabel(item)} × ${receipt.money(orderItemUnitPrice(item))}',
                             ),
                           ),
                           const SizedBox(width: 12),
-                          Text(receipt.money(_asDouble(item['lineTotal']))),
+                          Text(receipt.money(orderItemLineTotal(item))),
                         ],
                       ),
                     ],

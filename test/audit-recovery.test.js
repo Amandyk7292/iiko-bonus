@@ -200,6 +200,8 @@ test('a birthday push already queued at night retains tokens and send attempts u
   };
   const db = memoryDb({
     push_notification_outbox: [row],
+    customers: [{ id: 'customer', deleted_at: null, fcm_token: 'isolated-test-device' }],
+    customer_push_tokens: [{ token: 'isolated-test-device', customer_id: 'customer' }],
     customer_notification_preferences: [{ ...preferences }],
   });
   db.rpc = async () => {

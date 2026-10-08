@@ -191,6 +191,51 @@ function deliveryDatabase() {
       };
     },
     from(table) {
+      if (table === 'customer_push_tokens') {
+        return {
+          select(columns) {
+            assert.equal(columns, 'token,customer_id');
+            return this;
+          },
+          async in(column, tokens) {
+            assert.equal(column, 'token');
+            return {
+              data: (
+                await db.query(
+                  'select token,customer_id from customer_push_tokens where token=any($1::text[])',
+                  [tokens],
+                )
+              ).rows,
+              error: null,
+            };
+          },
+        };
+      }
+      if (table === 'customers') {
+        let customer;
+        return {
+          select(columns) {
+            assert.equal(columns, 'id,deleted_at');
+            return this;
+          },
+          eq(column, value) {
+            assert.equal(column, 'id');
+            customer = value;
+            return this;
+          },
+          async maybeSingle() {
+            return {
+              data:
+                (
+                  await db.query('select id,fcm_token,deleted_at from customers where id=$1', [
+                    customer,
+                  ])
+                ).rows[0] || null,
+              error: null,
+            };
+          },
+        };
+      }
       assert.equal(table, 'push_notification_outbox');
       return {
         update(values) {
@@ -227,6 +272,10 @@ test('a push provider rejection remains durably retryable without failing or dup
     'walking-provider-test-token',
     customerId,
   ]);
+  await db.query(
+    'insert into customer_push_tokens(customer_id,token,installation_id) values($1,$2,$3)',
+    [customerId, 'walking-provider-test-token', 'walking-provider-installation'],
+  );
   assert.equal((await apply(10000)).credited, true);
   const adapter = deliveryDatabase();
   const outcomes = await deliverPushOutbox(

@@ -1,5 +1,76 @@
 part of '../main.dart';
 
+/// Match checkout's nearest branch with an available delivery time. Schedules
+/// and capacity come from the server, including overnight and future slots.
+Future<BakeryLocation?> resolveCatalogDeliveryBranch(
+  BulkaApiClient api,
+  DeliveryAddress address, {
+  DateTime? now,
+}) async {
+  final locations = await api.getFulfillmentLocations();
+  final candidates = <({BakeryLocation branch, double distance})>[];
+  String cityKey(String city) => city
+      .trim()
+      .toLowerCase()
+      .replaceAll('ё', 'е')
+      .replaceFirst(RegExp(r'^(?:город|г)\.?\s*'), '')
+      .replaceAll(RegExp(r'[^a-zа-я0-9]'), '');
+  final city = cityKey(address.location.city);
+  for (final branch in locations) {
+    final latitude = branch.latitude;
+    final longitude = branch.longitude;
+    if (!branch.active ||
+        !branch.deliveryEnabled ||
+        city.isEmpty ||
+        cityKey(branch.city) != city ||
+        latitude == null ||
+        longitude == null ||
+        !latitude.isFinite ||
+        !longitude.isFinite ||
+        latitude.abs() > 90 ||
+        longitude.abs() > 180) {
+      continue;
+    }
+    final distance = distanceBetweenCoordinatesKm(
+      firstLatitude: latitude,
+      firstLongitude: longitude,
+      secondLatitude: address.location.latitude,
+      secondLongitude: address.location.longitude,
+    );
+    if (distance.isFinite) candidates.add((branch: branch, distance: distance));
+  }
+  candidates.sort((left, right) {
+    final distance = left.distance.compareTo(right.distance);
+    return distance != 0 ? distance : left.branch.id.compareTo(right.branch.id);
+  });
+  final checkedAt = now ?? DateTime.now();
+  BakeryLocation? fallback;
+  for (final candidate in candidates) {
+    try {
+      final slots = await api.getFulfillmentSlots(
+        branchId: candidate.branch.id,
+        orderType: 'delivery',
+        days: 1,
+      );
+      if (slots.any(
+        (slot) =>
+            slot.remaining > 0 &&
+            !slot.startsAt.isBefore(slot.serverTime ?? checkedAt),
+      )) {
+        return candidate.branch;
+      }
+    } on FulfillmentSlotsUnavailable {
+      // Try the next serving branch, as checkout does.
+    } catch (_) {
+      // A transient slot read must not prevent browsing a branch menu.
+      if (bakeryHoursToday(candidate.branch, checkedAt).open != false) {
+        fallback ??= candidate.branch;
+      }
+    }
+  }
+  return fallback ?? candidates.firstOrNull?.branch;
+}
+
 extension _CatalogInteractionController on _CatalogScreenState {
   String get _catalogMenuTitle => switch (_orderType) {
     'delivery' => 'catalog_delivery_menu'.tr,
@@ -7,31 +78,8 @@ extension _CatalogInteractionController on _CatalogScreenState {
     _ => 'catalog_pickup_menu'.tr,
   };
 
-  Future<BakeryLocation?> _resolveDeliveryBranch(
-    DeliveryAddress address,
-  ) async {
-    final locations = await _api.getFulfillmentLocations();
-    final candidates = <({BakeryLocation branch, double distance})>[];
-    for (final branch in locations) {
-      if (!branch.active ||
-          !branch.deliveryEnabled ||
-          branch.latitude == null ||
-          branch.longitude == null) {
-        continue;
-      }
-      final distance = distanceBetweenCoordinatesKm(
-        firstLatitude: branch.latitude!,
-        firstLongitude: branch.longitude!,
-        secondLatitude: address.location.latitude,
-        secondLongitude: address.location.longitude,
-      );
-      if (distance.isFinite) {
-        candidates.add((branch: branch, distance: distance));
-      }
-    }
-    candidates.sort((left, right) => left.distance.compareTo(right.distance));
-    return candidates.isEmpty ? null : candidates.first.branch;
-  }
+  Future<BakeryLocation?> _resolveDeliveryBranch(DeliveryAddress address) =>
+      resolveCatalogDeliveryBranch(_api, address);
 
   List<CatalogProduct> get _filteredProducts {
     return _applyActiveProductFilters(

@@ -25,6 +25,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
     optionsDraft,
     setOptionsDraft,
     optionsSaving,
+    optionsLoading,
     handleSaveCategoryEdit,
     updateBuilderOption,
     addBuilderOption,
@@ -101,6 +102,8 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
         size="xl"
       >
         <div className="modal-body form-stack product-options-modal">
+          {optionsLoading && <p role="status">Загружаем настройки…</p>}
+          <fieldset className="form-stack" disabled={optionsLoading || optionsSaving} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
           <fieldset className="form-section builder-section">
             <legend>Конструктор торта или выпечки</legend>
             <div className="builder-kind-row">
@@ -604,6 +607,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
             </div>
           </section>
 
+          </fieldset>
           <div className="modal-actions sticky-modal-actions">
             <button
               type="button"
@@ -617,7 +621,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
               type="button"
               className="btn-classic px-5 inline-flex items-center gap-2"
               onClick={() => void saveOptions()}
-              disabled={optionsSaving}
+              disabled={optionsSaving || optionsLoading}
             >
               {optionsSaving && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
               {optionsSaving ? 'Сохранение…' : 'Сохранить настройки'}

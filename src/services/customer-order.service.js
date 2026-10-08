@@ -1158,6 +1158,10 @@ async function updateAdminOrderStatus(
     .slice(0, 500);
   const updates = {
     fulfillment_status: nextStatus,
+    ...(nextStatus === 'completed' && {
+      kitchen_status: 'handed_over',
+      handed_to_courier_at: new Date().toISOString(),
+    }),
     ...(nextStatus === 'ready' && { kitchen_ready_at: new Date().toISOString() }),
     cancellation_reason: nextStatus === 'cancelled' ? reason || null : null,
     fulfilled_at: nextStatus === 'completed' ? new Date().toISOString() : null,

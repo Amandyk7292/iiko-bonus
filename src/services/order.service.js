@@ -241,6 +241,8 @@ async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) 
       isAvailable:
         product.is_available !== false && branchProductAvailable(branchAvailability, product.id),
       availableQuantity: inventory?.availableQuantity ?? null,
+      quantityStep: inventory?.quantityStep ?? 1,
+      unit: inventory?.unit || 'шт',
       preparationMinutes: preparationMinutes(
         inventory?.preparationMinutes ?? product.preparation_minutes,
         branchPreparationMinutes,

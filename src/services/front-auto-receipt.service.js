@@ -1,6 +1,9 @@
 const { supabase } = require('../config/supabase');
 const { stockArgs, rpc } = require('./front-stock-guard.service');
-const { unresolvedDeliveryResolution } = require('../utils/delivery-resolution.util');
+const {
+  unresolvedDeliveryResolution,
+  unresolvedDeliveryResolutionStatuses,
+} = require('../utils/delivery-resolution.util');
 async function listAutoReceipts(branchId, { terminalId, assemblyVersion }) {
   let query = supabase
     .from('front_receipt_jobs')
@@ -10,9 +13,10 @@ async function listAutoReceipts(branchId, { terminalId, assemblyVersion }) {
     .eq('branch_id', branchId)
     .neq('status', 'completed')
     .eq('kaspi_orders.status', 'paid')
-    .or('refund_status.is.null,refund_status.in.(partial,failed)', {
-      referencedTable: 'kaspi_orders',
-    })
+    .or(
+      `and(or(refund_status.is.null,refund_status.in.(partial,failed)),or(delivery_resolution->>status.is.null,delivery_resolution->>status.not.in.(${unresolvedDeliveryResolutionStatuses.join(',')})))`,
+      { referencedTable: 'kaspi_orders' },
+    )
     .or(`terminal_id.is.null,terminal_id.eq.${terminalId}`)
     .order('updated_at', { ascending: true })
     .limit(20);

@@ -2,7 +2,13 @@ part of '../main.dart';
 
 extension _CatalogBranchGuard on _CatalogScreenState {
   Future<bool> _ensureSelectedBranchOpen() async {
-    if (_orderType == 'preorder' || _selectedBakeryId.isEmpty) return true;
+    // Delivery is routed by server slots and can use a branch that opens later.
+    // Checkout validates the final branch and capacity before accepting payment.
+    if (_orderType == 'preorder' ||
+        _orderType == 'delivery' ||
+        _selectedBakeryId.isEmpty) {
+      return true;
+    }
     var branch = _selectedBakeryLocation;
     if (branch == null || branch.id != _selectedBakeryId) {
       try {

@@ -1,0 +1,45 @@
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { I18nProvider } from '../lib/i18n';
+import { BrowserRouter } from '../lib/router';
+import CouriersPage from './CouriersPage';
+import SecurityPage from './SecurityPage';
+const api = vi.hoisted(() => ({ getCouriers: vi.fn(), getCourierActivity: vi.fn(), getSecurityStatus: vi.fn(), getAuditLogs: vi.fn() }));
+vi.mock('../lib/api', async (original) => ({ ...(await original<any>()), api }));
+vi.mock('../components/Feedback', () => ({ useFeedback: () => ({ toast: vi.fn(), confirm: vi.fn() }) }));
+function deferred<T>() { let resolve!: (x:T) => void; const promise=new Promise<T>((r) => {resolve=r;}); return {promise,resolve}; }
+afterEach(cleanup);
+beforeEach(() => {vi.resetAllMocks();localStorage.clear();localStorage.setItem('adminLocale','ru');window.history.replaceState({},'','/');HTMLElement.prototype.scrollIntoView=vi.fn();});
+it('keeps courier B activity when closed courier A responds late', async () => {
+  const old = deferred<any>(); const user=userEvent.setup();
+  api.getCouriers.mockResolvedValue({couriers:[{id:'A',name:'Courier A',phone:'+77000000001',active:true},{id:'B',name:'Courier B',phone:'+77000000002',active:true}]});
+  api.getCourierActivity.mockImplementation((id) => id==='A' ? old.promise : Promise.resolve({activity:[{id:'event-B',orderId:'B-order',type:'login',createdAt:'2026-10-08T00:00:00Z'}]}));
+  render(<I18nProvider><CouriersPage/></I18nProvider>);
+  await screen.findByText('Courier A');
+  const cards=document.querySelectorAll('.courier-card');
+  await user.click(within(cards[0] as HTMLElement).getByRole('button',{name:/История/}));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button',{name:'Закрыть'}));
+  await waitFor(()=>expect(screen.queryByRole('dialog')).toBeNull());
+  await user.click(within(cards[1] as HTMLElement).getByRole('button',{name:/История/}));
+  await screen.findByText(/B-order/);
+  await act(async()=>old.resolve({activity:[{id:'event-A',orderId:'A-order',type:'login',createdAt:'2026-10-07T00:00:00Z'}]}));
+  expect(screen.getByRole('dialog').textContent).toContain('Courier B');
+  expect(screen.getByRole('dialog').textContent).not.toContain('A-order');
+  expect(screen.getByRole('dialog').textContent).toContain('B-order');
+});
+it('keeps latest POST audit results when a superseded GET responds late', async () => {
+  const old=deferred<any>(); const user=userEvent.setup();
+  const log=(id:string,method:string)=>({id,method,path:`/audit-${id}`,created_at:'2026-10-08T00:00:00Z',status_code:200});
+  api.getSecurityStatus.mockResolvedValue({user:{username:'owner',role:'owner'},multiAdmin:true,mfaRequired:true,legacySingleAdmin:false,configuredUsers:[]});
+  api.getAuditLogs.mockImplementation((query)=>query.method==='GET'?old.promise:Promise.resolve({logs:[log(query.method||'initial',query.method||'GET')],total:1}));
+  render(<BrowserRouter><I18nProvider><SecurityPage/></I18nProvider></BrowserRouter>);
+  await screen.findByText('/audit-initial');
+  const choose=async(method:string)=>{ await user.click(screen.getByRole('combobox',{name:'Метод'})); await user.click(screen.getByRole('option',{name:method})); };
+  await choose('GET');await waitFor(()=>expect(api.getAuditLogs.mock.calls.some(([q])=>q.method==='GET')).toBe(true));
+  await choose('POST');await screen.findByText('/audit-POST');
+  await act(async()=>old.resolve({logs:[log('old-get','GET')],total:40}));
+  expect(screen.getByText('/audit-POST')).toBeTruthy();
+  expect(document.querySelector('.audit-table tbody')!.children.length).toBe(1);
+  expect(screen.getByRole('combobox',{name:'Метод'}).textContent).toContain('POST');
+});

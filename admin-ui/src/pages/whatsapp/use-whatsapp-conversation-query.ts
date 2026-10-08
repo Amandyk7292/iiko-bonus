@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { useSearchParams } from '../../lib/router';
+import { useQueryState } from '../../lib/use-query-state';
 
 type SetSearchParams = ReturnType<typeof useSearchParams>[1];
 
@@ -12,10 +13,10 @@ export function useWhatsAppConversationQuery({
   setQueryParams: SetSearchParams;
   selectedId: string;
 }) {
-  const [search, setSearch] = useState(queryParams.get('search') || '');
-  const [searchQuery, setSearchQuery] = useState(queryParams.get('search') || '');
-  const [statusFilter, setStatusFilter] = useState(queryParams.get('status') || '');
-  const [conversationPage, setConversationPage] = useState(
+  const searchQuery = queryParams.get('search') || '';
+  const [search, setSearch] = useQueryState(searchQuery, (value) => value.trim());
+  const [statusFilter, setStatusFilter] = useQueryState(queryParams.get('status') || '');
+  const [conversationPage, setConversationPage] = useQueryState(
     Math.max(1, Number(queryParams.get('page')) || 1),
   );
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
@@ -49,9 +50,9 @@ export function useWhatsAppConversationQuery({
   );
 
   useEffect(() => {
+    if (search.trim() === searchQuery) return;
     const timer = window.setTimeout(() => {
       const next = search.trim();
-      setSearchQuery(next);
       setConversationPage(1);
       const updated = new URLSearchParams(window.location.search);
       if (next) updated.set('search', next);
@@ -60,7 +61,7 @@ export function useWhatsAppConversationQuery({
       setQueryParams(updated, { replace: true });
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [search, setQueryParams]);
+  }, [search, searchQuery, setQueryParams]);
 
   return {
     search,

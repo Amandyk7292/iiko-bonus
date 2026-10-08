@@ -161,7 +161,42 @@ function queue() {
       row.lease_token = 'lease-' + row.attempt_count;
       return { data: [{ ...row }], error: null };
     },
-    from() {
+    from(table) {
+      if (table === 'customer_push_tokens') {
+        return {
+          select() {
+            return this;
+          },
+          async in(column, tokens) {
+            assert.equal(column, 'token');
+            return {
+              data: tokens
+                .filter((token) => row.pending_tokens.includes(token))
+                .map((token) => ({ token, customer_id: row.customer_id })),
+              error: null,
+            };
+          },
+        };
+      }
+      if (table === 'customers') {
+        return {
+          select() {
+            return this;
+          },
+          eq(column, value) {
+            assert.equal(column, 'id');
+            assert.equal(value, row.customer_id);
+            return this;
+          },
+          async maybeSingle() {
+            return {
+              data: { id: row.customer_id, deleted_at: null, fcm_token: null },
+              error: null,
+            };
+          },
+        };
+      }
+      assert.equal(table, 'push_notification_outbox');
       let updates;
       const q = {
         update(value) {

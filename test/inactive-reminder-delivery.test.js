@@ -48,7 +48,17 @@ const supabase = {
       },
       async order() {
         assert.equal(table, 'customer_push_tokens');
-        return { data: [{ token: 'test-reminder-device' }], error: null };
+        return { data: [{ token: 'test-reminder-device', customer_id: customerId }], error: null };
+      },
+      async in(column, tokens) {
+        assert.equal(table, 'customer_push_tokens');
+        assert.equal(column, 'token');
+        return {
+          data: tokens.includes('test-reminder-device')
+            ? [{ token: 'test-reminder-device', customer_id: customerId }]
+            : [],
+          error: null,
+        };
       },
       async single() {
         assert.equal(table, 'push_notification_outbox');
@@ -68,6 +78,11 @@ const supabase = {
         return { data: r, error: null };
       },
       async maybeSingle() {
+        if (table === 'customers')
+          return {
+            data: { id: customerId, fcm_token: 'test-reminder-device', deleted_at: null },
+            error: null,
+          };
         if (table === 'customer_notification_preferences')
           return { data: preferences, error: null };
         assert.equal(table, 'push_notification_outbox');

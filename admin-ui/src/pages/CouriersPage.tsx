@@ -46,6 +46,13 @@ export default function CouriersPage() {
   const [activity, setActivity] = useState<CourierActivity[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const pendingCourierIdsRef = useRef<Set<string>>(new Set());
+  const activitySequence = useRef(0);
+  useEffect(() => () => { activitySequence.current++; }, []);
+  const closeActivity = () => {
+    activitySequence.current++;
+    setActivityCourier(null);
+    setActivityLoading(false);
+  };
 
   const load = useCallback(
     async (silent = false) => {
@@ -145,15 +152,18 @@ export default function CouriersPage() {
   };
 
   const openActivity = async (courier: Courier) => {
+    const sequence = ++activitySequence.current;
     setActivityCourier(courier);
     setActivity([]);
     setActivityLoading(true);
     try {
-      setActivity((await api.getCourierActivity(courier.id)).activity ?? []);
+      const response = await api.getCourierActivity(courier.id);
+      if (sequence === activitySequence.current) setActivity(response.activity ?? []);
     } catch (caught) {
-      toast(caught instanceof Error ? caught.message : t('common.loadError'), 'error');
+      if (sequence === activitySequence.current)
+        toast(caught instanceof Error ? caught.message : t('common.loadError'), 'error');
     } finally {
-      setActivityLoading(false);
+      if (sequence === activitySequence.current) setActivityLoading(false);
     }
   };
 
@@ -437,7 +447,7 @@ export default function CouriersPage() {
       </Modal>
       <Modal
         open={Boolean(activityCourier)}
-        onClose={() => setActivityCourier(null)}
+        onClose={closeActivity}
         title={`${t('couriers.activity')} · ${activityCourier?.name || ''}`}
         description={t('couriers.activityHint')}
         size="lg"

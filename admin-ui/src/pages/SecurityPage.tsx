@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Eye,
   KeyRound,
@@ -48,6 +48,10 @@ export default function SecurityPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const pageSize = 25;
+  const requestSequence = useRef(0);
+  const queryKey = JSON.stringify([page, method, outcome, params.get('search') || '']);
+  const currentQuery = useRef(queryKey);
+  currentQuery.current = queryKey;
 
   const updateParams = useCallback(
     (updates: Record<string, string | number | null>) => {
@@ -72,6 +76,8 @@ export default function SecurityPage() {
   }, [params, search, updateParams]);
 
   const load = useCallback(async () => {
+    const sequence = ++requestSequence.current;
+    const current = () => sequence === requestSequence.current && queryKey === currentQuery.current;
     setLoading(true);
     try {
       const [security, audit] = await Promise.all([
@@ -84,19 +90,21 @@ export default function SecurityPage() {
           outcome,
         }),
       ]);
+      if (!current()) return;
       setStatus(security);
       setLogs(audit.logs ?? []);
       setTotal(audit.total ?? 0);
       setError('');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : t('common.loadError'));
+      if (current()) setError(caught instanceof Error ? caught.message : t('common.loadError'));
     } finally {
-      setLoading(false);
+      if (current()) setLoading(false);
     }
   }, [method, outcome, page, params, t]);
 
   useEffect(() => {
     void load();
+    return () => { requestSequence.current++; };
   }, [load]);
 
   const visibleLogs = useMemo(() => {

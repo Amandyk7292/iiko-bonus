@@ -665,29 +665,24 @@ async function assignCourier(
   }
   const eta = estimatedDeliveryAt ? new Date(estimatedDeliveryAt) : null;
   if (eta && Number.isNaN(eta.getTime())) throw courierError('Некорректное время доставки');
-  const now = new Date().toISOString();
   const pin = crypto.randomInt(1000, 10000).toString();
-  const { data, error } = await supabase
-    .from('kaspi_orders')
-    .update({
-      courier_id: courierId,
-      delivery_status: 'assigned',
-      delivery_pin: pin,
-      delivery_confirmed_at: null,
-      courier_assigned_at: now,
-      estimated_delivery_at: eta?.toISOString() || null,
-      updated_at: now,
-    })
-    .eq('id', orderId)
-    .is('courier_id', null)
-    .eq('delivery_status', 'unassigned')
-    .or(
-      'courier_dispatch_provider.is.null,courier_dispatch_provider.neq.yandex,courier_dispatch_status.in.(pending,retrying,awaiting_confirmation,failed)',
-    )
-    .select(
-      '*,couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at)',
-    )
-    .maybeSingle();
+  const { data, error } = await supabase.rpc('assign_internal_courier', {
+    p_order: orderId,
+    p_courier: courierId,
+    p_eta: eta?.toISOString() || null,
+    p_pin: pin,
+    p_branch_ids: scopedBranchIds.length ? scopedBranchIds : null,
+  });
+  if (error?.message?.includes('COURIER_CAPACITY_REACHED')) {
+    throw courierError(
+      'Курьер уже занят. Выберите другого курьера.',
+      409,
+      'COURIER_CAPACITY_REACHED',
+    );
+  }
+  if (error?.message?.includes('COURIER_UNAVAILABLE')) {
+    throw courierError('Курьер недоступен для новых заказов.', 409, 'COURIER_UNAVAILABLE');
+  }
   if (
     error?.code === 'P0001' ||
     error?.message?.includes('DELIVERY_PROVIDER_RESERVATION_CONFLICT')
@@ -805,7 +800,6 @@ async function updateCourierLocation(courierId, latitude, longitude, sessionId =
       current_latitude: lat,
       current_longitude: lon,
       location_updated_at: now,
-      availability_status: 'available',
       updated_at: now,
     })
     .eq('id', courierId)

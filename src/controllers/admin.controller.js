@@ -164,18 +164,17 @@ const pushMassHandler = async (req, res) => {
     const normalizeTranslations = (value, fallback, limit) => {
       const source = value && typeof value === 'object' ? value : {};
       return Object.fromEntries(
-        ['ru', 'kk', 'en'].map((language) => [
-          language,
-          String(source[language] || fallback || '')
-            .trim()
-            .slice(0, limit),
-        ]),
+        ['ru', 'kk', 'en'].map((language) => {
+          const translated = String(source[language] || '').trim();
+          const defaultText = String((language === 'en' ? source.ru : '') || fallback || '').trim();
+          return [language, (translated || defaultText).slice(0, limit)];
+        }),
       );
     };
     const titles = normalizeTranslations(req.body.titleTranslations || req.body.titles, title, 160);
     const bodies = normalizeTranslations(req.body.bodyTranslations || req.body.bodies, body, 2000);
     if ([...Object.values(titles), ...Object.values(bodies)].some((value) => !value)) {
-      return res.status(400).json({ error: 'ru, kk and en title/body translations required' });
+      return res.status(400).json({ error: 'ru and kk title/body translations required' });
     }
 
     const result = await broadcastCustomerPush(titles, bodies);

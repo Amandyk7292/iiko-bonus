@@ -38,6 +38,7 @@ const createHarness = ({
     recorded: [],
   };
   const service = new PaymentCleanupService({
+    markCleanupComplete: async () => {},
     listPendingOrders: async () => pending,
     listUnfinishedOrders: async () => unfinished,
     updateFulfillment: async (order, status) =>

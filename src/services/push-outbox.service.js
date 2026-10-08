@@ -257,6 +257,8 @@ async function markDelivered(row, results, { db = supabase } = {}) {
   };
 }
 
+const { currentCustomerPushTokens } = require('./push-token-ownership.service');
+
 async function deliverPushOutbox(
   { sendToken, isAllowed, limit = 50, messageId = null },
   { db = supabase } = {},
@@ -279,6 +281,7 @@ async function deliverPushOutbox(
         outcomes.push(await markSkipped(row, 'Notification preferences changed', { db }));
         continue;
       }
+      row.tokens = await currentCustomerPushTokens(row.customerId, row.tokens, { db });
       if (!row.tokens.length) {
         outcomes.push(
           row.uncertainTokens.length

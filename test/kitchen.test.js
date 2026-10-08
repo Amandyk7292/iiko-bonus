@@ -140,6 +140,7 @@ function loadKitchen(
         ...order,
         status: 'refunded',
         fulfillment_status: 'cancelled',
+        kitchen_status: 'cancelled',
         refund_status: 'succeeded',
       };
       return order;
@@ -211,10 +212,9 @@ test('kitchen cancellation uses the paid-order refund workflow before closing', 
   assert.equal(events[0][2].cancelBeforeRefund, true);
   assert.equal(events[0][2].cancelExternalDelivery, true);
   assert.deepEqual(events[0][2].allowedFulfillmentStatuses, ['new']);
-  assert.ok(
-    events
-      .find(([name]) => name === 'update-filters')[1]
-      .some(([column, value]) => column === 'refund_status' && value === 'succeeded'),
+  assert.equal(
+    events.some(([name]) => name === 'update-filters'),
+    false,
   );
 });
 

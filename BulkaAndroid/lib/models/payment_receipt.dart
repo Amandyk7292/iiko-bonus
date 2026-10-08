@@ -53,3 +53,40 @@ String localizedOrderItemName(Map<String, dynamic> item) {
   );
   return details.isEmpty ? name : '$name\n$details';
 }
+
+double orderItemQuantity(Map<String, dynamic> item) {
+  final quantity = _asDouble(item['quantity'], fallback: 1);
+  return quantity.isFinite && quantity > 0 ? quantity : 1;
+}
+
+String orderItemQuantityLabel(Map<String, dynamic> item) {
+  final quantity = productQuantityText(orderItemQuantity(item));
+  final unit = _asString(item['unit']).trim();
+  return unit.isEmpty ||
+          RegExp(r'^(?:шт\.?|pcs)$', caseSensitive: false).hasMatch(unit)
+      ? quantity
+      : '$quantity $unit';
+}
+
+double orderItemUnitPrice(Map<String, dynamic> item) =>
+    _asDouble(item['unitPrice'] ?? item['price']);
+
+num orderItemLineTotal(Map<String, dynamic> item) {
+  final saved = _nullableDouble(item['lineTotal']);
+  if (saved != null && saved.isFinite) return saved;
+  // Legacy orders lack a saved total. Use the same per-line rounding as cart
+  // and checkout; order-level discounts are displayed separately.
+  return (orderItemUnitPrice(item) * orderItemQuantity(item)).round();
+}
+
+List<List<String>> paymentReceiptItemRows(PaymentReceipt receipt) => receipt
+    .items
+    .map(
+      (item) => [
+        localizedOrderItemName(item),
+        orderItemQuantityLabel(item),
+        receipt.money(orderItemUnitPrice(item)),
+        receipt.money(orderItemLineTotal(item)),
+      ],
+    )
+    .toList();

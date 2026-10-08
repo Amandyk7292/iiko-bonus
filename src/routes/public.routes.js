@@ -511,8 +511,9 @@ router.post(
   },
 );
 registerBusinessFoundationCustomerRoutes(router);
-router.get('/api/customer/events', (req, res) =>
-  realtime.openStream(req, res, { customerId: req.customerAuth.id }),
+router.get(
+  '/api/customer/events',
+  require('../services/customer-realtime.service').openCustomerStream,
 );
 router.get('/api/customer/notification-preferences', async (req, res) => {
   try {

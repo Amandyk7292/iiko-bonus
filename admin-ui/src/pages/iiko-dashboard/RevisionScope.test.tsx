@@ -1,0 +1,30 @@
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { I18nProvider } from '../../lib/i18n';
+import Revision from './Revision';
+const loadControls = vi.hoisted(() => vi.fn());
+vi.mock('./load-controls', () => ({ loadControls }));
+afterEach(cleanup);
+beforeEach(() => { localStorage.clear(); localStorage.setItem('adminLocale', 'ru'); vi.resetAllMocks(); });
+const base = { serverId: 'aktau-rms', reportType: 'SALES' as const, from: '2026-10-01', to: '2026-10-07', groupBy: [], aggregate: [], filters: [] };
+const row = { key: 'rms-A-product', name: 'Товар только точки A', unit: 'шт', opening: 10, incoming: 2, sold: 3, writtenOff: 1, expected: 8, systemBalance: 8 };
+it('hides old department stock and keeps its counts out of the newly selected department', async () => {
+  loadControls.mockResolvedValueOnce({ fetchedAt: '2026-10-08T03:00:00Z', rows: [row] });
+  loadControls.mockReturnValueOnce(new Promise(() => {}));
+  const view = render(<I18nProvider><Revision base={base} department="Point A" refresh={0} /></I18nProvider>);
+  fireEvent.change(await screen.findByLabelText('Фактический остаток Товар только точки A'), { target: { value: '6' } });
+  view.rerender(<I18nProvider><Revision base={base} department="Point B" refresh={0} /></I18nProvider>);
+  await waitFor(() => expect(loadControls).toHaveBeenCalledTimes(2));
+  expect(screen.queryByLabelText('Фактический остаток Товар только точки A')).toBeNull();
+  expect(localStorage.getItem('bulka-revision:aktau-rms:Point B:2026-10-07')).toBeNull();
+  expect(JSON.parse(localStorage.getItem('bulka-revision:aktau-rms:Point A:2026-10-07')!)).toEqual({ 'rms-A-product': '6' });
+});
+it('does not show the previous department stock after the new department fails', async () => {
+  loadControls.mockResolvedValueOnce({ fetchedAt: '2026-10-08T03:00:00Z', rows: [row] });
+  loadControls.mockRejectedValueOnce(new Error('offline'));
+  const view = render(<I18nProvider><Revision base={base} department="Point A" refresh={0} /></I18nProvider>);
+  await screen.findByLabelText('Фактический остаток Товар только точки A');
+  view.rerender(<I18nProvider><Revision base={base} department="Point B" refresh={0} /></I18nProvider>);
+  await screen.findByRole('alert');
+  expect(screen.queryByLabelText('Фактический остаток Товар только точки A')).toBeNull();
+});

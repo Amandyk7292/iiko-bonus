@@ -1025,6 +1025,17 @@ const automationConfigSchema = z
     cooldownHours: z.coerce.number().int().min(1).max(8_760).optional(),
     daysBefore: z.coerce.number().int().min(0).max(365).optional(),
     inactiveDays: z.coerce.number().int().min(1).max(3_650).optional(),
+    inactiveHours: z.coerce.number().int().min(1).max(8_760).optional(),
+    maximumPerDay: z.literal(1).optional(),
+    reminderTimezone: z.literal('Asia/Almaty').optional(),
+    reminderWindowStart: z
+      .string()
+      .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
+      .optional(),
+    reminderWindowEnd: z
+      .string()
+      .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
+      .optional(),
     cooldownDays: z.coerce.number().int().min(1).max(3_650).optional(),
     expirationDays: z.coerce.number().int().min(1).max(3_650).optional(),
   })

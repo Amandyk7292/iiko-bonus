@@ -170,7 +170,7 @@ router.post(
     try {
       return res.json({
         success: true,
-        reservation: await commitGiftCardForPos(req.body),
+        reservation: await commitGiftCardForPos({ ...req.body, branchId: req.posBranchId }),
       });
     } catch (error) {
       return res.status(error.statusCode || 500).json({
@@ -189,7 +189,7 @@ router.post(
     try {
       return res.json({
         success: true,
-        reservation: await cancelGiftCardForPos(req.body),
+        reservation: await cancelGiftCardForPos({ ...req.body, branchId: req.posBranchId }),
       });
     } catch (error) {
       return res.status(error.statusCode || 500).json({

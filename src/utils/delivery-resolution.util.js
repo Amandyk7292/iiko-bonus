@@ -23,6 +23,7 @@ const unresolvedDeliveryResolution = (order) => UNRESOLVED.has(order?.delivery_r
 const deliveryResolutionBlocksDispatch = (order) =>
   unresolvedDeliveryResolution(order) && order.delivery_resolution.status !== 'pending';
 module.exports = {
+  unresolvedDeliveryResolutionStatuses: Object.freeze([...UNRESOLVED]),
   deliveryResolution,
   unresolvedDeliveryResolution,
   deliveryResolutionBlocksDispatch,

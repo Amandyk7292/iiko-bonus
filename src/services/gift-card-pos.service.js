@@ -54,6 +54,8 @@ async function validateGiftCardForPos({ code, branchId }) {
 
 const mapPosError = (error) => {
   const message = String(error.message || '');
+  if (error?.code === '42501')
+    return posError('Branch POS authentication failed', 401, 'BRANCH_POS_UNAUTHORIZED');
   if (
     error?.code === '23505' ||
     /duplicate key.*(?:request_id|commit_request_id|cancel_request_id)/i.test(message) ||
@@ -137,8 +139,10 @@ async function prepareGiftCardForPos({ reservationId, idempotencyKey, branchId }
   return { id: data.reservationId, status: data.status, duplicate: data.duplicate === true };
 }
 
-async function commitGiftCardForPos({ reservationId, idempotencyKey }) {
-  const { data, error } = await supabase.rpc('commit_gift_card_for_iiko', {
+async function commitGiftCardForPos({ reservationId, idempotencyKey, branchId }) {
+  if (!branchId) throw posError('Branch POS authentication failed', 401);
+  const { data, error } = await supabase.rpc('commit_gift_card_for_iiko_scoped', {
+    p_branch_id: branchId,
     p_reservation_id: reservationId,
     p_request_id: idempotencyKey,
   });
@@ -154,8 +158,10 @@ async function commitGiftCardForPos({ reservationId, idempotencyKey }) {
   };
 }
 
-async function cancelGiftCardForPos({ reservationId, idempotencyKey }) {
-  const { data, error } = await supabase.rpc('cancel_gift_card_for_iiko', {
+async function cancelGiftCardForPos({ reservationId, idempotencyKey, branchId }) {
+  if (!branchId) throw posError('Branch POS authentication failed', 401);
+  const { data, error } = await supabase.rpc('cancel_gift_card_for_iiko_scoped', {
+    p_branch_id: branchId,
     p_reservation_id: reservationId,
     p_request_id: idempotencyKey,
   });

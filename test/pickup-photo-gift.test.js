@@ -30,6 +30,9 @@ async function fixture(t) {
       'utf8',
     ),
   );
+  await db.exec(
+    fs.readFileSync('supabase/migrations/20261008152000_operations_queue_visibility.sql', 'utf8'),
+  );
   const customer = crypto.randomUUID(),
     other = crypto.randomUUID(),
     branch = crypto.randomUUID(),
@@ -63,6 +66,55 @@ async function fixture(t) {
   };
   return { db, customer, other, branch, terminal, call, upload, reserve, action, order };
 }
+
+test('claimed photo remains visible beyond20 waiting jobs and respects terminal/order state', async (t) => {
+  const f = await fixture(t),
+    photo = await f.upload(),
+    ids = [];
+  for (let n = 0; n < 21; n++) {
+    const checkout = crypto.randomUUID();
+    await f.reserve(checkout, photo);
+    ids.push(await f.order(checkout, photo, { status: 'paid', kitchen: 'ready' }));
+  }
+  const poll = () => f.call('list_pickup_photo_print_jobs', [f.branch, f.terminal]);
+  const initial = await poll();
+  assert.equal(initial.jobs.length, 20);
+  const claimed = initial.jobs[0].orderId;
+  assert.equal((await f.action(claimed, 'claim')).status, 'print');
+  const current = await poll();
+  assert.equal(current.jobs.length, 20);
+  assert.equal(current.jobs.find((job) => job.orderId === claimed).status, 'printing');
+  await f.db.query(
+    "update pickup_photo_print_jobs set status='uncertain',terminal_id=$1 where order_id<>$2",
+    [f.terminal, claimed],
+  );
+  for (let n = 0; n < 21; n++) {
+    const checkout = crypto.randomUUID();
+    await f.reserve(checkout, photo);
+    await f.order(checkout, photo, { status: 'paid', kitchen: 'ready' });
+  }
+  const uncertainBacklog = await poll();
+  assert.equal(uncertainBacklog.jobs.length, 20);
+  assert.equal(uncertainBacklog.jobs[0].orderId, claimed);
+  assert.equal(uncertainBacklog.jobs[0].status, 'printing');
+  assert.equal(uncertainBacklog.jobs.filter((job) => job.status === 'pending').length, 19);
+  const otherTerminal = crypto.randomUUID();
+  await f.db.query('insert into pos_devices(terminal_id,branch_id) values($1,$2)', [
+    otherTerminal,
+    f.branch,
+  ]);
+  assert.equal(
+    (await f.call('list_pickup_photo_print_jobs', [f.branch, otherTerminal])).jobs.some(
+      (job) => job.orderId === claimed,
+    ),
+    false,
+  );
+  await f.db.query("update kaspi_orders set fulfillment_status='cancelled' where id=$1", [claimed]);
+  assert.equal(
+    (await poll()).jobs.some((job) => job.orderId === claimed),
+    false,
+  );
+});
 
 test('photo normalization strips orientation/GPS, bounds size and rejects spoofed files', async () => {
   const original = await sharp({

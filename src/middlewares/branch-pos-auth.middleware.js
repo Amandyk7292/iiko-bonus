@@ -76,7 +76,12 @@ async function branchPosAuthMiddleware(req, res, next) {
     // Gift-card reservation IDs are branch-bound in their own table. Loyalty
     // reservations are scoped by the branch-derived order key in the loyalty
     // service and must not be looked up in the gift-card table.
-    if (req.body?.reservationId && String(req.path || '').includes('/gift-cards/')) {
+    if (
+      req.body?.reservationId &&
+      String(req.path || '')
+        .toLowerCase()
+        .includes('/gift-cards/')
+    ) {
       const { data: reservation, error: reservationError } = await supabase
         .from('gift_card_pos_reservations')
         .select('branch_id')

@@ -51,16 +51,7 @@ Future<Uint8List> buildPaymentReceiptPdf(PaymentReceipt receipt) async {
         pw.SizedBox(height: 16),
         pw.TableHelper.fromTextArray(
           headers: labels,
-          data: receipt.items
-              .map(
-                (item) => [
-                  localizedOrderItemName(item),
-                  '${_asInt(item['quantity'], fallback: 1)}',
-                  receipt.money(_asDouble(item['unitPrice'])),
-                  receipt.money(_asDouble(item['lineTotal'])),
-                ],
-              )
-              .toList(),
+          data: paymentReceiptItemRows(receipt),
           border: null,
           headerAlignments: {
             0: pw.Alignment.centerLeft,

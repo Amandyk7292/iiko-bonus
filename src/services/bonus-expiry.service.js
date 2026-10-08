@@ -1,3 +1,4 @@
+const { attachBonusExpiration } = require('./bonus-expiration.service');
 const { supabase } = require('../config/supabase');
 const { getSettings } = require('./settings.service');
 
@@ -122,41 +123,47 @@ const buildExpirySummary = ({
   };
 };
 
-async function getBonusExpirySummary(customerId, { days = 30 } = {}) {
-  const [customerResult, transactionResult, settings] = await Promise.all([
-    supabase.from('customers').select('id,balance,created_at').eq('id', customerId).maybeSingle(),
-    supabase
+async function loadExpiryTransactions(db, customerId) {
+  const transactions = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await db
       .from('transactions')
-      .select('amount,type,timestamp,available_at,activated_at,expires_at,expired_at')
+      .select('id,amount,type,timestamp,available_at,activated_at,expires_at,expired_at')
       .eq('customer_id', customerId)
       .order('timestamp', { ascending: true })
-      .limit(5000),
-    getSettings(),
+      .order('id', { ascending: true })
+      .range(offset, offset + 999);
+    if (error) throw error;
+    transactions.push(...(data || []));
+    if (!data || data.length < 1000) return transactions;
+  }
+}
+
+async function getBonusExpirySummary(
+  customerId,
+  { days = 30, db = supabase, settingsProvider = getSettings } = {},
+) {
+  const [customerResult, settings] = await Promise.all([
+    db.from('customers').select('id,balance,created_at').eq('id', customerId).maybeSingle(),
+    settingsProvider(),
   ]);
   if (customerResult.error) throw customerResult.error;
-  if (!customerResult.data) {
-    throw Object.assign(new Error('Клиент не найден'), { statusCode: 404 });
+  if (!customerResult.data) throw Object.assign(new Error('Клиент не найден'), { statusCode: 404 });
+  const [customer] = await attachBonusExpiration(db, [customerResult.data], settings);
+  if (!customer.bonus_expiration_enabled) {
+    return {
+      currentBalance: Math.max(0, Number(customer.balance || 0)),
+      totalExpiring: 0,
+      nextExpiryAt: null,
+      buckets: [],
+    };
   }
-  if (transactionResult.error) throw transactionResult.error;
-  const transactions = transactionResult.data || [];
-  const expiration = settings?.bonus_expiration || {};
-  const latestActivity = [...transactions]
-    .reverse()
-    .find((transaction) => !['churn_reminder', 'expiration'].includes(transaction.type));
-  const lastActivityAt =
-    transactionTime(latestActivity || {}) ||
-    Date.parse(customerResult.data.created_at || '') ||
-    Date.now();
-  const expirationDays = Math.max(1, Number(expiration.expiration_days || 90));
-  const fallbackExpiryAt =
-    expiration.enabled === false
-      ? null
-      : new Date(lastActivityAt + expirationDays * DAY_MS).toISOString();
+  const transactions = await loadExpiryTransactions(db, customerId);
   return buildExpirySummary({
-    balance: customerResult.data.balance,
+    balance: customer.balance,
     transactions,
     days,
-    fallbackExpiryAt,
+    fallbackExpiryAt: customer.bonus_expires_at,
   });
 }
 

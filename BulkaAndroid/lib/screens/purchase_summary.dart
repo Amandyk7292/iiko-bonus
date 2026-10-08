@@ -110,18 +110,15 @@ class _PurchaseSummary extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              money(
-                                _asDouble(item['price']) *
-                                    _asInt(item['quantity'], fallback: 1),
-                              ),
+                              money(orderItemLineTotal(item)),
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                            if (_asInt(item['quantity'], fallback: 1) > 1)
+                            if (orderItemQuantityLabel(item) != '1')
                               Text(
-                                '× ${_asInt(item['quantity'])}',
+                                '× ${orderItemQuantityLabel(item)}',
                                 style: TextStyle(
                                   color: colors.mutedText,
                                   fontSize: 12,

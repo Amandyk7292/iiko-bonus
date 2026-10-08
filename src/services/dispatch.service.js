@@ -138,21 +138,27 @@ async function autoAssignOrder(orderId, { branchIds = [] } = {}) {
     throw dispatchError('Сначала отмените активную заявку Яндекс.Доставки', 409);
   }
   if (!match.courier) throw dispatchError('Нет свободного курьера с актуальной геопозицией', 409);
-  const totalDistance =
-    Number(match.courier.distanceToBranchKm || 0) + Number(match.order.routeDistanceKm || 0);
-  const eta = new Date(Date.now() + etaMinutesForKm(totalDistance) * 60000).toISOString();
-  const order = await assignCourier(orderId, match.courier.id, eta);
+  let order, courier, totalDistance, eta;
+  for (const candidate of match.candidates) {
+    totalDistance =
+      Number(candidate.distanceToBranchKm || 0) + Number(match.order.routeDistanceKm || 0);
+    eta = new Date(Date.now() + etaMinutesForKm(totalDistance) * 60000).toISOString();
+    try {
+      order = await assignCourier(orderId, candidate.id, eta, { branchIds });
+      courier = candidate;
+      break;
+    } catch (error) {
+      if (!['COURIER_CAPACITY_REACHED', 'COURIER_UNAVAILABLE'].includes(error.code)) throw error;
+    }
+  }
+  if (!order) throw dispatchError('Нет свободного курьера с актуальной геопозицией', 409);
   const refreshed = await refreshOrderEta(order).catch((etaError) => {
     console.error('Dispatch ETA refresh failed:', etaError.message);
     return order;
   });
-  await supabase
-    .from('couriers')
-    .update({ last_assigned_at: new Date().toISOString() })
-    .eq('id', match.courier.id);
   return {
     order: refreshed,
-    courier: match.courier,
+    courier,
     eta: refreshed.estimated_delivery_at || eta,
     totalDistanceKm: Math.round(totalDistance * 10) / 10,
   };

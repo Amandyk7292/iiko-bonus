@@ -1,5 +1,7 @@
 const crypto = require('crypto');
 const { supabase } = require('../config/supabase');
+const { getSettings } = require('./settings.service');
+const { loadBonusActivity } = require('./bonus-expiration.service');
 const { sendPushToCustomer } = require('./push.service');
 const { pushOutboxDedupeKey } = require('./push-outbox.service');
 const { inactiveReminderTiming, inactiveReminderPushData } = require('./inactive-reminder-window');
@@ -560,26 +562,45 @@ async function savePromotion(payload = {}, id = null) {
   return data;
 }
 
-async function enqueueAutomatedMessages() {
-  const now = new Date();
+function expirationReminderPolicy(settings = {}) {
+  const policy = settings.bonus_expiration || {};
+  const expirationDays = Math.max(1, Number(policy.expiration_days || 90));
+  return {
+    enabled: policy.enabled !== false && policy.auto_write_off !== false,
+    expirationDays,
+    daysBefore: Math.max(1, Math.min(expirationDays, Number(policy.notify_before_days || 30))),
+  };
+}
+
+function isExpirationReminderDue(customer, lastActivity, now, policy) {
+  const activityAt = Date.parse(lastActivity || customer.created_at || '');
+  const windowStart = now.getTime() - (policy.expirationDays - policy.daysBefore) * 86400000;
+  const expiredAt = now.getTime() - policy.expirationDays * 86400000;
+  return Number(customer.balance || 0) > 0 && activityAt <= windowStart && activityAt > expiredAt;
+}
+
+async function enqueueAutomatedMessages({
+  db = supabase,
+  loadSettings = getSettings,
+  clock = () => new Date(),
+} = {}) {
+  const now = clock();
   // Claim birthdays before inactivity reminders so the latter respect the
   // existing daily marketing cap. PostgreSQL keeps the annual claim atomic.
-  const { data: birthdayCount, error: birthdayError } = await supabase.rpc(
-    'enqueue_birthday_greetings',
-  );
+  const { data: birthdayCount, error: birthdayError } = await db.rpc('enqueue_birthday_greetings');
   if (birthdayError) throw birthdayError;
-  const { data: automations, error } = await supabase
+  const { data: automations, error } = await db
     .from('marketing_automations')
     .select('*')
     .eq('active', true);
   if (error) throw error;
   let enqueued = Number(birthdayCount || 0);
   let customerCache = null;
-  let transactionCache = null;
+  let expirationPolicy = null;
 
   const customers = async () => {
     if (customerCache) return customerCache;
-    const { data, error: customerError } = await supabase
+    const { data, error: customerError } = await db
       .from('customers')
       .select('id,birth_date,balance,created_at,deleted_at')
       .is('deleted_at', null)
@@ -588,20 +609,8 @@ async function enqueueAutomatedMessages() {
     customerCache = data || [];
     return customerCache;
   };
-  const recentTransactions = async () => {
-    if (transactionCache) return transactionCache;
-    const { data, error: transactionError } = await supabase
-      .from('transactions')
-      .select('customer_id,timestamp')
-      .not('customer_id', 'is', null)
-      .order('timestamp', { ascending: false })
-      .limit(10000);
-    if (transactionError) throw transactionError;
-    transactionCache = data || [];
-    return transactionCache;
-  };
   const enqueue = async (automation, customerId, deduplicationKey, payload = {}) => {
-    const { data, error: deliveryError } = await supabase
+    const { data, error: deliveryError } = await db
       .from('marketing_deliveries')
       .upsert(
         {
@@ -636,7 +645,7 @@ async function enqueueAutomatedMessages() {
     if (automation.trigger_type === 'abandoned_cart') {
       const delayMinutes = Number(automation.config?.delayMinutes || 60);
       const threshold = new Date(now.getTime() - delayMinutes * 60000).toISOString();
-      const { data: carts, error: cartError } = await supabase
+      const { data: carts, error: cartError } = await db
         .from('customer_cart_snapshots')
         .select('customer_id,items,total,updated_at')
         .lte('updated_at', threshold)
@@ -662,7 +671,7 @@ async function enqueueAutomatedMessages() {
         1,
         Math.min(8760, Number(automation.config?.inactiveHours || 48)),
       );
-      const { data: inserted, error: inactiveError } = await supabase.rpc(
+      const { data: inserted, error: inactiveError } = await db.rpc(
         'enqueue_inactive_order_reminders',
         {
           p_automation_id: automation.id,
@@ -675,25 +684,16 @@ async function enqueueAutomatedMessages() {
     }
 
     if (automation.trigger_type === 'bonus_expiring') {
-      const expirationDays = Math.max(2, Number(automation.config?.expirationDays || 90));
-      const daysBefore = Math.max(
-        1,
-        Math.min(expirationDays - 1, Number(automation.config?.daysBefore || 7)),
+      expirationPolicy ||= expirationReminderPolicy(await loadSettings());
+      if (!expirationPolicy.enabled) continue;
+      const { daysBefore } = expirationPolicy;
+      const recipients = (await customers()).filter(
+        (customer) => Number(customer.balance || 0) > 0,
       );
-      const latest = new Map();
-      for (const transaction of await recentTransactions()) {
-        if (!latest.has(String(transaction.customer_id))) {
-          latest.set(String(transaction.customer_id), transaction.timestamp);
-        }
-      }
-      const targetStart = now.getTime() - (expirationDays - daysBefore) * 86400000;
-      const expiry = now.getTime() - expirationDays * 86400000;
+      const latest = await loadBonusActivity(db, recipients);
       const month = localParts(now);
-      for (const customer of await customers()) {
-        if (Number(customer.balance || 0) <= 0) continue;
-        const activity = latest.get(String(customer.id)) || customer.created_at;
-        const activityAt = activity ? new Date(activity).getTime() : 0;
-        if (activityAt <= targetStart && activityAt > expiry) {
+      for (const customer of recipients) {
+        if (isExpirationReminderDue(customer, latest.get(customer.id), now, expirationPolicy)) {
           await enqueue(automation, customer.id, `bonus-expiring:${month.year}-${month.month}`, {
             balance: Number(customer.balance || 0),
             daysBefore,
@@ -707,7 +707,12 @@ async function enqueueAutomatedMessages() {
 
 async function deliverAutomatedMessages(
   limit = 100,
-  { db = supabase, sendPush = sendPushToCustomer, now = () => new Date() } = {},
+  {
+    db = supabase,
+    sendPush = sendPushToCustomer,
+    now = () => new Date(),
+    loadSettings = getSettings,
+  } = {},
 ) {
   const { data: deliveries, error } = await db
     .from('marketing_deliveries')
@@ -718,9 +723,20 @@ async function deliverAutomatedMessages(
     .limit(Math.min(500, Math.max(1, Number(limit) || 100)));
   if (error) throw error;
   let sent = 0;
+  let expirationPolicy = null;
   for (const delivery of deliveries || []) {
     try {
       const automation = delivery.marketing_automations || {};
+      if (automation.trigger_type === 'bonus_expiring') {
+        expirationPolicy ||= expirationReminderPolicy(await loadSettings());
+        if (!expirationPolicy.enabled) {
+          await db
+            .from('marketing_deliveries')
+            .update({ status: 'skipped', error: 'Bonus expiration is disabled' })
+            .eq('id', delivery.id);
+          continue;
+        }
+      }
       if (automation.trigger_type === 'inactive') {
         const timing = inactiveReminderTiming(delivery.payload, now());
         if (timing.state !== 'ready') {
@@ -737,7 +753,7 @@ async function deliverAutomatedMessages(
       }
       const { data: customer, error: customerError } = await db
         .from('customers')
-        .select('fcm_token,preferred_language,deleted_at')
+        .select('id,balance,created_at,fcm_token,preferred_language,deleted_at')
         .eq('id', delivery.customer_id)
         .maybeSingle();
       if (customerError) {
@@ -750,6 +766,26 @@ async function deliverAutomatedMessages(
       if (!customer || customer.deleted_at || automation.active === false) {
         await db.from('marketing_deliveries').update({ status: 'skipped' }).eq('id', delivery.id);
         continue;
+      }
+      if (automation.trigger_type === 'bonus_expiring') {
+        let latest;
+        try {
+          latest = await loadBonusActivity(db, [customer]);
+        } catch {
+          throw Object.assign(new Error('Bonus activity temporarily unavailable'), {
+            retryable: true,
+          });
+        }
+        if (!isExpirationReminderDue(customer, latest.get(customer.id), now(), expirationPolicy)) {
+          await db
+            .from('marketing_deliveries')
+            .update({
+              status: 'skipped',
+              error: 'Bonus expiration warning window no longer applies',
+            })
+            .eq('id', delivery.id);
+          continue;
+        }
       }
       const { title, body, language } = renderAutomationCopy(
         automation,

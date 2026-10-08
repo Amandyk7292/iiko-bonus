@@ -7,7 +7,7 @@ import type {
 } from '../lib/api';
 
 export type ConsoleView = 'inbox' | 'knowledge' | 'settings';
-export type VoiceMode = 'idle' | 'recording' | 'sending';
+export type VoiceMode = 'idle' | 'acquiring' | 'recording' | 'sending';
 export type KnowledgeDraft = Pick<
   WhatsAppKnowledgeDocument,
   'title' | 'category' | 'content' | 'isActive'

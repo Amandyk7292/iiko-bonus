@@ -21,6 +21,21 @@ let failOutboxUpdate = false;
 
 const supabase = {
   from(table) {
+    if (table === 'customers') {
+      return {
+        select() {
+          return this;
+        },
+        eq(column, value) {
+          assert.equal(column, 'id');
+          assert.equal(value, 'customer-1');
+          return this;
+        },
+        async maybeSingle() {
+          return { data: { id: 'customer-1', deleted_at: null, fcm_token: null }, error: null };
+        },
+      };
+    }
     if (table === 'customer_notification_preferences') {
       return {
         select() {
@@ -99,9 +114,18 @@ const supabase = {
       async order() {
         return {
           data: [
-            { token: 'device-token-android-1234567890' },
-            { token: 'device-token-web-123456789012345' },
+            { token: 'device-token-android-1234567890', customer_id: 'customer-1' },
+            { token: 'device-token-web-123456789012345', customer_id: 'customer-1' },
           ],
+          error: null,
+        };
+      },
+      async in(column, tokens) {
+        assert.equal(column, 'token');
+        return {
+          data: ['device-token-android-1234567890', 'device-token-web-123456789012345']
+            .filter((token) => tokens.includes(token))
+            .map((token) => ({ token, customer_id: 'customer-1' })),
           error: null,
         };
       },

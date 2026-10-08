@@ -59,18 +59,21 @@ export default function Revision({
   refresh: number;
 }) {
   const { t, formatNumber } = useI18n();
-  const [data, setData] = useState<Result>();
-  const [counts, setCounts] = useState<Record<string, string>>({});
+  const queryKey = JSON.stringify([base.serverId, base.from, base.to, department]);
+  const [loaded, setLoaded] = useState<{ key: string; data: Result }>();
+  const data = loaded?.key === queryKey ? loaded.data : undefined;
+  const [savedCounts, setCounts] = useState<{ key: string; values: Record<string, string> }>({ key: '', values: {} });
   const [search, setSearch] = useState('');
   const [onlyDifferences, setOnlyDifferences] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const storageKey = `bulka-revision:${base.serverId}:${department}:${base.to}`;
+  const counts = savedCounts.key === storageKey ? savedCounts.values : {};
   useEffect(() => {
     try {
-      setCounts(JSON.parse(localStorage.getItem(storageKey) || '{}'));
+      setCounts({ key: storageKey, values: JSON.parse(localStorage.getItem(storageKey) || '{}') });
     } catch {
-      setCounts({});
+      setCounts({ key: storageKey, values: {} });
     }
   }, [storageKey]);
   useEffect(() => {
@@ -83,7 +86,7 @@ export default function Revision({
       '/iiko-dashboard/revision',
     )
       .then((value) => {
-        if (!controller.signal.aborted) setData(value);
+        if (!controller.signal.aborted) setLoaded({ key: queryKey, data: value });
       })
       .catch((caught) => {
         if (!controller.signal.aborted) setError(errorKey(caught));
@@ -94,9 +97,10 @@ export default function Revision({
     return () => controller.abort();
   }, [base.serverId, base.from, base.to, department, refresh]);
   const saveCount = (key: string, value: string) => {
+    if (!data || savedCounts.key !== storageKey) return;
     const next = { ...counts, [key]: value };
     if (value === '') delete next[key];
-    setCounts(next);
+    setCounts({ key: storageKey, values: next });
     localStorage.setItem(storageKey, JSON.stringify(next));
   };
   const rows = useMemo(

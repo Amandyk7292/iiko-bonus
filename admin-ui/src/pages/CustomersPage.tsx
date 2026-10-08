@@ -11,6 +11,7 @@ import {
   ArrowRight,
 } from '../components/BulkaIcons';
 import { useSearchParams } from '../lib/router';
+import { useQueryState } from '../lib/use-query-state';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import { useFeedback } from '../components/Feedback';
@@ -50,9 +51,9 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   const [error, setError] = useState('');
   const loadGeneration = useRef(0);
   const activeLoad = useRef<AbortController | null>(null);
-  const [search, setSearch] = useState(params.get('search') || '');
+  const [search, setSearch] = useQueryState(params.get('search') || '', (value) => value.trim());
   const previousSearch = useRef(search);
-  const [page, setPage] = useState(Math.max(1, Number(params.get('page')) || 1));
+  const [page, setPage] = useQueryState(Math.max(1, Number(params.get('page')) || 1));
   const [total, setTotal] = useState(0);
   const pageSize = 50;
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -181,6 +182,8 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   );
 
   const filtered = customers;
+  const currentList = useRef({ page, search, fetchCustomers });
+  currentList.current = { page, search, fetchCustomers };
 
   const handleExport = () => {
     const rows: Array<Array<string | number>> = [
@@ -265,7 +268,16 @@ export default function CustomersPage({ user }: CustomersPageProps) {
     setBusyAction(customer.id);
     try {
       await api.deleteCustomer(customer.id);
-      setCustomers((current) => current.filter((item) => item.id !== customer.id));
+      if (currentList.current.page === page && currentList.current.search === search) {
+        const remaining = Math.max(0, total - 1);
+        setTotal(remaining);
+        setCustomers((current) => current.filter((item) => item.id !== customer.id));
+        const lastPage = Math.max(1, Math.ceil(remaining / pageSize));
+        if (page > lastPage) setPage(lastPage);
+        else await currentList.current.fetchCustomers();
+      } else {
+        await currentList.current.fetchCustomers();
+      }
       toast(t('customers.deleted'));
     } catch (caught) {
       toast(caught instanceof Error ? caught.message : t('common.error'), 'error');

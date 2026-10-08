@@ -233,7 +233,10 @@ async function listKitchenOrders({ branchId = null, branchIds = [], includeClose
     .order('created_at');
   if (branchId) query = query.eq('branch_id', branchId);
   else if (Array.isArray(branchIds) && branchIds.length) query = query.in('branch_id', branchIds);
-  if (!includeClosed) query = query.in('kitchen_status', ['queued', 'preparing', 'ready']);
+  if (!includeClosed)
+    query = query
+      .in('kitchen_status', ['queued', 'preparing', 'ready'])
+      .or('fulfillment_status.is.null,fulfillment_status.not.in.(completed,cancelled)');
   const { data, error } = await query.limit(300);
   if (error) throw error;
   return (data || []).map(normalize);
@@ -330,13 +333,11 @@ async function updateKitchenStatus(
     });
     const { data: cancelled, error: cancelledError } = await supabase
       .from('kaspi_orders')
-      .update({ kitchen_status: 'cancelled', updated_at: now })
+      .select('*')
       .eq('id', orderId)
-      .eq('kitchen_status', from)
       .eq('status', 'refunded')
       .eq('fulfillment_status', 'cancelled')
       .eq('refund_status', 'succeeded')
-      .select('*')
       .maybeSingle();
     if (cancelledError) throw cancelledError;
     if (!cancelled) throw kitchenError('Заказ уже изменился. Обновите экран.', 409);

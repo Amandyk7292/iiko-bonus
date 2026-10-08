@@ -93,6 +93,11 @@ export default function SupportPage() {
   const selectedIdRef = useRef(selectedId);
   const detailRequestRef = useRef<{ controller: AbortController; sequence: number } | null>(null);
   const detailSequenceRef = useRef(0);
+  const listSequence = useRef(0);
+  const foregroundListPending = useRef(false);
+  const listQueryKey = JSON.stringify([queue, status, priority, page, params.get('search') || '']);
+  const currentListQuery = useRef(listQueryKey);
+  currentListQuery.current = listQueryKey;
   const pageSize = 30;
   const draft = drafts[selectedId] ?? emptySupportDraft();
   const reply = draft.text;
@@ -143,7 +148,11 @@ export default function SupportPage() {
 
   const loadList = useCallback(
     async (silent = false) => {
-      if (!silent) setLoading(true);
+      const sequence = ++listSequence.current;
+      const current = () => sequence === listSequence.current && currentListQuery.current === listQueryKey;
+      const foreground = !silent || foregroundListPending.current;
+      foregroundListPending.current = foreground;
+      if (foreground) setLoading(true);
       try {
         const response = await api.getSupportRequests({
           queue: queue === 'all' ? '' : queue,
@@ -153,15 +162,19 @@ export default function SupportPage() {
           page,
           pageSize,
         });
+        if (!current()) return;
         setRequests(response.requests);
         setTotal(response.total);
         setError('');
       } catch (caught) {
-        if (!silent) {
+        if (current() && foreground) {
           setError(caught instanceof Error ? caught.message : 'Не удалось загрузить обращения');
         }
       } finally {
-        if (!silent) setLoading(false);
+        if (current()) {
+          foregroundListPending.current = false;
+          if (foreground) setLoading(false);
+        }
       }
     },
     [page, params, priority, queue, status],
@@ -207,6 +220,7 @@ export default function SupportPage() {
 
   useEffect(() => {
     void loadList();
+    return () => { listSequence.current++; foregroundListPending.current = false; };
   }, [loadList]);
 
   useEffect(() => {

@@ -1214,9 +1214,10 @@ export const api = {
       '/translate',
       json('POST', { text, targetLang }),
     ),
-  getProductOptions: (productId: string) =>
+  getProductOptions: (productId: string, signal?: AbortSignal) =>
     request<{ success: boolean; products: Record<string, any> }>(
       `/menu/product-options?ids=${encodeURIComponent(productId)}`,
+      { signal },
     ),
   saveProductOptions: (productId: string, data: Record<string, unknown>) =>
     request<{ success: boolean; options: any }>(

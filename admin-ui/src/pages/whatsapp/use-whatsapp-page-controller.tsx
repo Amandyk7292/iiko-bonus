@@ -24,6 +24,7 @@ import {
   type VoiceMode,
 } from '../whatsapp-page.helpers';
 import { useWhatsAppConversationQuery } from './use-whatsapp-conversation-query';
+import { useWhatsAppVoiceDelivery } from './use-whatsapp-voice-delivery';
 
 export type WhatsAppPageProps = { role?: string };
 
@@ -83,12 +84,12 @@ export function useWhatsAppPageController({ role = 'viewer' }: WhatsAppPageProps
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const voiceChunksRef = useRef<Blob[]>([]);
   const voiceActionRef = useRef<'cancel' | 'send'>('cancel');
-  const voiceStartedAtRef = useRef(0);
   const voiceTimerRef = useRef<number | null>(null);
   const voiceConversationIdRef = useRef('');
-  const voiceClientMessageIdRef = useRef('');
+  const voiceGeneration = useRef(0);
+  const voiceAcquisition = useRef<{ generation: number; conversationId: string } | null>(null);
+  const mounted = useRef(true);
   const replyRequestRef = useRef<{
     conversationId: string;
     text: string;
@@ -117,14 +118,22 @@ export function useWhatsAppPageController({ role = 'viewer' }: WhatsAppPageProps
   }, []);
 
   const stopVoiceRecording = useCallback((shouldSend: boolean) => {
+    if (voiceAcquisition.current) {
+      if (shouldSend) return;
+      voiceGeneration.current++;
+      voiceAcquisition.current = null;
+      setVoiceMode('idle');
+      return;
+    }
     const recorder = mediaRecorderRef.current;
     if (!recorder || recorder.state === 'inactive') return;
-    voiceActionRef.current = shouldSend ? 'send' : 'cancel';
+    const sending = shouldSend && voiceConversationIdRef.current === selectedIdRef.current && mounted.current;
+    voiceActionRef.current = sending ? 'send' : 'cancel';
     if (voiceTimerRef.current !== null) {
       window.clearInterval(voiceTimerRef.current);
       voiceTimerRef.current = null;
     }
-    setVoiceMode(shouldSend ? 'sending' : 'idle');
+    setVoiceMode(sending ? 'sending' : 'idle');
     try {
       recorder.requestData();
     } catch {
@@ -133,52 +142,17 @@ export function useWhatsAppPageController({ role = 'viewer' }: WhatsAppPageProps
     recorder.stop();
   }, []);
 
-  const submitVoiceNote = useCallback(
-    async (
-      conversationId: string,
-      audio: Blob,
-      durationSeconds: number,
-      clientMessageId: string,
-    ) => {
-      setBusy('voice');
-      try {
-        const response = await api.sendWhatsAppVoice(
-          conversationId,
-          audio,
-          durationSeconds,
-          clientMessageId,
-        );
-        if (selectedIdRef.current === response.conversation.id) {
-          setMessages((current) => [...current, response.message]);
-          setSelectedConversation(response.conversation);
-        }
-        setConversations((current) =>
-          current.map((item) =>
-            item.id === response.conversation.id ? response.conversation : item,
-          ),
-        );
-        toast(
-          response.queued
-            ? 'Голосовое сохранено в очереди и отправится после подключения WhatsApp.'
-            : 'Голосовое отправлено. ИИ для этого диалога поставлен на паузу.',
-        );
-      } catch (caught) {
-        toast(caught instanceof Error ? caught.message : 'Не удалось отправить голосовое', 'error');
-      } finally {
-        setBusy('');
-        setVoiceMode('idle');
-        setVoiceSeconds(0);
-      }
-    },
-    [toast],
-  );
-
+  const submitVoiceNote = useWhatsAppVoiceDelivery({
+    selectedIdRef, setBusy, setMessages, setSelectedConversation, setConversations,
+    toast, setVoiceMode, setVoiceSeconds,
+  });
   const startVoiceRecording = async () => {
     if (
       !selectedConversation ||
       selectedConversation.id !== selectedIdRef.current ||
       !canWrite ||
       busy ||
+      voiceAcquisition.current ||
       voiceMode !== 'idle'
     ) {
       return;
@@ -188,11 +162,21 @@ export function useWhatsAppPageController({ role = 'viewer' }: WhatsAppPageProps
       return;
     }
 
+    const targetId = selectedConversation.id;
+    const generation = ++voiceGeneration.current;
+    voiceAcquisition.current = { generation, conversationId: targetId };
+    setVoiceMode('acquiring');
+    const current = () => mounted.current && generation === voiceGeneration.current && selectedIdRef.current === targetId;
     let stream: MediaStream | null = null;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
+      if (!current()) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      voiceAcquisition.current = null;
       const mimeType = preferredVoiceMimeType();
       let recorder: MediaRecorder;
       try {
@@ -206,16 +190,21 @@ export function useWhatsAppPageController({ role = 'viewer' }: WhatsAppPageProps
 
       mediaStreamRef.current = stream;
       mediaRecorderRef.current = recorder;
-      voiceChunksRef.current = [];
+      const chunks: Blob[] = [];
+      const startedAt = Date.now();
+      const clientMessageId = newClientMessageId();
+      const recordingStream = stream;
       voiceActionRef.current = 'cancel';
-      voiceConversationIdRef.current = selectedConversation.id;
-      voiceClientMessageIdRef.current = newClientMessageId();
-      voiceStartedAtRef.current = Date.now();
+      voiceConversationIdRef.current = targetId;
 
       recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) voiceChunksRef.current.push(event.data);
+        if (event.data.size > 0) chunks.push(event.data);
       };
       recorder.onerror = () => {
+        if (mediaRecorderRef.current !== recorder) {
+          recordingStream.getTracks().forEach((track) => track.stop());
+          return;
+        }
         voiceActionRef.current = 'cancel';
         releaseVoiceResources();
         setVoiceMode('idle');
@@ -223,18 +212,18 @@ export function useWhatsAppPageController({ role = 'viewer' }: WhatsAppPageProps
         toast('Браузер прервал запись голосового', 'error');
       };
       recorder.onstop = () => {
-        const shouldSend = voiceActionRef.current === 'send';
+        if (mediaRecorderRef.current !== recorder) {
+          recordingStream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        const shouldSend = voiceActionRef.current === 'send' && current();
         const durationSeconds = Math.max(
           1,
-          Math.min(maxVoiceSeconds, Math.ceil((Date.now() - voiceStartedAtRef.current) / 1000)),
+          Math.min(maxVoiceSeconds, Math.ceil((Date.now() - startedAt) / 1000)),
         );
-        const chunks = voiceChunksRef.current;
         const recordedType = recorder.mimeType || chunks[0]?.type || mimeType || 'audio/webm';
         const audio = new Blob(chunks, { type: recordedType });
-        const conversationId = voiceConversationIdRef.current;
-        const clientMessageId = voiceClientMessageIdRef.current || newClientMessageId();
         releaseVoiceResources();
-        voiceChunksRef.current = [];
         if (!shouldSend) {
           setVoiceMode('idle');
           setVoiceSeconds(0);
@@ -246,7 +235,7 @@ export function useWhatsAppPageController({ role = 'viewer' }: WhatsAppPageProps
           toast('Запись получилась пустой. Попробуйте ещё раз.', 'error');
           return;
         }
-        void submitVoiceNote(conversationId, audio, durationSeconds, clientMessageId);
+        void submitVoiceNote(targetId, audio, durationSeconds, clientMessageId);
       };
 
       recorder.start(250);
@@ -255,7 +244,7 @@ export function useWhatsAppPageController({ role = 'viewer' }: WhatsAppPageProps
       voiceTimerRef.current = window.setInterval(() => {
         const seconds = Math.min(
           maxVoiceSeconds,
-          Math.ceil((Date.now() - voiceStartedAtRef.current) / 1000),
+          Math.ceil((Date.now() - startedAt) / 1000),
         );
         setVoiceSeconds(seconds);
         if (seconds >= maxVoiceSeconds && recorder.state === 'recording') {
@@ -270,6 +259,8 @@ export function useWhatsAppPageController({ role = 'viewer' }: WhatsAppPageProps
       }, 250);
     } catch (caught) {
       stream?.getTracks().forEach((track) => track.stop());
+      if (!current()) return;
+      voiceAcquisition.current = null;
       releaseVoiceResources();
       setVoiceMode('idle');
       const denied = caught instanceof DOMException && caught.name === 'NotAllowedError';
@@ -284,6 +275,9 @@ export function useWhatsAppPageController({ role = 'viewer' }: WhatsAppPageProps
 
   useEffect(() => {
     selectedIdRef.current = selectedId;
+    if (voiceAcquisition.current && voiceAcquisition.current.conversationId !== selectedId) {
+      stopVoiceRecording(false);
+    }
     if (
       mediaRecorderRef.current?.state === 'recording' &&
       voiceConversationIdRef.current &&
@@ -294,18 +288,24 @@ export function useWhatsAppPageController({ role = 'viewer' }: WhatsAppPageProps
   }, [selectedId, stopVoiceRecording]);
 
   useEffect(
-    () => () => {
-      voiceActionRef.current = 'cancel';
-      const recorder = mediaRecorderRef.current;
-      if (recorder && recorder.state !== 'inactive') {
-        recorder.ondataavailable = null;
-        recorder.onerror = null;
-        recorder.onstop = null;
-        recorder.stop();
-      }
-      conversationListRequestRef.current?.controller.abort();
-      conversationDetailRequestRef.current?.controller.abort();
-      releaseVoiceResources();
+    () => {
+      mounted.current = true;
+      return () => {
+        mounted.current = false;
+        voiceGeneration.current++;
+        voiceAcquisition.current = null;
+        voiceActionRef.current = 'cancel';
+        const recorder = mediaRecorderRef.current;
+        if (recorder && recorder.state !== 'inactive') {
+          recorder.ondataavailable = null;
+          recorder.onerror = null;
+          recorder.onstop = null;
+          recorder.stop();
+        }
+        conversationListRequestRef.current?.controller.abort();
+        conversationDetailRequestRef.current?.controller.abort();
+        releaseVoiceResources();
+      };
     },
     [releaseVoiceResources],
   );

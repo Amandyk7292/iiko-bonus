@@ -1,5 +1,5 @@
 import DateInput from '../components/DateInput';
-import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
   Clock,
   Image as ImageIcon,
@@ -118,6 +118,8 @@ export default function StoriesPage() {
   const [form, setForm] = useState<StoryForm>(() => blankForm());
   const [i18n, setI18n] = useState<Record<ContentLanguage, LocalizedStory>>(blankI18n);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
+  const uploadGeneration = useRef(0);
+  const activeUpload = useRef<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -137,8 +139,23 @@ export default function StoriesPage() {
   useEffect(() => {
     void fetchStories();
   }, [fetchStories]);
+  useEffect(
+    () => () => {
+      uploadGeneration.current += 1;
+      activeUpload.current = null;
+    },
+    [],
+  );
+
+  const closeModal = () => {
+    if (submitting || activeUpload.current !== null) return;
+    uploadGeneration.current += 1;
+    setModalOpen(false);
+  };
 
   const openModal = (story?: any) => {
+    if (activeUpload.current !== null) return;
+    uploadGeneration.current += 1;
     setEditing(story ?? null);
     setActiveLanguage('ru');
     setFormError('');
@@ -198,45 +215,54 @@ export default function StoriesPage() {
   const uploadFile = async (event: ChangeEvent<HTMLInputElement>, field: 'contentUrl') => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file) return;
+    if (!file || activeUpload.current !== null) return;
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 1_500_000) {
       setFormError(t('common.uploadError'));
       return;
     }
+    const generation = ++uploadGeneration.current;
+    const language = activeLanguage;
+    const isCurrent = () => generation === uploadGeneration.current;
+    activeUpload.current = generation;
+    setUploadingField(`${language}-${field}`);
+    setFormError('');
     try {
-      const actual = await imageDimensions(file);
+      const actual = await imageDimensions(file).catch(() => {
+        throw new Error(t('common.uploadError'));
+      });
+      if (!isCurrent()) return;
       const required = storyImageDimensions[field];
       if (actual.width !== required.width || actual.height !== required.height) {
         setFormError(t('stories.contentDimensions'));
         return;
       }
-    } catch {
-      setFormError(t('common.uploadError'));
-      return;
-    }
-    const key = `${activeLanguage}-${field}`;
-    setUploadingField(key);
-    setFormError('');
-    try {
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result));
         reader.onerror = () => reject(reader.error);
         reader.readAsDataURL(file);
       });
+      if (!isCurrent()) return;
       const result = await api.uploadPhoto(base64, file.name);
+      if (!isCurrent()) return;
       if (!result.url) throw new Error(t('common.uploadError'));
-      updateField(activeLanguage, field, result.url);
+      updateField(language, field, result.url);
       toast(t('common.uploadSuccess'));
     } catch (caught) {
-      setFormError(caught instanceof Error ? caught.message : t('common.uploadError'));
+      if (isCurrent()) {
+        setFormError(caught instanceof Error ? caught.message : t('common.uploadError'));
+      }
     } finally {
-      setUploadingField(null);
+      if (isCurrent()) {
+        activeUpload.current = null;
+        setUploadingField(null);
+      }
     }
   };
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
+    if (submitting || activeUpload.current !== null) return;
     const missingRequiredField = [
       {
         missing: !i18n.ru.title.trim(),
@@ -293,6 +319,7 @@ export default function StoriesPage() {
     try {
       if (editing) await api.updateStory({ ...payload, id: editing.id });
       else await api.addStory(payload);
+      uploadGeneration.current += 1;
       setModalOpen(false);
       toast(t('stories.saved'));
       await fetchStories();
@@ -478,7 +505,7 @@ export default function StoriesPage() {
 
       <Modal
         open={modalOpen}
-        onClose={() => !submitting && !uploadingField && setModalOpen(false)}
+        onClose={closeModal}
         title={editing ? t('stories.editTitle') : t('stories.createTitle')}
         description={t('stories.formHint')}
         size="xl"
@@ -719,7 +746,7 @@ export default function StoriesPage() {
             <button
               type="button"
               className="btn-outline px-5"
-              onClick={() => setModalOpen(false)}
+              onClick={closeModal}
               disabled={submitting || Boolean(uploadingField)}
             >
               {t('common.cancel')}
@@ -776,7 +803,7 @@ export default function StoriesPage() {
             type="file"
             accept="image/png,image/jpeg,image/webp"
             onChange={onFile}
-            disabled={isUploading}
+            disabled={submitting || Boolean(uploadingField)}
           />
           {isUploading ? (
             <div className="upload-placeholder">

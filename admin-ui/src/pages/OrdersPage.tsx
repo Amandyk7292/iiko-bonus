@@ -10,6 +10,7 @@ import {
   ArrowRight,
 } from '../components/BulkaIcons';
 import { useSearchParams } from '../lib/router';
+import { useQueryState } from '../lib/use-query-state';
 import PageState from '../components/PageState';
 import Modal from '../components/Modal';
 import SelectControl from '../components/SelectControl';
@@ -70,13 +71,13 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const loadGeneration = useRef(0);
   const activeLoad = useRef<AbortController | null>(null);
   const foregroundLoadPending = useRef(false);
-  const [search, setSearch] = useState(params.get('search') || '');
+  const [search, setSearch] = useQueryState(params.get('search') || '', (value) => value.trim());
   const previousSearch = useRef(search);
-  const [paymentStatus, setPaymentStatus] = useState(
+  const [paymentStatus, setPaymentStatus] = useQueryState(
     params.get('payment') === 'expired' ? '' : params.get('payment') || '',
   );
-  const [orderStatus, setOrderStatus] = useState(params.get('status') || '');
-  const [page, setPage] = useState(Math.max(1, Number(params.get('page')) || 1));
+  const [orderStatus, setOrderStatus] = useQueryState(params.get('status') || '');
+  const [page, setPage] = useQueryState(Math.max(1, Number(params.get('page')) || 1));
   const [total, setTotal] = useState(0);
   const [, setSavingIds] = useState<Set<string>>(() => new Set());
   const savingIdsRef = useRef(new Set<string>());

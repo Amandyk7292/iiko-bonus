@@ -42,7 +42,8 @@ const defaultListUnfinishedOrders = async ({ limit }) => {
     .from('kaspi_orders')
     .select('*')
     .in('status', [...FINAL_UNPAID_STATUSES])
-    .in('fulfillment_status', ['pending', 'new'])
+    .in('fulfillment_status', ['pending', 'new', 'cancelled'])
+    .is('payment_cleanup_completed_at', null)
     .order('updated_at', { ascending: true })
     .limit(limit);
   if (error) throw error;
@@ -59,11 +60,23 @@ const defaultUpdateFulfillment = async (order, status, now) => {
     })
     .eq('id', order.id)
     .in('status', [...FINAL_UNPAID_STATUSES])
-    .in('fulfillment_status', ['pending', 'new'])
+    .in('fulfillment_status', ['pending', 'new', 'cancelled'])
+    .is('payment_cleanup_completed_at', null)
     .select('*')
     .maybeSingle();
   if (error) throw error;
   return data;
+};
+
+const defaultMarkCleanupComplete = async (orderId, now) => {
+  const { error } = await supabase
+    .from('kaspi_orders')
+    .update({ payment_cleanup_completed_at: now.toISOString() })
+    .eq('id', orderId)
+    .in('status', [...FINAL_UNPAID_STATUSES])
+    .eq('fulfillment_status', 'cancelled')
+    .is('payment_cleanup_completed_at', null);
+  if (error) throw error;
 };
 
 class PaymentCleanupService {
@@ -71,6 +84,7 @@ class PaymentCleanupService {
     listPendingOrders = defaultListPendingOrders,
     listUnfinishedOrders = defaultListUnfinishedOrders,
     updateFulfillment = defaultUpdateFulfillment,
+    markCleanupComplete = defaultMarkCleanupComplete,
     releaseReservations = releaseOrderReservations,
     releasePromotion,
     orderState = orderPaymentState,
@@ -83,6 +97,7 @@ class PaymentCleanupService {
     this.listPendingOrders = listPendingOrders;
     this.listUnfinishedOrders = listUnfinishedOrders;
     this.updateFulfillment = updateFulfillment;
+    this.markCleanupComplete = markCleanupComplete;
     this.releaseReservations = releaseReservations;
     this.releasePromotion =
       releasePromotion ||
@@ -101,8 +116,13 @@ class PaymentCleanupService {
     if (!order?.id || !FINAL_UNPAID_STATUSES.has(status)) return null;
     const updated = await this.updateFulfillment(order, status, now);
     if (!updated) return null;
-    await this.releaseReservations(updated.id);
-    await this.releasePromotion({ orderId: updated.id });
+    const releases = await Promise.allSettled([
+      this.releaseReservations(updated.id),
+      this.releasePromotion({ orderId: updated.id }),
+    ]);
+    const failure = releases.find((result) => result.status === 'rejected');
+    if (failure) throw failure.reason;
+    await this.markCleanupComplete(updated.id, now);
     this.publish(
       'order.updated',
       {
