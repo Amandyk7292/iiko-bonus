@@ -39,8 +39,16 @@ if (adminDirectory) {
   const deferredPriceLabelCorel = javascript.filter((file) =>
     path.basename(file).startsWith('price-label-corel-'),
   );
+  // The employee academy loads only on its own routes. Keep each cabinet/editor
+  // bounded separately, retaining the existing operational-interface budget.
+  const deferredAcademy = javascript.filter((file) =>
+    /^(?:LearningPage|AcademyAdminPage)-/.test(path.basename(file)),
+  );
   const coreJavascript = javascript.filter(
-    (file) => !deferredPriceLabelPdf.includes(file) && !deferredPriceLabelCorel.includes(file),
+    (file) =>
+      !deferredPriceLabelPdf.includes(file) &&
+      !deferredPriceLabelCorel.includes(file) &&
+      !deferredAcademy.includes(file),
   );
   const styles = assets.filter((file) => file.endsWith('.css'));
   const javascriptGzip = coreJavascript.map(gzipSize);
@@ -48,13 +56,19 @@ if (adminDirectory) {
   const priceLabelCorelGzip = deferredPriceLabelCorel.map(gzipSize);
   const styleGzip = styles.map(gzipSize);
   assertBudget(
+    'Admin deferred academy total gzip',
+    deferredAcademy.reduce((sum, file) => sum + gzipSize(file), 0),
+    26_000,
+  );
+  assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
     // UI audit fixes (draft guards, persisted filters and load recovery)
     // measure 449,528 B after shared guard/input deduplication.
-    // Allow 1,032 B headroom; retain the largest-chunk limit.
+    // Employee login/nav adds under 1 KiB to that shared shell; keep narrow
+    // headroom and retain the largest-chunk limit.
     // Exporters load only on download and keep their separate budgets below.
-    450_560,
+    451_584,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   assertBudget('Admin deferred price-label PDF gzip', Math.max(0, ...priceLabelPdfGzip), 185_000);
@@ -81,10 +95,16 @@ if (flutterDirectory) {
   }
   const deferredChunks = filesUnder(directory).filter((file) => /\.part\.js$/.test(file));
   // One locally decoded QR chunk measures 56,453 B raw / 19,842 B gzip.
-  assertBudget('Flutter deferred JavaScript total',
-    deferredChunks.reduce((sum, file) => sum + fs.statSync(file).size, 0), 58_000);
-  assertBudget('Flutter deferred JavaScript total gzip',
-    deferredChunks.reduce((sum, file) => sum + gzipSize(file), 0), 21_000);
+  assertBudget(
+    'Flutter deferred JavaScript total',
+    deferredChunks.reduce((sum, file) => sum + fs.statSync(file).size, 0),
+    58_000,
+  );
+  assertBudget(
+    'Flutter deferred JavaScript total gzip',
+    deferredChunks.reduce((sum, file) => sum + gzipSize(file), 0),
+    21_000,
+  );
   const wasmFiles = filesUnder(directory).filter((file) => file.endsWith('.wasm'));
   assertBudget(
     'Flutter largest WebAssembly asset',

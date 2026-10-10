@@ -4,14 +4,15 @@ import deliveryResolution from '../delivery-resolution';
 import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 import faq from '../faq';
+import academy from '../academy';
 const ru: Record<string, string> = {
   'common.previous': 'Предыдущая страница',
   'common.next': 'Следующая страница',
   ...faq.ru,
+  ...academy.ru,
   'access.role.iikoDashboard': 'Только Dashboard',
   ...settlements,
   ...productionBinding.ru,
-
   ...dashboard.ru,
   ...referralReport.ru,
   'bonus.referralTitle': 'Приглашение друзей',
@@ -21,7 +22,6 @@ const ru: Record<string, string> = {
   'bonus.referral.inviter_bonus': 'Пригласившему, ₸ бонусами',
   'bonus.referral.friend_bonus': 'Новому клиенту, ₸ бонусами',
   'bonus.referral.min_first_order': 'Минимальная первая покупка, ₸',
-
   'language.ru': 'Русский',
   'language.kk': 'Казахский',
   'language.en': 'Английский',

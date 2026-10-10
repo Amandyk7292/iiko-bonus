@@ -109,6 +109,57 @@ describe('cashier access management', () => {
     );
   });
 
+  it('creates a learning employee by password without requiring a cashier branch', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Добавить сотрудника' }));
+    const dialog = screen.getByRole('dialog', { name: 'Новый сотрудник' });
+    await user.click(within(dialog).getByRole('button', { name: 'Сотрудник · обучение' }));
+    await user.type(within(dialog).getByLabelText('Логин'), 'baker.aktau.1');
+    await user.type(within(dialog).getByLabelText('Имя сотрудника'), 'Пекарь Актау');
+    await user.type(within(dialog).getByLabelText('Пароль'), 'Training2026Secure');
+    expect(within(dialog).queryByLabelText('Должность и права')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Телефон')).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Добавить сотрудника' }));
+    await waitFor(() =>
+      expect(apiMocks.createAccessProfile).toHaveBeenCalledWith({
+        username: 'baker.aktau.1',
+        password: 'Training2026Secure',
+        displayName: 'Пекарь Актау',
+        role: 'employee',
+        branchIds: [],
+      }),
+    );
+  });
+
+  it('locks password employee role and provides a password reset', async () => {
+    apiMocks.getAccessProfiles.mockResolvedValue({
+      profiles: [
+        {
+          username: 'baker.1',
+          display_name: 'Пекарь',
+          role: 'employee',
+          branch_ids: [],
+          active: true,
+          authMethod: 'password',
+          passwordConfigured: true,
+        },
+      ],
+      configuredUsers: ['baker.1'],
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /Пекарь.*baker\.1/ }));
+    expect(screen.getByRole('combobox', { name: 'Должность и права' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Сменить пароль' }));
+    const dialog = screen.getByRole('dialog', { name: 'Сменить пароль' });
+    await user.type(within(dialog).getByLabelText('Новый пароль'), 'Employee2027Secure');
+    await user.click(within(dialog).getByRole('button', { name: 'Сменить пароль' }));
+    await waitFor(() =>
+      expect(apiMocks.resetAccessPassword).toHaveBeenCalledWith('baker.1', 'Employee2027Secure'),
+    );
+  });
+
   it('persists a collapsed active switch and rolls back a rejected change', async () => {
     apiMocks.getAccessProfiles.mockResolvedValue({
       configuredUsers: ['cashier.aktau.1'],

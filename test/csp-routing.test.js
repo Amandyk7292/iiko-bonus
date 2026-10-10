@@ -16,6 +16,17 @@ const {
 
 const scriptSources = (policy) => policy.match(/(?:^|;\s*)script-src ([^;]+)/)?.[1] || '';
 
+test('academy accepts HTTPS video without allowing remote scripts or frames', () => {
+  const policy = serializePolicy(directivesForPath('/admin/learning', 'test-nonce'));
+  assert.match(policy, /media-src 'self' https:/);
+  assert.equal(scriptSources(policy), "'self'");
+  assert.match(policy, /frame-src 'self'(?:;|$)/);
+  assert.doesNotMatch(
+    serializePolicy(directivesForPath('/admin/api/learning/me', 'test-nonce')),
+    /media-src/,
+  );
+});
+
 test('CSP routing mirrors one optional trailing slash without broad path matching', () => {
   const nonce = 'fixed-test-nonce';
   for (const canonicalPath of [

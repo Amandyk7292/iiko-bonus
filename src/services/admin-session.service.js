@@ -92,13 +92,14 @@ async function validateAdminSession(
     .eq('username', session.admin_subject)
     .maybeSingle();
   if (profileError) throw profileError;
-  if (!profile && ['cashier', 'iiko_dashboard'].includes(session.role)) return null;
+  if (!profile && ['cashier', 'iiko_dashboard', 'employee'].includes(session.role)) return null;
   if (profile?.active === false) return null;
   const profileRole = String(profile?.role || session.role);
   const profileBranchIds = Array.isArray(profile?.branch_ids)
     ? profile.branch_ids.map(String)
     : session.branch_ids || [];
-  if (['cashier', 'iiko_dashboard'].includes(session.role)) {
+  const passwordEmployee = session.role === 'employee' && Number(session.auth_version) > 0;
+  if (['cashier', 'iiko_dashboard'].includes(session.role) || passwordEmployee) {
     if (
       profileRole !== session.role ||
       (session.role === 'cashier' && profileBranchIds.length !== 1)

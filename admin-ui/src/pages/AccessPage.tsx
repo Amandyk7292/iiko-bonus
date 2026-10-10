@@ -36,7 +36,7 @@ interface AccessProfile {
 }
 
 interface StaffDraft {
-  mode: 'phone' | 'cashier';
+  mode: 'phone' | 'cashier' | 'employee';
   phone: string;
   username: string;
   password: string;
@@ -46,6 +46,7 @@ interface StaffDraft {
 }
 
 const roleLabelKeys: Record<string, string> = {
+  employee: 'access.role.employee',
   iiko_dashboard: 'access.role.iikoDashboard',
   franchisee: 'settlements.portal.role',
   owner: 'access.role.owner',
@@ -292,11 +293,12 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
   const createStaff = async (event: FormEvent) => {
     event.preventDefault();
     const cashier = draft.mode === 'cashier';
+    const passwordAccount = draft.mode !== 'phone';
     if (
       !draft.displayName.trim() ||
       creating ||
-      (cashier
-        ? !draft.username.trim() || !draft.password || draft.branchIds.length !== 1
+      (passwordAccount
+        ? !draft.username.trim() || !draft.password || (cashier && draft.branchIds.length !== 1)
         : !draft.phone.trim())
     ) {
       return;
@@ -304,12 +306,12 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
     setCreating(true);
     try {
       await api.createAccessProfile(
-        cashier
+        passwordAccount
           ? {
               username: draft.username,
               password: draft.password,
               displayName: draft.displayName,
-              role: 'cashier',
+              role: cashier ? 'cashier' : 'employee',
               branchIds: draft.branchIds,
             }
           : {
@@ -494,14 +496,18 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
               user?.username === profile.username && ['owner', 'admin'].includes(user.role);
             const phoneLogin = isPhoneProfile(profile.username);
             const cashierProfile = profile.role === 'cashier';
+            const employeePasswordProfile =
+              profile.role === 'employee' && profile.passwordConfigured;
             const availableRoles =
               profile.role === 'iiko_dashboard'
                 ? { iiko_dashboard: roleLabels.iiko_dashboard }
                 : cashierProfile
                   ? { cashier: roleLabels.cashier }
-                  : phoneLogin
-                    ? staffRoleLabels
-                    : environmentRoleLabels;
+                  : employeePasswordProfile
+                    ? { employee: roleLabels.employee }
+                    : phoneLogin
+                      ? staffRoleLabels
+                      : environmentRoleLabels;
             return (
               <article
                 className={`card access-card ${expandedProfile === profile.username ? 'is-expanded' : ''}`}
@@ -595,7 +601,7 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
                           name={`role-${profile.username}`}
                           value={profile.role}
                           onChange={(value) => patchProfile(profile.username, { role: value })}
-                          disabled={cashierProfile || selfOwner}
+                          disabled={cashierProfile || employeePasswordProfile || selfOwner}
                           options={Object.entries(availableRoles).map(([value, label]) => ({
                             value,
                             label,
@@ -616,7 +622,7 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
                     )}
 
                     <div className="action-cluster">
-                      {cashierProfile && (
+                      {(cashierProfile || employeePasswordProfile) && (
                         <button
                           className="btn-outline inline-flex items-center gap-2"
                           type="button"
@@ -704,10 +710,10 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
               disabled={
                 creating ||
                 !draft.displayName.trim() ||
-                (draft.mode === 'cashier'
+                (draft.mode !== 'phone'
                   ? !draft.username.trim() ||
                     draft.password.length < 10 ||
-                    draft.branchIds.length !== 1
+                    (draft.mode === 'cashier' && draft.branchIds.length !== 1)
                   : !draft.phone.trim())
               }
             >
@@ -738,6 +744,22 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
             </button>
             <button
               type="button"
+              className={draft.mode === 'employee' ? 'is-active' : ''}
+              aria-pressed={draft.mode === 'employee'}
+              onClick={() =>
+                setDraft((current) => ({
+                  ...current,
+                  mode: 'employee',
+                  role: 'employee',
+                  phone: '',
+                }))
+              }
+            >
+              <KeyRound aria-hidden="true" size={17} />
+              {t('access.employeeAccount')}
+            </button>
+            <button
+              type="button"
               className={draft.mode === 'phone' ? 'is-active' : ''}
               aria-pressed={draft.mode === 'phone'}
               onClick={() =>
@@ -756,7 +778,7 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
           </div>
 
           <div className="form-grid form-grid-2">
-            {draft.mode === 'cashier' ? (
+            {draft.mode !== 'phone' ? (
               <label className="field-group">
                 <span className="field-label">{t('access.username')}</span>
                 <input
@@ -776,7 +798,7 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
                       username: event.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''),
                     }))
                   }
-                  placeholder="cashier.aktau.1"
+                  placeholder={draft.mode === 'employee' ? 'employee.aktau.1' : 'cashier.aktau.1'}
                 />
               </label>
             ) : (
@@ -813,7 +835,7 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
             </label>
           </div>
 
-          {draft.mode === 'cashier' ? (
+          {draft.mode !== 'phone' ? (
             <div className="field-group">
               <label className="field-label" htmlFor="staff-password">
                 {t('access.password')}
@@ -875,12 +897,16 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
           />
 
           <div className="inline-alert inline-alert-info">
-            {draft.mode === 'cashier' ? (
+            {draft.mode !== 'phone' ? (
               <KeyRound aria-hidden="true" size={17} />
             ) : (
               <Phone aria-hidden="true" size={17} />
             )}
-            {draft.mode === 'cashier' ? t('access.cashierLoginHint') : t('access.loginHint')}
+            {draft.mode === 'employee'
+              ? t('access.employeeLoginHint')
+              : draft.mode === 'cashier'
+                ? t('access.cashierLoginHint')
+                : t('access.loginHint')}
           </div>
         </form>
       </GuardedModal>

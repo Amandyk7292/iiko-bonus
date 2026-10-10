@@ -256,15 +256,16 @@ export function Link({ to, onClick, target, ...props }: LinkProps) {
 }
 
 type NavLinkProps = Omit<LinkProps, 'className'> & {
+  end?: boolean;
   className?: string | ((state: { isActive: boolean }) => string);
 };
 
-export function NavLink({ className, to, ...props }: NavLinkProps) {
+export function NavLink({ className, to, end = false, ...props }: NavLinkProps) {
   const { location } = useRouter();
   const targetPath = to.split(/[?#]/, 1)[0] || '/';
   const isActive =
     location.pathname === targetPath ||
-    (targetPath !== '/' && location.pathname.startsWith(`${targetPath}/`));
+    (!end && targetPath !== '/' && location.pathname.startsWith(`${targetPath}/`));
   return (
     <Link
       {...props}
@@ -303,8 +304,9 @@ export function Routes({ children }: { children: ReactNode }) {
       isValidElement<RouteProps>(child) && child.type === Route,
   );
   const match =
-    routes.find((route) => route.props.path !== '*' && routeMatches(route.props.path, location.pathname)) ||
-    routes.find((route) => route.props.path === '*');
+    routes.find(
+      (route) => route.props.path !== '*' && routeMatches(route.props.path, location.pathname),
+    ) || routes.find((route) => route.props.path === '*');
   return match?.props.element ?? null;
 }
 

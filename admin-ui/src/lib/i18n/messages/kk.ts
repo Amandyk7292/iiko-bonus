@@ -4,10 +4,12 @@ import deliveryResolution from '../delivery-resolution';
 import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 import faq from '../faq';
+import academy from '../academy';
 const kk: Record<string, string> = {
   'common.previous': 'Алдыңғы бет',
   'common.next': 'Келесі бет',
   ...faq.kk,
+  ...academy.kk,
   'access.role.iikoDashboard': 'Тек Dashboard',
   ...settlements,
   ...productionBinding.kk,

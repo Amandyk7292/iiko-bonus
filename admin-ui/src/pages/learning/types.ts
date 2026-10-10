@@ -1,0 +1,94 @@
+export type JobRole = { id: string; title: string; description: string; active: boolean };
+export type Lesson = {
+  id: string;
+  title: string;
+  body: string;
+  videoUrl: string | null;
+  estimatedMinutes: number;
+  sortOrder: number;
+};
+export type CourseModule = { id: string; title: string; sortOrder: number; lessons: Lesson[] };
+export type Course = {
+  id: string;
+  title: string;
+  description: string;
+  roleIds: string[];
+  published: boolean;
+  modules: CourseModule[];
+  createdAt: string;
+  updatedAt: string;
+};
+export type Question = { id: string; prompt: string; choices: { id: string; text: string }[] };
+export type Assessment = {
+  id: string;
+  title: string;
+  description: string;
+  kind: 'practice' | 'control' | 'promotion';
+  roleIds: string[];
+  published: boolean;
+  questionCount: number;
+  maxAttempts: number;
+  passPercent: number;
+  timeLimitMinutes: number;
+  cooldownMinutes: number;
+  minimumTenureDays: number;
+  requiredCourseIds: string[];
+  targetRoleId: string | null;
+};
+export type EmployeeProfile = {
+  username: string;
+  displayName: string;
+  securityRole: string;
+  branchIds: string[];
+  jobRoleId: string | null;
+  jobRole: JobRole | null;
+  startDate: string | null;
+  tenureDays: number | null;
+  learningEnabled: boolean;
+};
+export type LessonProgress = { lessonId: string; courseId: string; completedAt: string };
+export type Progress = {
+  xp: number;
+  level: number;
+  completedLessons: number;
+  completedCourses: number;
+  lessons: LessonProgress[];
+};
+export type Achievement = { id: string; code: string; title: string; xp: number; earnedAt: string };
+export type Answer = { questionId: string; choiceId: string };
+export type Attempt = {
+  id: string;
+  assessmentId: string;
+  title: string;
+  kind: Assessment['kind'];
+  status: 'in_progress' | 'submitted' | 'expired';
+  startedAt: string;
+  deadlineAt: string;
+  submittedAt: string | null;
+  scorePercent: number | null;
+  passed: boolean | null;
+  passPercent: number;
+  targetRoleId: string | null;
+  promotionDecision: 'approved' | 'rejected' | null;
+  questions: Question[];
+  answers?: Answer[];
+  result?: { correctCount: number; questionCount: number; xpAwarded: number };
+};
+export type Assignment = {
+  id: string;
+  employeeUsername: string | null;
+  roleId: string | null;
+  courseId: string | null;
+  assessmentId: string | null;
+  required: boolean;
+  dueAt: string | null;
+  createdAt: string;
+};
+export type Cabinet = {
+  profile: EmployeeProfile;
+  progress: Progress;
+  assignments: Assignment[];
+  achievements: Achievement[];
+  attempts: Attempt[];
+};
+export type Catalog = { courses: Course[]; assessments: Assessment[] };

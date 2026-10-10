@@ -371,7 +371,7 @@ export const api = {
     const logoutRevision = authenticationRevision;
     // Keep the authenticated UI visible unless the server confirms that the
     // session has been revoked. Network/5xx failures remain retryable.
-    await request('/logout', json('POST'));
+    await request('/logout', json('POST'), { branchScope: '' });
     if (logoutRevision !== authenticationRevision) return;
     authenticationRevision++;
     window.dispatchEvent(new Event('unauthorized'));

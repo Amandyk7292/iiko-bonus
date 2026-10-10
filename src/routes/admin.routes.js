@@ -324,6 +324,7 @@ registerIikoDashboardRoutes(router);
 require('./admin/production-bindings.routes').registerProductionBindingRoutes(router);
 registerAccessAdminRoutes(router);
 registerStaffPushAdminRoutes(router);
+require('./admin/learning-platform.routes').registerLearningPlatformRoutes(router);
 require('./admin/branch-photo-reports.routes').registerBranchPhotoReportRoutes(router);
 require('./admin/pos-pairing.routes').registerPosPairingAdminRoutes(router);
 router.get('/admin/api/settings', adminAuthMiddleware, adminController.getSettingsHandler);

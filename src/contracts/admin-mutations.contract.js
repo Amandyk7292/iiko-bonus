@@ -1050,6 +1050,7 @@ const automationBodySchema = z
   .strict();
 
 const staffRoleSchema = z.enum([
+  'employee',
   'franchisee',
   'branch_manager',
   'operator',
@@ -1091,22 +1092,25 @@ const accessCreateBodySchema = z
   })
   .strict()
   .superRefine((value, context) => {
-    if (value.role === 'cashier') {
+    if (
+      value.role === 'cashier' ||
+      (value.role === 'employee' && (value.username || value.password))
+    ) {
       if (!value.username) {
         context.addIssue({
           code: 'custom',
           path: ['username'],
-          message: 'Укажите логин кассира',
+          message: 'Укажите логин сотрудника',
         });
       }
       if (!value.password) {
         context.addIssue({
           code: 'custom',
           path: ['password'],
-          message: 'Укажите пароль кассира',
+          message: 'Укажите пароль сотрудника',
         });
       }
-      if (value.branchIds.length !== 1) {
+      if (value.role === 'cashier' && value.branchIds.length !== 1) {
         context.addIssue({
           code: 'custom',
           path: ['branchIds'],
@@ -1117,7 +1121,7 @@ const accessCreateBodySchema = z
         context.addIssue({
           code: 'custom',
           path: ['phone'],
-          message: 'Для кассира используется логин, а не телефон',
+          message: 'Для входа по паролю используется логин, а не телефон',
         });
       }
       return;
@@ -1133,7 +1137,7 @@ const accessCreateBodySchema = z
       context.addIssue({
         code: 'custom',
         path: ['username'],
-        message: 'Логин и пароль доступны только для роли кассира',
+        message: 'Логин и пароль доступны для кассира или сотрудника обучения',
       });
     }
   });
@@ -1141,6 +1145,7 @@ const accessUpdateBodySchema = z
   .object({
     displayName: nullableText(160).optional(),
     role: z.enum([
+      'employee',
       'iiko_dashboard',
       'franchisee',
       'owner',

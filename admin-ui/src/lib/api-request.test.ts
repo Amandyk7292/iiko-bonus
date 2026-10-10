@@ -272,6 +272,43 @@ describe('admin API request abort composition', () => {
     window.removeEventListener('unauthorized', unauthorized);
   });
 
+  it.each([
+    '20000000-0000-4000-8000-000000000001',
+    'city:%D0%90%D0%BA%D1%82%D0%B0%D1%83|20000000-0000-4000-8000-000000000001,20000000-0000-4000-8000-000000000002',
+  ])('lets an employee sign out despite the previous account scope %s', async (storedScope) => {
+    localStorage.setItem('adminSelectedBranchId', storedScope);
+    const unauthorized = vi.fn();
+    window.addEventListener('unauthorized', unauthorized);
+    const fetchMock = vi.fn((_url: string, options: RequestInit) => {
+      const headers = new Headers(options.headers);
+      const outOfScope = headers.has('X-Bulka-Branch-Id') || headers.has('X-Bulka-Branch-Ids');
+      // This employee has no assigned branches; stale selections fail authorization.
+      return Promise.resolve(
+        new Response(
+          JSON.stringify(
+            outOfScope ? { error: 'Филиал не входит в область доступа' } : { success: true },
+          ),
+          {
+            status: outOfScope ? 403 : 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await expect(api.logout()).resolves.toBeUndefined();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0][0]).toBe('/admin/api/logout');
+      expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+      expect(unauthorized).toHaveBeenCalledTimes(1);
+      expect(localStorage.getItem('adminSelectedBranchId')).toBe(storedScope);
+    } finally {
+      window.removeEventListener('unauthorized', unauthorized);
+      localStorage.removeItem('adminSelectedBranchId');
+    }
+  });
+
   it('forwards caller cancellation and removes its listener during cleanup', () => {
     vi.useFakeTimers();
     const caller = new AbortController();

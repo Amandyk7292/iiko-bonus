@@ -73,15 +73,15 @@ async function authenticateCashier(
     !credential ||
     credential.username !== username ||
     credential.active === false ||
-    credential.role !== 'cashier' ||
-    branchIds.length !== 1
+    !['cashier', 'employee'].includes(credential.role) ||
+    (credential.role === 'cashier' && branchIds.length !== 1)
   ) {
     return null;
   }
 
   return {
     username,
-    role: 'cashier',
+    role: credential.role,
     branchIds,
     authVersion: Number(credential.auth_version),
   };
@@ -151,6 +151,73 @@ async function updateCashierAccess(
   return data;
 }
 
+async function createEmployeeAccess(
+  { username: rawUsername, displayName, branchIds = [], password },
+  { db = supabase, bcryptImpl = bcrypt } = {},
+) {
+  const username = normalizeCashierUsername(rawUsername);
+  if (!isValidCashierUsername(username)) {
+    throw Object.assign(
+      new Error('Логин: 3–64 символа, латинские буквы, цифры, точка, дефис или подчёркивание'),
+      {
+        statusCode: 400,
+        code: 'EMPLOYEE_USERNAME_INVALID',
+      },
+    );
+  }
+  const passwordHash = await hashCashierPassword(password, { bcryptImpl });
+  const { data, error } = await db.rpc('create_employee_access', {
+    p_username: username,
+    p_display_name: String(displayName || '').trim(),
+    p_branch_ids: branchIds,
+    p_password_hash: passwordHash,
+  });
+  if (error) throw error;
+  return data;
+}
+
+async function updateEmployeeAccess(
+  { username: rawUsername, displayName, branchIds = [], active },
+  { db = supabase } = {},
+) {
+  const username = normalizeCashierUsername(rawUsername);
+  if (!isValidCashierUsername(username)) {
+    throw Object.assign(new Error('Некорректный логин сотрудника'), {
+      statusCode: 400,
+      code: 'EMPLOYEE_USERNAME_INVALID',
+    });
+  }
+  const { data, error } = await db.rpc('update_employee_access', {
+    p_username: username,
+    p_display_name: displayName == null ? null : String(displayName).trim(),
+    p_branch_ids: branchIds,
+    p_active: active === true,
+  });
+  if (error) throw error;
+  return data;
+}
+
+async function resetEmployeePassword(
+  rawUsername,
+  password,
+  { db = supabase, bcryptImpl = bcrypt } = {},
+) {
+  const username = normalizeCashierUsername(rawUsername);
+  if (!isValidCashierUsername(username)) {
+    throw Object.assign(new Error('Некорректный логин сотрудника'), {
+      statusCode: 400,
+      code: 'EMPLOYEE_USERNAME_INVALID',
+    });
+  }
+  const passwordHash = await hashCashierPassword(password, { bcryptImpl });
+  const { data, error } = await db.rpc('reset_employee_password', {
+    p_username: username,
+    p_password_hash: passwordHash,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
 module.exports = {
   CASHIER_USERNAME_PATTERN,
   authenticateCashier,
@@ -161,4 +228,7 @@ module.exports = {
   normalizeCashierUsername,
   resetCashierPassword,
   updateCashierAccess,
+  createEmployeeAccess,
+  updateEmployeeAccess,
+  resetEmployeePassword,
 };

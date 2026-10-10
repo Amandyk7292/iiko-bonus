@@ -12,6 +12,7 @@ const ADMIN_PHONE_ROLES = new Set([
   'marketer',
   'courier',
   'viewer',
+  'employee',
 ]);
 
 const adminPhoneError = (message, statusCode = 400, code = 'ADMIN_PHONE_AUTH_ERROR') =>

@@ -1,5 +1,12 @@
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Eye, EyeOff, LoaderCircle, LockKeyhole, MessageCircle, Phone } from './components/BulkaIcons';
+import {
+  Eye,
+  EyeOff,
+  LoaderCircle,
+  LockKeyhole,
+  MessageCircle,
+  Phone,
+} from './components/BulkaIcons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from './lib/router';
 import {
   ApiError,
@@ -51,6 +58,8 @@ const WhatsAppPage = lazy(() => import('./pages/WhatsAppPage'));
 const OperationsPage = lazy(() => import('./pages/OperationsPage'));
 const SupportPage = lazy(() => import('./pages/SupportPage'));
 const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage'));
+const LearningPage = lazy(() => import('./pages/learning/LearningPage'));
+const AcademyAdminPage = lazy(() => import('./pages/academy-admin/AcademyAdminPage'));
 
 export function normalizeNumberInputValue(value: string) {
   return value.replace(/^(-?)0+(?=\d)/, '$1');
@@ -455,7 +464,11 @@ export default function App() {
   }, [adminUser?.role]);
 
   useEffect(() => {
-    if (isAuthenticated !== true || adminUser?.role === 'whatsapp_operator') return;
+    if (
+      isAuthenticated !== true ||
+      ['whatsapp_operator', 'employee'].includes(adminUser?.role || '')
+    )
+      return;
     let active = true;
     api.getAdminScope().then(
       (response) => {
@@ -564,6 +577,7 @@ export default function App() {
               partnerMode={role === 'franchisee'}
               dashboardMode={role === 'iiko_dashboard'}
               cashierMode={role === 'cashier'}
+              learningMode={role === 'employee'}
               embeddedStaffMode={embeddedStaffMode}
               scopeLocations={scopeLocations}
               selectedBranchId={selectedBranchId}
@@ -577,10 +591,21 @@ export default function App() {
                     }
               }
             />
-            <div className="sagi-page" key={location.pathname === '/bonus' ? 'bonus' : selectedBranchId || 'all-branches'}>
+            <div
+              className="sagi-page"
+              key={location.pathname === '/bonus' ? 'bonus' : selectedBranchId || 'all-branches'}
+            >
               <Suspense fallback={<PageState type="loading" />}>
                 <Routes>
                   <Route path="/" element={<Navigate to={firstPath} replace />} />
+                  <Route
+                    path="/learning/manage"
+                    element={guard('/learning/manage', <AcademyAdminPage role={role} />)}
+                  />
+                  <Route
+                    path="/learning"
+                    element={guard('/learning', <LearningPage role={role} />)}
+                  />
                   <Route path="/operations" element={guard('/operations', <OperationsPage />)} />
                   <Route path="/analytics" element={guard('/analytics', <AnalyticsPage />)} />
                   <Route path="/settlements" element={guard('/settlements', <SettlementsPage />)} />
@@ -631,7 +656,10 @@ export default function App() {
                       <TaplinkPage canPublish={['admin', 'owner'].includes(role)} />,
                     )}
                   />
-                  <Route path="/bonus" element={guard('/bonus', <BonusPage scope={selectedBranchId} />)} />
+                  <Route
+                    path="/bonus"
+                    element={guard('/bonus', <BonusPage scope={selectedBranchId} />)}
+                  />
                   <Route path="/tiers" element={guard('/tiers', <LoyaltyTiersPage />)} />
                   <Route path="/faq" element={guard('/faq', <FaqPage />)} />
                   <Route

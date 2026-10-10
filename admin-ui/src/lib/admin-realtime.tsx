@@ -281,6 +281,7 @@ export function AdminRealtimeProvider({
   const summaryRequestRef = useRef<Promise<void> | null>(null);
   const summaryGenerationRef = useRef(0);
   const canLoadSummary =
+    role !== 'employee' &&
     role !== 'whatsapp_operator' &&
     role !== 'courier' &&
     role !== 'cashier' &&
@@ -425,7 +426,7 @@ export function AdminRealtimeProvider({
   }, [branchId, refreshSummary]);
 
   useEffect(() => {
-    if (role === 'franchisee' || role === 'iiko_dashboard') return;
+    if (role === 'franchisee' || role === 'iiko_dashboard' || role === 'employee') return;
     const params = new URLSearchParams();
     const selection = parseAdminScopeSelection(branchId);
     if (selection.kind === 'branch') params.set('scopeBranchId', selection.branchId);

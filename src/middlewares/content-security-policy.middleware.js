@@ -187,6 +187,7 @@ const adminPolicy = {
   frameSrc: ["'self'"],
   workerSrc: ["'self'", 'blob:'],
   manifestSrc: ["'self'"],
+  mediaSrc: ["'self'", 'https:'],
 };
 
 const appPolicy = {

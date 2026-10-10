@@ -52,6 +52,8 @@ const routeKeys: Record<string, string> = {
   '/unavailable': 'unavailable',
   '/kitchen': 'kitchen',
   '/photo-reports': 'photoReports',
+  '/learning': 'learning',
+  '/learning/manage': 'learningManage',
   '/marketing': 'marketing',
   '/support': 'support',
   '/integrations': 'integrations',
@@ -66,6 +68,7 @@ export default function Topbar({
   partnerMode = false,
   dashboardMode = false,
   cashierMode = false,
+  learningMode = false,
   embeddedStaffMode = false,
   scopeLocations = [],
   selectedBranchId = '',
@@ -76,6 +79,7 @@ export default function Topbar({
   partnerMode?: boolean;
   dashboardMode?: boolean;
   cashierMode?: boolean;
+  learningMode?: boolean;
   embeddedStaffMode?: boolean;
   scopeLocations?: AdminScopeLocation[];
   selectedBranchId?: string;
@@ -96,12 +100,15 @@ export default function Topbar({
     );
   });
   const staffPushRef = useRef<StaffPushControlHandle>(null);
-  const page = routeKeys[location.pathname] ?? 'operations';
+  const page =
+    routeKeys[location.pathname] ??
+    (location.pathname.startsWith('/learning') ? 'learning' : 'operations');
   const usesCityScope = location.pathname === '/menu';
   const bonusTab = new URLSearchParams(location.search).get('tab');
-  const usesBranchScope = (location.pathname !== '/bonus' || ['referrals', 'registers'].includes(bonusTab || '')) && !['/taplink', '/faq', '/iiko-dashboard', '/photo-reports'].includes(
-    location.pathname,
-  );
+  const usesBranchScope =
+    !location.pathname.startsWith('/learning') &&
+    (location.pathname !== '/bonus' || ['referrals', 'registers'].includes(bonusTab || '')) &&
+    !['/taplink', '/faq', '/iiko-dashboard', '/photo-reports'].includes(location.pathname);
   const cityScopes = getAdminCityScopes(scopeLocations);
   const selectedScope = parseAdminScopeSelection(selectedBranchId);
   const selectedCity = cityScopeForSelection(cityScopes, selectedBranchId);
@@ -141,7 +148,10 @@ export default function Topbar({
     ? [
         {
           key: 'cashier-directory',
-          label: locale === 'kk' ? 'Қызметкерлер базасы жаңартылмайды' : 'База сотрудников не обновляется',
+          label:
+            locale === 'kk'
+              ? 'Қызметкерлер базасы жаңартылмайды'
+              : 'База сотрудников не обновляется',
           value: counts.cashierSyncIssues || 0,
           path: '/bonus',
           icon: RefreshCw,
@@ -224,7 +234,9 @@ export default function Topbar({
         </div>
       </div>
       <div className="topbar-actions">
-        {!operatorMode && !cashierMode && !partnerMode && !dashboardMode && <AdminGlobalSearch />}
+        {!operatorMode && !cashierMode && !partnerMode && !dashboardMode && !learningMode && (
+          <AdminGlobalSearch />
+        )}
         {cashierMode && (
           <div className="cashier-staff-controls">
             <div className="cashier-branch realtime-status" aria-label={t('adminScope.branch')}>
@@ -265,7 +277,7 @@ export default function Topbar({
             />
           </div>
         )}
-        {!operatorMode && !cashierMode && !partnerMode && !dashboardMode && (
+        {!operatorMode && !cashierMode && !partnerMode && !dashboardMode && !learningMode && (
           <div className="topbar-notifications" ref={notificationsRef}>
             <button
               ref={notificationsButtonRef}

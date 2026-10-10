@@ -34,6 +34,7 @@ const ADMIN_ROLES = new Set([
   'editor',
   'viewer',
   'cashier',
+  'employee',
   'whatsapp_operator',
 ]);
 
@@ -51,6 +52,7 @@ const sessionOptionsForAdmin = (admin) =>
   admin?.role === 'cashier' ? CASHIER_SESSION_OPTIONS : DEFAULT_ADMIN_SESSION_OPTIONS;
 
 const ROLE_AREAS = {
+  employee: new Set(['session', 'learning']),
   iiko_dashboard: new Set(['session', 'scope', 'iiko-dashboard']),
   franchisee: new Set(['session', 'scope', 'transactions']),
   owner: new Set(['*']),
@@ -603,6 +605,25 @@ const cashierMutationAllowed = (req, area) => {
 const adminMutationRoleMiddleware = (req, res, next) => {
   const readOnly = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
   const restrictedPath = String(req.path).toLowerCase().replace(/\/+$/, '');
+  const learningPath = restrictedPath.replace(/^\/admin\/api/, '');
+  if (/^\/?learning(?:\/|$)/.test(learningPath)) {
+    const learnerRead =
+      readOnly &&
+      /^\/?learning\/(?:me|catalog|courses\/[0-9a-f-]+|attempts\/[0-9a-f-]+)$/.test(learningPath);
+    const learnerWrite =
+      req.method === 'POST' &&
+      /^\/?learning\/(?:lessons\/[0-9a-f-]+\/progress|assessments\/[0-9a-f-]+\/attempts|attempts\/[0-9a-f-]+\/submit)$/.test(
+        learningPath,
+      );
+    const management =
+      /^\/?learning\/manage(?:\/|$)/.test(learningPath) &&
+      ['owner', 'admin', 'branch_manager'].includes(req.admin.role);
+    if (learnerRead || learnerWrite || management) return next();
+    return res.status(403).json({
+      error: 'Недостаточно прав для управления обучением',
+      code: 'LEARNING_MANAGEMENT_FORBIDDEN',
+    });
+  }
   if (
     req.admin.role === 'iiko_dashboard' &&
     !readOnly &&

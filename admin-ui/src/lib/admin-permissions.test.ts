@@ -31,10 +31,17 @@ describe('admin permissions shown by the frontend', () => {
   });
 
   it('keeps a cashier inside orders and kitchen without financial controls', () => {
-    expect(ADMIN_ALLOWED_PATHS.cashier).toEqual(['/kitchen', '/orders', '/menu']);
+    expect(ADMIN_ALLOWED_PATHS.cashier).toEqual(['/kitchen', '/orders', '/menu', '/learning']);
     expect(canMutateOrders('cashier')).toBe(false);
     expect(canRefundOrders('cashier')).toBe(false);
     expect(canMutateInventory('cashier')).toBe(false);
+  });
+
+  it('limits a learning-only employee to the personal cabinet', () => {
+    expect(ADMIN_ALLOWED_PATHS.employee).toEqual(['/learning']);
+    expect(ADMIN_ALLOWED_PATHS.branch_manager).toContain('/learning/manage');
+    expect(canMutateOrders('employee')).toBe(false);
+    expect(canMutateInventory('employee')).toBe(false);
   });
 
   it('removes manual courier workspaces without expanding retired courier permissions', () => {

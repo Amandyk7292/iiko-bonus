@@ -4,9 +4,12 @@ const { validateRequest } = require('../../middlewares/validation.middleware');
 const { ADMIN_PHONE_ROLES } = require('../../services/admin-phone-auth.service');
 const {
   createCashierAccess,
+  createEmployeeAccess,
   normalizeCashierUsername,
   resetCashierPassword,
+  resetEmployeePassword,
   updateCashierAccess,
+  updateEmployeeAccess,
 } = require('../../services/admin-credential-auth.service');
 const { revokeAdminSessionsForSubject } = require('../../services/admin-session.service');
 const { getBulkaLocations } = require('../../services/location.service');
@@ -126,7 +129,7 @@ const registerAccessAdminRoutes = (router) => {
 
       try {
         await assertExistingBranches(branchIds);
-        if (role === 'cashier') {
+        if (role === 'cashier' || (role === 'employee' && req.body?.username)) {
           const username = normalizeCashierUsername(req.body?.username);
           const envUsers = new Set(
             configuredAdminUsers().map((candidate) => candidate.toLowerCase()),
@@ -138,10 +141,11 @@ const registerAccessAdminRoutes = (router) => {
               code: 'ACCESS_USERNAME_EXISTS',
             });
           }
-          const profile = await createCashierAccess({
+          const profile = await (role === 'employee' ? createEmployeeAccess : createCashierAccess)({
             username,
             displayName,
             branchId: branchIds[0],
+            branchIds,
             password: req.body?.password,
           });
           return res.status(201).json({
@@ -220,6 +224,20 @@ const registerAccessAdminRoutes = (router) => {
           .eq('username', username)
           .maybeSingle();
         if (readError) throw readError;
+        const { data: credential, error: credentialError } = await supabase
+          .from('admin_staff_credentials')
+          .select('username')
+          .eq('username', username)
+          .maybeSingle();
+        if (credentialError) throw credentialError;
+        const credentialEmployee = existing?.role === 'employee' && Boolean(credential);
+        if (credentialEmployee && role !== 'employee') {
+          return res.status(409).json({
+            success: false,
+            error: 'Тип учётной записи сотрудника обучения нельзя изменить',
+            code: 'ACCESS_AUTH_METHOD_IMMUTABLE',
+          });
+        }
 
         if (existing?.role === 'iiko_dashboard' && role !== 'iiko_dashboard') {
           return res.status(409).json({
@@ -260,11 +278,12 @@ const registerAccessAdminRoutes = (router) => {
           active: req.body?.active !== false,
           updated_at: new Date().toISOString(),
         };
-        if (existing?.role === 'cashier') {
-          const data = await updateCashierAccess({
+        if (existing?.role === 'cashier' || credentialEmployee) {
+          const data = await (credentialEmployee ? updateEmployeeAccess : updateCashierAccess)({
             username,
             displayName: record.display_name,
             branchId: branchIds[0],
+            branchIds,
             active: record.active,
           });
           return res.json({
@@ -306,10 +325,20 @@ const registerAccessAdminRoutes = (router) => {
     validateRequest(adminMutationSchemas.accessPassword),
     async (req, res) => {
       try {
-        await resetCashierPassword(req.params.username, req.body?.password);
+        const username = normalizeCashierUsername(req.params.username);
+        const { data: profile, error } = await supabase
+          .from('admin_user_profiles')
+          .select('role')
+          .eq('username', username)
+          .maybeSingle();
+        if (error) throw error;
+        await (profile?.role === 'employee' ? resetEmployeePassword : resetCashierPassword)(
+          username,
+          req.body?.password,
+        );
         return res.json({ success: true });
       } catch (error) {
-        return routeError(res, error, 'Не удалось изменить пароль кассира');
+        return routeError(res, error, 'Не удалось изменить пароль сотрудника');
       }
     },
   );

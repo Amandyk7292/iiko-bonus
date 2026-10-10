@@ -25,6 +25,7 @@ import {
   Activity,
   Link2,
   CircleHelp,
+  BookOpenText,
 } from './BulkaIcons';
 import { NavLink, useLocation } from '../lib/router';
 import { ADMIN_ALLOWED_PATHS } from '../lib/admin-permissions';
@@ -81,6 +82,13 @@ const sections = [
     ],
   },
   {
+    title: 'nav.academy',
+    items: [
+      { to: '/learning', label: 'nav.learning', icon: BookOpenText },
+      { to: '/learning/manage', label: 'nav.learningManage', icon: Settings2 },
+    ],
+  },
+  {
     title: 'nav.system',
     items: [
       { to: '/locations', label: 'nav.locations', icon: Building2 },
@@ -126,6 +134,7 @@ export default function Sidebar({
                   .flatMap((section) => section.items)
                   .filter((item) => ['/orders', '/kitchen'].includes(item.to)),
                 { to: '/menu', label: 'nav.inventory', icon: UtensilsCrossed },
+                { to: '/learning', label: 'nav.learning', icon: BookOpenText },
               ],
             },
           ]
@@ -292,6 +301,7 @@ export default function Sidebar({
                         <NavLink
                           key={item.to}
                           to={item.to}
+                          end={item.to === '/learning'}
                           onClick={onClose}
                           className={({ isActive }) =>
                             isActive ? 'sagi-nav-link sagi-nav-link-active' : 'sagi-nav-link'

@@ -90,6 +90,7 @@ describe('Sidebar role navigation', () => {
   });
 
   for (const role of [
+    'employee',
     'branch_manager',
     'operator',
     'marketer',
@@ -119,6 +120,16 @@ describe('Sidebar role navigation', () => {
     expect(paths).not.toContain('/couriers');
     expect(paths).not.toContain('/dispatch');
     expect(paths).not.toContain('/reviews');
+  });
+
+  it('marks only academy management active on its separate route', () => {
+    window.history.replaceState({}, '', '/admin/learning/manage');
+    renderSidebar('owner');
+    expect(screen.getByRole('link', { name: 'Управление обучением' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByRole('link', { name: 'Моё обучение' })).not.toHaveAttribute('aria-current');
   });
 
   it.each(['owner', 'admin', 'editor', 'marketer'])(
