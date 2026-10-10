@@ -54,12 +54,16 @@ function page(t, reply, url = 'https://bulka.com.kz/branch-reports#t=branch-qr')
     calls,
     get: (id) => w.document.getElementById(id),
     polls: () => [...timers.values()].filter((timer) => timer.delay === 5000).length,
-    async poll() {
-      const found = [...timers].find(([, timer]) => timer.delay === 5000);
-      assert.ok(found, 'a pending poll is scheduled');
+    timerDelays: () => [...timers.values()].map((timer) => timer.delay),
+    async runTimer(delay) {
+      const found = [...timers].find(([, timer]) => timer.delay === delay);
+      assert.ok(found, `a ${delay}ms timer is scheduled`);
       timers.delete(found[0]);
       found[1].callback();
       await flush();
+    },
+    async poll() {
+      await this.runTimer(5000);
     },
     visibility(value) {
       hidden = value;
@@ -200,6 +204,9 @@ test('pending polling stops while hidden, after pagehide, and on network failure
   await flush();
   assert.equal(ui.calls.length, 3, 'network failure does not restart automatic polling');
   offline = false;
+  ui.w.dispatchEvent(new ui.w.Event('online'));
+  await flush();
+  assert.equal(ui.calls.length, 3, 'online does not resume failed pending approval polling');
   ui.get('check-device').click();
   await flush();
   assert.equal(ui.calls.length, 4);
@@ -445,11 +452,72 @@ test('period rollover preserves photos, updates the visible date and waits for a
 
 test('network errors keep the paired tablet and its unsent photos without instructing another QR scan', async (t) => {
   let checks = 0;
+  let offline = false;
   const ui = page(t, async (url) => {
     if (url.endsWith('/device')) {
-      if (++checks > 1) throw new Error('network offline');
+      checks++;
+      if (offline) throw new Error('network offline');
       return response(status('active'));
     }
+    return response(session());
+  });
+  const captured = camera(ui);
+  ui.start();
+  await flush();
+  ui.w.document.querySelector('[data-kind=hall]').click();
+  await flush();
+  ui.get('take-photo').click();
+  await flush();
+  offline = true;
+  ui.visibility(true);
+  ui.visibility(false);
+  await flush();
+  assert.equal(ui.get('capture').hidden, false);
+  assert.equal(ui.w.document.querySelectorAll('.preview').length, 1);
+  assert.equal(captured.revoked(), 0);
+  assert.match(ui.get('error').textContent, /интернет/);
+  assert.doesNotMatch(ui.get('error').textContent, /QR/);
+  assert.equal(ui.get('send').disabled, false);
+  assert.equal(
+    ui.get('retry').hidden,
+    false,
+    'the active screen offers a visible recovery control',
+  );
+  offline = false;
+  ui.get('retry').click();
+  await flush();
+  assert.equal(checks, 3, 'retry rechecks device access instead of only loading a session');
+  assert.equal(ui.get('error').hidden, true);
+  assert.equal(ui.get('retry').hidden, true);
+  assert.equal(ui.w.document.querySelectorAll('.preview').length, 1);
+  assert.equal(captured.revoked(), 0);
+  assert.equal(ui.calls.filter(({ url }) => url.endsWith('/session')).length, 1);
+  ui.visibility(true);
+  ui.visibility(false);
+  await flush();
+  assert.equal(checks, 4, 'manual recovery restores later foreground checks');
+  offline = true;
+  ui.visibility(true);
+  ui.visibility(false);
+  await flush();
+  offline = false;
+  await ui.runTimer(5000);
+  assert.equal(checks, 6, 'the visible page also recovers automatically');
+  assert.equal(ui.get('capture').hidden, false);
+  assert.equal(ui.get('send').disabled, false);
+  assert.equal(ui.w.document.querySelectorAll('.preview').length, 1);
+  assert.equal(captured.revoked(), 0);
+  assert.equal(ui.calls.filter(({ url }) => url.endsWith('/session')).length, 1);
+  assert.equal(ui.calls.filter(({ options }) => options.method === 'POST').length, 1);
+});
+
+test('a foreground check recovers an active tablet after a transient failure without changing its captured batch', async (t) => {
+  let checks = 0;
+  const ui = page(t, async (url) => {
+    if (url.endsWith('/device'))
+      return ++checks === 2
+        ? response({ error: 'Temporarily unavailable' }, 503)
+        : response(status('active'));
     return response(session());
   });
   const captured = camera(ui);
@@ -462,16 +530,188 @@ test('network errors keep the paired tablet and its unsent photos without instru
   ui.visibility(true);
   ui.visibility(false);
   await flush();
+  assert.equal(ui.get('retry').hidden, false);
+  assert.deepEqual(ui.timerDelays(), [5000]);
+  ui.visibility(true);
+  assert.deepEqual(ui.timerDelays(), [], 'hidden pages cancel recovery timers');
+  ui.w.dispatchEvent(new ui.w.Event('online'));
+  await flush();
+  assert.equal(checks, 2, 'online cannot restart a hidden page');
+  ui.visibility(false);
+  await flush();
+  assert.equal(checks, 3, 'the next foreground attempt does not remain blocked by deviceFailed');
+  assert.equal(ui.get('error').hidden, true);
   assert.equal(ui.get('capture').hidden, false);
+  assert.equal(ui.get('send').disabled, false);
   assert.equal(ui.w.document.querySelectorAll('.preview').length, 1);
   assert.equal(captured.revoked(), 0);
-  assert.match(ui.get('error').textContent, /интернет/);
+  assert.equal(ui.calls.filter(({ url }) => url.endsWith('/session')).length, 1);
+  assert.equal(
+    ui.calls.filter(({ url, options }) => url.endsWith('/device') && options.method !== 'GET')
+      .length,
+    0,
+  );
+});
+
+test('visible device recovery caps backoff at one minute and online restores cookie-only bootstrap without pairing', async (t) => {
+  let checks = 0;
+  let offline = true;
+  const ui = page(
+    t,
+    async (url) => {
+      if (url.endsWith('/device')) {
+        checks++;
+        if (offline) return response({ error: 'Database temporarily unavailable' }, 503);
+        return response(status('active'));
+      }
+      return response(session());
+    },
+    'https://bulka.com.kz/branch-reports',
+  );
+  ui.start();
+  await flush();
+  for (const delay of [5000, 15000, 30000, 60000, 60000]) {
+    assert.deepEqual(ui.timerDelays(), [delay]);
+    await ui.runTimer(delay);
+  }
+  assert.equal(checks, 6, 'retries continue through a prolonged outage');
+  assert.deepEqual(ui.timerDelays(), [60000], 'further checks remain capped at once per minute');
+  assert.equal(ui.get('retry').hidden, false);
   assert.doesNotMatch(ui.get('error').textContent, /QR/);
-  assert.equal(ui.get('send').disabled, false);
+  ui.w.dispatchEvent(new ui.w.Event('online'));
+  await flush();
+  assert.equal(checks, 7, 'online starts a fresh recovery attempt before the timer');
+  assert.deepEqual(ui.timerDelays(), [5000]);
+  offline = false;
+  ui.w.dispatchEvent(new ui.w.Event('online'));
+  await flush();
+  assert.equal(checks, 8);
+  assert.equal(ui.get('intro').hidden, false);
+  assert.equal(ui.get('error').hidden, true);
+  assert.deepEqual(ui.timerDelays(), []);
+  assert.equal(ui.calls.filter(({ url }) => url.endsWith('/session')).length, 1);
+  assert.equal(
+    ui.calls.filter(({ url, options }) => url.endsWith('/device') && options.method !== 'GET')
+      .length,
+    0,
+  );
+});
+
+test('automatic device recovery preserves photos and stops on revocation or branch mismatch', async (t) => {
+  for (const code of ['PHOTO_REPORT_DEVICE_REVOKED', 'PHOTO_REPORT_DEVICE_BRANCH_MISMATCH']) {
+    let checks = 0;
+    const ui = page(t, async (url) => {
+      if (url.endsWith('/device')) {
+        checks++;
+        if (checks === 2) return response({ error: 'Temporarily unavailable' }, 503);
+        if (checks > 2) return response({ code, error: 'Device access denied' }, 403);
+        return response(status('active'));
+      }
+      return response(session());
+    });
+    const captured = camera(ui);
+    ui.start();
+    await flush();
+    ui.w.document.querySelector('[data-kind=hall]').click();
+    await flush();
+    ui.get('take-photo').click();
+    await flush();
+    ui.visibility(true);
+    ui.visibility(false);
+    await flush();
+    assert.equal(ui.w.document.querySelectorAll('.preview').length, 1);
+    assert.equal(captured.revoked(), 0);
+    await ui.runTimer(5000);
+    assert.equal(ui.get('device').hidden, false, code);
+    assert.equal(ui.get('send').disabled, true);
+    assert.equal(ui.w.document.querySelectorAll('.preview').length, 0);
+    assert.equal(captured.revoked(), 1);
+    assert.deepEqual(ui.timerDelays(), []);
+    ui.w.dispatchEvent(new ui.w.Event('online'));
+    await flush();
+    assert.equal(checks, 3, 'online cannot restore explicitly denied access');
+    assert.equal(ui.calls.filter(({ url }) => url.endsWith('/session')).length, 1);
+    assert.equal(
+      ui.calls.filter(({ url, options }) => url.endsWith('/device') && options.method !== 'GET')
+        .length,
+      0,
+    );
+  }
+});
+
+test('manual logout and pagehide cancel a scheduled active-device recovery', async (t) => {
+  for (const exit of ['logout', 'pagehide']) {
+    let checks = 0;
+    const ui = page(t, async (url) => {
+      if (url.endsWith('/device/logout')) return response({ success: true });
+      if (url.endsWith('/device'))
+        return ++checks === 2
+          ? response({ error: 'Temporarily unavailable' }, 503)
+          : response(status('active'));
+      return response(session());
+    });
+    ui.w.confirm = () => true;
+    ui.start();
+    await flush();
+    ui.visibility(true);
+    ui.visibility(false);
+    await flush();
+    assert.deepEqual(ui.timerDelays(), [5000]);
+    if (exit === 'logout') ui.get('disconnect-device').click();
+    else ui.w.dispatchEvent(new ui.w.Event('pagehide'));
+    await flush();
+    assert.deepEqual(ui.timerDelays(), [], exit + ' cancels the retry');
+    ui.w.dispatchEvent(new ui.w.Event('online'));
+    await flush();
+    assert.equal(checks, 2);
+    if (exit === 'logout') {
+      assert.equal(ui.get('device').hidden, false);
+      assert.match(ui.get('device-status').textContent, /отключён/);
+    }
+  }
+});
+
+test('foreground refresh with no pending photos adopts the server current date and shift', async (t) => {
+  let sessions = 0;
+  const ui = page(t, async (url, options) => {
+    if (url.endsWith('/device')) return response(status('active'));
+    assert.equal(options.body, '{}', 'current period is chosen by the server');
+    sessions++;
+    return response({
+      ...session(sessions),
+      branch: {
+        ...branch,
+        roundTheClock: true,
+        photoDayShiftStart: '08:00',
+        photoNightShiftStart: '20:00',
+      },
+      date: sessions === 1 ? '2026-10-04' : '2026-10-05',
+      shift: sessions === 1 ? 'day' : 'night',
+    });
+  });
+  ui.start();
+  await flush();
+  assert.match(ui.get('date').textContent, /4 октября/);
+  ui.visibility(true);
+  ui.visibility(false);
+  await flush();
+  assert.equal(sessions, 2);
+  assert.match(ui.get('date').textContent, /5 октября/);
+  assert.equal(
+    ui.w.document.querySelector('[data-shift=night]').getAttribute('aria-pressed'),
+    'true',
+  );
+  assert.equal(ui.get('intro').hidden, false);
+  assert.equal(
+    ui.calls.filter(({ url, options }) => url.endsWith('/device') && options.method !== 'GET')
+      .length,
+    0,
+  );
 });
 
 test('cookie bootstrap rejection disables a previously paired tablet and manual logout uses no client-selected identity', async (t) => {
   let revoked = false;
+  let confirmations = 0;
   const ui = page(t, async (url, options) => {
     if (url.endsWith('/device/logout')) {
       assert.equal(options.method, 'POST');
@@ -485,10 +725,20 @@ test('cookie bootstrap rejection disables a previously paired tablet and manual 
         : response(status('active'));
     return response(session());
   });
+  ui.w.confirm = (message) => {
+    confirmations++;
+    assert.equal(
+      message,
+      'Отключить планшет от точки? Для повторного подключения понадобится подтверждение администратора.',
+    );
+    assert.equal(revoked, false, 'confirmation precedes the logout request');
+    return true;
+  };
   ui.start();
   await flush();
   ui.get('disconnect-device').click();
   await flush();
+  assert.equal(confirmations, 1);
   assert.equal(ui.get('device').hidden, false);
   assert.match(ui.get('device-status').textContent, /отключён/);
   assert.equal(ui.get('send').disabled, true);
@@ -497,6 +747,64 @@ test('cookie bootstrap rejection disables a previously paired tablet and manual 
   assert.equal(ui.get('intro').hidden, true);
   assert.equal(ui.get('device').hidden, false);
   assert.equal(ui.calls.filter(({ url }) => url.endsWith('/session')).length, 1);
+});
+
+test('canceling disconnect leaves pairing, captured photos and a scheduled recovery intact', async (t) => {
+  let checks = 0;
+  let confirmations = 0;
+  const submissions = [];
+  const ui = page(t, async (url, options) => {
+    if (url.endsWith('/device'))
+      return ++checks === 2
+        ? response({ error: 'Temporarily unavailable' }, 503)
+        : response(status('active'));
+    if (url.endsWith('/submit')) {
+      submissions.push(options);
+      return response({ submitted: true });
+    }
+    return response(session());
+  });
+  ui.w.confirm = () => {
+    confirmations++;
+    return false;
+  };
+  const captured = camera(ui);
+  ui.start();
+  await flush();
+  ui.w.document.querySelector('[data-kind=hall]').click();
+  await flush();
+  ui.get('take-photo').click();
+  await flush();
+  ui.visibility(true);
+  ui.visibility(false);
+  await flush();
+  const requestCount = ui.calls.length;
+  const message = ui.get('error').textContent;
+  const stops = captured.stops();
+  ui.get('disconnect-device').click();
+  await flush();
+  assert.equal(confirmations, 1);
+  assert.equal(ui.calls.length, requestCount, 'cancel sends no logout or other request');
+  assert.equal(captured.stops(), stops, 'cancel does not change the camera state');
+  assert.equal(captured.revoked(), 0);
+  assert.equal(ui.w.document.querySelectorAll('.preview').length, 1);
+  assert.equal(ui.get('capture').hidden, false);
+  assert.equal(ui.get('device').hidden, true);
+  assert.equal(ui.get('send').disabled, false);
+  assert.equal(ui.get('disconnect-device').disabled, false);
+  assert.equal(ui.get('error').textContent, message);
+  assert.equal(ui.get('retry').hidden, false);
+  assert.deepEqual(ui.timerDelays(), [5000], 'cancel preserves the scheduled GET recovery');
+  await ui.runTimer(5000);
+  assert.equal(checks, 3);
+  assert.equal(ui.calls.filter(({ url }) => url.endsWith('/session')).length, 1);
+  ui.get('send').click();
+  await flush();
+  assert.equal(submissions.length, 1, 'the existing authorized draft can still be sent');
+  assert.equal(submissions[0].headers['X-Bulka-Report-Session'], 'session-1');
+  assert.equal(submissions[0].body.getAll('photos').length, 1);
+  assert.equal(ui.get('success').hidden, false);
+  assert.equal(ui.calls.filter(({ url }) => url.endsWith('/device/logout')).length, 0);
 });
 
 test('a late camera frame is discarded when device access is revoked during capture', async (t) => {

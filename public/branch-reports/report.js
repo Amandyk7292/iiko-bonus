@@ -32,6 +32,8 @@
     pairingCode,
     pairingExpiresAt,
     pollTimer,
+    retryTimer,
+    deviceRetryCount = 0,
     deviceController,
     deviceGeneration = 0,
     sessionController,
@@ -84,6 +86,8 @@
   const stopDeviceChecks = () => {
     clearTimeout(pollTimer);
     pollTimer = undefined;
+    clearTimeout(retryTimer);
+    retryTimer = undefined;
     deviceGeneration++;
     deviceController?.abort();
     deviceController = undefined;
@@ -162,6 +166,16 @@
       void checkDevice();
     }, 5000);
   }
+  function scheduleDeviceRetry() {
+    const delays = [5000, 15000, 30000, 60000];
+    if (device.status === 'pending' || document.hidden || pageHidden) return;
+    retryTimer = setTimeout(() => {
+      retryTimer = undefined;
+      if (document.hidden || pageHidden || !deviceFailed) return;
+      void checkDevice('GET', { automatic: true });
+    }, delays[deviceRetryCount]);
+    deviceRetryCount = Math.min(deviceRetryCount + 1, delays.length - 1);
+  }
   async function request(path, options = {}) {
     const controller = new AbortController();
     const external = options.signal;
@@ -199,9 +213,10 @@
       external?.removeEventListener('abort', abort);
     }
   }
-  async function checkDevice(method = 'GET') {
+  async function checkDevice(method = 'GET', { automatic = false } = {}) {
     if (pageHidden || (method === 'POST' && (deviceBusy || device.status === 'wrong_branch')))
       return;
+    if (!automatic) deviceRetryCount = 0;
     stopDeviceChecks();
     const generation = deviceGeneration;
     const controller = new AbortController();
@@ -228,6 +243,7 @@
       )
         throw new Error('Не удалось проверить подключение. Попробуйте ещё раз.');
       device = response.device;
+      deviceRetryCount = 0;
       deviceBranch = response.branch;
       pairingCode = response.pairingCode == null ? undefined : String(response.pairingCode);
       pairingExpiresAt = response.expiresAt || response.device.expiresAt;
@@ -249,7 +265,8 @@
         } catch {
           /* Cookie-bound requests work without browser storage. */
         }
-        if (!context) await load(undefined, { preservePhotos: photos.length > 0 });
+        if (!context || (!photos.length && !sending && !captureBusy))
+          await load(undefined, { preservePhotos: photos.length > 0 });
       }
       if (generation === deviceGeneration) scheduleDeviceCheck();
     } catch (caught) {
@@ -261,6 +278,7 @@
         return;
       }
       deviceFailed = true;
+      element('retry').hidden = false;
       if (!deviceAllowed) show('device');
       error(
         !token && !deviceAllowed && caught.code === 'PHOTO_REPORT_DEVICE_REQUIRED'
@@ -269,6 +287,8 @@
             ? caught.message
             : 'Нет связи. Проверьте интернет и повторите проверку.',
       );
+      if (!caught.isApiError || caught.status >= 500 || [408, 429].includes(caught.status))
+        scheduleDeviceRetry();
     } finally {
       if (generation === deviceGeneration) {
         deviceBusy = false;
@@ -637,12 +657,20 @@
   );
   element('next-report').addEventListener('click', () => load(context?.shift));
   element('retry').addEventListener('click', () =>
-    deviceAllowed ? load(context?.shift, { preservePhotos: photos.length > 0 }) : checkDevice(),
+    deviceFailed || !deviceAllowed
+      ? checkDevice()
+      : load(context?.shift, { preservePhotos: photos.length > 0 }),
   );
   element('enroll-device').addEventListener('click', () => checkDevice('POST'));
   element('check-device').addEventListener('click', () => checkDevice());
   element('disconnect-device').addEventListener('click', async () => {
     if (!deviceAllowed || sending || captureBusy || deviceBusy) return;
+    if (
+      !confirm(
+        'Отключить планшет от точки? Для повторного подключения понадобится подтверждение администратора.',
+      )
+    )
+      return;
     stopDeviceChecks();
     deviceBusy = true;
     element('disconnect-device').disabled = true;
@@ -678,9 +706,13 @@
       sessionGeneration++;
       sessionController?.abort();
       renderDevice();
-    } else if (!pageHidden && !deviceFailed) {
+    } else if (!pageHidden && (!deviceFailed || device.status !== 'pending')) {
       void checkDevice();
     }
+  });
+  window.addEventListener('online', () => {
+    if (deviceFailed && !document.hidden && !pageHidden && device.status !== 'pending')
+      void checkDevice();
   });
   window.addEventListener('beforeunload', (event) => {
     if (photos.length || sending) {

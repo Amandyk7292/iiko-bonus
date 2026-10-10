@@ -108,6 +108,7 @@ def run():
                     assert state["permanentSessions"] >= 1
                     page.locator("#next-report").click()
                     expect(page.locator("#intro")).to_be_visible()
+                page.once("dialog", lambda dialog: dialog.accept())
                 page.locator("#disconnect-device").click()
                 expect(page.locator("#device-status")).to_have_text("Планшет отключён")
                 assert not any(cookie["name"] == "bulka_report_device" for cookie in context.cookies())

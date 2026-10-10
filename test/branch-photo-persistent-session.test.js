@@ -217,3 +217,47 @@ test('manual disconnect revokes only the credential owner, invalidates permanent
     code: 'PHOTO_REPORT_DEVICE_EXPIRED',
   });
 });
+
+test('the same approved tablet opens a fresh report after daily and shift rollover without enrollment', async (t) => {
+  const f = await fixture(t);
+  const token = await approveDevice(f.qr, { db: f.db });
+  const device = await devices.findDevice(token, { db: f.db });
+  for (const roundTheClock of [false, true]) {
+    await f.pg.query('update bulka_locations set round_the_clock=$1 where id=$2', [
+      roundTheClock,
+      A,
+    ]);
+    const yesterday = new Date('2026-10-08T18:00:00Z');
+    const today = new Date('2026-10-10T18:00:00Z');
+    const old = await service.openSession(undefined, {
+      db: f.db,
+      deviceToken: token,
+      now: yesterday,
+    });
+    await assert.rejects(
+      service.resolveSession(old.sessionToken, { db: f.db, deviceToken: token, now: today }),
+      { code: 'PHOTO_REPORT_SESSION_EXPIRED' },
+    );
+    const state = await devices.status(undefined, token, { db: f.db, now: today });
+    assert.equal(state.device.status, 'active');
+    assert.equal(state.device.id, device.id);
+    assert.equal(state.device.expiresAt, null);
+    const fresh = await service.openSession(undefined, {
+      db: f.db,
+      deviceToken: token,
+      now: today,
+    });
+    const current = await service.resolveSession(fresh.sessionToken, {
+      db: f.db,
+      deviceToken: token,
+      now: today,
+    });
+    assert.equal(current.device_id, device.id);
+    assert.equal(current.expires_at, null);
+    assert.notEqual(fresh.date, old.date);
+  }
+  assert.equal(
+    (await f.pg.query('select count(*)::int n from branch_closing_devices')).rows[0].n,
+    1,
+  );
+});
