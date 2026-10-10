@@ -70,6 +70,9 @@ test.before(async () => {
   await db.exec(
     fs.readFileSync('supabase/migrations/20261007151000_walking_reward_notifications.sql', 'utf8'),
   );
+  await db.exec(
+    fs.readFileSync('supabase/migrations/20261010100000_walking_reward_amount_100.sql', 'utf8'),
+  );
   today = (await row("select (now() at time zone 'Asia/Almaty')::date::text as walking_day"))
     .walking_day;
 });
@@ -88,18 +91,21 @@ test.beforeEach(async () => {
   );
 });
 test.after(() => db.close());
-test('9,999 steps gives no reward; 10,000 gives exactly 1,000, atomically with the ledger', async () => {
+test('9,999 steps gives no reward; 10,000 gives exactly 100, atomically with the ledger', async () => {
   assert.equal((await apply(9999)).credited, false);
   assert.equal(Number((await row('select balance from customers')).balance), 200);
-  assert.equal((await apply(10000, { counter: 2 })).credited, true);
-  assert.equal(Number((await row('select balance from customers')).balance), 1200);
+  const result = await apply(10000, { counter: 2 });
+  assert.equal(result.credited, true);
+  assert.equal(result.rewardAmount, 100);
+  assert.equal(result.creditedAmount, 100);
+  assert.equal(Number((await row('select balance from customers')).balance), 300);
   const ledger = await row('select * from transactions');
-  assert.equal(Number(ledger.amount), 1000);
+  assert.equal(Number(ledger.amount), 100);
   assert.equal(ledger.type, 'deposit');
   assert.match(ledger.order_id, /^WALKING-/);
   assert.equal(
     Number((await row('select reward_amount from walking_daily_progress')).reward_amount),
-    1000,
+    100,
   );
 });
 test('the threshold saves one inbox notice and durable push with distinct installed tokens and legacy fallback', async () => {
@@ -122,10 +128,10 @@ test('the threshold saves one inbox notice and durable push with distinct instal
   const notice = await row('select * from customer_notifications');
   const push = await row('select * from push_notification_outbox');
   assert.equal(notice.type, 'bonus');
-  assert.equal(notice.title, 'Начислено +1 000 бонусов');
+  assert.equal(notice.title, 'Начислено +100 бонусов');
   assert.equal(notice.payload.walkingDate, today);
-  assert.equal(notice.payload.amount, 1000);
-  assert.equal(notice.payload.balance, 1200);
+  assert.equal(notice.payload.amount, 100);
+  assert.equal(notice.payload.balance, 300);
   assert.equal(push.payload.notificationId, notice.id);
   assert.equal(push.dedupe_key, `walking:${notice.id}`);
   assert.equal(push.status, 'queued');
@@ -164,10 +170,10 @@ test('notifications use the customer language and preserve translations for late
     );
     const expected =
       language === 'kk'
-        ? '+1 000 бонус есептелді'
+        ? '+100 бонус есептелді'
         : language === 'en'
-          ? '+1,000 bonuses earned'
-          : 'Начислено +1 000 бонусов';
+          ? '+100 bonuses earned'
+          : 'Начислено +100 бонусов';
     assert.equal(notice.title, expected);
     assert.equal(push.title, expected);
     assert.deepEqual(Object.keys(notice.payload.i18n.titles).sort(), ['en', 'kk', 'ru']);
@@ -281,7 +287,7 @@ test('a push provider rejection remains durably retryable without failing or dup
   const outcomes = await deliverPushOutbox(
     {
       sendToken: async (_, title, body, payload) => {
-        assert.equal(title, 'Начислено +1 000 бонусов');
+        assert.equal(title, 'Начислено +100 бонусов');
         assert.match(body, /10 000 шагов/);
         assert.equal(notificationCategory(payload), 'bonus');
         return { delivered: false, terminal: false, error: 'messaging/internal-error' };
@@ -292,7 +298,7 @@ test('a push provider rejection remains durably retryable without failing or dup
   );
   assert.equal(outcomes[0].status, 'retry');
   assert.equal((await row('select status from push_notification_outbox')).status, 'retry');
-  assert.equal(Number((await row('select balance from customers')).balance), 1200);
+  assert.equal(Number((await row('select balance from customers')).balance), 300);
   await db.exec("update push_notification_outbox set next_attempt_at=now()-interval '1 second'");
   const delivered = await deliverPushOutbox(
     {
@@ -344,7 +350,7 @@ test('existing bonus preferences and quiet hours apply to queued walking pushes 
     { db: adapter },
   );
   assert.equal(disabled[0].status, 'skipped');
-  assert.equal(Number((await row('select balance from customers')).balance), 1200);
+  assert.equal(Number((await row('select balance from customers')).balance), 300);
   assert.equal((await row('select count(*)::int n from customer_notifications')).n, 1);
 });
 test('new signed requests and 20,000 steps never double-credit the same day', async () => {
@@ -353,7 +359,63 @@ test('new signed requests and 20,000 steps never double-credit the same day', as
   assert.equal(result.credited, false);
   assert.equal(result.rewarded, true);
   assert.equal(result.steps, 20000);
+  assert.equal(result.creditedAmount, 100);
+  assert.equal(Number((await row('select balance from customers')).balance), 300);
   assert.equal((await row('select count(*)::int n from transactions')).n, 1);
+});
+
+test('migration preserves an already credited 1,000 reward and never awards it again', async () => {
+  const original = fs.readFileSync(
+    'supabase/migrations/20261002130000_walking_rewards.sql',
+    'utf8',
+  );
+  const legacyRpc = original
+    .slice(
+      original.indexOf('create function public.apply_walking_steps('),
+      original.lastIndexOf('commit;'),
+    )
+    .replace(
+      'create function public.apply_walking_steps(',
+      'create or replace function public.apply_walking_steps(',
+    );
+  await db.exec(legacyRpc);
+  await db.query('update customers set fcm_token=$1 where id=$2', [
+    'walking-legacy-reward-token',
+    customerId,
+  ]);
+  try {
+    await apply(10000);
+    const before = {};
+    for (const table of [
+      'customers',
+      'transactions',
+      'walking_daily_progress',
+      'customer_notifications',
+      'push_notification_outbox',
+    ]) {
+      before[table] = (await db.query(`select * from ${table}`)).rows;
+    }
+    assert.equal(Number(before.transactions[0].amount), 1000);
+    await db.exec(
+      fs.readFileSync('supabase/migrations/20261010100000_walking_reward_amount_100.sql', 'utf8'),
+    );
+    for (const [table, rows] of Object.entries(before)) {
+      assert.deepEqual((await db.query(`select * from ${table}`)).rows, rows);
+    }
+    const result = await apply(20000, { counter: 2 });
+    assert.equal(result.credited, false);
+    assert.equal(result.rewarded, true);
+    assert.equal(result.rewardAmount, 100);
+    assert.equal(result.creditedAmount, 1000);
+    assert.equal(Number((await row('select balance from customers')).balance), 1200);
+    for (const table of ['transactions', 'customer_notifications', 'push_notification_outbox']) {
+      assert.deepEqual((await db.query(`select * from ${table}`)).rows, before[table]);
+    }
+  } finally {
+    await db.exec(
+      fs.readFileSync('supabase/migrations/20261010100000_walking_reward_amount_100.sql', 'utf8'),
+    );
+  }
 });
 test('reused challenges and stale counters roll back without modifying the balance or ledger', async () => {
   const challenge = crypto.randomUUID();
@@ -413,7 +475,7 @@ test('last six days can be recovered; future, older, pre-launch and altered day 
   await assert.rejects(apply(10000, { date: yesterday, counter: 2 }));
 });
 test('a failed ledger write rolls back the balance, nonce, progress and counter', async () => {
-  await db.exec('alter table transactions add constraint test_no_credit check(amount<1000)');
+  await db.exec('alter table transactions add constraint test_no_credit check(amount<100)');
   try {
     await assert.rejects(apply(10000));
   } finally {
@@ -458,7 +520,7 @@ test('the same device can earn exactly once on each separate Kazakhstan calendar
   await apply(10000, { date: yesterday });
   await apply(10000, { counter: 2 });
   await apply(20000, { counter: 3 });
-  assert.equal(Number((await row('select balance from customers')).balance), 2200);
+  assert.equal(Number((await row('select balance from customers')).balance), 400);
   assert.equal((await row('select count(*)::int n from transactions')).n, 2);
 });
 test('expired technical challenges are pruned while live challenges and reward history remain', async () => {
@@ -531,8 +593,12 @@ test('Android batch awards every qualifying day once and uses only server counte
   const days = await androidDays();
   const result = await androidApply(days);
   assert.equal(result.days.length, 2);
-  assert.ok(result.days.every((day) => day.credited && day.rewardAmount === 1000));
-  assert.equal(Number((await row('select balance from customers')).balance), 2200);
+  assert.ok(
+    result.days.every(
+      (day) => day.credited && day.rewardAmount === 100 && day.creditedAmount === 100,
+    ),
+  );
+  assert.equal(Number((await row('select balance from customers')).balance), 400);
   assert.equal(
     (await row("select sign_count from walking_device_keys where key_id='android-key'")).sign_count,
     2,

@@ -50,7 +50,8 @@ mockModule('../src/config/supabase', {
           days: args.p_measurements.map((day) => ({
             ...day,
             credited: day.steps >= 10000,
-            rewardAmount: 1000,
+            rewardAmount: 100,
+            creditedAmount: day.steps >= 10000 ? 100 : 0,
           })),
         },
         error: rpcError,
@@ -133,6 +134,7 @@ test('one integrity token binds a native multi-day measurement; counters come on
   assert.equal(contracts.walkingSyncSchema.safeParse(body).success, true);
   const result = await walking.syncWalkingSteps(customer, body);
   assert.equal(result.days.length, 2);
+  assert.ok(result.days.every((day) => day.rewardAmount === 100 && day.creditedAmount === 100));
   assert.deepEqual(rpcCalls[0], {
     p_customer_id: customer,
     p_key_id: identity.keyId,

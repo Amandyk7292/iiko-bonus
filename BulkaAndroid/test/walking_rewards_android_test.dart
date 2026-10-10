@@ -66,6 +66,8 @@ void main() {
   var startsOn = _date;
   var serverSteps = 4321;
   var serverRewarded = false;
+  int? serverRewardAmount;
+  int? serverCreditedAmount;
   var days = <Map<String, dynamic>>[];
   List<int>? returnedOffsets;
   Completer<Map<String, dynamic>>? measurementGate;
@@ -86,6 +88,8 @@ void main() {
     startsOn = _date;
     serverSteps = 4321;
     serverRewarded = false;
+    serverRewardAmount = null;
+    serverCreditedAmount = null;
     days = [];
     returnedOffsets = null;
     measurementGate = null;
@@ -152,6 +156,7 @@ void main() {
             'enabled': true,
             'date': _date,
             'startsOn': startsOn,
+            'rewardAmount': ?serverRewardAmount,
             'days': days,
           });
         } else if (request.url.path.endsWith('/challenge')) {
@@ -179,6 +184,8 @@ void main() {
               'steps': serverSteps,
               'rewarded': serverRewarded,
               'balance': 5000,
+              'rewardAmount': ?serverRewardAmount,
+              'creditedAmount': ?serverCreditedAmount,
             },
           ];
         } else if (!request.url.path.endsWith('/device')) {
@@ -248,6 +255,8 @@ void main() {
       expect(body.containsKey('steps'), false);
       expect(api.walkingProgress.value!.steps, 4321);
       expect(api.walkingProgress.value!.rewarded, false);
+      expect(api.walkingProgress.value!.rewardAmount, 100);
+      expect(api.walkingProgress.value!.creditedAmount, 0);
     },
   );
   test(
@@ -280,6 +289,39 @@ void main() {
               as Map;
       expect(body['attestation'], 'play-integrity-registration-token');
       expect(measurements(), hasLength(1));
+    },
+  );
+  for (final amount in [100, 1000]) {
+    _androidWidgetTest(
+      'Android reads the current 100 offer and $amount credited amount from its batch result',
+      (tester) async {
+        serverSteps = 10000;
+        serverRewarded = true;
+        serverRewardAmount = 100;
+        serverCreditedAmount = amount;
+        await api.setWalkingConsent(true);
+        await showCard(tester);
+        expect(api.walkingProgress.value!.rewardAmount, 100);
+        expect(api.walkingProgress.value!.creditedAmount, amount);
+        expect(find.text('+100 бонусов'), findsOneWidget);
+        final earned = amount == 1000 ? '1 000' : '100';
+        expect(find.text('$earned бонусов начислено'), findsOneWidget);
+      },
+    );
+  }
+  test(
+    'Android preserves the original reward in status when the batch response has no new credit',
+    () async {
+      days = [
+        {'date': _date, 'steps': 10000, 'credited': true, 'rewardAmount': 1000},
+      ];
+      serverRewardAmount = 100;
+      serverCreditedAmount = 0;
+      await api.setWalkingConsent(true);
+      await api.syncWalking();
+      expect(api.walkingProgress.value!.rewarded, true);
+      expect(api.walkingProgress.value!.rewardAmount, 100);
+      expect(api.walkingProgress.value!.creditedAmount, 1000);
     },
   );
   test(
@@ -601,7 +643,7 @@ void main() {
       authorized = false;
       await showCard(tester);
       expect(find.text('—'), findsOneWidget);
-      expect(find.text('1 000 бонусов начислено'), findsNothing);
+      expect(find.textContaining('бонусов начислено'), findsNothing);
       expect(find.text('Открыть настройки'), findsOneWidget);
     },
   );

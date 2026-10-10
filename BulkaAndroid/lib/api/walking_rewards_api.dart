@@ -6,11 +6,35 @@ class WalkingProgress {
     required this.steps,
     required this.rewarded,
     this.deviceRewarded = false,
+    this.rewardAmount = 100,
+    this.creditedAmount = 0,
   });
   final String date;
   final int steps;
   final bool rewarded;
   final bool deviceRewarded;
+  final int rewardAmount;
+  final int creditedAmount;
+}
+
+int _walkingRewardAmount(dynamic value, {int fallback = 100}) {
+  final amount = _asInt(value);
+  return amount > 0 ? amount : fallback;
+}
+
+int _walkingCreditedAmount(
+  dynamic value, {
+  required bool rewarded,
+  required int rewardAmount,
+  WalkingProgress? previous,
+}) {
+  if (!rewarded) return 0;
+  return _walkingRewardAmount(
+    value,
+    fallback: (previous?.creditedAmount ?? 0) > 0
+        ? previous!.creditedAmount
+        : rewardAmount,
+  );
 }
 
 class _WalkingRuntime {
@@ -232,11 +256,21 @@ extension WalkingRewardsApi on BulkaApiClient {
     final today = days.where((day) => day['date'] == date).firstOrNull;
     final previous = _walkingRuntime.progress.value;
     final sameDay = previous?.date == date;
+    final rewardAmount = _walkingRewardAmount(status['rewardAmount']);
+    final rewarded =
+        today?['credited'] == true || (sameDay && previous!.rewarded);
     _walkingRuntime.progress.value = WalkingProgress(
       date: date,
       steps: max(_asInt(today?['steps']), sameDay ? previous!.steps : 0),
-      rewarded: today?['credited'] == true || (sameDay && previous!.rewarded),
+      rewarded: rewarded,
       deviceRewarded: sameDay && previous!.deviceRewarded,
+      rewardAmount: rewardAmount,
+      creditedAmount: _walkingCreditedAmount(
+        today?['rewardAmount'],
+        rewarded: rewarded,
+        rewardAmount: rewardAmount,
+        previous: sameDay ? previous : null,
+      ),
     );
     if (WalkingRewardsNative.isAndroid) {
       await _syncAndroidWalking(
@@ -400,13 +434,26 @@ extension WalkingRewardsApi on BulkaApiClient {
       if (day == date) {
         onTodayAccepted();
         final previous = _walkingRuntime.progress.value;
+        final rewardAmount = _walkingRewardAmount(
+          result['rewardAmount'],
+          fallback: previous?.rewardAmount ?? 100,
+        );
+        final rewarded =
+            result['rewarded'] == true || previous?.rewarded == true;
         _walkingRuntime.progress.value = WalkingProgress(
           date: day,
           steps: max(_asInt(result['steps']), previous?.steps ?? 0),
-          rewarded: result['rewarded'] == true || previous?.rewarded == true,
+          rewarded: rewarded,
           deviceRewarded:
               result['deviceRewarded'] == true ||
               previous?.deviceRewarded == true,
+          rewardAmount: rewardAmount,
+          creditedAmount: _walkingCreditedAmount(
+            result['creditedAmount'],
+            rewarded: rewarded,
+            rewardAmount: rewardAmount,
+            previous: previous,
+          ),
         );
       }
     }
@@ -498,16 +545,28 @@ extension WalkingRewardsApi on BulkaApiClient {
     if (current != null) {
       onTodayAccepted();
       final previous = _walkingRuntime.progress.value;
+      final rewardAmount = _walkingRewardAmount(
+        current['rewardAmount'],
+        fallback: previous?.rewardAmount ?? 100,
+      );
+      final rewarded =
+          current['rewarded'] == true ||
+          current['credited'] == true ||
+          previous?.rewarded == true;
       _walkingRuntime.progress.value = WalkingProgress(
         date: date,
         steps: max(_asInt(current['steps']), previous?.steps ?? 0),
-        rewarded:
-            current['rewarded'] == true ||
-            current['credited'] == true ||
-            previous?.rewarded == true,
+        rewarded: rewarded,
         deviceRewarded:
             current['deviceRewarded'] == true ||
             previous?.deviceRewarded == true,
+        rewardAmount: rewardAmount,
+        creditedAmount: _walkingCreditedAmount(
+          current['creditedAmount'],
+          rewarded: rewarded,
+          rewardAmount: rewardAmount,
+          previous: previous,
+        ),
       );
     }
   }

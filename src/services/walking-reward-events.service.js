@@ -9,7 +9,13 @@ function publishWalkingRewardEvents(customerId, result, publish = realtime.publi
     try {
       publish(
         'transaction.created',
-        { customerId, type: 'deposit', amount: 1000, source: 'walking', date: day.date },
+        {
+          customerId,
+          type: 'deposit',
+          amount: day.creditedAmount,
+          source: 'walking',
+          date: day.date,
+        },
         { customerId, includeAdmins: true, roles: ['owner', 'admin'] },
       );
     } catch {

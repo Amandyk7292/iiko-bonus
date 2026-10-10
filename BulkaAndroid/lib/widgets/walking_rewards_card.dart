@@ -449,7 +449,8 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
                       ),
                       child: Text.rich(
                         TextSpan(
-                          text: '+1 000 ',
+                          text:
+                              '+${_walkingNumber(progress?.rewardAmount ?? 100)} ',
                           style: const TextStyle(fontFamily: _headingFont),
                           children: [
                             TextSpan(
@@ -560,8 +561,8 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
                             child: Text(
                               progress?.rewarded == true
                                   ? _walkingText(
-                                      '1 000 бонусов начислено',
-                                      '1 000 бонус есептелді',
+                                      '${_walkingNumber(progress!.creditedAmount)} бонусов начислено',
+                                      '${_walkingNumber(progress.creditedAmount)} бонус есептелді',
                                     )
                                   : _walkingText(
                                       'Награда на этом телефоне уже получена сегодня',

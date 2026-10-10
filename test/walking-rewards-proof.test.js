@@ -28,7 +28,7 @@ const supabase = {
   async rpc(name, args) {
     assert.equal(name, 'apply_walking_steps');
     rpcCalls.push(args);
-    return { data: { credited: true, rewardAmount: 1000 }, error: rpcError };
+    return { data: { credited: true, rewardAmount: 100, creditedAmount: 100 }, error: rpcError };
   },
 };
 require.cache[configPath] = {
@@ -91,7 +91,8 @@ async function proof({
 test('a verified native measurement reaches the atomic reward RPC and schedules loyalty sync', async () => {
   const body = await proof();
   const result = await walking.syncWalkingSteps(customer, body);
-  assert.equal(result.rewardAmount, 1000);
+  assert.equal(result.rewardAmount, 100);
+  assert.equal(result.creditedAmount, 100);
   assert.equal(rpcCalls[0].p_customer_id, customer);
   assert.equal(rpcCalls[0].p_steps, 10000);
   assert.equal(rpcCalls[0].p_counter, 1);

@@ -9,8 +9,14 @@ test('only newly committed daily rewards invalidate the correct customer and glo
     'customer',
     {
       days: [
-        { date: '2026-10-06', credited: true },
-        { date: '2026-10-07', credited: false, rewarded: true },
+        { date: '2026-10-06', credited: true, rewardAmount: 100, creditedAmount: 100 },
+        {
+          date: '2026-10-07',
+          credited: false,
+          rewarded: true,
+          rewardAmount: 100,
+          creditedAmount: 1000,
+        },
       ],
     },
     publish,
@@ -21,7 +27,7 @@ test('only newly committed daily rewards invalidate the correct customer and glo
       {
         customerId: 'customer',
         type: 'deposit',
-        amount: 1000,
+        amount: 100,
         source: 'walking',
         date: '2026-10-06',
       },
@@ -29,8 +35,27 @@ test('only newly committed daily rewards invalidate the correct customer and glo
     ],
     ['notification.created', {}, { customerId: 'customer' }],
   ]);
-  publishWalkingRewardEvents('customer', { credited: false, rewarded: true }, publish);
+  publishWalkingRewardEvents(
+    'customer',
+    { credited: false, rewarded: true, rewardAmount: 100, creditedAmount: 1000 },
+    publish,
+  );
   assert.equal(events.length, 2);
+});
+
+test('history events use the actual credited amount rather than the advertised reward', () => {
+  const events = [];
+  publishWalkingRewardEvents(
+    'customer',
+    {
+      date: '2026-10-06',
+      credited: true,
+      rewardAmount: 100,
+      creditedAmount: 1000,
+    },
+    (...event) => events.push(event),
+  );
+  assert.equal(events[0][1].amount, 1000);
 });
 
 test('each recovered Android day invalidates its history once while refreshing the inbox once', () => {
@@ -39,8 +64,8 @@ test('each recovered Android day invalidates its history once while refreshing t
     'customer',
     {
       days: [
-        { date: '2026-10-06', credited: true },
-        { date: '2026-10-07', credited: true },
+        { date: '2026-10-06', credited: true, rewardAmount: 100, creditedAmount: 100 },
+        { date: '2026-10-07', credited: true, rewardAmount: 100, creditedAmount: 100 },
       ],
     },
     (...event) => events.push(event),
@@ -55,9 +80,13 @@ test('a failed realtime listener cannot turn an accepted reward into a measureme
   console.error = (value) => errors.push(value);
   try {
     assert.doesNotThrow(() =>
-      publishWalkingRewardEvents('customer', { credited: true }, () => {
-        throw new Error('Subscriber unavailable');
-      }),
+      publishWalkingRewardEvents(
+        'customer',
+        { credited: true, rewardAmount: 100, creditedAmount: 100 },
+        () => {
+          throw new Error('Subscriber unavailable');
+        },
+      ),
     );
     assert.equal(errors.length, 2);
   } finally {

@@ -46,6 +46,8 @@ void main() {
   var serverSteps = 1234;
   var serverRewarded = false;
   var serverDeviceRewarded = false;
+  int? serverRewardAmount;
+  int? serverCreditedAmount;
   Completer<Map<String, String>>? measurementGate;
   setUp(() {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
@@ -60,6 +62,8 @@ void main() {
     serverSteps = 1234;
     serverRewarded = false;
     serverDeviceRewarded = false;
+    serverRewardAmount = null;
+    serverCreditedAmount = null;
     measurementGate = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(WalkingRewardsNative.channel, (call) async {
@@ -105,6 +109,7 @@ void main() {
             'enabled': true,
             'date': date,
             'startsOn': days.isEmpty ? date : '2026-10-01',
+            'rewardAmount': ?serverRewardAmount,
             'days': days,
           });
         }
@@ -128,6 +133,8 @@ void main() {
             'steps': serverSteps,
             'rewarded': serverRewarded,
             'deviceRewarded': serverDeviceRewarded,
+            'rewardAmount': ?serverRewardAmount,
+            'creditedAmount': ?serverCreditedAmount,
           });
         }
         return http.Response(jsonEncode(response), 200);
@@ -167,6 +174,8 @@ void main() {
       );
       expect(calls.where((call) => call.method == 'attest'), hasLength(1));
       expect(api.walkingProgress.value!.steps, 1234);
+      expect(api.walkingProgress.value!.rewardAmount, 100);
+      expect(api.walkingProgress.value!.creditedAmount, 0);
     },
   );
   test(
@@ -294,6 +303,65 @@ void main() {
 
   int measurementCount() =>
       calls.where((call) => call.method == 'measure').length;
+
+  test('iOS sync reads the server offer and actual credited amount', () async {
+    serverSteps = 10000;
+    serverRewarded = true;
+    serverRewardAmount = 250;
+    serverCreditedAmount = 250;
+    await api.setWalkingConsent(true);
+    await api.syncWalking();
+    expect(api.walkingProgress.value!.rewardAmount, 250);
+    expect(api.walkingProgress.value!.creditedAmount, 250);
+  });
+
+  test(
+    'credited status keeps the original reward during a stale iOS sync',
+    () async {
+      days = [
+        {'date': date, 'steps': 10000, 'credited': true, 'rewardAmount': 1000},
+        {'date': '2026-10-01', 'complete': true},
+      ];
+      serverRewardAmount = 100;
+      serverCreditedAmount = 0;
+      await api.setWalkingConsent(true);
+      await api.syncWalking();
+      expect(api.walkingProgress.value!.rewarded, true);
+      expect(api.walkingProgress.value!.rewardAmount, 100);
+      expect(api.walkingProgress.value!.creditedAmount, 1000);
+    },
+  );
+
+  for (final amount in [100, 1000]) {
+    iosWidgetTest(
+      'current offer is 100 while displaying the $amount credited reward in both languages',
+      (tester) async {
+        serverSteps = 10000;
+        serverRewarded = true;
+        serverRewardAmount = 100;
+        serverCreditedAmount = amount;
+        await api.setWalkingConsent(true);
+        for (final language in ['ru', 'kk']) {
+          appLanguageNotifier.value = language;
+          await showCard(tester);
+          expect(
+            find.text(language == 'ru' ? '+100 бонусов' : '+100 бонус'),
+            findsOneWidget,
+          );
+          final earned = amount == 1000 ? '1 000' : '100';
+          expect(
+            find.text(
+              language == 'ru'
+                  ? '$earned бонусов начислено'
+                  : '$earned бонус есептелді',
+            ),
+            findsOneWidget,
+          );
+          expect(api.walkingProgress.value!.creditedAmount, amount);
+        }
+      },
+    );
+  }
 
   test(
     'all automatic callers share a one minute throttle and retain accepted progress',

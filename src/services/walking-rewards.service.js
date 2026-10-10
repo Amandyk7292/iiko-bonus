@@ -287,7 +287,7 @@ async function walkingStatus(customerId) {
     enabled: policy.enabled,
     startsOn: policy.starts_on,
     targetSteps: 10000,
-    rewardAmount: 1000,
+    rewardAmount: 100,
     timezone: 'Asia/Almaty',
     days: (data || []).map((row) => ({
       date: row.walking_date,
