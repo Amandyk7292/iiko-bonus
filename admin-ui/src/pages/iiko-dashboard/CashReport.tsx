@@ -3,7 +3,7 @@ import { ChevronDown } from '../../components/BulkaIcons';
 import { useI18n } from '../../lib/i18n';
 import { loadControls } from './load-controls';
 import { errorKey, type Query } from './model';
-import CashProductSearch from './CashProductSearch';
+import CashProductSearch, { isCashAmountSearch } from './CashProductSearch';
 import CashReceiptPayment, { receiptPaymentLabel, type ReceiptPayment } from './CashReceiptPayment';
 import './cash-report.css';
 
@@ -38,7 +38,9 @@ type Result = {
 
 export const cashItemMatches = (name: string, search: string) =>
   Boolean(
-    search.trim() && name.toLocaleLowerCase('ru').includes(search.trim().toLocaleLowerCase('ru')),
+    search.trim() &&
+    !isCashAmountSearch(search) &&
+    name.toLocaleLowerCase('ru').includes(search.trim().toLocaleLowerCase('ru')),
   );
 
 type Props = {
@@ -157,7 +159,7 @@ function CashReportContent({ base, department, refresh, onDepartmentChange }: Pr
       <div className="id-report-intro">
         <div>
           <h2>Отчёт по кассе</h2>
-          <p>Все чеки выбранной смены. Поиск по товару — по желанию.</p>
+          <p>Все чеки выбранной смены. Можно найти по товару или сумме чека.</p>
         </div>
         {data && (
           <div className="id-revision-totals">
@@ -278,7 +280,9 @@ function CashReportContent({ base, department, refresh, onDepartmentChange }: Pr
       {data && !error && !loading && !data.checks.length && (
         <div className="id-empty">
           {submitted.text
-            ? 'Чеки с таким товаром в выбранной смене не найдены'
+            ? !submitted.productId && isCashAmountSearch(submitted.text)
+              ? 'Чеки с такой суммой в выбранной смене не найдены'
+              : 'Чеки с таким товаром в выбранной смене не найдены'
             : 'В выбранной смене нет чеков'}
         </div>
       )}

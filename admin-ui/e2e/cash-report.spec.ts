@@ -135,12 +135,17 @@ test('cash report shows the whole shift and filters complete receipts by click o
       const search = String(query.search ?? '')
         .trim()
         .toLocaleLowerCase('ru');
+      const receiptAmount = !query.productId && search === '1 490,00 ₸' ? 1490 : null;
       const matches = (item: (typeof receipts)[number]['items'][number]) =>
         query.productId
           ? item.id === query.productId
           : !search || item.name.toLocaleLowerCase('ru').includes(search);
-      const checks = shiftReceipts.filter((receipt) => receipt.items.some(matches));
-      const matchingItems = checks.flatMap((receipt) => receipt.items.filter(matches));
+      const checks = shiftReceipts.filter((receipt) =>
+        receiptAmount !== null ? receipt.total === receiptAmount : receipt.items.some(matches),
+      );
+      const matchingItems = checks.flatMap((receipt) =>
+        receiptAmount !== null ? receipt.items : receipt.items.filter(matches),
+      );
       return json({
         shifts,
         products: Array.from(
@@ -187,7 +192,7 @@ test('cash report shows the whole shift and filters complete receipts by click o
   await expect(report.locator('.id-found-item')).toHaveCount(0);
   expect(requests.at(-1)).toMatchObject({ shift: shiftId, search: '', productId: '' });
   expect(requests.length).toBe(initialRequests + 1);
-  const product = report.getByRole('combobox', { name: 'Товар', exact: true });
+  const product = report.getByRole('combobox', { name: 'Товар или сумма чека', exact: true });
   await product.fill('к');
   await expect(report.getByRole('option', { name: 'Кофе Американо', exact: true })).toBeVisible();
   await product.fill('ко');
@@ -198,7 +203,7 @@ test('cash report shows the whole shift and filters complete receipts by click o
   await report.screenshot({ path: testInfo.outputPath('cash-product-suggestions.png') });
   expect(
     await report
-      .getByLabel('Товар', { exact: true })
+      .getByLabel('Товар или сумма чека', { exact: true })
       .evaluate((input) => Number.parseFloat(getComputedStyle(input).paddingLeft)),
   ).toBeGreaterThanOrEqual(32);
   await report.getByRole('option', { name: 'Кофе Американо', exact: true }).click();
@@ -262,6 +267,28 @@ test('cash report shows the whole shift and filters complete receipts by click o
   await expect(report.getByText('Чек № 4', { exact: true })).toBeVisible();
   expect(requests.at(-1)).toMatchObject({ search: 'коф', productId: '' });
   expect(requests.length).toBe(initialRequests + 6);
+  await product.fill('1 490,00 ₸');
+  await expect(product).toHaveAttribute('aria-expanded', 'false');
+  await expect(report.getByRole('listbox')).toHaveCount(0);
+  await expect(report.getByText('В этой смене совпадений нет')).toHaveCount(0);
+  await product.press('ArrowDown');
+  await product.press('Enter');
+  await expect(report.locator('.id-check-card')).toHaveCount(1);
+  await expect(report.getByText('Чек № 4', { exact: true })).toBeVisible();
+  await expect(totals.locator('strong')).toHaveText(['1', '2', /^1\s*490\s*₸$/]);
+  await expect(report.locator('.id-found-item')).toHaveCount(0);
+  await report.getByText('Чек № 4', { exact: true }).click();
+  await expect(report.getByText('Булочка Лакомка', { exact: true })).toBeVisible();
+  await expect(report.getByRole('region', { name: 'Оплата чека' })).toBeVisible();
+  expect(requests.at(-1)).toMatchObject({ search: '1 490,00 ₸', productId: '', shift: shiftId });
+  expect(requests.length).toBe(initialRequests + 7);
+  await report.screenshot({ path: testInfo.outputPath('cash-report-amount-search.png') });
+  await product.fill('');
+  await expect(report.locator('.id-check-card')).toHaveCount(2);
+  await expect(totals.locator('strong')).toHaveText(['2', '3', /^2\s*690\s*₸$/]);
+  await expect(report.locator('.id-found-item')).toHaveCount(0);
+  expect(requests.at(-1)).toMatchObject({ search: '', productId: '', shift: shiftId });
+  expect(requests.length).toBe(initialRequests + 8);
   await select.selectOption(otherShiftId);
   await expect(product).toHaveValue('');
   await expect(report.locator('.id-cash-shift-meta')).toContainText('18.09.2026 · Смена 1003');
@@ -277,7 +304,7 @@ test('cash report shows the whole shift and filters complete receipts by click o
     productId: '',
     department,
   });
-  expect(requests.length).toBe(initialRequests + 7);
+  expect(requests.length).toBe(initialRequests + 9);
   await report.getByText('Чек № 6', { exact: true }).click();
   await expect(report.getByLabel('iiko не передала полученную сумму')).toHaveText('—');
   await expect(report.getByLabel('iiko не передала сумму сдачи')).toHaveText('—');

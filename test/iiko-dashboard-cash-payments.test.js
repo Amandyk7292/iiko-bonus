@@ -378,6 +378,8 @@ test('separate payment query reuses the full shift cache through searches and ne
   };
   const all = await cashReport(service, input);
   const filtered = await cashReport(service, { ...input, search: 'Кофе', productId: 'coffee' });
+  const byAmount = await cashReport(service, { ...input, search: '100,00 ₸' });
+  const itemAmount = await cashReport(service, { ...input, search: '70' });
   const cleared = await cashReport(service, { ...input, search: '  ' });
   assert.equal(queries.length, 3);
   const paymentQuery = queries.find((query) => query.groupBy.includes('PayTypes'));
@@ -391,8 +393,10 @@ test('separate payment query reuses the full shift cache through searches and ne
   assert(!itemQuery.groupBy.some((field) => field.startsWith('PayTypes')));
   assert.deepEqual(all.summary, { checks: 1, quantity: 2, revenue: 100 });
   assert.deepEqual(filtered.summary, { checks: 1, quantity: 1, revenue: 30 });
+  assert.deepEqual(byAmount.summary, all.summary);
+  assert.equal(itemAmount.checks.length, 0);
   assert.deepEqual(cleared.summary, all.summary);
-  for (const result of [all, filtered, cleared]) {
+  for (const result of [all, filtered, byAmount, cleared]) {
     assert.equal(result.checks[0].total, 100);
     assert.equal(result.checks[0].items.length, 2);
     assert.equal(result.checks[0].payment.status, 'available');

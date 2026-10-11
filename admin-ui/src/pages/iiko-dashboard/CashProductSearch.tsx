@@ -3,6 +3,17 @@ import { Search } from '../../components/BulkaIcons';
 import { loadControls } from './load-controls';
 
 export type CashProduct = { id: string; name: string };
+export const isCashAmountSearch = (value: string) => {
+  const match =
+    /^((?:\d+|\d{1,3}(?:[ \u00a0\u202f]\d{3})+))(?:[.,](\d{1,2}))?(?:[ \u00a0\u202f]*(?:₸|тг|KZT))?$/i.exec(
+      value.trim(),
+    );
+  if (!match) return false;
+  const cents =
+    Number(match[1].replace(/[ \u00a0\u202f]/g, '')) * 100 +
+    Number((match[2] || '').padEnd(2, '0'));
+  return Number.isSafeInteger(cents);
+};
 type Props = {
   scope: { serverId: string; from: string; to: string; department: string };
   shift: string;
@@ -61,7 +72,7 @@ export default function CashProductSearch({
     return products.filter((product) => product.name.toLocaleLowerCase('ru').includes(query));
   }, [products, value]);
   const visible = matches.slice(0, 40);
-  const expanded = open && Boolean(shift);
+  const expanded = open && Boolean(shift) && !isCashAmountSearch(value);
   const activeProduct = expanded ? visible[active] : undefined;
   useEffect(() => {
     if (expanded && active >= 0)
@@ -83,7 +94,7 @@ export default function CashProductSearch({
         }
       }}
     >
-      <label htmlFor={id}>Товар</label>
+      <label htmlFor={id}>Товар или сумма чека</label>
       <div className="id-search-input">
         <Search size={16} aria-hidden="true" />
         <input
@@ -97,7 +108,7 @@ export default function CashProductSearch({
           disabled={!shift}
           value={value}
           maxLength={160}
-          placeholder="Например, Синнабон"
+          placeholder="Синнабон или 1 500"
           onFocus={() => {
             setRequested(true);
             setOpen(true);

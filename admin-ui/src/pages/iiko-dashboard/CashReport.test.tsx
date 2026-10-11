@@ -25,6 +25,11 @@ describe('cash report product highlighting', () => {
     expect(cashItemMatches('Кофе Американо', '')).toBe(false);
     expect(cashItemMatches('Кофе Американо', '   ')).toBe(false);
   });
+
+  it('does not highlight product names containing the searched receipt amount', () => {
+    expect(cashItemMatches('Набор 2190', '2190')).toBe(false);
+    expect(cashItemMatches('Блины - 17', 'Блины - 17')).toBe(true);
+  });
 });
 
 describe('cash report page', () => {
@@ -54,7 +59,10 @@ describe('cash report page', () => {
           ],
           checks:
             query.shift === 'session-106' &&
-            (!query.search || query.search === 'кофе' || query.productId === 'coffee')
+            (!query.search ||
+              query.search === 'кофе' ||
+              query.search === '2 190,00 ₸' ||
+              query.productId === 'coffee')
               ? [
                   {
                     id: 'check-4',
@@ -131,7 +139,9 @@ describe('cash report page', () => {
                 ]
               : [],
           summary: query.search
-            ? { checks: 1, quantity: 1, revenue: 990 }
+            ? query.search === '2 190,00 ₸'
+              ? { checks: 1, quantity: 2, revenue: 2190 }
+              : { checks: 1, quantity: 1, revenue: 990 }
             : query.shift === 'session-106'
               ? { checks: 2, quantity: 3, revenue: 2690 }
               : { checks: 0, quantity: 0, revenue: 0 },
@@ -170,7 +180,7 @@ describe('cash report page', () => {
     expect(
       screen.queryByText('Чеки с таким товаром в выбранной смене не найдены'),
     ).not.toBeInTheDocument();
-    fireEvent.change(screen.getByPlaceholderText('Например, Синнабон'), {
+    fireEvent.change(screen.getByPlaceholderText('Синнабон или 1 500'), {
       target: { value: 'кофе' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Найти' }));
@@ -197,7 +207,7 @@ describe('cash report page', () => {
     expect(await screen.findByText('Чек № 7')).toBeInTheDocument();
     expect(view.container.querySelector('.id-revision-totals')).toHaveTextContent('2 690 ₸');
     expect(view.container.querySelectorAll('.id-found-item')).toHaveLength(0);
-    const input = screen.getByRole('combobox', { name: 'Товар' });
+    const input = screen.getByRole('combobox', { name: 'Товар или сумма чека' });
     fireEvent.change(input, { target: { value: 'кофе' } });
     fireEvent.click(screen.getByRole('button', { name: 'Найти' }));
     await waitFor(() => expect(screen.queryByText('Чек № 7')).not.toBeInTheDocument());
@@ -214,6 +224,55 @@ describe('cash report page', () => {
     fireEvent.change(screen.getByLabelText('Кассовая смена'), { target: { value: '' } });
     expect(screen.queryByText('Чек № 7')).not.toBeInTheDocument();
     expect(view.container.querySelector('.id-revision-totals')).not.toBeInTheDocument();
+  });
+
+  it('submits a receipt amount, shows its complete receipt and restores the shift on clearing', async () => {
+    const view = render(
+      <I18nProvider>
+        <CashReport base={base} department="branch-1" refresh={0} />
+      </I18nProvider>,
+    );
+    await screen.findByRole('option', { name: /18.09.2026/ });
+    fireEvent.change(screen.getByLabelText('Кассовая смена'), { target: { value: 'session-106' } });
+    await screen.findByText('Чек № 7');
+    const input = screen.getByRole('combobox', { name: 'Товар или сумма чека' });
+    fireEvent.change(input, { target: { value: '2 190,00 ₸' } });
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Найти' }));
+    const check = (await screen.findByText('Чек № 4')).closest('details')!;
+    expect(screen.queryByText('Чек № 7')).not.toBeInTheDocument();
+    expect(within(check).getByText('Кофе Американо большой')).toBeInTheDocument();
+    expect(view.container.querySelectorAll('.id-found-item')).toHaveLength(0);
+    expect(view.container.querySelector('.id-revision-totals')).toHaveTextContent('2 190 ₸');
+    expect(loadControls).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: '2 190,00 ₸', productId: '', shift: 'session-106' }),
+      expect.anything(),
+      '/iiko-dashboard/cash-report',
+    );
+    fireEvent.change(input, { target: { value: '' } });
+    expect(await screen.findByText('Чек № 7')).toBeInTheDocument();
+    expect(view.container.querySelector('.id-revision-totals')).toHaveTextContent('2 690 ₸');
+  });
+
+  it('uses an amount-specific empty state when no receipt has that total', async () => {
+    render(
+      <I18nProvider>
+        <CashReport base={base} department="branch-1" refresh={0} />
+      </I18nProvider>,
+    );
+    await screen.findByRole('option', { name: /18.09.2026/ });
+    fireEvent.change(screen.getByLabelText('Кассовая смена'), { target: { value: 'session-106' } });
+    await screen.findByText('Чек № 7');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Товар или сумма чека' }), {
+      target: { value: '555' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Найти' }));
+    expect(
+      await screen.findByText('Чеки с такой суммой в выбранной смене не найдены'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('Чеки с таким товаром в выбранной смене не найдены'),
+    ).not.toBeInTheDocument();
   });
 
   it('shows an API error', async () => {
@@ -286,7 +345,7 @@ describe('cash report page', () => {
     await screen.findByRole('option', { name: /18.09.2026/ });
     fireEvent.change(screen.getByLabelText('Кассовая смена'), { target: { value: 'session-106' } });
     await screen.findByText('Чек № 7');
-    fireEvent.change(screen.getByPlaceholderText('Например, Синнабон'), {
+    fireEvent.change(screen.getByPlaceholderText('Синнабон или 1 500'), {
       target: { value: 'кофе' },
     });
     vi.mocked(loadControls).mockRejectedValueOnce(new Error('offline'));
@@ -306,7 +365,7 @@ describe('cash report page', () => {
     );
     await screen.findByRole('option', { name: /18.09.2026/ });
     fireEvent.change(screen.getByLabelText('Кассовая смена'), { target: { value: 'session-106' } });
-    fireEvent.change(screen.getByPlaceholderText('Например, Синнабон'), {
+    fireEvent.change(screen.getByPlaceholderText('Синнабон или 1 500'), {
       target: { value: 'кофе' },
     });
     vi.mocked(loadControls).mockReturnValue(new Promise(() => {}));
@@ -317,7 +376,7 @@ describe('cash report page', () => {
     );
     expect(screen.getByLabelText('Кассовая смена')).toBeEnabled();
     expect(screen.getByLabelText('Кассовая смена')).toHaveValue('session-106');
-    expect(screen.getByRole('combobox', { name: 'Товар' })).toBeEnabled();
+    expect(screen.getByRole('combobox', { name: 'Товар или сумма чека' })).toBeEnabled();
   });
 
   it('resets the selection and aborts the old search when the city or period changes', async () => {
@@ -328,7 +387,7 @@ describe('cash report page', () => {
     );
     await screen.findByRole('option', { name: /18.09.2026/ });
     fireEvent.change(screen.getByLabelText('Кассовая смена'), { target: { value: 'session-106' } });
-    fireEvent.change(screen.getByPlaceholderText('Например, Синнабон'), {
+    fireEvent.change(screen.getByPlaceholderText('Синнабон или 1 500'), {
       target: { value: 'кофе' },
     });
     vi.mocked(loadControls).mockReturnValueOnce(new Promise(() => {}));
@@ -358,7 +417,7 @@ describe('cash report page', () => {
       ),
     );
     expect(screen.getByLabelText('Кассовая смена')).toHaveValue('');
-    expect(screen.getByPlaceholderText('Например, Синнабон')).toHaveValue('');
+    expect(screen.getByPlaceholderText('Синнабон или 1 500')).toHaveValue('');
   });
 
   it('opens receipts on suggestion selection and highlights only the selected product', async () => {
@@ -369,7 +428,7 @@ describe('cash report page', () => {
     );
     await screen.findByRole('option', { name: /18.09.2026/ });
     fireEvent.change(screen.getByLabelText('Кассовая смена'), { target: { value: 'session-106' } });
-    const input = screen.getByRole('combobox', { name: 'Товар' });
+    const input = screen.getByRole('combobox', { name: 'Товар или сумма чека' });
     fireEvent.change(input, { target: { value: 'коф' } });
     fireEvent.click(await screen.findByRole('option', { name: 'Кофе Американо' }));
     expect(await screen.findByText('Чек № 4')).toBeInTheDocument();

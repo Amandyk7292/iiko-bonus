@@ -1,5 +1,6 @@
 const clean = (value) => String(value ?? '').trim();
 const number = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
+const { cashSearchAmount, cashTotalCents } = require('./iiko-dashboard-cash-search');
 
 function buildCashShifts(report) {
   const shifts = new Map();
@@ -65,10 +66,13 @@ function buildCashReport(report, input) {
   }
   const query = clean(input.search).toLocaleLowerCase('ru');
   const productId = clean(input.productId);
+  const amount = productId ? null : cashSearchAmount(input.search);
   const matches = (item) =>
     productId ? item.id === productId : !query || item.name.toLocaleLowerCase('ru').includes(query);
   const selected = [...checks.values()].filter(
-    (check) => (!input.shift || check.shift === input.shift) && check.items.some(matches),
+    (check) =>
+      (!input.shift || check.shift === input.shift) &&
+      (amount !== null ? cashTotalCents(check.total) === amount : check.items.some(matches)),
   );
   selected.sort((a, b) => String(b.date + b.time).localeCompare(String(a.date + a.time)));
   return {
@@ -76,11 +80,19 @@ function buildCashReport(report, input) {
     summary: {
       checks: selected.length,
       quantity: selected.reduce(
-        (sum, check) => sum + check.items.filter(matches).reduce((n, item) => n + item.quantity, 0),
+        (sum, check) =>
+          sum +
+          check.items
+            .filter((item) => amount !== null || matches(item))
+            .reduce((n, item) => n + item.quantity, 0),
         0,
       ),
       revenue: selected.reduce(
-        (sum, check) => sum + check.items.filter(matches).reduce((n, item) => n + item.total, 0),
+        (sum, check) =>
+          sum +
+          check.items
+            .filter((item) => amount !== null || matches(item))
+            .reduce((n, item) => n + item.total, 0),
         0,
       ),
     },

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
-import CashProductSearch, { type CashProduct } from './CashProductSearch';
+import CashProductSearch, { isCashAmountSearch, type CashProduct } from './CashProductSearch';
 import { loadControls } from './load-controls';
 
 vi.mock('./load-controls', () => ({ loadControls: vi.fn() }));
@@ -39,7 +39,7 @@ beforeEach(() => {
 it('loads the selected shift once, filters locally and supports keyboard selection', async () => {
   render(<SearchField />);
   expect(loadControls).not.toHaveBeenCalled();
-  const input = screen.getByRole('combobox', { name: 'Товар' });
+  const input = screen.getByRole('combobox', { name: 'Товар или сумма чека' });
   fireEvent.focus(input);
   await screen.findByRole('option', { name: 'Булочка Лакомка' });
   for (const value of ['к', 'ко', '  КОФЕ  ']) fireEvent.change(input, { target: { value } });
@@ -74,6 +74,32 @@ it('shows no matches and lets Enter submit free text without choosing another pr
   expect(fireEvent.keyDown(input, { key: 'Enter' })).toBe(true);
   expect(onSelect).not.toHaveBeenCalled();
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+});
+
+it.each(['180', '3 007,5', '3007.50', '3\u00a0007,50 ₸', '3\u202f007.50 тг', '180 KZT', '0'])(
+  'recognizes the whole receipt amount %s',
+  (query) => expect(isCashAmountSearch(query)).toBe(true),
+);
+
+it.each(['Блины - 17', 'Кофе 180', '1 50', '3,007,50', '-180', '1.234', '90071992547410'])(
+  'keeps product names and malformed amounts outside amount mode: %s',
+  (query) => expect(isCashAmountSearch(query)).toBe(false),
+);
+
+it('hides product suggestions for an amount and lets Enter submit without selecting a product', async () => {
+  render(<SearchField />);
+  const input = screen.getByRole('combobox', { name: 'Товар или сумма чека' });
+  fireEvent.focus(input);
+  await screen.findByRole('option', { name: 'Булочка Лакомка' });
+  fireEvent.change(input, { target: { value: '3 007,50 ₸' } });
+  expect(input).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  expect(screen.queryByText('В этой смене совпадений нет')).not.toBeInTheDocument();
+  fireEvent.keyDown(input, { key: 'ArrowDown' });
+  expect(fireEvent.keyDown(input, { key: 'Enter' })).toBe(true);
+  expect(onSelect).not.toHaveBeenCalled();
+  fireEvent.change(input, { target: { value: 'кофе' } });
+  expect(screen.getAllByRole('option')).toHaveLength(2);
 });
 
 it('allows manual search while loading and after an error, with a retry for suggestions', async () => {
