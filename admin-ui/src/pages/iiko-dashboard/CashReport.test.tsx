@@ -54,7 +54,7 @@ describe('cash report page', () => {
           ],
           checks:
             query.shift === 'session-106' &&
-            (query.search === 'кофе' || query.productId === 'coffee')
+            (!query.search || query.search === 'кофе' || query.productId === 'coffee')
               ? [
                   {
                     id: 'check-4',
@@ -76,11 +76,30 @@ describe('cash report page', () => {
                       },
                     ],
                   },
+                  ...(!query.search
+                    ? [
+                        {
+                          id: 'check-7',
+                          shift: '106',
+                          number: 7,
+                          date: '2026-09-18',
+                          time: '09:00',
+                          department: 'Астана',
+                          cashier: 'Кассир',
+                          total: 500,
+                          items: [
+                            { id: 'bun', name: 'Булочка', unit: 'шт', quantity: 1, total: 500 },
+                          ],
+                        },
+                      ]
+                    : []),
                 ]
               : [],
           summary: query.search
             ? { checks: 1, quantity: 1, revenue: 990 }
-            : { checks: 0, quantity: 0, revenue: 0 },
+            : query.shift === 'session-106'
+              ? { checks: 2, quantity: 3, revenue: 2690 }
+              : { checks: 0, quantity: 0, revenue: 0 },
         };
       });
   });
@@ -105,7 +124,12 @@ describe('cash report page', () => {
       await screen.findByRole('option', { name: '18.09.2026 · Смена 106 · Касса 1 · 273 чеков' }),
     ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Кассовая смена'), { target: { value: 'session-106' } });
-    expect(loadControls).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('Чек № 7')).toBeInTheDocument();
+    expect(loadControls).toHaveBeenCalledWith(
+      expect.objectContaining({ search: '', productId: '', shift: 'session-106' }),
+      expect.anything(),
+      '/iiko-dashboard/cash-report',
+    );
     expect(screen.getByText('18.09.2026 · Смена 106')).toBeInTheDocument();
     expect(screen.getByText('Астана · Касса 1')).toBeInTheDocument();
     expect(
@@ -123,7 +147,38 @@ describe('cash report page', () => {
       ),
     );
     expect(await screen.findByText('Чек № 4')).toBeInTheDocument();
+    expect(screen.queryByText('Чек № 7')).not.toBeInTheDocument();
     expect(screen.getAllByText('990 ₸')).toHaveLength(2);
+  });
+
+  it('automatically restores every check and the shift totals when the search is cleared', async () => {
+    const view = render(
+      <I18nProvider>
+        <CashReport base={base} department="branch-1" refresh={0} />
+      </I18nProvider>,
+    );
+    await screen.findByRole('option', { name: /18.09.2026/ });
+    fireEvent.change(screen.getByLabelText('Кассовая смена'), { target: { value: 'session-106' } });
+    expect(await screen.findByText('Чек № 7')).toBeInTheDocument();
+    expect(view.container.querySelector('.id-revision-totals')).toHaveTextContent('2 690 ₸');
+    expect(view.container.querySelectorAll('.id-found-item')).toHaveLength(0);
+    const input = screen.getByRole('combobox', { name: 'Товар' });
+    fireEvent.change(input, { target: { value: 'кофе' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Найти' }));
+    await waitFor(() => expect(screen.queryByText('Чек № 7')).not.toBeInTheDocument());
+    await waitFor(() => expect(view.container.querySelectorAll('.id-found-item')).toHaveLength(2));
+    fireEvent.change(input, { target: { value: '   ' } });
+    expect(await screen.findByText('Чек № 7')).toBeInTheDocument();
+    expect(view.container.querySelector('.id-revision-totals')).toHaveTextContent('2 690 ₸');
+    expect(view.container.querySelectorAll('.id-found-item')).toHaveLength(0);
+    expect(loadControls).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: '', productId: '', shift: 'session-106' }),
+      expect.anything(),
+      '/iiko-dashboard/cash-report',
+    );
+    fireEvent.change(screen.getByLabelText('Кассовая смена'), { target: { value: '' } });
+    expect(screen.queryByText('Чек № 7')).not.toBeInTheDocument();
+    expect(view.container.querySelector('.id-revision-totals')).not.toBeInTheDocument();
   });
 
   it('shows an API error', async () => {
@@ -175,6 +230,7 @@ describe('cash report page', () => {
     );
     await screen.findByRole('option', { name: /18.09.2026/ });
     fireEvent.change(screen.getByLabelText('Кассовая смена'), { target: { value: 'session-106' } });
+    await screen.findByText('Чек № 7');
     fireEvent.change(screen.getByPlaceholderText('Например, Синнабон'), {
       target: { value: 'кофе' },
     });
@@ -184,7 +240,7 @@ describe('cash report page', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Найти' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Найти' }));
     expect(await screen.findByText('Чек № 4')).toBeInTheDocument();
-    expect(loadControls).toHaveBeenCalledTimes(4);
+    expect(loadControls).toHaveBeenCalledTimes(5);
   });
 
   it('keeps loaded shifts usable during background refresh', async () => {
@@ -206,8 +262,7 @@ describe('cash report page', () => {
     );
     expect(screen.getByLabelText('Кассовая смена')).toBeEnabled();
     expect(screen.getByLabelText('Кассовая смена')).toHaveValue('session-106');
-    expect(screen.getByRole('button', { name: 'Найти' })).toBeEnabled();
-    expect(screen.queryByText('Получаем данные iiko…')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Товар' })).toBeEnabled();
   });
 
   it('resets the selection and aborts the old search when the city or period changes', async () => {

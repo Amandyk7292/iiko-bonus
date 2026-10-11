@@ -132,7 +132,7 @@ test('shift options keep repeated numbers separate and sort recent accounting da
   });
 });
 
-test('product searches reuse one full shift report and retain more than 500 complete receipts', async () => {
+test('all receipts and product searches reuse one full shift report with more than 500 complete receipts', async () => {
   const queries = [];
   const cache = new ReportCache();
   const service = {
@@ -184,17 +184,22 @@ test('product searches reuse one full shift report and retain more than 500 comp
     shift: 'session-106',
     search: 'кофе',
   };
+  const all = await cashReport(service, { ...input, search: '' });
+  const whitespace = await cashReport(service, { ...input, search: '  ' });
   const first = await cashReport(service, input);
-  const suggestions = await cashReport(service, { ...input, search: '' });
   const second = await cashReport(service, { ...input, search: 'булочка' });
   const absent = await cashReport(service, { ...input, search: 'неизвестно' });
   assert.equal(queries.length, 2);
-  assert.deepEqual(suggestions.products, [
+  assert.deepEqual(all.products, [
     { id: 'bun', name: 'Булочка' },
     { id: 'coffee', name: 'Кофе Американо' },
   ]);
-  assert.equal(suggestions.checks.length, 0);
-  assert.equal(suggestions.summary.checks, 0);
+  assert.equal(all.checks.length, 501);
+  assert.equal(all.checks[0].items.length, 2);
+  assert.equal(all.checks[0].total, 2480);
+  assert.deepEqual(all.summary, { checks: 501, quantity: 1503, revenue: 501 * 2480 });
+  assert.deepEqual(whitespace.checks, all.checks);
+  assert.deepEqual(whitespace.summary, all.summary);
   assert.equal(first.checks.length, 501);
   assert.equal(first.checks[0].items.length, 2);
   assert.equal(first.checks[0].total, 2480);
@@ -209,6 +214,108 @@ test('product searches reuse one full shift report and retain more than 500 comp
     ),
   );
   assert.equal(queries[1].serverId, 'astana-chain');
+});
+
+test('blank search totals only the selected session and keeps receipts with all companion items', async () => {
+  const queries = [];
+  const common = { SessionID: 'one', SessionNum: 12, 'OpenDate.Typed': '2026-09-24' };
+  const service = {
+    report: async (query) => {
+      queries.push(query);
+      return query.groupBy.includes('DishName')
+        ? {
+            fetchedAt: 'details',
+            rows: [
+              {
+                ...common,
+                'UniqOrderId.Id': 'first',
+                OrderNum: 3784,
+                CloseTime: '20:10',
+                DishId: 'bun',
+                DishName: 'Булочка',
+                DishAmountInt: 1,
+                DishDiscountSumInt: 90,
+              },
+              {
+                ...common,
+                'UniqOrderId.Id': 'first',
+                OrderNum: 3784,
+                CloseTime: '20:10',
+                DishId: 'coffee',
+                DishName: 'Кофе',
+                DishAmountInt: 2,
+                DishDiscountSumInt: 1800,
+              },
+              {
+                ...common,
+                'UniqOrderId.Id': 'second',
+                OrderNum: 3785,
+                CloseTime: '20:15',
+                DishId: 'coffee',
+                DishName: 'Кофе',
+                DishAmountInt: 1,
+                DishDiscountSumInt: 900,
+              },
+              {
+                ...common,
+                SessionID: 'other',
+                'UniqOrderId.Id': 'other-receipt',
+                DishId: 'other',
+                DishName: 'Другой товар',
+                DishAmountInt: 1,
+                DishDiscountSumInt: 5000,
+              },
+              {
+                ...common,
+                'UniqOrderId.Id': '',
+                DishName: 'Без чека',
+                DishAmountInt: 1,
+                DishDiscountSumInt: 5000,
+              },
+            ],
+          }
+        : {
+            fetchedAt: 'shifts',
+            rows: [
+              {
+                ...common,
+                Department: '19а',
+                CashRegisterName: 'Касса 2',
+                UniqOrderId: 2,
+                DishDiscountSumInt: 2790,
+              },
+            ],
+          };
+    },
+  };
+  const input = {
+    serverId: 'aktau-chain',
+    from: '2026-09-24',
+    to: '2026-10-06',
+    department: '19а',
+    shift: 'one',
+    search: '',
+  };
+  const report = await cashReport(service, input);
+  assert.deepEqual(
+    report.checks.map((check) => check.id),
+    ['second', 'first'],
+  );
+  assert.equal(report.checks[1].items.length, 2);
+  assert.equal(report.checks[1].total, 1890);
+  assert.deepEqual(report.summary, { checks: 2, quantity: 4, revenue: 2790 });
+  assert.equal(report.fetchedAt, 'details');
+  assert.deepEqual(report.products, [
+    { id: 'bun', name: 'Булочка' },
+    { id: 'coffee', name: 'Кофе' },
+  ]);
+  assert.deepEqual(queries[1].filters.at(-1), { field: 'SessionID', values: ['one'] });
+  assert.equal(queries[1].from, '2026-09-24');
+  assert.equal(queries[1].to, '2026-09-24');
+  const noShift = await cashReport(service, { ...input, shift: '' });
+  assert.deepEqual(noShift.summary, { checks: 0, quantity: 0, revenue: 0 });
+  assert.equal(noShift.checks.length, 0);
+  assert.equal(queries.length, 3);
 });
 
 test('cash product suggestions are unique, sorted and limited to valid receipts of the selected session', () => {

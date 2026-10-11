@@ -101,7 +101,7 @@ function CashReportContent({ base, department, refresh, onDepartmentChange }: Pr
     return () => controller.abort();
   }, [scope, refresh]);
   useEffect(() => {
-    if (!shift || !submitted.text) {
+    if (!shift) {
       setData(undefined);
       setLoading(false);
       setError('');
@@ -127,11 +127,11 @@ function CashReportContent({ base, department, refresh, onDepartmentChange }: Pr
     return () => controller.abort();
   }, [scope, shift, submitted, refresh]);
   const submitSearch = (text: string, selectedId: string) => {
-    if (!shift || !text.trim()) return;
+    if (!shift) return;
     setData(undefined);
     setSubmitted((current) => ({
       text: text.trim(),
-      productId: selectedId,
+      productId: text.trim() ? selectedId : '',
       attempt: current.attempt + 1,
     }));
   };
@@ -155,10 +155,7 @@ function CashReportContent({ base, department, refresh, onDepartmentChange }: Pr
       <div className="id-report-intro">
         <div>
           <h2>Отчёт по кассе</h2>
-          <p>
-            Сначала выберите кассовую смену, затем найдите товар. Ниже появятся все чеки и товары,
-            купленные вместе с ним.
-          </p>
+          <p>Все чеки выбранной смены. Поиск по товару — по желанию.</p>
         </div>
         {data && (
           <div className="id-revision-totals">
@@ -220,6 +217,7 @@ function CashReportContent({ base, department, refresh, onDepartmentChange }: Pr
           onChange={(value) => {
             setSearch(value);
             setProductId('');
+            if (!value.trim()) submitSearch('', '');
           }}
           onSelect={(product) => {
             setSearch(product.name);
@@ -271,12 +269,16 @@ function CashReportContent({ base, department, refresh, onDepartmentChange }: Pr
           ) : !shift ? (
             'Выберите смену по дате и кассе'
           ) : (
-            'Начните вводить название и выберите товар из подсказок или нажмите «Найти»'
+            'В выбранной смене нет чеков'
           )}
         </div>
       )}
       {data && !error && !loading && !data.checks.length && (
-        <div className="id-empty">Чеки с таким товаром в выбранной смене не найдены</div>
+        <div className="id-empty">
+          {submitted.text
+            ? 'Чеки с таким товаром в выбранной смене не найдены'
+            : 'В выбранной смене нет чеков'}
+        </div>
       )}
       <div className="id-check-list">
         {data?.checks.map((check) => (

@@ -159,8 +159,6 @@ async function cashReport(service, input) {
     aggregate: ['DishAmountInt', 'DishDiscountSumInt'],
   });
   const products = buildCashProducts(report, selected.id);
-  if (!clean(input.search) && !clean(input.productId))
-    return { ...empty, products, fetchedAt: report.fetchedAt };
   const result = buildCashReport(report, { ...input, shift: selected.id });
   return { ...result, shifts, products };
 }
