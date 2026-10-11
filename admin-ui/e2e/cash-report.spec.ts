@@ -38,6 +38,21 @@ test('cash report shows the whole shift and filters complete receipts by click o
       department,
       total: 1490,
       cashier: 'Кассир',
+      payment: {
+        status: 'available',
+        methods: [
+          { id: 'cash', name: 'Наличные', group: 'Наличные', kind: 'cash', amount: 490 },
+          {
+            id: 'card',
+            name: 'Банковская карта',
+            group: 'Безналичные',
+            kind: 'card',
+            amount: 1000,
+          },
+        ],
+        receivedCash: 500,
+        change: 10,
+      },
       items: [
         { id: 'coffee', name: 'Кофе Американо', unit: 'шт', quantity: 1, total: 990 },
         { id: 'bun', name: 'Булочка Лакомка', unit: 'шт', quantity: 1, total: 500 },
@@ -52,6 +67,20 @@ test('cash report shows the whole shift and filters complete receipts by click o
       department,
       total: 1200,
       cashier: 'Кассир',
+      payment: {
+        status: 'available',
+        methods: [
+          {
+            id: 'card',
+            name: 'Банковская карта',
+            group: 'Безналичные',
+            kind: 'card',
+            amount: 1200,
+          },
+        ],
+        receivedCash: null,
+        change: null,
+      },
       items: [{ id: 'latte', name: 'Кофе Латте', unit: 'шт', quantity: 1, total: 1200 }],
     },
     {
@@ -63,6 +92,12 @@ test('cash report shows the whole shift and filters complete receipts by click o
       department,
       total: 500,
       cashier: 'Кассир',
+      payment: {
+        status: 'available',
+        methods: [{ id: 'cash', name: 'Наличные', group: 'Наличные', kind: 'cash', amount: 500 }],
+        receivedCash: null,
+        change: null,
+      },
       items: [{ id: 'bun', name: 'Булочка Лакомка', unit: 'шт', quantity: 1, total: 500 }],
     },
   ];
@@ -142,6 +177,10 @@ test('cash report shows the whole shift and filters complete receipts by click o
   await expect(report.locator('.id-check-card')).toHaveCount(2);
   await expect(report.getByText('Чек № 4', { exact: true })).toBeVisible();
   await expect(report.getByText('Чек № 5', { exact: true })).toBeVisible();
+  await expect(report.locator('.id-check-payment-label')).toHaveText([
+    'Смешанная оплата',
+    'Банковская карта',
+  ]);
   await expect(report.getByText('Чек № 6', { exact: true })).toHaveCount(0);
   const totals = report.locator('.id-revision-totals');
   await expect(totals.locator('strong')).toHaveText(['2', '3', /^2\s*690\s*₸$/]);
@@ -172,6 +211,16 @@ test('cash report shows the whole shift and filters complete receipts by click o
   await expect(report.locator('.id-found-item')).toContainText('Кофе Американо');
   await expect(report.locator('.id-check-card summary')).toContainText('19.09.2026 · 08:18');
   await expect(report.locator('.id-check-card summary')).toContainText(/1\s*490\s*₸/);
+  const payment = report.getByRole('region', { name: 'Оплата чека' });
+  await expect(payment).toBeVisible();
+  await expect(payment.getByText('Наличные', { exact: true }).locator('..')).toContainText('490 ₸');
+  await expect(payment.getByText('Банковская карта', { exact: true }).locator('..')).toContainText(
+    /1\s*000\s*₸/,
+  );
+  await expect(
+    payment.getByText('Получено наличными', { exact: true }).locator('..'),
+  ).toContainText('500 ₸');
+  await expect(payment.getByText('Сдача', { exact: true }).locator('..')).toContainText('10 ₸');
   expect(requests.at(-1)).toMatchObject({
     shift: shiftId,
     search: 'Кофе Американо',
@@ -189,6 +238,11 @@ test('cash report shows the whole shift and filters complete receipts by click o
   await expect(report.locator('.id-found-item')).toHaveCount(0);
   expect(requests.at(-1)).toMatchObject({ shift: shiftId, search: '', productId: '' });
   expect(requests.length).toBe(initialRequests + 4);
+  const cardReceipt = report.locator('.id-check-card').filter({ hasText: 'Чек № 5' });
+  await cardReceipt.locator('summary').click();
+  await expect(cardReceipt.getByRole('region', { name: 'Оплата чека' })).toBeVisible();
+  await expect(cardReceipt.getByText('Получено наличными')).toHaveCount(0);
+  await expect(cardReceipt.getByText('Сдача')).toHaveCount(0);
   await product.fill('кофе');
   await product.press('ArrowDown');
   await expect(report.getByRole('option', { name: 'Кофе Американо', exact: true })).toHaveAttribute(
@@ -224,4 +278,7 @@ test('cash report shows the whole shift and filters complete receipts by click o
     department,
   });
   expect(requests.length).toBe(initialRequests + 7);
+  await report.getByText('Чек № 6', { exact: true }).click();
+  await expect(report.getByLabel('iiko не передала полученную сумму')).toHaveText('—');
+  await expect(report.getByLabel('iiko не передала сумму сдачи')).toHaveText('—');
 });

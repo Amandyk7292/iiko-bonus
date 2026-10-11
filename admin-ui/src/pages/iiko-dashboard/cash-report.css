@@ -101,6 +101,58 @@
 .id-cash-report .id-empty button {
   margin-top: 8px;
 }
+.id-check-card summary > div {
+  min-width: 0;
+}
+.id-check-payment-label {
+  overflow-wrap: anywhere;
+}
+.id-check-payment {
+  padding: 16px 17px;
+  border-top: 1px solid var(--id-line);
+  background: var(--id-surface, #fff);
+}
+.id-check-payment h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.id-check-payment dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+}
+.id-check-payment dl > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px 20px;
+}
+.id-check-payment dt,
+.id-check-payment-missing {
+  color: var(--id-muted);
+}
+.id-check-payment dd {
+  max-width: 100%;
+  margin: 0;
+  color: var(--id-ink);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.id-check-payment dt,
+.id-check-payment dd {
+  overflow-wrap: anywhere;
+}
+.id-check-payment-cash,
+.id-check-payment-cashier {
+  padding-top: 8px;
+  border-top: 1px solid var(--id-line);
+}
+.id-check-payment-missing {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
 @media (max-width: 700px) {
   .id-cash-report .id-report-filters {
     grid-template-columns: minmax(0, 1fr);

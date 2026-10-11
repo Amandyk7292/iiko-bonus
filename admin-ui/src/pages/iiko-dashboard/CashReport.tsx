@@ -4,6 +4,7 @@ import { useI18n } from '../../lib/i18n';
 import { loadControls } from './load-controls';
 import { errorKey, type Query } from './model';
 import CashProductSearch from './CashProductSearch';
+import CashReceiptPayment, { receiptPaymentLabel, type ReceiptPayment } from './CashReceiptPayment';
 import './cash-report.css';
 
 type Item = { id: string; name: string; unit: string; quantity: number; total: number };
@@ -14,7 +15,8 @@ type Check = {
   date: string;
   time: string;
   department: string;
-  cashier: string;
+  cashier?: string;
+  payment?: ReceiptPayment;
   total: number;
   items: Item[];
 };
@@ -296,6 +298,7 @@ function CashReportContent({ base, department, refresh, onDepartmentChange }: Pr
                   · {check.time?.match(/(?:T|^)(\d{2}:\d{2})/)?.[1] || check.time || '—'} ·{' '}
                   {check.department}
                 </span>
+                <span className="id-check-payment-label">{receiptPaymentLabel(check.payment)}</span>
               </div>
               <div>
                 <strong>{formatNumber(check.total)} ₸</strong>
@@ -336,6 +339,7 @@ function CashReportContent({ base, department, refresh, onDepartmentChange }: Pr
                 </tbody>
               </table>
             </div>
+            <CashReceiptPayment payment={check.payment} cashier={check.cashier} />
           </details>
         ))}
       </div>

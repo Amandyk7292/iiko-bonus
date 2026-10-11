@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../lib/i18n';
 import CashReport, { cashItemMatches } from './CashReport';
@@ -64,6 +64,27 @@ describe('cash report page', () => {
                     time: '08:18',
                     department: 'Астана',
                     cashier: 'Кассир',
+                    payment: {
+                      status: 'available',
+                      methods: [
+                        {
+                          id: 'cash',
+                          name: 'Наличные',
+                          group: 'Наличные',
+                          kind: 'cash',
+                          amount: 1000,
+                        },
+                        {
+                          id: 'card',
+                          name: 'Банковская карта',
+                          group: 'Безналичные',
+                          kind: 'card',
+                          amount: 1190,
+                        },
+                      ],
+                      receivedCash: 1500,
+                      change: 500,
+                    },
                     total: 2190,
                     items: [
                       { id: 'coffee', name: 'Кофе Американо', unit: 'шт', quantity: 1, total: 990 },
@@ -86,6 +107,20 @@ describe('cash report page', () => {
                           time: '09:00',
                           department: 'Астана',
                           cashier: 'Кассир',
+                          payment: {
+                            status: 'available',
+                            methods: [
+                              {
+                                id: 'card',
+                                name: 'Банковская карта',
+                                group: 'Безналичные',
+                                kind: 'card',
+                                amount: 500,
+                              },
+                            ],
+                            receivedCash: null,
+                            change: null,
+                          },
                           total: 500,
                           items: [
                             { id: 'bun', name: 'Булочка', unit: 'шт', quantity: 1, total: 500 },
@@ -190,6 +225,26 @@ describe('cash report page', () => {
     );
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
     expect(screen.queryByText(/Чеки с таким товаром/)).not.toBeInTheDocument();
+  });
+
+  it('shows the receipt payment summary and its amounts without changing whole-shift totals', async () => {
+    const view = render(
+      <I18nProvider>
+        <CashReport base={base} department="branch-1" refresh={0} />
+      </I18nProvider>,
+    );
+    await screen.findByRole('option', { name: /18.09.2026/ });
+    fireEvent.change(screen.getByLabelText('Кассовая смена'), { target: { value: 'session-106' } });
+    const check = (await screen.findByText('Чек № 4')).closest('details')!;
+    expect(within(check).getByText('Смешанная оплата')).toBeInTheDocument();
+    fireEvent.click(within(check).getByText('Чек № 4'));
+    const details = within(check).getByRole('region', { name: 'Оплата чека' });
+    expect(details).toHaveTextContent('Наличные1 000 ₸');
+    expect(details).toHaveTextContent('Банковская карта1 190 ₸');
+    expect(details).toHaveTextContent('Получено наличными1 500 ₸');
+    expect(details).toHaveTextContent('Сдача500 ₸');
+    expect(details).toHaveTextContent('Кассир');
+    expect(view.container.querySelector('.id-revision-totals')).toHaveTextContent('2 690 ₸');
   });
 
   it('explains an empty department and offers shifts from all departments', async () => {

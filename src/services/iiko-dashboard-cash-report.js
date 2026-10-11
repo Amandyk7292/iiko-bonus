@@ -160,6 +160,16 @@ async function cashReport(service, input) {
   });
   const products = buildCashProducts(report, selected.id);
   const result = buildCashReport(report, { ...input, shift: selected.id });
+  result.checks = await require('./iiko-dashboard-cash-payments').cashPayments(
+    service,
+    {
+      ...base,
+      from: selected.dateFrom || input.from,
+      to: selected.dateTo || input.to,
+      filters: [...filters, { field: 'SessionID', values: [selected.id] }],
+    },
+    result.checks,
+  );
   return { ...result, shifts, products };
 }
 
