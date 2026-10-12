@@ -44,11 +44,17 @@ if (adminDirectory) {
   const deferredAcademy = javascript.filter((file) =>
     /^(?:LearningPage|AcademyAdminPage)-/.test(path.basename(file)),
   );
+  // Fortune management and gift redemption load only on their own routes.
+  // Bound this feature separately without increasing the operational shell.
+  const deferredFortune = javascript.filter((file) =>
+    /^(?:FortunePage|FortuneRedeemPage|fortune)-/.test(path.basename(file)),
+  );
   const coreJavascript = javascript.filter(
     (file) =>
       !deferredPriceLabelPdf.includes(file) &&
       !deferredPriceLabelCorel.includes(file) &&
-      !deferredAcademy.includes(file),
+      !deferredAcademy.includes(file) &&
+      !deferredFortune.includes(file),
   );
   const styles = assets.filter((file) => file.endsWith('.css'));
   const javascriptGzip = coreJavascript.map(gzipSize);
@@ -61,14 +67,20 @@ if (adminDirectory) {
     26_000,
   );
   assertBudget(
+    'Admin deferred fortune total gzip',
+    deferredFortune.reduce((sum, file) => sum + gzipSize(file), 0),
+    12_000,
+  );
+  assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
     // UI audit fixes (draft guards, persisted filters and load recovery)
     // measure 449,528 B after shared guard/input deduplication.
-    // Employee login/nav adds under 1 KiB to that shared shell; keep narrow
-    // headroom and retain the largest-chunk limit.
+    // Employee login/nav adds under 1 KiB to that shared shell. Fortune route
+    // registration/nav measures 451,669 B (+85 B over the previous cap).
+    // Keep 171 B headroom and retain the largest-chunk limit.
     // Exporters load only on download and keep their separate budgets below.
-    451_584,
+    451_840,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   assertBudget('Admin deferred price-label PDF gzip', Math.max(0, ...priceLabelPdfGzip), 185_000);
@@ -85,25 +97,25 @@ if (flutterDirectory) {
   if (!fs.existsSync(mainFile)) {
     failures.push(`Flutter entry is missing: ${mainFile}`);
   } else {
-    // Interrupted-motion handling and scoped in-flight reads with mutation
-    // barriers measure 6,725,501 B raw / 1,835,093 B gzip: +3,542 B raw /
-    // +2,457 B gzip (0.13% transfer growth) from the performance release.
-    // Retain narrow headroom; native artwork adds no startup request on web.
-    // The QR decoder remains deferred with a separate total budget below.
-    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_726_500);
-    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_835_600);
+    // Guest prize handoff across app links, registration and secure storage
+    // measures 6,823,943 B raw / 1,859,354 B gzip. Prize cards/QR are deferred;
+    // the shared handoff adds 24,261 B gzip (1.32%) to the previous baseline.
+    // Retain narrow headroom for release-qualified deferred chunk URLs.
+    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_825_000);
+    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_860_500);
   }
   const deferredChunks = filesUnder(directory).filter((file) => /\.part\.js$/.test(file));
-  // One locally decoded QR chunk measures 56,453 B raw / 19,842 B gzip.
+  // QR decoder + photo orientation are 68,593 B / 25,134 B gzip. Prize cards
+  // add 10,162 B / 3,704 B gzip and load only when opening "My prizes".
   assertBudget(
     'Flutter deferred JavaScript total',
     deferredChunks.reduce((sum, file) => sum + fs.statSync(file).size, 0),
-    58_000,
+    80_000,
   );
   assertBudget(
     'Flutter deferred JavaScript total gzip',
     deferredChunks.reduce((sum, file) => sum + gzipSize(file), 0),
-    21_000,
+    30_000,
   );
   const wasmFiles = filesUnder(directory).filter((file) => file.endsWith('.wasm'));
   assertBudget(

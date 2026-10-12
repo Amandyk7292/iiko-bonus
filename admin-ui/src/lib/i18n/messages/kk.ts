@@ -5,11 +5,13 @@ import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 import faq from '../faq';
 import academy from '../academy';
+import loyaltyNavigation from '../loyalty-navigation';
 const kk: Record<string, string> = {
   'common.previous': 'Алдыңғы бет',
   'common.next': 'Келесі бет',
   ...faq.kk,
   ...academy.kk,
+  ...loyaltyNavigation.kk,
   'access.role.iikoDashboard': 'Тек Dashboard',
   ...settlements,
   ...productionBinding.kk,
@@ -122,7 +124,6 @@ const kk: Record<string, string> = {
   'nav.operations': 'Операциялар',
   'nav.customersGroup': 'Клиенттер',
   'nav.content': 'Контент',
-  'nav.loyalty': 'Адалдық',
   'nav.system': 'Жүйе',
   'nav.analytics': 'Аналитика',
   'nav.settlements': 'Нүктелер мен серіктестер',
@@ -136,8 +137,6 @@ const kk: Record<string, string> = {
   'common.exportPage': 'Бетті экспорттау',
   'nav.stories': 'Акциялар мен баннерлер',
   'nav.taplink': 'Taplink конструкторы',
-  'nav.bonus': 'Бонус ережелері',
-  'nav.tiers': 'Кэшбэк деңгейлері',
   'nav.locations': 'Мекенжайлар',
   'nav.openMenu': 'Мәзірді ашу',
   'nav.closeMenu': 'Мәзірді жабу',
@@ -807,7 +806,6 @@ const kk: Record<string, string> = {
   'nav.photoReports': 'Фотоесептер',
   'page.photoReports.title': 'Нүктелердің фотоесептері',
   'page.photoReports.subtitle': 'Ауысымды жабу: зал және наубайшы',
-  'nav.marketing': 'CRM және сертификаттар',
   'nav.reviews': 'Пікірлер мен шағымдар',
   'nav.support': 'Клиенттерді қолдау',
   'nav.integrations': 'Сервистер күйі',

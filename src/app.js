@@ -223,7 +223,7 @@ app.get('/.well-known/apple-app-site-association', (_req, res) => {
         ? [
             {
               appID: `${teamId}.${bundleId}`,
-              paths: ['/orders', '/orders/*', '/catalog', '/catalog/*'],
+              paths: ['/orders', '/orders/*', '/catalog', '/catalog/*', '/profile', '/profile/*'],
             },
           ]
         : [],
@@ -341,6 +341,7 @@ app.use(require('./middlewares/client-data-events.middleware').clientDataEvents)
 // Label editor has a scoped code session, independent of full admin access.
 app.use(require('./routes/price-generator.routes'));
 app.use(adminRoutes);
+require('./routes/public/fortune.routes').registerFortunePage(app);
 app.use(require('./routes/branch-photo-reports.routes'));
 app.use(require('./routes/pos-pairing.routes'));
 app.use(require('./routes/front-inventory.routes'));

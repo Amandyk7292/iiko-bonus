@@ -407,6 +407,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       if (link != null) {
         await PendingReferral.capture(link);
         await PendingCashierInvite.capture(link);
+        if (await PendingFortuneClaim.capture(link)) {
+          _handleIncomingLink(link);
+        }
       }
     } catch (_) {
       // Link lookup must never block startup or a restored staff session.
@@ -425,6 +428,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     await prefs.remove('app_theme_mode');
     await PendingReferral.capture(currentClientUri());
     await PendingCashierInvite.capture(currentClientUri());
+    await PendingFortuneClaim.capture(currentClientUri());
     await SessionStore.clearLegacyCustomerData(prefs);
     await AddressRepository.removePersistedGuestAddresses(prefs);
     var phone = prefs.getString('phone');
@@ -1555,7 +1559,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     }
   }
 
-  void _handleIncomingLink(Uri uri) {
+  void _handleIncomingLink(Uri uri) async {
+    if (PendingFortuneClaim.tokenFromUri(uri) != null) {
+      await PendingFortuneClaim.capture(uri);
+      if (!mounted) return;
+    }
     if (_api.accessToken == null) {
       unawaited(PendingReferral.capture(uri));
       unawaited(PendingCashierInvite.capture(uri));
@@ -1594,6 +1602,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
             queryParameters: uri.queryParametersAll.isEmpty
                 ? null
                 : uri.queryParametersAll,
+            fragment: uri.fragment.isEmpty ? null : uri.fragment,
           )
         : normalizedClientUri(uri);
     final segments = clientUri.pathSegments

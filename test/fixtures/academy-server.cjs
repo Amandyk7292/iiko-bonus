@@ -21,8 +21,8 @@ function substitute(modulePath, exports) {
 async function startAcademyFixture({ port = 4181 } = {}) {
   process.env.NODE_ENV = 'test';
   process.env.LOG_LEVEL = 'silent';
-  process.env.BULKA_SECRET = 'synthetic-fixture-secret-never-production-2026';
-  process.env.CUSTOMER_JWT_SECRET = 'synthetic-fixture-customer-secret-never-production-2026';
+  process.env.BULKA_SECRET = crypto.randomBytes(32).toString('hex');
+  process.env.CUSTOMER_JWT_SECRET = crypto.randomBytes(32).toString('hex');
   process.env.ADMIN_USERS_JSON = JSON.stringify([{ username: 'owner' }]);
   const pg = await createLearningDatabase();
   const db = createSupabaseAdapter(pg);

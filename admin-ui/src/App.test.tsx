@@ -63,6 +63,12 @@ vi.mock('./pages/FaqPage', () => ({
 vi.mock('./pages/IikoDashboardPage', () => ({
   default: () => <div>dashboard-page</div>,
 }));
+vi.mock('./pages/fortune/FortunePage', () => ({
+  default: () => <div>fortune-management-page</div>,
+}));
+vi.mock('./pages/fortune/FortuneRedeemPage', () => ({
+  default: ({ role }: { role: string }) => <div>fortune-issue-page:{role}</div>,
+}));
 
 import App, { normalizeNumberInputValue } from './App';
 import { ApiError } from './lib/api';
@@ -117,6 +123,20 @@ describe('Admin application authentication and role guards', () => {
       view.unmount();
     }
   });
+
+  it.each(['cashier', 'branch_manager', 'owner', 'admin'])(
+    'opens a gift QR issue page directly for %s and keeps its code',
+    async (role) => {
+      apiMocks.session.mockResolvedValue({ user: { username: role, role, branchIds: [] } });
+      const code = '11111111-1111-4111-8111-111111111111';
+      window.history.replaceState({}, '', `/admin/fortune/redeem?code=${code}`);
+      renderApp();
+      expect(await screen.findByText(`fortune-issue-page:${role}`)).toBeInTheDocument();
+      expect(screen.queryByText('fortune-management-page')).not.toBeInTheDocument();
+      expect(window.location.pathname).toBe('/admin/fortune/redeem');
+      expect(window.location.search).toBe(`?code=${code}`);
+    },
+  );
 
   it('keeps a temporary session check failure out of the login form and restores on retry', async () => {
     apiMocks.session.mockRejectedValueOnce(new ApiError('temporarily unavailable', 503));

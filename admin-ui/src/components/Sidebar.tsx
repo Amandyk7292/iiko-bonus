@@ -77,6 +77,8 @@ const sections = [
       { to: '/broadcast', label: 'nav.broadcast', icon: BellRing },
       { to: '/bonus', label: 'nav.bonus', icon: Gift },
       { to: '/marketing', label: 'nav.marketing', icon: Workflow },
+      { to: '/fortune', label: 'nav.fortune', icon: Gift },
+      { to: '/fortune/redeem', label: 'nav.fortuneRedeem', icon: Gift },
       { to: '/tiers', label: 'nav.tiers', icon: CircleDollarSign },
       { to: '/faq', label: 'nav.faq', icon: CircleHelp },
     ],
@@ -135,6 +137,7 @@ export default function Sidebar({
                   .filter((item) => ['/orders', '/kitchen'].includes(item.to)),
                 { to: '/menu', label: 'nav.inventory', icon: UtensilsCrossed },
                 { to: '/learning', label: 'nav.learning', icon: BookOpenText },
+                { to: '/fortune/redeem', label: 'nav.fortuneRedeem', icon: Gift },
               ],
             },
           ]
@@ -301,7 +304,7 @@ export default function Sidebar({
                         <NavLink
                           key={item.to}
                           to={item.to}
-                          end={item.to === '/learning'}
+                          end={['/learning', '/fortune'].includes(item.to)}
                           onClick={onClose}
                           className={({ isActive }) =>
                             isActive ? 'sagi-nav-link sagi-nav-link-active' : 'sagi-nav-link'

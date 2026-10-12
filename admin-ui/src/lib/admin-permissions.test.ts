@@ -31,7 +31,13 @@ describe('admin permissions shown by the frontend', () => {
   });
 
   it('keeps a cashier inside orders and kitchen without financial controls', () => {
-    expect(ADMIN_ALLOWED_PATHS.cashier).toEqual(['/kitchen', '/orders', '/menu', '/learning']);
+    expect(ADMIN_ALLOWED_PATHS.cashier).toEqual([
+      '/kitchen',
+      '/orders',
+      '/menu',
+      '/learning',
+      '/fortune/redeem',
+    ]);
     expect(canMutateOrders('cashier')).toBe(false);
     expect(canRefundOrders('cashier')).toBe(false);
     expect(canMutateInventory('cashier')).toBe(false);
@@ -43,6 +49,21 @@ describe('admin permissions shown by the frontend', () => {
     expect(canMutateOrders('employee')).toBe(false);
     expect(canMutateInventory('employee')).toBe(false);
   });
+
+  it.each(['cashier', 'branch_manager'])(
+    'permits prize issuance for %s without campaign management',
+    (role) => {
+      expect(ADMIN_ALLOWED_PATHS[role]).toContain('/fortune/redeem');
+      expect(ADMIN_ALLOWED_PATHS[role]).not.toContain('/fortune');
+    },
+  );
+  it.each(['employee', 'viewer', 'editor', 'operator', 'marketer'])(
+    'does not advertise prize issuance for %s',
+    (role) => {
+      expect(ADMIN_ALLOWED_PATHS[role]).not.toContain('/fortune/redeem');
+      expect(ADMIN_ALLOWED_PATHS[role]).not.toContain('/fortune');
+    },
+  );
 
   it('removes manual courier workspaces without expanding retired courier permissions', () => {
     for (const paths of Object.values(ADMIN_ALLOWED_PATHS)) {

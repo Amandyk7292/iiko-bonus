@@ -606,6 +606,11 @@ const adminMutationRoleMiddleware = (req, res, next) => {
   const readOnly = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
   const restrictedPath = String(req.path).toLowerCase().replace(/\/+$/, '');
   const learningPath = restrictedPath.replace(/^\/admin\/api/, '');
+  const fortuneRedemption =
+    (req.method === 'GET' && /^\/?fortune\/vouchers\/[0-9a-f-]{36}$/.test(learningPath)) ||
+    (req.method === 'POST' && /^\/?fortune\/winners\/[0-9a-f-]{36}\/redeem$/.test(learningPath));
+  if (fortuneRedemption && ['owner', 'admin', 'cashier', 'branch_manager'].includes(req.admin.role))
+    return next();
   if (/^\/?learning(?:\/|$)/.test(learningPath)) {
     const learnerRead =
       readOnly &&

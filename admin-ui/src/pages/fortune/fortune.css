@@ -1,0 +1,646 @@
+.fortune-admin,
+.fortune-editor,
+.fortune-winners,
+.fortune-qr {
+  --fortune-ink: var(--sagi-text, #58351f);
+  --fortune-muted: #75665a;
+  --fortune-line: var(--sagi-border, #e9decc);
+  --fortune-cream: #fffaf0;
+  --fortune-gold: #ffbf28;
+  color: var(--fortune-ink);
+}
+.fortune-admin {
+  display: grid;
+  gap: 24px;
+  max-width: 1500px;
+  min-width: 0;
+  margin: auto;
+}
+:where(.fortune-admin, .fortune-editor, .fortune-editor-footer, .fortune-winners, .fortune-qr)
+  :is(.btn-primary, .btn-outline) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 11px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+:where(.fortune-admin, .fortune-editor, .fortune-winners, .fortune-qr) button svg {
+  flex-shrink: 0;
+}
+.fortune-redemption {
+  max-width: 900px;
+}
+.fortune-redemption-card {
+  padding: 28px;
+}
+.fortune-voucher-search {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+}
+.fortune-voucher-search .fortune-field {
+  flex: 1;
+  min-width: 0;
+}
+.fortune-voucher-search button {
+  min-height: 44px;
+  flex-shrink: 0;
+}
+.fortune-voucher-result {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding-top: 28px;
+}
+.fortune-voucher-result h2 {
+  margin: 12px 0;
+}
+.fortune-voucher-result p {
+  margin: 6px 0;
+}
+.fortune-voucher-result small,
+.fortune-voucher-hint {
+  color: var(--fortune-muted);
+}
+.fortune-form-error {
+  margin-top: 20px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: #fff0ed;
+  color: #9b3424;
+}
+.fortune-voucher-result button {
+  margin-left: auto;
+  min-height: 44px;
+}
+@media (max-width: 520px) {
+  .fortune-redemption-card {
+    padding: 20px;
+  }
+  .fortune-voucher-search {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .fortune-voucher-result button {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+.fortune-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.fortune-header h1 {
+  margin: 6px 0 8px;
+  font-size: clamp(25px, 2.7vw, 36px);
+  line-height: 1.2;
+}
+.fortune-header p {
+  color: var(--fortune-muted);
+  margin: 0;
+}
+.fortune-eyebrow {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+.fortune-campaign-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.fortune-campaign {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+  min-width: 0;
+}
+.fortune-campaign-heading {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.fortune-campaign h2 {
+  margin: 0;
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+.fortune-status {
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: #f4ecdf;
+  color: #65503a;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.fortune-status-active,
+.fortune-status-claimed {
+  background: #e3f2e7;
+  color: #265537;
+}
+.fortune-status-redeemed {
+  background: #fff0bd;
+  color: #704617;
+}
+.fortune-status-expired,
+.fortune-status-paused {
+  background: #f0ece6;
+  color: #695c51;
+}
+.fortune-card-body {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.8fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+}
+.fortune-card-info p {
+  font-size: 14px;
+  margin: 0 0 18px;
+  color: var(--fortune-muted);
+}
+.fortune-card-info dl {
+  margin: 0;
+  display: grid;
+  gap: 12px;
+  font-size: 13px;
+}
+.fortune-card-info dl > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.fortune-card-info dt {
+  color: var(--fortune-muted);
+}
+.fortune-card-info dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.fortune-card-actions,
+.fortune-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.fortune-card-actions {
+  margin-top: auto;
+  border-top: 1px solid var(--fortune-line);
+  padding-top: 20px;
+}
+.fortune-card-actions button {
+  min-height: 44px;
+}
+.fortune-card-actions .btn-primary {
+  margin-left: auto;
+}
+.fortune-empty {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  padding: 56px 24px;
+}
+.fortune-empty h2 {
+  margin: 20px 0 10px;
+}
+.fortune-empty p {
+  margin: 0;
+  color: var(--fortune-muted);
+}
+.fortune-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  background: #fff0bf;
+  border-radius: 24px;
+}
+.fortune-preview {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.fortune-wheel-frame {
+  position: relative;
+  width: min(100%, 230px);
+  aspect-ratio: 1;
+  margin: 4px auto 0;
+}
+.fortune-wheel {
+  width: 100%;
+  height: 100%;
+  border: 7px solid #fff;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1px var(--fortune-line),
+    0 10px 28px #7b4b1714;
+  display: grid;
+  place-items: center;
+}
+.fortune-wheel-center {
+  display: grid;
+  place-items: center;
+  width: 32%;
+  aspect-ratio: 1;
+  background: #fffaf0;
+  border: 4px solid #fff;
+  border-radius: 50%;
+  color: #58351f;
+  font-weight: 800;
+  font-size: 19px;
+  box-shadow: 0 4px 12px #6b421322;
+}
+.fortune-wheel-pointer {
+  position: absolute;
+  top: -8px;
+  left: calc(50% - 10px);
+  width: 20px;
+  height: 30px;
+  background: #58351f;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.fortune-legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.fortune-legend li {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.fortune-legend li > span:first-child {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #0002;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.fortune-editor {
+  padding: 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  gap: 28px;
+  align-items: start;
+}
+.fortune-editor-controls {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  display: grid;
+  gap: 22px;
+}
+.fortune-editor-preview {
+  position: sticky;
+  top: 0;
+  padding: 20px;
+  border: 1px solid var(--fortune-line);
+  border-radius: 20px;
+  background: var(--fortune-cream);
+  min-width: 0;
+}
+.fortune-editor-preview h3 {
+  margin: 0 0 24px;
+  text-align: center;
+  font-size: 15px;
+}
+.fortune-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  min-width: 0;
+}
+.fortune-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  align-content: start;
+}
+.fortune-field > label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.fortune-field small {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fortune-muted);
+}
+.fortune-field .input-classic {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+}
+.fortune-branches {
+  border: 1px solid var(--fortune-line);
+  border-radius: 18px;
+  padding: 16px;
+}
+.fortune-branches legend,
+.fortune-prize legend {
+  padding: 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.fortune-branches > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  max-height: 230px;
+  overflow-y: auto;
+}
+.fortune-check {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.fortune-check input {
+  accent-color: #a35c22;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.fortune-check small {
+  display: block;
+  color: var(--fortune-muted);
+}
+.fortune-schedule {
+  border-bottom: 1px solid var(--fortune-line);
+  padding-bottom: 16px;
+}
+.fortune-schedule summary {
+  min-height: 44px;
+  cursor: pointer;
+  display: list-item;
+  padding: 10px 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.fortune-schedule .fortune-fields {
+  margin-top: 14px;
+}
+.fortune-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.fortune-section-heading h3 {
+  font-size: 19px;
+  margin: 0;
+}
+.fortune-probability {
+  border-radius: 12px;
+  font-size: 13px;
+  padding: 7px 10px;
+  background: #f8e4d6;
+  color: #803d24;
+  font-weight: 600;
+}
+.fortune-probability.is-valid {
+  color: #265537;
+  background: #e3f2e7;
+}
+.fortune-prize-list {
+  display: grid;
+  gap: 20px;
+}
+.fortune-prize {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--fortune-line);
+  border-radius: 18px;
+  min-width: 0;
+}
+.fortune-prize.is-inactive {
+  background: #f7f5f0;
+}
+.fortune-prize-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.fortune-prize-header .icon-button {
+  margin-left: auto;
+}
+.fortune-color-chip {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  border: 1px solid #0002;
+}
+.fortune-color-input {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid var(--fortune-line);
+  background: #fff;
+  border-radius: 10px;
+  cursor: pointer;
+  padding: 4px;
+}
+.fortune-private-note {
+  color: var(--fortune-muted);
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.fortune-editor-footer {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+.fortune-editor-footer .fortune-actions {
+  justify-content: flex-end;
+}
+.fortune-editor-footer .field-error {
+  margin: 0;
+}
+.fortune-qr {
+  padding: 24px;
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+}
+.fortune-qr > .fortune-field {
+  width: 100%;
+}
+.fortune-qr img {
+  width: min(100%, 280px);
+  height: auto;
+  aspect-ratio: 1;
+}
+.fortune-link {
+  color: #78491f;
+  text-decoration: underline;
+  font-size: 13px;
+  padding: 10px 0;
+}
+.fortune-winners {
+  padding: 24px;
+  display: grid;
+  gap: 22px;
+}
+.fortune-winners-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.fortune-winners-header .fortune-field {
+  max-width: 260px;
+  width: 100%;
+}
+.fortune-winners-header > span {
+  padding-bottom: 10px;
+  color: var(--fortune-muted);
+  font-size: 13px;
+}
+.fortune-winner-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.fortune-winner {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid var(--fortune-line);
+  border-radius: 16px;
+  padding: 18px;
+  min-width: 0;
+}
+.fortune-winner strong {
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.fortune-winner p {
+  font-size: 14px;
+  margin: 8px 0;
+}
+.fortune-winner small {
+  font-size: 12px;
+  color: var(--fortune-muted);
+  display: block;
+  line-height: 1.6;
+}
+.fortune-winner-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.fortune-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+@media (max-width: 1200px) {
+  .fortune-campaign-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 800px) {
+  .fortune-editor {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 20px;
+  }
+  .fortune-editor-preview {
+    position: static;
+    order: -1;
+  }
+  .fortune-editor-preview .fortune-preview {
+    display: grid;
+    grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+    align-items: center;
+    gap: 20px;
+  }
+  .fortune-editor-preview h3 {
+    text-align: left;
+    margin-bottom: 16px;
+  }
+}
+@media (max-width: 520px) {
+  .fortune-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .fortune-campaign {
+    padding: 20px;
+  }
+  .fortune-campaign-heading {
+    flex-direction: column;
+  }
+  .fortune-card-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fortune-card-body .fortune-preview {
+    grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 20px;
+  }
+  .fortune-card-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .fortune-card-actions .btn-primary {
+    grid-column: 1 / -1;
+    margin-left: 0;
+  }
+  .fortune-fields,
+  .fortune-branches > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fortune-editor {
+    padding: 16px;
+  }
+  .fortune-winners {
+    padding: 16px;
+  }
+  .fortune-winner {
+    flex-direction: column;
+  }
+  .fortune-winner-actions {
+    align-items: flex-start;
+  }
+  .fortune-winners-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .fortune-editor-footer .fortune-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fortune-admin *,
+  .fortune-editor * {
+    scroll-behavior: auto;
+  }
+}

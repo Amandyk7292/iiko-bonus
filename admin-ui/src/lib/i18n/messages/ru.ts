@@ -5,11 +5,13 @@ import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 import faq from '../faq';
 import academy from '../academy';
+import loyaltyNavigation from '../loyalty-navigation';
 const ru: Record<string, string> = {
   'common.previous': 'Предыдущая страница',
   'common.next': 'Следующая страница',
   ...faq.ru,
   ...academy.ru,
+  ...loyaltyNavigation.ru,
   'access.role.iikoDashboard': 'Только Dashboard',
   ...settlements,
   ...productionBinding.ru,
@@ -122,7 +124,6 @@ const ru: Record<string, string> = {
   'nav.operations': 'Операции',
   'nav.customersGroup': 'Клиенты',
   'nav.content': 'Контент',
-  'nav.loyalty': 'Лояльность',
   'nav.system': 'Система',
   'nav.analytics': 'Аналитика',
   'nav.settlements': 'Точки и партнёры',
@@ -136,8 +137,6 @@ const ru: Record<string, string> = {
   'common.exportPage': 'Экспорт страницы',
   'nav.stories': 'Акции и баннеры',
   'nav.taplink': 'Taplink-конструктор',
-  'nav.bonus': 'Правила бонусов',
-  'nav.tiers': 'Уровни кэшбэка',
   'nav.locations': 'Локации',
   'nav.menu': 'Меню и блюда',
   'nav.openMenu': 'Открыть меню',
@@ -817,7 +816,6 @@ const ru: Record<string, string> = {
   'nav.photoReports': 'Фотоотчёты',
   'page.photoReports.title': 'Фотоотчёты точек',
   'page.photoReports.subtitle': 'Закрытие смены: зал и пекарь',
-  'nav.marketing': 'CRM и сертификаты',
   'nav.reviews': 'Отзывы и жалобы',
   'nav.support': 'Поддержка клиентов',
   'nav.integrations': 'Состояние сервисов',

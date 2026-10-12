@@ -55,6 +55,7 @@ class _MainShellState extends State<MainShell> {
   int _catalogSelectionRevision = 0;
   bool _hasCatalogOrderType = false;
   bool _authFlowInProgress = false;
+  bool _fortuneFlowInProgress = false;
   final _navigationGate = _AsyncActionGate();
   Route<void>? _faqRoute;
 
@@ -97,6 +98,7 @@ class _MainShellState extends State<MainShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _catalogKey.currentState?.applyClientUri(clientRouteNotifier.value);
       if (mounted) {
+        unawaited(_resumeFortuneClaim());
         if (clientRouteNotifier.value.path == '/promos' ||
             clientRouteNotifier.value.path == '/faq' ||
             clientRouteNotifier.value.path == '/cashier-register' ||
@@ -117,6 +119,9 @@ class _MainShellState extends State<MainShell> {
         _tab != widget.initialTab) {
       _tab = widget.initialTab.clamp(0, 4).toInt();
     }
+    if (oldWidget.customer == null && widget.customer != null) {
+      unawaited(_resumeFortuneClaim());
+    }
   }
 
   @override
@@ -128,6 +133,13 @@ class _MainShellState extends State<MainShell> {
   void _onClientRouteChanged() {
     if (!mounted) return;
     final uri = clientRouteNotifier.value;
+    if (uri.path == '/profile' &&
+        PendingFortuneClaim.tokenFromFragment(uri) != null) {
+      unawaited(_resumeFortuneClaim(promptForAuth: true));
+      if (_tab != 4) setState(() => _tab = 4);
+      widget.onTabChanged?.call(4);
+      return;
+    }
     if (uri.path == '/faq') {
       unawaited(_openFaq(publishRoute: false));
       return;
@@ -178,6 +190,40 @@ class _MainShellState extends State<MainShell> {
       return await widget.onRequireAuth?.call() ?? false;
     } finally {
       _authFlowInProgress = false;
+    }
+  }
+
+  Future<void> _resumeFortuneClaim({bool promptForAuth = false}) async {
+    if (_fortuneFlowInProgress ||
+        widget.staff?.isAuthenticated == true ||
+        widget.api.isFamilyChildSession) {
+      return;
+    }
+    _fortuneFlowInProgress = true;
+    try {
+      final token = await PendingFortuneClaim.read();
+      if (!mounted || token == null) return;
+      final routeToken = PendingFortuneClaim.tokenFromFragment(
+        clientRouteNotifier.value,
+      );
+      if (!widget.api.isAuthenticated && !promptForAuth && routeToken == null) {
+        return;
+      }
+      if (!await _requireAuth() || !mounted) return;
+      if (await PendingFortuneClaim.read() != token || !mounted) return;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          settings: const RouteSettings(name: 'fortune-prizes'),
+          builder: (_) => FortunePrizesScreen(
+            api: widget.api,
+            onRefreshProfile: widget.onRefreshProfile,
+          ),
+        ),
+      );
+    } catch (_) {
+      // Leave the token intact: opening My prizes can safely retry the claim.
+    } finally {
+      _fortuneFlowInProgress = false;
     }
   }
 

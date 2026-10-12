@@ -131,6 +131,17 @@ describe('Sidebar role navigation', () => {
     );
     expect(screen.getByRole('link', { name: 'Моё обучение' })).not.toHaveAttribute('aria-current');
   });
+  it('marks only prize issuance active on its separate route', () => {
+    window.history.replaceState({}, '', '/admin/fortune/redeem');
+    renderSidebar('owner');
+    expect(screen.getByRole('link', { name: 'Выдача призов' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByRole('link', { name: 'Рулетка подарков' })).not.toHaveAttribute(
+      'aria-current',
+    );
+  });
 
   it.each(['owner', 'admin', 'editor', 'marketer'])(
     'places FAQ beside loyalty tiers for %s',

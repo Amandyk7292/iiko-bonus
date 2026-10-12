@@ -4,7 +4,9 @@ const isTest = process.env.NODE_ENV === 'test';
 
 function redactResetSecrets(value, seen = new WeakMap()) {
   if (typeof value === 'string') {
-    return value.replace(/(\/reset-password#reset=)[a-f0-9]{64}/g, '$1[REDACTED]');
+    return value
+      .replace(/(\/reset-password#reset=)[a-f0-9]{64}/g, '$1[REDACTED]')
+      .replace(/(#fortune=)[A-Za-z0-9_-]{43}/g, '$1[REDACTED]');
   }
   if (!value || typeof value !== 'object') return value;
   if (seen.has(value)) return seen.get(value);
@@ -13,7 +15,21 @@ function redactResetSecrets(value, seen = new WeakMap()) {
   seen.set(value, copy);
   for (const key of Object.getOwnPropertyNames(value)) {
     if (Array.isArray(value) && key === 'length') continue;
-    copy[key] = ['resetToken', 'reset_token', 'reset_url'].includes(key)
+    copy[key] = [
+      'resetToken',
+      'reset_token',
+      'reset_url',
+      'claimToken',
+      'receiptToken',
+      'claim_hash',
+      'guest_hash',
+      'token_hash',
+      'p_claim_hash',
+      'p_guest_hash',
+      'p_token_hash',
+      'p_proof_token_hash',
+      'fortuneGuestHash',
+    ].includes(key)
       ? '[REDACTED]'
       : redactResetSecrets(value[key], seen);
   }

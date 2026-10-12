@@ -79,6 +79,7 @@ for (const role of ['branch_manager', 'operator', 'marketer', 'editor', 'viewer'
   ADMIN_ALLOWED_PATHS[role].push('/learning');
 }
 ADMIN_ALLOWED_PATHS.branch_manager.push('/learning/manage');
+for (const role of ['branch_manager', 'cashier']) ADMIN_ALLOWED_PATHS[role].push('/fortune/redeem');
 
 const ORDER_MUTATION_ROLES = new Set(['owner', 'admin', 'branch_manager', 'operator', 'editor']);
 const ORDER_REFUND_ROLES = new Set(['owner', 'admin', 'branch_manager']);

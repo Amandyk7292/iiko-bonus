@@ -60,6 +60,8 @@ const SupportPage = lazy(() => import('./pages/SupportPage'));
 const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage'));
 const LearningPage = lazy(() => import('./pages/learning/LearningPage'));
 const AcademyAdminPage = lazy(() => import('./pages/academy-admin/AcademyAdminPage'));
+const FortunePage = lazy(() => import('./pages/fortune/FortunePage'));
+const FortuneRedeemPage = lazy(() => import('./pages/fortune/FortuneRedeemPage'));
 
 export function normalizeNumberInputValue(value: string) {
   return value.replace(/^(-?)0+(?=\d)/, '$1');
@@ -694,6 +696,11 @@ export default function App() {
                     element={guard('/photo-reports', <PhotoReportsPage role={role} />)}
                   />
                   <Route path="/marketing" element={guard('/marketing', <MarketingPage />)} />
+                  <Route
+                    path="/fortune/redeem"
+                    element={guard('/fortune/redeem', <FortuneRedeemPage role={role} />)}
+                  />
+                  <Route path="/fortune" element={guard('/fortune', <FortunePage role={role} />)} />
                   <Route
                     path="/reviews"
                     element={<Navigate to={canOpen('/support') ? '/support' : firstPath} replace />}

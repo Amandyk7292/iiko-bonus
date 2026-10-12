@@ -155,6 +155,7 @@ registerTaplinkPublicRoutes(router);
 require('./public/branch-signup.routes').registerBranchSignupRoutes(router);
 require('./public/cashier-signup.routes').registerCashierSignupPublicRoutes(router);
 registerBoughtTogetherRoutes(router);
+require('./public/fortune.routes').registerFortunePublicRoutes(router);
 require('./public/faq.routes').registerFaqPublicRoutes(router);
 require('./public/image.routes').registerPublicImageRoutes(router);
 router.post(
@@ -163,6 +164,7 @@ router.post(
   (req, res) => acceptAnalyticsEvents(req, res),
 );
 router.use('/api/customer', publicApiRateLimit, customerAuthMiddleware);
+require('./public/fortune.routes').registerFortuneCustomerRoutes(router);
 require('./customer/walking-rewards.routes').registerWalkingRewardRoutes(router);
 router.use('/api/courier', publicApiRateLimit);
 
