@@ -1,16 +1,5 @@
 const { parseReceiptQr, receiptError, moneyCents } = require('./fortune-receipt-qr');
-const tls = require('node:tls');
-const https = require('node:https');
-// Use the machine's normally trusted certificate authorities as well as Node's
-// bundled roots. OOFD's chain is trusted by the OS on our Windows deployment
-// workstation. Certificate and hostname verification remain enabled.
-const trustedAgent =
-  typeof tls.getCACertificates === 'function'
-    ? new https.Agent({
-        ca: [...new Set([...tls.getCACertificates('default'), ...tls.getCACertificates('system')])],
-        rejectUnauthorized: true,
-      })
-    : undefined;
+const { createFiscalHttpsAgent } = require('./fortune-receipt-tls');
 
 const unavailable = () =>
   receiptError(
@@ -148,7 +137,9 @@ function verifiedOofdTicket(payload, receipt) {
     ...receipt,
     registerSerial: serial,
     source: 'oofd',
-    ...(ordinals.length === 1 ? { fiscalOrdinal: String(ordinals[0].value) } : {}),
+    // OOFD printedDocumentNumber is its own document counter. Real Webkassa and
+    // iiko counters differ; do not compare this value to FiscalChequeNumber.
+    ...(ordinals.length === 1 ? { providerDocumentNumber: String(ordinals[0].value) } : {}),
   };
 }
 
@@ -184,7 +175,7 @@ async function lookupFiscalReceipt(receipt, { fetchImpl = require('node-fetch') 
       size: 256 * 1024,
       headers: { Accept: 'application/json' },
       signal: controller.signal,
-      agent: trustedAgent,
+      agent: createFiscalHttpsAgent(receipt.provider),
     });
     if (response.status === 400 || response.status === 404) throw notFound();
     if (!response.ok || !/application\/json/i.test(response.headers.get('content-type') || ''))

@@ -1,0 +1,41 @@
+{
+  "kkmFnsId": "430600000001",
+  "kkmSerialNumber": "SWK00345678",
+  "ticket": {
+    "type": "TICKET",
+    "operationType": 2,
+    "cancelDate": null,
+    "transactionDate": "2026-10-12T08:18:21.000",
+    "fiscalId": "1234567890",
+    "offlineFiscalId": null,
+    "totalSum": 750,
+    "discount": null,
+    "markup": null,
+    "items": [
+      {
+        "itemType": 1,
+        "commodity": {
+          "quantity": 1,
+          "sum": 450,
+          "taxes": []
+        }
+      },
+      {
+        "itemType": 1,
+        "commodity": {
+          "quantity": 1,
+          "sum": 300,
+          "taxes": []
+        }
+      }
+    ],
+    "options": {
+      "children": [
+        {
+          "name": "printedDocumentNumber",
+          "value": "781234"
+        }
+      ]
+    }
+  }
+}

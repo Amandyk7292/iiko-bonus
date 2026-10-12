@@ -67,7 +67,7 @@ test('verified fiscal proof yields exact actual sale, independent of stale accou
           throw new Error('cached report must not be used');
         },
         loadReport: async (query) => {
-          assert.equal(query.from, '2026-09-11');
+          assert.equal(query.from, '2026-07-13');
           assert.equal(query.to, '2026-10-11');
           assert.deepEqual(query.filters, [
             { field: 'Department.Id', values: [binding.departmentId] },
@@ -78,6 +78,10 @@ test('verified fiscal proof yields exact actual sale, independent of stale accou
           ]);
           assert(!query.groupBy.includes('PayTypes'));
           assert(query.groupBy.includes('Storned'));
+          assert.deepEqual(query.closeTimeRange, {
+            from: '2026-10-10T19:17:45.000',
+            to: '2026-10-10T19:18:05.000',
+          });
           return { rows: [row()] };
         },
       },
@@ -230,7 +234,7 @@ test('wrong branch/register/time/sum, deleted/storno rows and unknown flags are 
   for (const changes of [
     { 'Department.Id': '33e68e1d-a7bd-4ba7-992a-e3e8a960b1f3' },
     { 'CashRegisterName.CashRegisterSerialNumber': 'SWK99999999' },
-    { CloseTime: '2026-10-10T19:18:03.000' },
+    { CloseTime: '2026-10-10T19:18:05.001' },
     { DishDiscountSumInt: 3007.49 },
     { OrderDeleted: 'DELETED' },
     { DeletedWithWriteoff: 'DELETED' },
@@ -247,13 +251,13 @@ test('fiscal issue may follow POS close briefly; every candidate in the bounded 
   for (const CloseTime of [
     '2026-10-10T19:17:45.000',
     '2026-10-10T19:17:56.571',
-    '2026-10-10T19:18:02.000',
+    '2026-10-10T19:18:05.000',
   ])
     assert.equal(
       exactIikoSale({ rows: [row({ CloseTime })] }, receipt, binding).saleGuid,
       saleGuid,
     );
-  for (const CloseTime of ['2026-10-10T19:17:44.999', '2026-10-10T19:18:02.001'])
+  for (const CloseTime of ['2026-10-10T19:17:44.999', '2026-10-10T19:18:05.001'])
     assert.throws(() => exactIikoSale({ rows: [row({ CloseTime })] }, receipt, binding), {
       code: 'FORTUNE_RECEIPT_NOT_FOUND',
     });
@@ -264,6 +268,37 @@ test('fiscal issue may follow POS close briefly; every candidate in the bounded 
   assert.throws(() => exactIikoSale({ rows: [row(), other] }, receipt, binding), {
     code: 'FORTUNE_RECEIPT_AMBIGUOUS',
   });
+});
+
+test('only explicit zero-value removed items may accompany an otherwise valid paid sale', () => {
+  const removed = (changes = {}) =>
+    row({ DeletedWithWriteoff: 'DELETED_WITHOUT_WRITEOFF', DishDiscountSumInt: 0, ...changes });
+  assert.equal(exactIikoSale({ rows: [row(), removed()] }, receipt, binding).saleGuid, saleGuid);
+  for (const changes of [
+    { DishDiscountSumInt: 0.01 },
+    { DishDiscountSumInt: -0.01 },
+    { DishDiscountSumInt: null },
+    { DeletedWithWriteoff: 'DELETED_WITH_WRITEOFF' },
+    { DeletedWithWriteoff: 'UNKNOWN' },
+    { DeletedWithWriteoff: null },
+    { OrderDeleted: 'DELETED' },
+    { Storned: 'TRUE' },
+  ])
+    assert.throws(() => exactIikoSale({ rows: [row(), removed(changes)] }, receipt, binding), {
+      code: 'FORTUNE_RECEIPT_NOT_FOUND',
+    });
+  assert.throws(() => exactIikoSale({ rows: [removed()] }, receipt, binding), {
+    code: 'FORTUNE_RECEIPT_NOT_FOUND',
+  });
+  assert.throws(
+    () =>
+      exactIikoSale(
+        { rows: [row(), removed({ CloseTime: '2026-10-10T19:18:01' })] },
+        receipt,
+        binding,
+      ),
+    { code: 'FORTUNE_RECEIPT_UNAVAILABLE' },
+  );
 });
 
 test('when fiscal ordinals exist on both sides they must match', () => {

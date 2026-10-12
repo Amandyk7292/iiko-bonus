@@ -1,5 +1,6 @@
 const { decodeReceipt, parseReceiptQr, receiptError } = require('./fortune-receipt-qr');
 const { lookupFiscalReceipt } = require('./fortune-receipt-provider');
+const { loadFortuneReceiptReport } = require('./fortune-receipt-iiko');
 const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const unavailable = () =>
   receiptError('FORTUNE_RECEIPT_UNAVAILABLE', 'Филиал пока не подключён к проверке чеков', 503);
@@ -27,6 +28,21 @@ const providerOrigins = {
   ttk: 'https://ofd1.kz/',
   webkassa: 'https://my.webkassa.kz/',
 };
+const oofdWebkassa = (receipt) =>
+  receipt.provider === 'oofd' && /^SWK\d{8}$/.test(receipt.registerSerial || '');
+
+function exactRegister(row, receipt) {
+  const serial = String(row['CashRegisterName.CashRegisterSerialNumber'] || '').toUpperCase();
+  // Webkassa reports the full SWK serial to OOFD, while this iiko driver stores
+  // its numeric suffix as FR serial. Require the full exact register name as a
+  // second identity, never accept an arbitrary number or a name substring.
+  if (!oofdWebkassa(receipt)) return serial === receipt.registerSerial;
+  return (
+    String(row.CashRegisterName || '').toUpperCase() === receipt.registerSerial &&
+    (serial === receipt.registerSerial ||
+      serial === String(Number(receipt.registerSerial.slice(3))))
+  );
+}
 
 function canonicalFiscalQr(value, strict = false) {
   if (
@@ -91,6 +107,7 @@ function exactIikoSale(report, receipt, binding) {
       'OpenDate.Typed',
       'SessionID',
     ];
+    if (oofdWebkassa(receipt)) metadata.push('CashRegisterName');
     if (receipt.fiscalOrdinal && rows.some((row) => String(row.FiscalChequeNumber ?? '').trim()))
       metadata.push('FiscalChequeNumber');
     if (metadata.some((field) => new Set(rows.map((row) => String(row[field] ?? ''))).size !== 1))
@@ -103,10 +120,9 @@ function exactIikoSale(report, receipt, binding) {
     const issueDelay = fiscalTime - closeTime;
     if (
       String(first['Department.Id']).toLowerCase() !== binding.departmentId.toLowerCase() ||
-      String(first['CashRegisterName.CashRegisterSerialNumber']).toUpperCase() !==
-        receipt.registerSerial ||
+      !exactRegister(first, receipt) ||
       !Number.isFinite(issueDelay) ||
-      issueDelay < -2000 ||
+      issueDelay < -5000 ||
       issueDelay > 15000
     )
       continue;
@@ -125,16 +141,22 @@ function exactIikoSale(report, receipt, binding) {
       )
         continue;
     }
+    if (rows.some((row) => row.OrderDeleted !== 'NOT_DELETED' || row.Storned !== 'FALSE')) continue;
+    // A removed zero-value item remains in SALES for an otherwise paid sale.
+    // Ignore only that explicit non-writeoff state; never hide a charged,
+    // written-off or unknown deletion, cancelled order or refund row.
     if (
       rows.some(
         (row) =>
-          row.OrderDeleted !== 'NOT_DELETED' ||
-          row.DeletedWithWriteoff !== 'NOT_DELETED' ||
-          row.Storned !== 'FALSE',
+          row.DeletedWithWriteoff !== 'NOT_DELETED' &&
+          (row.DeletedWithWriteoff !== 'DELETED_WITHOUT_WRITEOFF' ||
+            cents(row.DishDiscountSumInt) !== 0),
       )
     )
       continue;
-    const amounts = rows.map((row) => cents(row.DishDiscountSumInt));
+    const amounts = rows
+      .filter((row) => row.DeletedWithWriteoff === 'NOT_DELETED')
+      .map((row) => cents(row.DishDiscountSumInt));
     if (amounts.some((amount) => amount === null)) throw unavailable();
     const totalCents = amounts.reduce((sum, amount) => sum + amount, 0);
     if (
@@ -206,6 +228,7 @@ async function verifyDecodedReceipt(input, decoded, dependencies) {
     'DeletedWithWriteoff',
     'Storned',
   ];
+  if (oofdWebkassa(fiscal)) required.push('CashRegisterName');
   let columns;
   try {
     ({ columns } = await reports.getSchema({ serverId: binding.serverId, reportType: 'SALES' }));
@@ -215,7 +238,10 @@ async function verifyDecodedReceipt(input, decoded, dependencies) {
   if (
     required.some((field) => !columns?.[field]?.groupingAllowed) ||
     !columns?.['Department.Id']?.filteringAllowed ||
-    !columns?.['CashRegisterName.CashRegisterSerialNumber']?.filteringAllowed ||
+    !columns?.[
+      oofdWebkassa(fiscal) ? 'CashRegisterName' : 'CashRegisterName.CashRegisterSerialNumber'
+    ]?.filteringAllowed ||
+    !columns?.CloseTime?.filteringAllowed ||
     !columns?.DishDiscountSumInt?.aggregationAllowed
   )
     throw unavailable();
@@ -225,13 +251,23 @@ async function verifyDecodedReceipt(input, decoded, dependencies) {
     serverId: binding.serverId,
     reportType: 'SALES',
     // OpenDate.Typed is an accounting day. A long-running shift can place an
-    // October purchase in September; inspect a bounded 30-day accounting range.
-    from: localDay(current - 30 * 86400000),
+    // October purchase in September. The 20-second CloseTime range below bounds
+    // real candidates even when the shift's accounting day is months earlier.
+    from: localDay(current - 90 * 86400000),
     to: localDay(current),
     filters: [
       { field: 'Department.Id', values: [binding.departmentId] },
-      { field: 'CashRegisterName.CashRegisterSerialNumber', values: [fiscal.registerSerial] },
+      {
+        field: oofdWebkassa(fiscal)
+          ? 'CashRegisterName'
+          : 'CashRegisterName.CashRegisterSerialNumber',
+        values: [fiscal.registerSerial],
+      },
     ],
+    closeTimeRange: {
+      from: new Date(Date.parse(`${fiscal.localClosedAt}Z`) - 15000).toISOString().slice(0, -1),
+      to: new Date(Date.parse(`${fiscal.localClosedAt}Z`) + 5000).toISOString().slice(0, -1),
+    },
     groupBy: required,
     aggregate: ['DishDiscountSumInt'],
   };
@@ -239,9 +275,7 @@ async function verifyDecodedReceipt(input, decoded, dependencies) {
   // current source flags, then atomically reserve the globally unique sale GUID.
   let report;
   try {
-    report = await (typeof reports.loadReport === 'function'
-      ? reports.loadReport(query)
-      : reports.report(query));
+    report = await loadFortuneReceiptReport(reports, query, columns);
   } catch {
     throw unavailable();
   }

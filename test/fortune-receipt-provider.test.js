@@ -155,7 +155,8 @@ const oofdPayload = () => ({
 test('OOFD structured official ticket corroborates RNM, FP, local time, sale, line totals and register', () => {
   const fiscal = verifiedOofdTicket(oofdPayload(), { ...receipt, provider: 'oofd' });
   assert.equal(fiscal.registerSerial, 'SWK00534409');
-  assert.equal(fiscal.fiscalOrdinal, '3784');
+  assert.equal(fiscal.providerDocumentNumber, '3784');
+  assert.equal(fiscal.fiscalOrdinal, undefined);
   for (const change of [
     { operationType: 3 },
     { cancelDate: '2026-10-10T20:00:00' },

@@ -1,0 +1,35 @@
+{
+  "branchId": "11111111-2222-4333-8444-555555555555",
+  "binding": {
+    "serverId": "fortune-test-branch",
+    "departmentId": "66666666-7777-4888-8999-aaaaaaaaaaaa"
+  },
+  "fiscalQr": {
+    "provider": "oofd",
+    "fiscalSign": "1234567890",
+    "registrationNumber": "430600000001",
+    "totalCents": 75000,
+    "total": 750,
+    "closedAt": "2026-10-12T03:18:21.000Z",
+    "localClosedAt": "2026-10-12T08:18:21",
+    "receiptIdentity": "993c3e1e1ddddfccf163ef8adaf6498b991216691e58ee85f547e2bb84dd9315"
+  },
+  "row": {
+    "UniqOrderId.Id": "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff",
+    "Department.Id": "66666666-7777-4888-8999-aaaaaaaaaaaa",
+    "Department": "Тестовая пекарня",
+    "CashRegisterName": "SWK00345678",
+    "CashRegisterName.Number": 2,
+    "CashRegisterName.CashRegisterSerialNumber": "345678",
+    "CloseTime": "2026-10-12T08:18:23.394",
+    "OpenDate.Typed": "2026-10-12",
+    "SessionID": "01234567-89ab-4cde-8fab-0123456789ab",
+    "SessionNum": 123,
+    "OrderNum": 345,
+    "OrderDeleted": "NOT_DELETED",
+    "DeletedWithWriteoff": "NOT_DELETED",
+    "Storned": "FALSE",
+    "FiscalChequeNumber": "12345",
+    "DishDiscountSumInt": 750
+  }
+}
