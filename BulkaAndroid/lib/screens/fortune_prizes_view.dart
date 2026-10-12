@@ -157,7 +157,7 @@ class _FortunePrizesViewState extends State<FortunePrizesView> {
                     child: Column(
                       children: [
                         Icon(
-                          Icons.card_giftcard_rounded,
+                          Icons.qr_code_2_rounded,
                           size: 52,
                           color: context.bulkaColors.brandGold,
                         ),
@@ -269,7 +269,9 @@ class _FortunePrizeCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(
-                bonus ? Icons.redeem_rounded : Icons.card_giftcard_rounded,
+                bonus
+                    ? Icons.account_balance_wallet_outlined
+                    : Icons.qr_code_2_rounded,
                 color: active || bonus ? colors.brandGold : colors.mutedText,
                 size: 28,
               ),
@@ -325,10 +327,9 @@ class _FortunePrizeCard extends StatelessWidget {
                     style: TextStyle(color: colors.mutedText, fontSize: 12),
                   ),
                 ),
-                IconButton(
-                  tooltip: fortuneText('copy'),
+                TextButton(
                   onPressed: () => Clipboard.setData(ClipboardData(text: code)),
-                  icon: const Icon(Icons.copy_rounded, size: 20),
+                  child: Text(fortuneText('copy')),
                 ),
               ],
             ),

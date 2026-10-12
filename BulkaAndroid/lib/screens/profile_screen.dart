@@ -491,7 +491,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: Color(0xFFF3F3F3),
                     ),
                     _ProfileMenuItem(
-                      icon: Icons.card_giftcard_rounded,
+                      icon: Icons.qr_code_2_rounded,
                       title: fortuneText('title'),
                       onTap: () => _openPage(
                         (_) => FortunePrizesScreen(
