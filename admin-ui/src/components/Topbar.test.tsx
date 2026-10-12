@@ -110,6 +110,19 @@ describe('Topbar city and branch scope', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
+  it.each([
+    ['ru', '/fortune', 'Рулетка подарков'],
+    ['ru', '/fortune/redeem', 'Выдача призов'],
+    ['kk', '/fortune', 'Сыйлық рулеткасы'],
+    ['kk', '/fortune/redeem', 'Сыйлықтарды беру'],
+  ])('shows the %s Fortune page title on %s', (locale, path, title) => {
+    localStorage.setItem('adminLocale', locale);
+    window.history.replaceState({}, '', `/admin${path}`);
+    render(topbar('', vi.fn()));
+    expect(screen.getByRole('heading', { level: 1, name: title })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Операционный центр' })).not.toBeInTheDocument();
+  });
+
   it('shows one directory failure notification only to roles with cashier access', () => {
     const counts = { newOrders: 0, kitchenOverdue: 0, supportNew: 0, whatsappUnread: 0, paymentIssues: 0, cashierSyncIssues: 1 };
     realtimeState.summary = { counts, capabilities: { cashierDirectory: true } };

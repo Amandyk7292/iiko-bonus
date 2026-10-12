@@ -6,6 +6,8 @@ export default {
     'nav.marketing': 'CRM и сертификаты',
     'nav.fortune': 'Рулетка подарков',
     'nav.fortuneRedeem': 'Выдача призов',
+    'page.fortune.title': 'Рулетка подарков',
+    'page.fortuneRedeem.title': 'Выдача призов',
   },
   kk: {
     'nav.loyalty': 'Адалдық',
@@ -14,5 +16,7 @@ export default {
     'nav.marketing': 'CRM және сертификаттар',
     'nav.fortune': 'Сыйлық рулеткасы',
     'nav.fortuneRedeem': 'Сыйлықтарды беру',
+    'page.fortune.title': 'Сыйлық рулеткасы',
+    'page.fortuneRedeem.title': 'Сыйлықтарды беру',
   },
 };

@@ -45,6 +45,8 @@ const routeKeys: Record<string, string> = {
   '/taplink': 'taplink',
   '/bonus': 'bonus',
   '/tiers': 'tiers',
+  '/fortune': 'fortune',
+  '/fortune/redeem': 'fortuneRedeem',
   '/faq': 'faq',
   '/locations': 'locations',
   '/menu': 'menu',
