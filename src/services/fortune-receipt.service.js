@@ -30,17 +30,23 @@ const providerOrigins = {
 };
 const oofdWebkassa = (receipt) =>
   receipt.provider === 'oofd' && /^SWK\d{8}$/.test(receipt.registerSerial || '');
+const registerSerials = (receipt) =>
+  oofdWebkassa(receipt)
+    ? [receipt.registerSerial, String(Number(receipt.registerSerial.slice(3)))]
+    : [receipt.registerSerial];
 
 function exactRegister(row, receipt) {
-  const serial = String(row['CashRegisterName.CashRegisterSerialNumber'] || '').toUpperCase();
+  const serial = String(row['CashRegisterName.CashRegisterSerialNumber'] || '')
+    .trim()
+    .toUpperCase();
   // Webkassa reports the full SWK serial to OOFD, while this iiko driver stores
   // its numeric suffix as FR serial. Require the full exact register name as a
   // second identity, never accept an arbitrary number or a name substring.
   if (!oofdWebkassa(receipt)) return serial === receipt.registerSerial;
   return (
-    String(row.CashRegisterName || '').toUpperCase() === receipt.registerSerial &&
-    (serial === receipt.registerSerial ||
-      serial === String(Number(receipt.registerSerial.slice(3))))
+    String(row.CashRegisterName || '')
+      .trim()
+      .toUpperCase() === receipt.registerSerial && registerSerials(receipt).includes(serial)
   );
 }
 
@@ -238,9 +244,7 @@ async function verifyDecodedReceipt(input, decoded, dependencies) {
   if (
     required.some((field) => !columns?.[field]?.groupingAllowed) ||
     !columns?.['Department.Id']?.filteringAllowed ||
-    !columns?.[
-      oofdWebkassa(fiscal) ? 'CashRegisterName' : 'CashRegisterName.CashRegisterSerialNumber'
-    ]?.filteringAllowed ||
+    !columns?.['CashRegisterName.CashRegisterSerialNumber']?.filteringAllowed ||
     !columns?.CloseTime?.filteringAllowed ||
     !columns?.DishDiscountSumInt?.aggregationAllowed
   )
@@ -257,11 +261,11 @@ async function verifyDecodedReceipt(input, decoded, dependencies) {
     to: localDay(current),
     filters: [
       { field: 'Department.Id', values: [binding.departmentId] },
+      // A register display name may contain trailing whitespace in iiko.
+      // Filter by FR identity, then require its full trimmed name above too.
       {
-        field: oofdWebkassa(fiscal)
-          ? 'CashRegisterName'
-          : 'CashRegisterName.CashRegisterSerialNumber',
-        values: [fiscal.registerSerial],
+        field: 'CashRegisterName.CashRegisterSerialNumber',
+        values: registerSerials(fiscal),
       },
     ],
     closeTimeRange: {
