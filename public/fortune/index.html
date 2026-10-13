@@ -3,39 +3,74 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#fff8ea" />
+    <meta name="theme-color" content="#FAF1E2" />
     <meta name="referrer" content="no-referrer" />
     <meta name="robots" content="noindex,nofollow" />
     <title>Колесо подарков · Bulka</title>
     <link rel="icon" href="/favicon.png" />
+    <link
+      rel="preload"
+      href="/fortune-assets/fonts/montserrat-regular.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fortune-assets/fonts/montserrat-bold.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <link rel="stylesheet" href="/fortune-assets/fortune.css" />
     <script type="module" src="/fortune-assets/fortune.mjs"></script>
   </head>
   <body>
     <main class="fortune-page">
-      <a class="brand" href="/" aria-label="Bulka — главная"
-        >Bulka<span>приятно быть рядом</span></a
-      >
-      <p id="branch" class="branch"></p>
+      <header class="page-header">
+        <a class="brand" href="/" aria-label="Bulka — главная">
+          <img src="/fortune-assets/bulka-logo.svg" width="564" height="269" alt="Bulka" />
+        </a>
+        <p id="branch" class="branch"></p>
+      </header>
       <h1 id="title">Колесо подарков</h1>
-      <p id="intro" class="intro">Ваш чек — повод для подарка.</p>
       <div class="wheel-frame" id="wheel-frame" aria-hidden="true">
         <span class="pointer"></span>
         <canvas id="wheel" width="720" height="720"></canvas>
-        <span class="wheel-center">B</span>
+        <span class="wheel-center">
+          <img src="/fortune-assets/bulka-logo.svg" width="564" height="269" alt="" />
+        </span>
       </div>
       <section class="action-card" aria-label="Участие">
         <p id="status" class="status" role="status" aria-live="polite">Загружаем колесо…</p>
         <p id="error" class="error" role="alert" hidden></p>
         <div id="receipt-step" hidden>
-          <label class="button primary upload" for="photo">Прикрепить фискальный чек</label>
+          <label class="button primary upload" for="photo">
+            <svg
+              viewBox="0 0 24 24"
+              width="22"
+              height="22"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M8 5 9.5 3h5L16 5h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"
+              />
+              <circle cx="12" cy="12.5" r="3.5" />
+            </svg>
+            Прикрепить чек
+          </label>
           <input
             id="photo"
             type="file"
             accept="image/jpeg,image/png,image/webp"
             capture="environment"
           />
-          <p class="hint">Сфотографируйте чек целиком, чтобы QR был виден.</p>
+          <p class="hint">Фото чека с QR</p>
         </div>
         <div id="spin-step" hidden>
           <div id="receipt" class="receipt"></div>
@@ -53,7 +88,6 @@
           Попробовать ещё раз
         </button>
       </section>
-      <p class="footnote">Один чек — одно вращение.</p>
     </main>
   </body>
 </html>

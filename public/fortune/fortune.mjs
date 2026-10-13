@@ -46,7 +46,7 @@ async function request(path, options) {
     });
   return result;
 }
-function drawing() {
+function drawing(labelRotation = 0) {
   const canvas = $('wheel');
   const ctx = canvas.getContext('2d');
   const size = canvas.width;
@@ -61,22 +61,30 @@ function drawing() {
     ctx.closePath();
     ctx.fillStyle = prize.color;
     ctx.fill();
-    ctx.strokeStyle = '#ffffffbb';
+    ctx.strokeStyle = '#faf1e2';
     ctx.lineWidth = 3;
     ctx.stroke();
     ctx.save();
     ctx.translate(radius, radius);
-    ctx.rotate(angle + arc / 2);
+    const middle = angle + arc / 2;
+    const distance = radius * 0.64;
+    const upright = prizes.length <= 6;
+    if (upright) {
+      ctx.translate(Math.cos(middle) * distance, Math.sin(middle) * distance);
+      ctx.rotate((-labelRotation * Math.PI) / 180);
+    } else ctx.rotate(middle + (Math.cos(middle) < 0 ? Math.PI : 0));
     ctx.fillStyle = contrast(prize.color);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `bold ${prizes.length > 10 ? 20 : 25}px Arial`;
+    const fontSize = prizes.length > 10 ? 20 : upright ? 32 : 27;
+    const textWidth = upright ? radius * (prizes.length <= 3 ? 0.65 : 0.48) : radius * 0.45;
+    ctx.font = `800 ${fontSize}px "Bulka Montserrat", sans-serif`;
     const words = prize.label.split(/\s+/);
     const lines = [];
     let line = '';
     for (const word of words) {
       const next = line ? `${line} ${word}` : word;
-      if (ctx.measureText(next).width > radius * 0.42 && line) {
+      if (ctx.measureText(next).width > textWidth && line) {
         lines.push(line);
         line = word;
       } else line = next;
@@ -84,25 +92,41 @@ function drawing() {
     if (line) lines.push(line);
     const visible = lines.slice(0, 3);
     visible.forEach((value, row) =>
-      ctx.fillText(value, radius * 0.63, (row - (visible.length - 1) / 2) * 28, radius * 0.45),
+      ctx.fillText(
+        value,
+        upright ? 0 : Math.cos(middle) < 0 ? -distance : distance,
+        (row - (visible.length - 1) / 2) * (fontSize + 6),
+        textWidth,
+      ),
     );
     ctx.restore();
   });
 }
-function contrast(hex) {
+function luminance(hex) {
   const values = [1, 3, 5]
     .map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255)
     .map((value) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4));
-  return values[0] * 0.2126 + values[1] * 0.7152 + values[2] * 0.0722 > 0.3 ? '#332015' : '#ffffff';
+  return values[0] * 0.2126 + values[1] * 0.7152 + values[2] * 0.0722;
+}
+function contrast(hex) {
+  const background = luminance(hex);
+  const ratio = (color) => {
+    const foreground = luminance(color);
+    return (Math.max(background, foreground) + 0.05) / (Math.min(background, foreground) + 0.05);
+  };
+  if (ratio('#782b0e') >= 4.5) return '#782b0e';
+  if (ratio('#221008') >= 4.5) return '#221008';
+  return ratio('#000000') > ratio('#ffffff') ? '#000000' : '#ffffff';
 }
 function displayReceipt(receipt) {
   $('receipt').textContent =
     `Чек №${receipt.number} · ${new Intl.NumberFormat('ru-KZ', { maximumFractionDigits: 2 }).format(receipt.total)} ₸`;
   $('receipt-step').hidden = true;
   $('spin-step').hidden = false;
-  $('status').textContent = 'Чек найден. Ваше вращение готово.';
+  $('status').textContent = '';
 }
 function displayWin(result) {
+  drawing(rotation);
   const noPrize = result.win.prizeKind === 'none';
   const links = noPrize ? null : fortuneClaimLinks(result.claimToken);
   $('spin-step').hidden = true;
@@ -164,7 +188,7 @@ async function load() {
       receiptToken = previous.receiptToken;
       displayReceipt(previous.receipt);
     } else {
-      $('status').textContent = 'Сначала прикрепите чек.';
+      $('status').textContent = '';
       $('receipt-step').hidden = false;
     }
   } catch (error) {
@@ -200,7 +224,7 @@ async function upload() {
     displayReceipt(result.receipt);
   } catch (error) {
     showError(error);
-    $('status').textContent = 'Прикрепите чёткое фото чека.';
+    $('status').textContent = '';
   } finally {
     busy = false;
     $('photo').disabled = false;
@@ -244,7 +268,7 @@ async function spin() {
       remember(null);
       $('spin-step').hidden = true;
       $('receipt-step').hidden = false;
-      $('status').textContent = 'Прикрепите фискальный чек.';
+      $('status').textContent = '';
     } else {
       $('retry').hidden = false;
       retryAction = spin;
@@ -259,3 +283,6 @@ $('photo').addEventListener('change', upload);
 $('spin').addEventListener('click', spin);
 $('retry').addEventListener('click', () => retryAction());
 load();
+document.fonts.ready.then(() => {
+  if (prizes.length) drawing($('result-step').hidden ? 0 : rotation);
+});
