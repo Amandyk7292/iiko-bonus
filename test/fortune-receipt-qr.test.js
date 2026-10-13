@@ -1,6 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseReceiptQr, decodeReceipt } = require('../src/services/fortune-receipt-qr');
+const {
+  parseReceiptQr,
+  decodeReceipt,
+  decodeReceiptImage,
+} = require('../src/services/fortune-receipt-qr');
 const valid = 'https://consumer.wofd.kz/?i=527035232&f=090500022375&s=3007.50&t=20261010T191800';
 
 test('Kazakhstan fiscal QR preserves RNM/sign identity, exact cents and UTC+5 wall time', () => {
@@ -53,6 +57,104 @@ test('server decodes the uploaded QR image locally and applies the same strict p
   assert.equal((await decodeReceipt(image)).total, 3007.5);
   const foreign = await QRCode.toBuffer('https://example.com/not-a-receipt', { width: 500 });
   await assert.rejects(() => decodeReceipt(foreign), { code: 'FORTUNE_RECEIPT_QR_UNREADABLE' });
+});
+
+test('a small skewed fiscal QR missed by jsQR is decoded by the offline reader', async () => {
+  const QRCode = require('qrcode');
+  const sharp = require('sharp');
+  // Generated fiscal fields only: no customer receipt or photo is committed.
+  const fiscal = 'https://consumer.oofd.kz/?i=123456789&f=090500022375&s=720.00&t=20261013T110316';
+  const original = await QRCode.toBuffer(fiscal, {
+    scale: 8,
+    margin: 4,
+    errorCorrectionLevel: 'M',
+  });
+  const qr = await sharp(original)
+    .resize(100, 100)
+    .affine([1, 0.1, 0.05, 0.85], { background: 'white' })
+    .blur(0.7)
+    .jpeg({ quality: 70 })
+    .toBuffer();
+  const photograph = await sharp({
+    create: { width: 900, height: 1600, channels: 3, background: '#c4c4c4' },
+  })
+    .composite([{ input: qr, left: 400, top: 1150 }])
+    .jpeg({ quality: 85 })
+    .toBuffer();
+  await assert.rejects(() => decodeReceiptImage(photograph, { barcodeImpl: async () => [] }), {
+    code: 'FORTUNE_RECEIPT_QR_UNREADABLE',
+  });
+  assert.deepEqual(await decodeReceipt(photograph), parseReceiptQr(fiscal));
+});
+
+test('offline barcode results must be valid QR symbols and pass the strict fiscal parser', async () => {
+  const sharp = require('sharp');
+  const image = await sharp({
+    create: { width: 64, height: 64, channels: 3, background: 'white' },
+  })
+    .png()
+    .toBuffer();
+  const barcode = { isValid: true, format: 'QRCode', text: valid };
+  const invalidResults = [
+    { ...barcode, isValid: false },
+    { ...barcode, isValid: undefined },
+    { ...barcode, isValid: 1 },
+    { ...barcode, error: 'ChecksumError' },
+    { ...barcode, format: 'DataMatrix' },
+    { ...barcode, format: 'Code128' },
+    { ...barcode, text: 123 },
+    { ...barcode, text: valid.replace('consumer.wofd.kz', 'consumer.wofd.kz.evil.example') },
+    { ...barcode, text: valid + '&i=1' },
+    { ...barcode, text: valid.replace('3007.50', '3007.501') },
+  ];
+  await assert.rejects(
+    () =>
+      decodeReceiptImage(image, {
+        qrImpl: () => null,
+        barcodeImpl: async () => invalidResults,
+      }),
+    { code: 'FORTUNE_RECEIPT_QR_UNREADABLE' },
+  );
+  assert.deepEqual(
+    await decodeReceiptImage(image, {
+      qrImpl: () => null,
+      barcodeImpl: async () => [
+        ...invalidResults,
+        barcode,
+        { ...barcode, format: 'QRCodeModel2', text: valid.replace('3007.50', '3007.5') },
+      ],
+    }),
+    parseReceiptQr(valid),
+  );
+});
+
+test('all readers contribute fiscal identities before ambiguity is decided', async () => {
+  const sharp = require('sharp');
+  const image = await sharp({
+    create: { width: 64, height: 64, channels: 3, background: 'white' },
+  })
+    .png()
+    .toBuffer();
+  const second = valid.replace('527035232', '527035233');
+  const barcode = (text) => ({ isValid: true, format: 'QRCodeModel2', text });
+  await assert.rejects(
+    () =>
+      decodeReceiptImage(image, {
+        qrImpl: () => null,
+        barcodeImpl: async () => [barcode(valid), barcode(second)],
+      }),
+    { code: 'FORTUNE_RECEIPT_AMBIGUOUS' },
+  );
+  // One reader can miss the second receipt; a successful fallback must not
+  // return early and silently accept a photo containing two fiscal receipts.
+  await assert.rejects(
+    () =>
+      decodeReceiptImage(image, {
+        qrImpl: () => ({ data: second }),
+        barcodeImpl: async () => [barcode(valid)],
+      }),
+    { code: 'FORTUNE_RECEIPT_AMBIGUOUS' },
+  );
 });
 
 test('uploads reject empty, broken, huge and non-photo content before receipt lookup', async () => {

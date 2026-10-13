@@ -166,10 +166,11 @@ async function decodeReceipt(buffer) {
   });
 }
 
-async function decodeReceiptImage(buffer, { sharpImpl, qrImpl } = {}) {
+async function decodeReceiptImage(buffer, { sharpImpl, qrImpl, barcodeImpl } = {}) {
   validateImageSize(buffer);
   const sharp = sharpImpl || require('sharp');
   const jsQR = qrImpl || require('jsqr');
+  const readCodes = barcodeImpl || require('./fortune-receipt-decoder').readReceiptCodes;
   try {
     const metadata = await sharp(buffer, {
       limitInputPixels: 16000000,
@@ -229,6 +230,25 @@ async function decodeReceiptImage(buffer, { sharpImpl, qrImpl } = {}) {
         .raw()
         .toBuffer({ resolveWithObject: true });
       const pixels = new Uint8ClampedArray(data);
+      // Dense thermal-print QR codes can escape jsQR even when a phone reads
+      // them. Check all valid codes with the stronger local decoder as well;
+      // fiscal parsing and multi-receipt ambiguity checks remain unchanged.
+      const codes = await readCodes(pixels, info.width, info.height);
+      for (const code of codes) {
+        if (
+          code.isValid !== true ||
+          code.error ||
+          !['QRCode', 'QRCodeModel2'].includes(code.format) ||
+          typeof code.text !== 'string'
+        )
+          continue;
+        try {
+          const receipt = parseReceiptQr(code.text);
+          results.set(JSON.stringify(receipt), receipt);
+        } catch {
+          /* A decoded QR is not sufficient fiscal proof by itself. */
+        }
+      }
       for (let attempt = 0; attempt < 3; attempt++) {
         const found = jsQR(pixels, info.width, info.height, { inversionAttempts: 'attemptBoth' });
         if (!found?.data) break;
@@ -257,7 +277,7 @@ async function decodeReceiptImage(buffer, { sharpImpl, qrImpl } = {}) {
       throw receiptError('FORTUNE_RECEIPT_AMBIGUOUS', 'Прикрепите фото одного фискального чека');
     throw receiptError(
       'FORTUNE_RECEIPT_QR_UNREADABLE',
-      'Сфотографируйте чек целиком: QR должен быть чётким',
+      'Не удалось прочитать QR. Снимите код крупнее и без бликов',
     );
   } catch (error) {
     if (error.code?.startsWith('FORTUNE_')) throw error;
