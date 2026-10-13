@@ -348,6 +348,7 @@ app.use(require('./routes/front-inventory.routes'));
 app.use(require('./routes/front-auto-receipt.routes'));
 app.use(require('./routes/pickup-photo-gift.routes'));
 app.use(require('./routes/personal-account-pos.routes'));
+app.use(require('./routes/virtual-pos.routes'));
 app.use(require('./routes/family.routes'));
 app.use(require('./routes/pos-health.routes'));
 app.use(require('./routes/front-order-board.routes'));

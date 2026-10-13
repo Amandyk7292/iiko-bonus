@@ -7,6 +7,8 @@ import faq from '../faq';
 import academy from '../academy';
 import loyaltyNavigation from '../loyalty-navigation';
 const kk: Record<string, string> = {
+  'nav.pos': 'Касса',
+  'page.pos.title': 'Bulka кассасы',
   'common.previous': 'Алдыңғы бет',
   'common.next': 'Келесі бет',
   ...faq.kk,

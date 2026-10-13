@@ -1,6 +1,7 @@
 // Verified against active bakery addresses and iiko Department.Id on 2026-09-14.
 // Do not infer mappings from a city alone: recommendations are branch-specific.
 const aktau = {
+  '13ce6714-31ec-43b4-8bdd-ad92f7afbbfd': '0e0e5f33-15a1-49fa-b558-ad2ace6eb878', // Promzona 9/1-10, verified 2026-10-13
   '62fa7ada-3d67-4f85-bb37-5b13f0e1345c': '8bae2e42-50e7-4124-be3c-f837fc165ba7', // 19a/11
   '48f71218-aa08-51bf-a6d9-2497c4a1e55b': '33e68e1d-a7bd-4ba7-992a-e3e8a960b1f3', // Dukat 17/1
   'a18ea0f1-ac22-5530-a56a-65d810181a12': 'eabcf287-9b7d-4bf6-b440-9609e0e35f3f', // 17/95

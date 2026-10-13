@@ -17,5 +17,9 @@ test('verified bakery binding selects its own cash receipts, not another departm
 test('explicit configuration overrides verified defaults and may disable a mapping', () => {
   const branch = '48f71218-aa08-51bf-a6d9-2497c4a1e55b';
   assert.equal(branchBindings({ BOUGHT_TOGETHER_BRANCHES_JSON: JSON.stringify({ [branch]: null }) })[branch], null);
-  assert.equal(Object.keys(branchBindings({ BOUGHT_TOGETHER_BRANCHES_JSON: 'invalid' })).length, 12);
+  const fallback = branchBindings({ BOUGHT_TOGETHER_BRANCHES_JSON: 'invalid' });
+  assert.equal(Object.keys(fallback).length, 13);
+  assert.deepEqual(fallback['13ce6714-31ec-43b4-8bdd-ad92f7afbbfd'], {
+    serverId: 'aktau-chain', departmentId: '0e0e5f33-15a1-49fa-b558-ad2ace6eb878',
+  });
 });

@@ -24,5 +24,15 @@
     <add key="IIKO_LOYALTY_TIMEOUT_SEC" value="8" />
     <add key="IIKO_LOYALTY_RETRY_INTERVAL_SEC" value="60" />
     <add key="IIKO_LOYALTY_MAX_ATTEMPTS" value="0" />
+    <!-- Only an existing nonfiscal virtual cash register with no receipt printer is supported.
+         Keep false until its live config.xml and absence of automatic kitchen/slip printing are verified.
+         These settings never change iiko payment types or fiscal protection. -->
+    <add key="IIKO_VIRTUAL_POS_NO_PAPER_VERIFIED" value="false" />
+    <add key="IIKO_VIRTUAL_POS_TERMINAL_ID" value="" />
+    <add key="IIKO_VIRTUAL_POS_CASH_REGISTER_ID" value="" />
+    <add key="IIKO_VIRTUAL_POS_TABLE_ID" value="" />
+    <add key="IIKO_VIRTUAL_POS_PAYMENT_TYPE_IDS" value="" />
+    <!-- Absolute path to the active iikoFront config.xml; read only, EnableOrderPrint must be explicitly false. -->
+    <add key="IIKO_VIRTUAL_POS_FRONT_CONFIG_PATH" value="" />
   </appSettings>
 </configuration>

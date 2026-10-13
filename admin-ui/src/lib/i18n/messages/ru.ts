@@ -7,6 +7,8 @@ import faq from '../faq';
 import academy from '../academy';
 import loyaltyNavigation from '../loyalty-navigation';
 const ru: Record<string, string> = {
+  'nav.pos': 'Касса',
+  'page.pos.title': 'Касса Bulka',
   'common.previous': 'Предыдущая страница',
   'common.next': 'Следующая страница',
   ...faq.ru,

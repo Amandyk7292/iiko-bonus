@@ -49,6 +49,7 @@ const sections = [
   {
     title: 'nav.operations',
     items: [
+      { to: '/pos', label: 'nav.pos', icon: ReceiptText },
       { to: '/orders', label: 'nav.orders', icon: ShoppingBag },
       { to: '/kitchen', label: 'nav.kitchen', icon: ClipboardList },
       { to: '/photo-reports', label: 'nav.photoReports', icon: Images },
@@ -134,7 +135,7 @@ export default function Sidebar({
               items: [
                 ...sections
                   .flatMap((section) => section.items)
-                  .filter((item) => ['/orders', '/kitchen'].includes(item.to)),
+                  .filter((item) => ['/pos', '/orders', '/kitchen'].includes(item.to)),
                 { to: '/menu', label: 'nav.inventory', icon: UtensilsCrossed },
                 { to: '/learning', label: 'nav.learning', icon: BookOpenText },
                 { to: '/fortune/redeem', label: 'nav.fortuneRedeem', icon: Gift },

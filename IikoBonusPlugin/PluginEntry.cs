@@ -50,6 +50,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private IDisposable _pickupPhotoRoutes;
         private static OfflineReceiptSync _offlineReceipts;
         private PosHealthSync _posHealth;
+        private static VirtualPosSync _virtualPos;
 
         public class OrderLoyaltyData
         {
@@ -149,7 +150,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                                 + "\n\n" + (_automaticReceipts?.StatusText ?? "Внешняя оплата Bulka: обработчик не зарегистрирован. Проверьте журнал плагина.")
                                 + "\n\n" + (_offlineReceipts?.StatusText ?? "Продажи кассы: журнал недоступен, нужна сверка")
                                 + "\n\n" + (_pickupPhotos?.StatusText ?? "Фото в подарок: обработчик недоступен")
-                                + "\n\n" + (_posHealth?.StatusText ?? "Мониторинг кассы: недоступен"),
+                                + "\n\n" + (_posHealth?.StatusText ?? "Мониторинг кассы: недоступен")
+                                + "\n\n" + (_virtualPos?.StatusText ?? "Касса Bulka: недоступна"),
                                 "ОК");
                         }
                         catch (Exception ex)
@@ -200,6 +202,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 if (!string.Equals(LoyaltyFlow.ReadPluginSetting("IIKO_STOCK_SYNC_ENABLED"), "false", StringComparison.OrdinalIgnoreCase))
                     _stockSync = new StockSync();
                 _posHealth = new PosHealthSync(_sharedStock, _automaticReceipts, _offlineReceipts, _pickupPhotos);
+                _virtualPos = new VirtualPosSync();
 
                 PluginContext.Log.Info("IikoBonusPlugin: Initialized successfully.");
             }
@@ -246,6 +249,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
             TryDispose(_personalAccountPaymentRegistration);
             TryDispose(_assemblyReprintButton);
             TryDispose(_posHealth);
+            TryDispose(_virtualPos);
+            _virtualPos=null;
             LoyaltyFlow.StopBackgroundRetry();
             GiftCertificateFlow.StopBackgroundRetry();
             TryDispose(_stockSync);
@@ -263,6 +268,12 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private static void BeforeProceedOrderPayment(
             ValueTuple<IOrder, IViewManager, IOperationService> args)
         {
+            try { _virtualPos?.BeforePayment(args.Item1,args.Item3); }
+            catch(Exception error)
+            {
+                args.Item2.ShowErrorPopup(error.Message,"ОК");
+                throw new OperationCanceledException("Bulka nonfiscal no-paper sale changed.",error);
+            }
             try { _offlineReceipts?.EnsureHealthy(); }
             catch(Exception error)
             {

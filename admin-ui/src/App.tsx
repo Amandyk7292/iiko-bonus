@@ -47,6 +47,7 @@ const BonusPage = lazy(() => import('./pages/BonusPage'));
 const LoyaltyTiersPage = lazy(() => import('./pages/LoyaltyTiersPage'));
 const FaqPage = lazy(() => import('./pages/FaqPage'));
 const CashierCatalogPage = lazy(() => import('./pages/CashierCatalogPage'));
+const VirtualPosPage = lazy(() => import('./pages/VirtualPosPage'));
 const MenuPage = lazy(() => import('./pages/MenuPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const SecurityPage = lazy(() => import('./pages/SecurityPage'));
@@ -595,7 +596,7 @@ export default function App() {
             />
             <div
               className="sagi-page"
-              key={location.pathname === '/bonus' ? 'bonus' : selectedBranchId || 'all-branches'}
+              key={location.pathname === '/pos' ? 'pos' : location.pathname === '/bonus' ? 'bonus' : selectedBranchId || 'all-branches'}
             >
               <Suspense fallback={<PageState type="loading" />}>
                 <Routes>
@@ -609,6 +610,7 @@ export default function App() {
                     element={guard('/learning', <LearningPage role={role} />)}
                   />
                   <Route path="/operations" element={guard('/operations', <OperationsPage />)} />
+                  <Route path="/pos" element={guard('/pos', <VirtualPosPage username={adminUser?.username || ''} />)} />
                   <Route path="/analytics" element={guard('/analytics', <AnalyticsPage />)} />
                   <Route path="/settlements" element={guard('/settlements', <SettlementsPage />)} />
                   <Route

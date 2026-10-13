@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Касса Bulka · iiko 1.15.0</title>
+<style>body{font:16px/1.6 Arial,sans-serif;max-width:760px;margin:36px auto;padding:0 20px;background:#fffbf3;color:#593019}h1{font-size:30px}h2{font-size:22px;margin-top:30px}a{color:#814719}.download{display:inline-block;background:#ffbd12;color:#35180b;text-decoration:none;font-weight:bold;padding:13px 20px;border-radius:12px}.note{padding:16px 20px;border-radius:14px;background:#fff0c7}li{margin:10px 0}code{overflow-wrap:anywhere}</style></head>
+<body><h1>Касса Bulka · 1.15.0</h1>
+<p>Сотрудник выбирает товары iiko, количество и настроенный способ оплаты на странице <a href="/admin/pos">Касса Bulka</a>. Продажа регистрируется в открытой смене iiko без WebKassa и бумажного чека.</p>
+<h2>Обновление плагина</h2><ol><li>Откройте «Плагины → Проверить обновления Bulka».</li><li>Нажмите «Скачать и установить», затем закройте iiko обычным способом.</li><li>Дождитесь завершения установки и запустите iiko.</li></ol>
+<p class="note">Привязка, настройки и журналы сохраняются. Обновление само не включает продажи: сначала настройте отдельный подтверждённый режим без бумаги.</p>
+<h2>Подключение точки</h2>
+<p>Администратор назначает действующий привязанный терминал филиала для веб-кассы. Специалист iiko указывает в конфигурации плагина точные идентификаторы терминала, виртуального регистратора без принтера, активного стола и существующих нефискальных оплат.</p>
+<p>Обязательные настройки: <code>IIKO_VIRTUAL_POS_TERMINAL_ID</code>, <code>IIKO_VIRTUAL_POS_CASH_REGISTER_ID</code>, <code>IIKO_VIRTUAL_POS_TABLE_ID</code>, <code>IIKO_VIRTUAL_POS_PAYMENT_TYPE_IDS</code>, <code>IIKO_VIRTUAL_POS_FRONT_CONFIG_PATH</code>. Значение <code>IIKO_VIRTUAL_POS_NO_PAPER_VERIFIED=true</code> ставится после проверки отсутствия квитанций, кухонной печати и слипов. В действующем config.xml должно быть явно выключено <code>EnableOrderPrint</code>. Плагин читает эти настройки и сам их не меняет.</p>
+<p>Если режим, связь, каталог или смена не подтверждены, касса показывает причину и не регистрирует продажу. Фискальные и внешние способы оплаты для этой функции недоступны. Банковская транзакция здесь не выполняется.</p>
+<h2>Защита от повторов</h2><p>При обрыве связи Bulka проверяет исходную продажу. Не создавайте новую вместо незавершённой: iiko мог уже закрыть заказ. Статус «Нужна сверка» требует проверки исходного заказа в iiko; повторная оплата автоматически не запускается.</p>
+<h2>Установка вручную</h2><p><a class="download" href="/downloads/BulkaPlugin-1.15.0-update.zip">Скачать плагин 1.15.0</a></p><p>Закройте iiko и сохраните копию папки плагина. Замените DLL, Manifest.xml и BulkaPluginUpdater.exe из архива. Сохраните действующий .dll.config и локальные журналы.</p>
+</body></html>

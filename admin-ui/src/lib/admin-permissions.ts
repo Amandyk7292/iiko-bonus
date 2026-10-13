@@ -1,5 +1,5 @@
 export const ADMIN_ALLOWED_PATHS: Record<string, string[]> = {
-  employee: ['/learning'],
+  employee: ['/learning', '/pos'],
   iiko_dashboard: ['/iiko-dashboard'],
   franchisee: ['/settlements'],
   branch_manager: [
@@ -80,6 +80,7 @@ for (const role of ['branch_manager', 'operator', 'marketer', 'editor', 'viewer'
 }
 ADMIN_ALLOWED_PATHS.branch_manager.push('/learning/manage');
 for (const role of ['branch_manager', 'cashier']) ADMIN_ALLOWED_PATHS[role].push('/fortune/redeem');
+for (const role of ['branch_manager', 'cashier']) ADMIN_ALLOWED_PATHS[role].push('/pos');
 
 const ORDER_MUTATION_ROLES = new Set(['owner', 'admin', 'branch_manager', 'operator', 'editor']);
 const ORDER_REFUND_ROLES = new Set(['owner', 'admin', 'branch_manager']);

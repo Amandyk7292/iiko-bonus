@@ -37,14 +37,15 @@ describe('admin permissions shown by the frontend', () => {
       '/menu',
       '/learning',
       '/fortune/redeem',
+      '/pos',
     ]);
     expect(canMutateOrders('cashier')).toBe(false);
     expect(canRefundOrders('cashier')).toBe(false);
     expect(canMutateInventory('cashier')).toBe(false);
   });
 
-  it('limits a learning-only employee to the personal cabinet', () => {
-    expect(ADMIN_ALLOWED_PATHS.employee).toEqual(['/learning']);
+  it('limits an employee to learning and the assigned branch POS', () => {
+    expect(ADMIN_ALLOWED_PATHS.employee).toEqual(['/learning', '/pos']);
     expect(ADMIN_ALLOWED_PATHS.branch_manager).toContain('/learning/manage');
     expect(canMutateOrders('employee')).toBe(false);
     expect(canMutateInventory('employee')).toBe(false);

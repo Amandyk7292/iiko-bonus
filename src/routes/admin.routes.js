@@ -328,6 +328,7 @@ require('./admin/learning-platform.routes').registerLearningPlatformRoutes(route
 require('./admin/fortune.routes').registerFortuneAdminRoutes(router);
 require('./admin/branch-photo-reports.routes').registerBranchPhotoReportRoutes(router);
 require('./admin/pos-pairing.routes').registerPosPairingAdminRoutes(router);
+require('./admin/virtual-pos.routes').registerVirtualPosAdminRoutes(router);
 router.get('/admin/api/settings', adminAuthMiddleware, adminController.getSettingsHandler);
 router.get('/admin/api/scope', async (req, res) => {
   try {

@@ -42,6 +42,8 @@ const requestBodySafetyMiddleware = (req, _res, next) => {
   if (!req.body || typeof req.body !== 'object') return next();
   const stack = [{ value: req.body, depth: 0 }];
   let keys = 0;
+  const keyLimit =
+    req.originalUrl?.split('?')[0] === '/api/loyalty/virtual-pos/snapshot' ? 40000 : 2000;
 
   while (stack.length) {
     const { value, depth } = stack.pop();
@@ -57,7 +59,7 @@ const requestBodySafetyMiddleware = (req, _res, next) => {
     if (!value || typeof value !== 'object') continue;
     for (const [key, child] of Object.entries(value)) {
       keys += 1;
-      if (keys > 2_000) {
+      if (keys > keyLimit) {
         return next(
           new AppError('Тело запроса содержит слишком много полей', {
             statusCode: 400,
