@@ -1,17 +1,12 @@
-import { useState, type FormEvent } from 'react';
+import { type FormEvent } from 'react';
 import { Plus } from '../../components/BulkaIcons';
 import Modal from '../../components/GuardedModal';
 import { useI18n } from '../../lib/i18n';
 import { Field, WheelPreview } from './Fields';
 import PrizeEditor from './PrizeEditor';
-import { saveCampaign } from './api';
-import {
-  campaignInput,
-  defaultPrize,
-  validationMessage,
-  type Branch,
-  type Campaign,
-} from './model';
+import { defaultPrize, type Branch, type Campaign } from './model';
+import { useCampaignEditor } from './use-campaign-editor';
+import CampaignConflict from './CampaignConflict';
 
 function localDate(value: string | null) {
   if (!value) return '';
@@ -39,36 +34,18 @@ export default function CampaignEditor({
 }) {
   const { locale } = useI18n();
   const text = (ru: string, kk: string) => (locale === 'kk' ? kk : ru);
-  const [draft, setDraft] = useState<Campaign>(() => structuredClone(campaign));
-  const [busy, setBusy] = useState(false),
-    [error, setError] = useState('');
-  const dirty = JSON.stringify(draft) !== JSON.stringify(campaign);
+  const { draft, setDraft, busy, error, dirty, conflict, resolve, save } = useCampaignEditor(
+    campaign,
+    text,
+    onSaved,
+  );
   const patch = (value: Partial<Campaign>) => setDraft((current) => ({ ...current, ...value }));
   const probability = draft.prizes
     .filter((prize) => prize.active)
     .reduce((sum, prize) => sum + prize.weight, 0);
-  const save = async (event: FormEvent) => {
+  const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (busy) return;
-    const message = validationMessage(draft, text);
-    if (message) {
-      setError(message);
-      return;
-    }
-    setBusy(true);
-    setError('');
-    try {
-      await saveCampaign(draft.id, campaignInput(draft));
-      onSaved();
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : text('Не удалось сохранить акцию.', 'Акция сақталмады.'),
-      );
-    } finally {
-      setBusy(false);
-    }
+    void save();
   };
   return (
     <Modal
@@ -84,6 +61,7 @@ export default function CampaignEditor({
       dismissDisabled={busy}
       footer={
         <div className="fortune-editor-footer">
+          {conflict && <CampaignConflict conflict={conflict} text={text} onResolve={resolve} />}
           {error && (
             <p className="field-error" role="alert">
               {error}
@@ -103,7 +81,7 @@ export default function CampaignEditor({
               type="submit"
               form="fortune-campaign-form"
               className="btn-primary"
-              disabled={busy}
+              disabled={busy || Boolean(conflict)}
             >
               {busy
                 ? text('Сохраняем…', 'Сақталуда…')
@@ -113,8 +91,8 @@ export default function CampaignEditor({
         </div>
       }
     >
-      <form id="fortune-campaign-form" className="fortune-editor" onSubmit={save}>
-        <fieldset disabled={busy} className="fortune-editor-controls">
+      <form id="fortune-campaign-form" className="fortune-editor" onSubmit={submit}>
+        <fieldset disabled={busy || Boolean(conflict)} className="fortune-editor-controls">
           <div className="fortune-fields">
             <Field label={text('Название акции', 'Акция атауы')}>
               <input

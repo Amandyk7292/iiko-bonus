@@ -477,6 +477,34 @@
 .fortune-editor-footer .field-error {
   margin: 0;
 }
+.fortune-conflict {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--sagi-border, #e9decc);
+  border-radius: 14px;
+  background: #fffaf0;
+}
+.fortune-conflict p {
+  margin: 0;
+  font-weight: 600;
+}
+.fortune-conflict-values {
+  max-height: 160px;
+  overflow: auto;
+}
+.fortune-conflict table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.fortune-conflict :is(th, td) {
+  padding: 8px;
+  text-align: left;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--sagi-border, #e9decc);
+}
 .fortune-qr {
   padding: 24px;
   display: grid;

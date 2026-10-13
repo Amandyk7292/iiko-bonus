@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../lib/i18n';
@@ -35,6 +35,11 @@ vi.mock('../../components/Feedback', () => ({
   useFeedback: () => ({ toast: mocks.toast, confirm: mocks.confirm }),
 }));
 const text = (ru: string) => ru;
+const conflict = () =>
+  Object.assign(new Error('Настройки уже изменились. Откройте их заново'), {
+    code: 'FORTUNE_VERSION_CONFLICT',
+    status: 409,
+  });
 const branch = {
   id: '11111111-1111-4111-8111-111111111111',
   name: '19а ЖК Жасыл дала',
@@ -50,6 +55,10 @@ const campaign = (): Campaign => ({
   version: 3,
   createdAt: '2026-10-11T00:00:00Z',
   updatedAt: '2026-10-11T00:00:00Z',
+  prizes: newCampaign(text).prizes.map((prize, index) => ({
+    ...prize,
+    id: `44444444-4444-4444-8444-44444444444${index}`,
+  })),
 });
 const dashboard = (): Dashboard => ({ campaigns: [campaign()], branches: [branch] });
 const winner = (
@@ -133,6 +142,283 @@ describe('Fortune administration', () => {
     });
     expect(payload.prizes).toHaveLength(3);
     expect(payload.prizes[0]).not.toHaveProperty('issuedCount');
+  });
+  it('refreshes settings at save time and preserves unrelated newer edits', async () => {
+    const current = campaign(),
+      latest = structuredClone(current),
+      onSaved = vi.fn(),
+      user = userEvent.setup();
+    latest.version = 4;
+    latest.prizes[0].color = '#782b0e';
+    latest.prizes[0].issuedCount = 2;
+    mocks.loadFortune.mockResolvedValue({ campaigns: [latest], branches: [branch] });
+    wrap(
+      <CampaignEditor campaign={current} branches={[branch]} onClose={vi.fn()} onSaved={onSaved} />,
+    );
+    expect(mocks.loadFortune).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Минимальная сумма чека, ₸'), {
+      target: { value: '10' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+    expect(mocks.loadFortune).toHaveBeenCalledOnce();
+    expect(mocks.saveCampaign).toHaveBeenCalledOnce();
+    const payload = mocks.saveCampaign.mock.calls[0][1];
+    expect(payload).toMatchObject({ minReceiptAmount: 10, expectedVersion: 4 });
+    expect(payload.prizes[0].color).toBe('#782b0e');
+    expect(payload.prizes[0]).not.toHaveProperty('issuedCount');
+  });
+  it('retries a save race once after merging the newly fetched revision', async () => {
+    const current = campaign(),
+      latest = structuredClone(current),
+      onSaved = vi.fn(),
+      user = userEvent.setup();
+    latest.version = 4;
+    latest.prizes[0].color = '#d28023';
+    mocks.loadFortune
+      .mockResolvedValueOnce({ campaigns: [current], branches: [branch] })
+      .mockResolvedValueOnce({ campaigns: [latest], branches: [branch] });
+    mocks.saveCampaign
+      .mockRejectedValueOnce(conflict())
+      .mockResolvedValueOnce({ campaign: latest });
+    wrap(
+      <CampaignEditor campaign={current} branches={[branch]} onClose={vi.fn()} onSaved={onSaved} />,
+    );
+    fireEvent.change(screen.getByLabelText('Минимальная сумма чека, ₸'), {
+      target: { value: '10' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+    expect(mocks.loadFortune).toHaveBeenCalledTimes(2);
+    expect(mocks.saveCampaign).toHaveBeenCalledTimes(2);
+    expect(mocks.saveCampaign.mock.calls[0][1]).toMatchObject({
+      minReceiptAmount: 10,
+      expectedVersion: 3,
+    });
+    expect(mocks.saveCampaign.mock.calls[1][1]).toMatchObject({
+      minReceiptAmount: 10,
+      expectedVersion: 4,
+    });
+    expect(mocks.saveCampaign.mock.calls[1][1].prizes[0].color).toBe('#d28023');
+  });
+  it.each([
+    ['Оставить мои правки', 10],
+    ['Принять новые значения', 20],
+  ])('requires an explicit conflicting-field choice: %s', async (choice, expectedAmount) => {
+    const current = campaign(),
+      latest = structuredClone(current),
+      onSaved = vi.fn(),
+      user = userEvent.setup();
+    latest.version = 4;
+    latest.minReceiptAmount = 20;
+    latest.prizes[0].color = '#d28023';
+    mocks.loadFortune.mockResolvedValue({ campaigns: [latest], branches: [branch] });
+    wrap(
+      <CampaignEditor campaign={current} branches={[branch]} onClose={vi.fn()} onSaved={onSaved} />,
+    );
+    fireEvent.change(screen.getByLabelText('Название акции'), { target: { value: 'Моя акция' } });
+    fireEvent.change(screen.getByLabelText('Минимальная сумма чека, ₸'), {
+      target: { value: '10' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
+    const choose = await screen.findByRole('button', { name: choice });
+    expect(mocks.saveCampaign).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Минимальная сумма чека, ₸')).toHaveValue(10);
+    expect(screen.getByRole('button', { name: 'Сохранить настройки' })).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent(/сумм/i);
+    await user.click(choose);
+    expect(screen.getByLabelText('Минимальная сумма чека, ₸')).toHaveValue(expectedAmount);
+    expect(screen.getByLabelText('Название акции')).toHaveValue('Моя акция');
+    expect(mocks.saveCampaign).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+    expect(mocks.saveCampaign).toHaveBeenCalledOnce();
+    expect(mocks.saveCampaign.mock.calls[0][1]).toMatchObject({
+      title: 'Моя акция',
+      minReceiptAmount: expectedAmount,
+      expectedVersion: 4,
+    });
+    expect(mocks.saveCampaign.mock.calls[0][1].prizes[0].color).toBe('#d28023');
+  });
+  it('keeps a real field conflict blocked when a newly issued deleted prize is also restored', async () => {
+    const current = campaign(),
+      latest = structuredClone(current),
+      onSaved = vi.fn(),
+      user = userEvent.setup();
+    latest.title = 'Серверная акция';
+    latest.version = 4;
+    latest.prizes[0].issuedCount = 1;
+    mocks.loadFortune.mockResolvedValue({ campaigns: [latest], branches: [branch] });
+    wrap(
+      <CampaignEditor campaign={current} branches={[branch]} onClose={vi.fn()} onSaved={onSaved} />,
+    );
+    fireEvent.change(screen.getByLabelText('Название акции'), {
+      target: { value: 'Моя новая акция' },
+    });
+    fireEvent.change(screen.getByLabelText('Минимальная сумма чека, ₸'), {
+      target: { value: '10' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Удалить сектор 1' }));
+    expect(screen.getAllByLabelText('Название приза')).toHaveLength(2);
+    await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
+    const keepMine = await screen.findByRole('button', { name: 'Оставить мои правки' });
+    expect(mocks.saveCampaign).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Сохранить настройки' })).toBeDisabled();
+    expect(screen.getAllByLabelText('Название приза')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: 'Удалить сектор 1' })).toBeDisabled();
+    const row = within(screen.getByRole('table'))
+      .getByRole('rowheader', { name: 'Название акции' })
+      .closest('tr')!;
+    expect(within(row).getByRole('cell', { name: 'Моя новая акция' })).toBeInTheDocument();
+    expect(within(row).getByRole('cell', { name: 'Серверная акция' })).toBeInTheDocument();
+    await user.click(keepMine);
+    expect(mocks.saveCampaign).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Сохранить настройки' })).toBeEnabled();
+    expect(screen.getByLabelText('Название акции')).toHaveValue('Моя новая акция');
+    expect(screen.getByLabelText('Минимальная сумма чека, ₸')).toHaveValue(10);
+    expect(screen.getByRole('button', { name: 'Удалить сектор 1' })).toBeDisabled();
+    expect(screen.getAllByLabelText('Всего призов')[0]).toHaveAttribute('min', '1');
+    await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+    expect(mocks.saveCampaign).toHaveBeenCalledOnce();
+    const payload = mocks.saveCampaign.mock.calls[0][1];
+    expect(payload).toMatchObject({
+      title: 'Моя новая акция',
+      minReceiptAmount: 10,
+      expectedVersion: 4,
+    });
+    expect(payload.prizes).toHaveLength(3);
+    expect(payload.prizes[0].id).toBe(current.prizes[0].id);
+    expect(payload.prizes[0]).not.toHaveProperty('issuedCount');
+  });
+  it('stops after a second save conflict and keeps the draft available for retry', async () => {
+    const current = campaign(),
+      latest = { ...structuredClone(current), version: 4 },
+      onSaved = vi.fn(),
+      user = userEvent.setup();
+    mocks.loadFortune
+      .mockResolvedValueOnce({ campaigns: [current], branches: [branch] })
+      .mockResolvedValueOnce({ campaigns: [latest], branches: [branch] });
+    mocks.saveCampaign.mockRejectedValue(conflict());
+    wrap(
+      <CampaignEditor campaign={current} branches={[branch]} onClose={vi.fn()} onSaved={onSaved} />,
+    );
+    fireEvent.change(screen.getByLabelText('Минимальная сумма чека, ₸'), {
+      target: { value: '10' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Сохранить настройки' })).toBeEnabled(),
+    );
+    expect(mocks.loadFortune).toHaveBeenCalledTimes(2);
+    expect(mocks.saveCampaign).toHaveBeenCalledTimes(2);
+    expect(screen.getByLabelText('Минимальная сумма чека, ₸')).toHaveValue(10);
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+  it('does not treat a server failure as a version conflict or retry the save', async () => {
+    const user = userEvent.setup(),
+      onSaved = vi.fn();
+    mocks.saveCampaign.mockRejectedValue(
+      Object.assign(new Error('Сервер временно недоступен.'), { status: 500 }),
+    );
+    wrap(
+      <CampaignEditor
+        campaign={campaign()}
+        branches={[branch]}
+        onClose={vi.fn()}
+        onSaved={onSaved}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('Минимальная сумма чека, ₸'), {
+      target: { value: '10' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Сервер временно недоступен.');
+    expect(mocks.loadFortune).toHaveBeenCalledOnce();
+    expect(mocks.saveCampaign).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText('Минимальная сумма чека, ₸')).toHaveValue(10);
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+  it('retains draft without writing when the save preflight cannot load authoritative settings', async () => {
+    const user = userEvent.setup();
+    mocks.loadFortune.mockRejectedValue(new Error('Не удалось загрузить настройки.'));
+    wrap(
+      <CampaignEditor
+        campaign={campaign()}
+        branches={[branch]}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('Минимальная сумма чека, ₸'), {
+      target: { value: '10' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить настройки.');
+    expect(mocks.saveCampaign).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Минимальная сумма чека, ₸')).toHaveValue(10);
+  });
+  it('creates a new campaign without a revision refresh', async () => {
+    const current = { ...campaign(), id: '', version: 0 },
+      onSaved = vi.fn(),
+      user = userEvent.setup();
+    wrap(
+      <CampaignEditor campaign={current} branches={[branch]} onClose={vi.fn()} onSaved={onSaved} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+    expect(mocks.loadFortune).not.toHaveBeenCalled();
+    expect(mocks.saveCampaign).toHaveBeenCalledOnce();
+    expect(mocks.saveCampaign.mock.calls[0][0]).toBe('');
+    expect(mocks.saveCampaign.mock.calls[0][1]).not.toHaveProperty('expectedVersion');
+  });
+  it('cancels a pending refresh on unmount without posting its late result', async () => {
+    const current = campaign(),
+      user = userEvent.setup(),
+      onSaved = vi.fn();
+    let finish!: (value: Dashboard) => void;
+    mocks.loadFortune.mockReturnValue(
+      new Promise<Dashboard>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const view = wrap(
+      <CampaignEditor campaign={current} branches={[branch]} onClose={vi.fn()} onSaved={onSaved} />,
+    );
+    fireEvent.change(screen.getByLabelText('Минимальная сумма чека, ₸'), {
+      target: { value: '10' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
+    expect(mocks.loadFortune).toHaveBeenCalledOnce();
+    const signal = mocks.loadFortune.mock.calls[0][0] as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    view.unmount();
+    expect(signal.aborted).toBe(true);
+    await act(async () => finish({ campaigns: [current], branches: [branch] }));
+    expect(mocks.saveCampaign).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+  it('guards repeated submission while authoritative settings are still loading', async () => {
+    const current = campaign(),
+      onSaved = vi.fn();
+    let finish!: (value: Dashboard) => void;
+    mocks.loadFortune.mockReturnValue(
+      new Promise<Dashboard>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    wrap(
+      <CampaignEditor campaign={current} branches={[branch]} onClose={vi.fn()} onSaved={onSaved} />,
+    );
+    const form = screen.getByLabelText('Название акции').closest('form')!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    expect(mocks.loadFortune).toHaveBeenCalledOnce();
+    await act(async () => finish({ campaigns: [current], branches: [branch] }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+    expect(mocks.saveCampaign).toHaveBeenCalledOnce();
   });
   it('retains draft and shows backend activation errors', async () => {
     mocks.saveCampaign.mockRejectedValue(new Error('Фискальная проверка пока недоступна.'));

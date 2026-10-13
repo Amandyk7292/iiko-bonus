@@ -69,7 +69,9 @@ if (adminDirectory) {
   assertBudget(
     'Admin deferred fortune total gzip',
     deferredFortune.reduce((sum, file) => sum + gzipSize(file), 0),
-    12_000,
+    // Version reconciliation and the conflicting-value comparison add their
+    // own route-only UI. Measures 13,076 B; retain 324 B of headroom.
+    13_400,
   );
   assertBudget(
     'Admin total JavaScript gzip',

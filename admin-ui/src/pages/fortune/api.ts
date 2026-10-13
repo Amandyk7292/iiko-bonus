@@ -3,12 +3,13 @@ import type { Campaign, CampaignInput, Dashboard, Winner, Winners, Voucher } fro
 
 export const loadFortune = (signal?: AbortSignal) =>
   request<Dashboard>('/fortune', { signal }, { branchScope: '' });
-export const saveCampaign = (id: string, data: CampaignInput) =>
+export const saveCampaign = (id: string, data: CampaignInput, signal?: AbortSignal) =>
   request<{ campaign: Campaign }>(
     `/fortune/campaigns${id ? `/${id}` : ''}`,
     {
       method: id ? 'PATCH' : 'POST',
       body: JSON.stringify(data),
+      signal,
     },
     { branchScope: '' },
   );
