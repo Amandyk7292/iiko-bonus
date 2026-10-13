@@ -469,7 +469,7 @@ internal static partial class Program
             waitField.SetValue(null,600);settleField.SetValue(null,50);
             RasterBounds();PrinterCapability();RouteFailures();StartupRecovery();DelayedQueueCallbacks();ConfiguredReceiptPaths();ReceiptQueueScenarios();PrintAndAck();PrintFailures();PreparationRecovery();FreshDispatchGuard();LostClaim();Timeout();LedgerRetention();RouteStorage();CorruptJournal();
             PhotoFirstIntegration();
-            Check(Plugin.GetName().Version.ToString(3)=="1.14.6","configured receipt queue and delayed callbacks have version 1.14.6");
+            Check(Plugin.GetName().Version.ToString(3)=="1.15.0","current 1.15.0 plugin preserves configured receipt queue and delayed callbacks");
             Console.WriteLine("PASS: "+assertions+" photo-print assertions; intercepted HTTP and SDK only, no physical printer.");
         }
         finally
