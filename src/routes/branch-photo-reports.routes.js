@@ -8,11 +8,7 @@ const { openSession, resolveSession, fail } = require('../services/branch-photo-
 const { submitPhotos } = require('../services/branch-photo-upload.service');
 const realtime = require('../services/realtime.service');
 const devices = require('../services/branch-photo-devices.service');
-const {
-  readDeviceCookie,
-  writeDeviceCookie,
-  clearDeviceCookie,
-} = require('../utils/branch-photo-device-cookie.util');
+const { readDeviceCookie, writeDeviceCookie } = require('../utils/branch-photo-device-cookie.util');
 const router = express.Router();
 const headers = (_req, res, next) => {
   res.set({
@@ -85,15 +81,14 @@ router.get('/api/branch-reports/device', async (req, res, next) => {
 router.post(
   '/api/branch-reports/device/logout',
   validateRequest({ body: emptyBodySchema }),
-  async (req, res, next) => {
-    try {
-      await devices.disconnect(readDeviceCookie(req));
-      clearDeviceCookie(res);
-      res.json({ success: true });
-    } catch (error) {
-      next(error);
-    }
-  },
+  // Old tablet pages must not revoke their pairing or clear the device cookie.
+  // Revocation is available only through the authenticated admin device route.
+  (_req, res) =>
+    res.status(403).json({
+      success: false,
+      error: 'Отключить планшет может только администратор.',
+      code: 'PHOTO_REPORT_DEVICE_ADMIN_ONLY',
+    }),
 );
 router.post(
   '/api/branch-reports/device',

@@ -45,6 +45,8 @@ def run():
             browser = getattr(p, engine).launch(headless=True)
             context = browser.new_context(viewport={"width": 820, "height": 1180}, locale="ru-RU")
             errors = []
+            requests = []
+            context.on("request", lambda request: requests.append((urlparse(request.url).path, request.method)))
             try:
                 response = context.request.get(BASE + "/api/branch-reports/__fixture__/qr")
                 assert response.ok
@@ -108,13 +110,21 @@ def run():
                     assert state["permanentSessions"] >= 1
                     page.locator("#next-report").click()
                     expect(page.locator("#intro")).to_be_visible()
-                page.once("dialog", lambda dialog: dialog.accept())
-                page.locator("#disconnect-device").click()
-                expect(page.locator("#device-status")).to_have_text("Планшет отключён")
-                assert not any(cookie["name"] == "bulka_report_device" for cookie in context.cookies())
+                expect(page.locator("#disconnect-device")).to_have_count(0)
+                expect(page.locator("#intro")).to_be_visible()
+                retained = next(c for c in context.cookies() if c["name"] == "bulka_report_device")
+                assert retained["value"] == cookie["value"], "Reporting must retain the approved credential"
+                state = context.request.get(BASE + "/api/branch-reports/__fixture__/state").json()
+                assert state["permanentSessions"] >= 1
+                page.reload(wait_until="networkidle")
+                expect(page.locator("#intro")).to_be_visible()
+                expect(page.locator("#disconnect-device")).to_have_count(0)
+                assert next(c for c in context.cookies() if c["name"] == "bulka_report_device")["value"] == cookie["value"]
+                assert ("/api/branch-reports/device/logout", "POST") not in requests
                 assert page.evaluate("window.__violations") == []
                 assert not errors, errors
-                results.append({"browser": engine, "cookieOnlyReopen": True, "manualDisconnect": True,
+                results.append({"browser": engine, "cookieOnlyReopen": True, "tabletDisconnectControlAbsent": True,
+                                "pairingAndSessionPreserved": True, "logoutRequests": 0,
                                 "sameSiteStrictTransport": True, "browserCookieSameSiteExport": cookie["sameSite"],
                                 "threePhotoExpiredSessionRetry": "passed" if engine == "chromium" else "skipped: Windows WebKit lacks camera media APIs",
                                 "cspViolations": 0})

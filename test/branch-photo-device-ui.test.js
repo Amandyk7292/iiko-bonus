@@ -639,36 +639,27 @@ test('automatic device recovery preserves photos and stops on revocation or bran
   }
 });
 
-test('manual logout and pagehide cancel a scheduled active-device recovery', async (t) => {
-  for (const exit of ['logout', 'pagehide']) {
-    let checks = 0;
-    const ui = page(t, async (url) => {
-      if (url.endsWith('/device/logout')) return response({ success: true });
-      if (url.endsWith('/device'))
-        return ++checks === 2
-          ? response({ error: 'Temporarily unavailable' }, 503)
-          : response(status('active'));
-      return response(session());
-    });
-    ui.w.confirm = () => true;
-    ui.start();
-    await flush();
-    ui.visibility(true);
-    ui.visibility(false);
-    await flush();
-    assert.deepEqual(ui.timerDelays(), [5000]);
-    if (exit === 'logout') ui.get('disconnect-device').click();
-    else ui.w.dispatchEvent(new ui.w.Event('pagehide'));
-    await flush();
-    assert.deepEqual(ui.timerDelays(), [], exit + ' cancels the retry');
-    ui.w.dispatchEvent(new ui.w.Event('online'));
-    await flush();
-    assert.equal(checks, 2);
-    if (exit === 'logout') {
-      assert.equal(ui.get('device').hidden, false);
-      assert.match(ui.get('device-status').textContent, /отключён/);
-    }
-  }
+test('pagehide cancels a scheduled active-device recovery', async (t) => {
+  let checks = 0;
+  const ui = page(t, async (url) => {
+    if (url.endsWith('/device'))
+      return ++checks === 2
+        ? response({ error: 'Temporarily unavailable' }, 503)
+        : response(status('active'));
+    return response(session());
+  });
+  ui.start();
+  await flush();
+  ui.visibility(true);
+  ui.visibility(false);
+  await flush();
+  assert.deepEqual(ui.timerDelays(), [5000]);
+  ui.w.dispatchEvent(new ui.w.Event('pagehide'));
+  await flush();
+  assert.deepEqual(ui.timerDelays(), [], 'pagehide cancels the retry');
+  ui.w.dispatchEvent(new ui.w.Event('online'));
+  await flush();
+  assert.equal(checks, 2);
 });
 
 test('foreground refresh with no pending photos adopts the server current date and shift', async (t) => {
@@ -709,47 +700,46 @@ test('foreground refresh with no pending photos adopts the server current date a
   );
 });
 
-test('cookie bootstrap rejection disables a previously paired tablet and manual logout uses no client-selected identity', async (t) => {
+test('admin revocation clears captured photos and prevents the paired tablet from submitting or reopening a session', async (t) => {
   let revoked = false;
-  let confirmations = 0;
-  const ui = page(t, async (url, options) => {
-    if (url.endsWith('/device/logout')) {
-      assert.equal(options.method, 'POST');
-      assert.equal(options.body, '{}');
-      revoked = true;
-      return response({ success: true });
-    }
-    if (url.endsWith('/device'))
-      return revoked
-        ? response({ code: 'PHOTO_REPORT_DEVICE_REVOKED' }, 403)
-        : response(status('active'));
+  const ui = page(t, async (url) => {
+    if (url.endsWith('/device')) return response(status(revoked ? 'revoked' : 'active'));
+    assert.ok(url.endsWith('/session'), 'a revoked tablet cannot send photos');
     return response(session());
   });
-  ui.w.confirm = (message) => {
-    confirmations++;
-    assert.equal(
-      message,
-      'Отключить планшет от точки? Для повторного подключения понадобится подтверждение администратора.',
-    );
-    assert.equal(revoked, false, 'confirmation precedes the logout request');
-    return true;
-  };
+  const captured = camera(ui);
   ui.start();
   await flush();
-  ui.get('disconnect-device').click();
+  ui.w.document.querySelector('[data-kind=hall]').click();
   await flush();
-  assert.equal(confirmations, 1);
+  ui.get('take-photo').click();
+  await flush();
+  assert.equal(ui.w.document.querySelectorAll('.preview').length, 1);
+  revoked = true;
+  ui.visibility(true);
+  ui.visibility(false);
+  await flush();
   assert.equal(ui.get('device').hidden, false);
   assert.match(ui.get('device-status').textContent, /отключён/);
+  assert.match(ui.get('device-message').textContent, /Администратор/);
+  assert.equal(ui.w.document.querySelectorAll('.preview').length, 0);
+  assert.equal(captured.revoked(), 1);
+  assert.ok(captured.stops() >= 1);
+  assert.equal(ui.get('capture').hidden, true);
   assert.equal(ui.get('send').disabled, true);
   ui.get('check-device').click();
+  ui.get('send').dispatchEvent(new ui.w.Event('click'));
+  ui.w.document.querySelector('[data-kind=hall]').click();
+  ui.get('next-report').click();
   await flush();
   assert.equal(ui.get('intro').hidden, true);
   assert.equal(ui.get('device').hidden, false);
   assert.equal(ui.calls.filter(({ url }) => url.endsWith('/session')).length, 1);
+  assert.equal(ui.calls.filter(({ url }) => url.endsWith('/submit')).length, 0);
+  assert.deepEqual(ui.timerDelays(), []);
 });
 
-test('canceling disconnect leaves pairing, captured photos and a scheduled recovery intact', async (t) => {
+test('the tablet has no disconnect control and recovery preserves its authorized draft for submission', async (t) => {
   let checks = 0;
   let confirmations = 0;
   const submissions = [];
@@ -771,6 +761,7 @@ test('canceling disconnect leaves pairing, captured photos and a scheduled recov
   const captured = camera(ui);
   ui.start();
   await flush();
+  assert.equal(ui.get('disconnect-device'), null);
   ui.w.document.querySelector('[data-kind=hall]').click();
   await flush();
   ui.get('take-photo').click();
@@ -778,23 +769,15 @@ test('canceling disconnect leaves pairing, captured photos and a scheduled recov
   ui.visibility(true);
   ui.visibility(false);
   await flush();
-  const requestCount = ui.calls.length;
-  const message = ui.get('error').textContent;
-  const stops = captured.stops();
-  ui.get('disconnect-device').click();
-  await flush();
-  assert.equal(confirmations, 1);
-  assert.equal(ui.calls.length, requestCount, 'cancel sends no logout or other request');
-  assert.equal(captured.stops(), stops, 'cancel does not change the camera state');
+  assert.equal(ui.get('disconnect-device'), null);
+  assert.equal(confirmations, 0, 'capture and recovery show no disconnect confirmation');
   assert.equal(captured.revoked(), 0);
   assert.equal(ui.w.document.querySelectorAll('.preview').length, 1);
   assert.equal(ui.get('capture').hidden, false);
   assert.equal(ui.get('device').hidden, true);
   assert.equal(ui.get('send').disabled, false);
-  assert.equal(ui.get('disconnect-device').disabled, false);
-  assert.equal(ui.get('error').textContent, message);
   assert.equal(ui.get('retry').hidden, false);
-  assert.deepEqual(ui.timerDelays(), [5000], 'cancel preserves the scheduled GET recovery');
+  assert.deepEqual(ui.timerDelays(), [5000], 'the paired tablet keeps its scheduled GET recovery');
   await ui.runTimer(5000);
   assert.equal(checks, 3);
   assert.equal(ui.calls.filter(({ url }) => url.endsWith('/session')).length, 1);
@@ -804,6 +787,7 @@ test('canceling disconnect leaves pairing, captured photos and a scheduled recov
   assert.equal(submissions[0].headers['X-Bulka-Report-Session'], 'session-1');
   assert.equal(submissions[0].body.getAll('photos').length, 1);
   assert.equal(ui.get('success').hidden, false);
+  assert.equal(confirmations, 0);
   assert.equal(ui.calls.filter(({ url }) => url.endsWith('/device/logout')).length, 0);
 });
 

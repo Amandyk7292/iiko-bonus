@@ -57,12 +57,16 @@ def run():
                     after = next(c for c in context.cookies() if c["name"] == "bulka_report_device")
                     assert after["value"] == original["value"]
                     assert page.evaluate("sessionStorage.length") == 0
-                    page.once("dialog", lambda dialog: dialog.dismiss())
-                    page.locator("#disconnect-device").click()
+                    expect(page.locator("#disconnect-device")).to_have_count(0)
+                    state = context.request.get(BASE + "/api/branch-reports/__fixture__/state").json()
+                    assert state["permanentSessions"] >= 1
+                    page.reload(wait_until="networkidle")
                     expect(page.locator("#intro")).to_be_visible()
+                    expect(page.locator("#disconnect-device")).to_have_count(0)
                     assert ("/api/branch-reports/device/logout", "POST") not in requests
+                    assert ("/api/branch-reports/device", "POST") not in requests
                     assert next(c for c in context.cookies() if c["name"] == "bulka_report_device")["value"] == original["value"]
-                    results.append({"browser":engine,"realProfileRestart":True,"sameCredential":True,"transient503AutomaticRecovery":True,"cancelDisconnectPreservesPairing":True,"enrollmentPostsAfterRestart":0})
+                    results.append({"browser":engine,"realProfileRestart":True,"sameCredential":True,"transient503AutomaticRecovery":True,"tabletDisconnectControlAbsent":True,"pairingAndSessionPreserved":True,"logoutRequests":0,"enrollmentPostsAfterRestart":0})
                 finally:
                     context.close()
         cleanup = p.request.new_context()

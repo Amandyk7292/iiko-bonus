@@ -624,14 +624,34 @@ test('real public/admin routes enforce cookie binding before multipart and rejec
     headers: { 'content-type': 'application/json', cookie },
     body: '{}',
   });
-  assert.equal(result.status, 200);
-  assert.match(
-    result.headers.get('set-cookie'),
-    /bulka_report_device=; Path=\/api\/branch-reports;/,
+  assert.equal(result.status, 403, 'a paired tablet cannot disconnect itself');
+  assert.equal((await result.json()).code, 'PHOTO_REPORT_DEVICE_ADMIN_ONLY');
+  assert.equal(result.headers.get('set-cookie'), null, 'denial preserves the tablet cookie');
+  assert.equal(
+    (await devices.status(undefined, cookie.split('=')[1], { db: f.db })).device.status,
+    'active',
   );
-  assert.match(result.headers.get('set-cookie'), /HttpOnly/);
-  assert.match(result.headers.get('set-cookie'), /SameSite=Strict/);
-  await adminDevices.revoke(OWNER, pending.device.id, { db: f.db });
+  await service.resolveSession(session.sessionToken, {
+    db: f.db,
+    deviceToken: cookie.split('=')[1],
+  });
+  result = await fetch(`${base}/admin/api/photo-reports/devices/${pending.device.id}/revoke`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-role': 'viewer' },
+    body: '{}',
+  });
+  assert.equal(result.status, 403, 'a read-only admin user cannot revoke a tablet');
+  assert.equal(
+    (await devices.status(undefined, cookie.split('=')[1], { db: f.db })).device.status,
+    'active',
+  );
+  result = await fetch(`${base}/admin/api/photo-reports/devices/${pending.device.id}/revoke`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-role': 'admin' },
+    body: '{}',
+  });
+  assert.equal(result.status, 200, 'an authorized admin can revoke through the admin route');
+  assert.equal((await result.json()).device.status, 'revoked');
   result = await fetch(`${base}/api/branch-reports/submit`, {
     method: 'POST',
     headers: {

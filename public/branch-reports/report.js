@@ -663,30 +663,6 @@
   );
   element('enroll-device').addEventListener('click', () => checkDevice('POST'));
   element('check-device').addEventListener('click', () => checkDevice());
-  element('disconnect-device').addEventListener('click', async () => {
-    if (!deviceAllowed || sending || captureBusy || deviceBusy) return;
-    if (
-      !confirm(
-        'Отключить планшет от точки? Для повторного подключения понадобится подтверждение администратора.',
-      )
-    )
-      return;
-    stopDeviceChecks();
-    deviceBusy = true;
-    element('disconnect-device').disabled = true;
-    stopCamera();
-    try {
-      await request('/device/logout', { method: 'POST', body: '{}' });
-      returnToDevice('PHOTO_REPORT_DEVICE_REVOKED');
-      setText('device-status', 'Планшет отключён');
-      setText('device-message', 'Для подключения откройте QR точки.');
-    } catch {
-      if (!pageHidden) error('Не удалось отключить планшет. Проверьте интернет и повторите.');
-    } finally {
-      deviceBusy = false;
-      element('disconnect-device').disabled = false;
-    }
-  });
   window.addEventListener('pagehide', () => {
     pageHidden = true;
     stopCamera();
