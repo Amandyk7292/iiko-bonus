@@ -798,14 +798,6 @@ export interface AdminGlobalDetail {
   timeline: AdminGlobalTimelineEvent[];
 }
 
-export interface AdminPhoneLoginChallenge {
-  success: boolean;
-  accepted: boolean;
-  expiresIn: number;
-  whatsappPhone?: string | null;
-  whatsappUrl?: string | null;
-}
-
 export interface WhatsAppAssistantSettings {
   assistantEnabled: boolean;
   autoReplyEnabled: boolean;

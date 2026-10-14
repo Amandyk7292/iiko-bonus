@@ -340,6 +340,12 @@ app.use(
 app.use(require('./middlewares/client-data-events.middleware').clientDataEvents);
 // Label editor has a scoped code session, independent of full admin access.
 app.use(require('./routes/price-generator.routes'));
+// Retired web-POS URLs must never reach financial handlers or the admin SPA,
+// including requests from a cached browser tab or an older Front plugin.
+app.use(['/admin/api/staff/virtual-pos', '/api/loyalty/virtual-pos'], (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.status(404).json({ success: false, code: 'VIRTUAL_POS_REMOVED', error: 'Раздел удалён' });
+});
 app.use(adminRoutes);
 require('./routes/public/fortune.routes').registerFortunePage(app);
 app.use(require('./routes/branch-photo-reports.routes'));
@@ -348,7 +354,6 @@ app.use(require('./routes/front-inventory.routes'));
 app.use(require('./routes/front-auto-receipt.routes'));
 app.use(require('./routes/pickup-photo-gift.routes'));
 app.use(require('./routes/personal-account-pos.routes'));
-app.use(require('./routes/virtual-pos.routes'));
 app.use(require('./routes/family.routes'));
 app.use(require('./routes/pos-health.routes'));
 app.use(require('./routes/front-order-board.routes'));

@@ -22,6 +22,7 @@ async function fixture(t) {
       const query = {
         filters: [],
         one: false,
+        record: null,
         select() {
           return this;
         },
@@ -36,10 +37,19 @@ async function fixture(t) {
           this.one = true;
           return this;
         },
+        single() {
+          this.one = true;
+          return this;
+        },
+        update(record) {
+          this.record = record;
+          return this;
+        },
         then(resolve) {
           const rows = (table === 'admin_user_profiles' ? profiles : credentialRows).filter((row) =>
             this.filters.every((filter) => filter(row)),
           );
+          if (this.record) rows.forEach((row) => Object.assign(row, this.record));
           return Promise.resolve({ data: this.one ? rows[0] || null : rows, error: null }).then(
             resolve,
           );
@@ -174,4 +184,68 @@ test('password employee account type cannot be escalated and update/reset dispat
   const listed = await f.request('GET', '/admin/api/access');
   assert.equal(listed.body.profiles[0].passwordConfigured, true);
   assert.equal(listed.body.profiles[0].authMethod, 'password');
+});
+
+test('obsolete WhatsApp staff creation is rejected before creating a profile or password', async (t) => {
+  const f = await fixture(t);
+  for (const role of ['employee', 'operator', 'branch_manager', 'marketer', 'viewer']) {
+    const rejected = await f.request('POST', '/admin/api/access', {
+      phone: '+77001234567',
+      displayName: 'Работник',
+      role,
+      branchIds: [BRANCH],
+    });
+    assert.equal(rejected.status, 400, role);
+  }
+  for (const missing of ['username', 'password']) {
+    const body = {
+      username: 'worker.two',
+      password: 'SecureWorker2026',
+      displayName: 'Работник',
+      role: 'employee',
+      branchIds: [BRANCH],
+    };
+    delete body[missing];
+    assert.equal((await f.request('POST', '/admin/api/access', body)).status, 400, missing);
+  }
+  assert.equal(f.profiles.length, 1);
+  assert.equal(f.credentialRows.length, 1);
+  assert.equal(f.calls.length, 0);
+  const legacyUpdate = await f.request('PUT', '/admin/api/access/%2B77001234567', {
+    displayName: 'Работник',
+    role: 'operator',
+    branchIds: [BRANCH],
+    active: true,
+  });
+  assert.equal(legacyUpdate.status, 404, 'profile update must not recreate removed phone signup');
+  assert.equal(legacyUpdate.body.code, 'ACCESS_ACCOUNT_NOT_FOUND');
+  assert.equal(f.profiles.length, 1);
+});
+
+test('removing WhatsApp staff creation preserves existing phone profiles and their branch management', async (t) => {
+  const f = await fixture(t);
+  const username = '+77001234567';
+  f.profiles.push({
+    username,
+    display_name: 'Управляющий',
+    role: 'branch_manager',
+    branch_ids: [BRANCH],
+    active: true,
+  });
+  const listed = await f.request('GET', '/admin/api/access');
+  const prior = listed.body.profiles.find((profile) => profile.username === username);
+  assert.equal(prior.role, 'branch_manager');
+  assert.equal(prior.passwordConfigured, false);
+  assert.equal(prior.authMethod, 'whatsapp');
+  const updated = await f.request('PUT', `/admin/api/access/${encodeURIComponent(username)}`, {
+    displayName: 'Управляющий',
+    role: 'branch_manager',
+    branchIds: [OTHER],
+    active: true,
+  });
+  assert.equal(updated.status, 200);
+  assert.equal(updated.body.profile.username, username);
+  assert.equal(updated.body.profile.role, 'branch_manager');
+  assert.deepEqual(updated.body.profile.branch_ids, [OTHER]);
+  assert.equal(f.calls.length, 0, 'legacy account management must not rewrite password credentials');
 });

@@ -49,18 +49,12 @@ if (adminDirectory) {
   const deferredFortune = javascript.filter((file) =>
     /^(?:FortunePage|FortuneRedeemPage|fortune)-/.test(path.basename(file)),
   );
-  // Staff sales load only on /pos. Keep the product/payment editor and durable
-  // sale recovery bounded separately, as with academy and fortune routes.
-  const deferredVirtualPos = javascript.filter((file) =>
-    /^VirtualPosPage-/.test(path.basename(file)),
-  );
   const coreJavascript = javascript.filter(
     (file) =>
       !deferredPriceLabelPdf.includes(file) &&
       !deferredPriceLabelCorel.includes(file) &&
       !deferredAcademy.includes(file) &&
-      !deferredFortune.includes(file) &&
-      !deferredVirtualPos.includes(file),
+      !deferredFortune.includes(file),
   );
   const styles = assets.filter((file) => file.endsWith('.css'));
   const javascriptGzip = coreJavascript.map(gzipSize);
@@ -80,23 +74,15 @@ if (adminDirectory) {
     13_400,
   );
   assertBudget(
-    'Admin deferred virtual POS total gzip',
-    deferredVirtualPos.reduce((sum, file) => sum + gzipSize(file), 0),
-    // Product/payment selection, branch isolation and cross-tab recovery
-    // measure 7,286 B. Retain 214 B of route-only headroom.
-    7_500,
-  );
-  assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
     // UI audit fixes (draft guards, persisted filters and load recovery)
     // measure 449,528 B after shared guard/input deduplication.
     // Employee login/nav adds under 1 KiB to that shared shell. Fortune route
     // registration/nav measures 451,669 B (+85 B over the previous cap).
-    // Staff POS navigation/API hooks bring the shared core to 451,940 B.
-    // Keep 160 B headroom and retain the largest-chunk limit.
+    // Retain 171 B headroom and the largest-chunk limit.
     // Exporters load only on download and keep their separate budgets below.
-    452_100,
+    451_840,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   assertBudget('Admin deferred price-label PDF gzip', Math.max(0, ...priceLabelPdfGzip), 185_000);

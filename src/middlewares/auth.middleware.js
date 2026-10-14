@@ -15,10 +15,6 @@ const {
   validateAdminSession,
 } = require('../services/admin-session.service');
 const { supabase } = require('../config/supabase');
-const {
-  requestAdminPhoneLogin,
-  verifyAdminPhoneLogin,
-} = require('../services/admin-phone-auth.service');
 const { applyAdminBranchSelection } = require('../utils/admin-scope.util');
 const { authenticateCashier } = require('../services/admin-credential-auth.service');
 
@@ -488,32 +484,6 @@ const adminLoginHandler = async (req, res) => {
   return issueAdminSession(req, res, admin);
 };
 
-const adminPhoneLoginRequestHandler = async (req, res) => {
-  try {
-    const challenge = await requestAdminPhoneLogin(req.body?.phone);
-    return res.json({ success: true, ...challenge });
-  } catch (error) {
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      error: error.message || 'Не удалось запросить код',
-      code: error.code,
-    });
-  }
-};
-
-const adminPhoneLoginVerifyHandler = async (req, res) => {
-  try {
-    const admin = await verifyAdminPhoneLogin(req.body?.phone, req.body?.code);
-    return issueAdminSession(req, res, admin);
-  } catch (error) {
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      error: error.message || 'Не удалось выполнить вход',
-      code: error.code,
-    });
-  }
-};
-
 const adminAuthMiddleware = async (req, res, next) => {
   const token = readCookieToken(req) || readBearerToken(req);
   let payload;
@@ -606,29 +576,6 @@ const adminMutationRoleMiddleware = (req, res, next) => {
   const readOnly = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
   const restrictedPath = String(req.path).toLowerCase().replace(/\/+$/, '');
   const learningPath = restrictedPath.replace(/^\/admin\/api/, '');
-  const virtualPosRead =
-    req.method === 'GET' &&
-    /^\/?staff\/virtual-pos\/(?:catalog|sales\/[0-9a-f-]{36})$/.test(learningPath);
-  const virtualPosWrite =
-    req.method === 'POST' && /^\/?staff\/virtual-pos\/sales$/.test(learningPath);
-  if (/^\/?staff\/virtual-pos(?:\/|$)/.test(learningPath)) {
-    if (
-      req.method === 'PUT' &&
-      /^\/?staff\/virtual-pos\/terminal$/.test(learningPath) &&
-      ['owner', 'admin'].includes(req.admin.role)
-    )
-      return next();
-    if (
-      (virtualPosRead || virtualPosWrite) &&
-      ['owner', 'admin', 'employee', 'cashier', 'branch_manager'].includes(req.admin.role)
-    )
-      return next();
-    return res
-      .status(403)
-      .json({ error: 'Недостаточно прав для кассы', code: 'VIRTUAL_POS_FORBIDDEN' });
-  }
-  if (req.admin.role === 'employee' && req.method === 'GET' && /^\/?scope$/.test(learningPath))
-    return next();
   const fortuneRedemption =
     (req.method === 'GET' && /^\/?fortune\/vouchers\/[0-9a-f-]{36}$/.test(learningPath)) ||
     (req.method === 'POST' && /^\/?fortune\/winners\/[0-9a-f-]{36}\/redeem$/.test(learningPath));
@@ -774,8 +721,6 @@ module.exports = {
   adminLoginHandler,
   adminLogoutHandler,
   adminMutationRoleMiddleware,
-  adminPhoneLoginRequestHandler,
-  adminPhoneLoginVerifyHandler,
   adminSessionHandler,
   whatsappOperatorAccessHandler,
   ADMIN_ROLES,

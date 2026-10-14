@@ -129,60 +129,34 @@ const registerAccessAdminRoutes = (router) => {
 
       try {
         await assertExistingBranches(branchIds);
-        if (role === 'cashier' || (role === 'employee' && req.body?.username)) {
-          const username = normalizeCashierUsername(req.body?.username);
-          const envUsers = new Set(
-            configuredAdminUsers().map((candidate) => candidate.toLowerCase()),
-          );
-          if (envUsers.has(username)) {
-            return res.status(409).json({
-              success: false,
-              error: 'Этот логин уже используется системной учётной записью',
-              code: 'ACCESS_USERNAME_EXISTS',
-            });
-          }
-          const profile = await (role === 'employee' ? createEmployeeAccess : createCashierAccess)({
-            username,
-            displayName,
-            branchId: branchIds[0],
-            branchIds,
-            password: req.body?.password,
-          });
-          return res.status(201).json({
-            success: true,
-            profile: {
-              ...profile,
-              passwordConfigured: true,
-              authMethod: 'password',
-            },
-          });
-        }
-
-        const phone = normalizeKazakhstanPhone(req.body?.phone);
-        if (!phone) {
-          return res
-            .status(400)
-            .json({ success: false, error: 'Введите номер в формате +7 700 000 00 00' });
-        }
-        if (!ADMIN_PHONE_ROLES.has(role)) {
+        if (!['cashier', 'employee'].includes(role)) {
           return res.status(400).json({ success: false, error: 'Некорректная роль сотрудника' });
         }
-        const { data, error } = await supabase
-          .from('admin_user_profiles')
-          .insert({
-            username: phone,
-            display_name: displayName,
-            role,
-            branch_ids: branchIds,
-            active: true,
-            updated_at: new Date().toISOString(),
-          })
-          .select(SAFE_PROFILE_COLUMNS)
-          .single();
-        if (error) throw error;
+        const username = normalizeCashierUsername(req.body?.username);
+        const envUsers = new Set(
+          configuredAdminUsers().map((candidate) => candidate.toLowerCase()),
+        );
+        if (envUsers.has(username)) {
+          return res.status(409).json({
+            success: false,
+            error: 'Этот логин уже используется системной учётной записью',
+            code: 'ACCESS_USERNAME_EXISTS',
+          });
+        }
+        const profile = await (role === 'employee' ? createEmployeeAccess : createCashierAccess)({
+          username,
+          displayName,
+          branchId: branchIds[0],
+          branchIds,
+          password: req.body?.password,
+        });
         return res.status(201).json({
           success: true,
-          profile: { ...data, passwordConfigured: false, authMethod: 'whatsapp' },
+          profile: {
+            ...profile,
+            passwordConfigured: true,
+            authMethod: 'password',
+          },
         });
       } catch (error) {
         return routeError(res, error, 'Не удалось создать учётную запись');
@@ -224,6 +198,13 @@ const registerAccessAdminRoutes = (router) => {
           .eq('username', username)
           .maybeSingle();
         if (readError) throw readError;
+        if (!existing && normalizeKazakhstanPhone(username)) {
+          return res.status(404).json({
+            success: false,
+            error: 'Учётная запись сотрудника не найдена',
+            code: 'ACCESS_ACCOUNT_NOT_FOUND',
+          });
+        }
         const { data: credential, error: credentialError } = await supabase
           .from('admin_staff_credentials')
           .select('username')

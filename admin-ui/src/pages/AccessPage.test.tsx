@@ -61,6 +61,10 @@ describe('cashier access management', () => {
       'aria-pressed',
       'true',
     );
+    expect(within(dialog).getByRole('button', { name: 'Сотрудник · обучение' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Сотрудник по WhatsApp' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Номер телефона')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/номер.*WhatsApp/)).not.toBeInTheDocument();
     await user.type(within(dialog).getByLabelText('Логин'), 'cashier.aktau.1');
     await user.type(within(dialog).getByLabelText('Имя сотрудника'), 'Кассир Актау');
     await user.type(within(dialog).getByLabelText('Пароль'), 'Bulka2026Secure');
@@ -158,6 +162,24 @@ describe('cashier access management', () => {
     await waitFor(() =>
       expect(apiMocks.resetAccessPassword).toHaveBeenCalledWith('baker.1', 'Employee2027Secure'),
     );
+  });
+
+  it('keeps legacy phone profiles manageable without advertising their disabled login', async () => {
+    apiMocks.getAccessProfiles.mockResolvedValue({
+      profiles: [{
+        username: '+77001234567', display_name: 'Оператор', role: 'operator',
+        branch_ids: [BRANCH_ID], active: true, authMethod: 'whatsapp', passwordConfigured: false,
+      }],
+      configuredUsers: ['+77001234567'],
+    });
+    const user = userEvent.setup();
+    renderPage();
+    expect(await screen.findByText('Вход по телефону отключён')).toBeInTheDocument();
+    expect(screen.queryByText('Вход по WhatsApp-коду')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Оператор.*77001234567/ }));
+    expect(screen.getByRole('combobox', { name: 'Должность и права' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Сохранить права' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Сменить пароль' })).not.toBeInTheDocument();
   });
 
   it('persists a collapsed active switch and rolls back a rejected change', async () => {

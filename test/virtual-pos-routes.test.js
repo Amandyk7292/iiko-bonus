@@ -53,11 +53,9 @@ function roleAllowed(role, method, path) {
   return { allowed, status };
 }
 
-test('employee permission is limited to exact sale routes and assigned branch scope', () => {
-  for (const role of ['employee', 'cashier', 'branch_manager', 'owner', 'admin']) {
-    assert.equal(roleAllowed(role, 'GET', '/staff/virtual-pos/catalog').allowed, true);
-    assert.equal(roleAllowed(role, 'POST', '/staff/virtual-pos/sales').allowed, true);
-    assert.equal(roleAllowed(role, 'GET', `/staff/virtual-pos/sales/${SALE}`).allowed, true);
+test('retired web POS no longer grants staff permissions; learning and branch scope stay restricted', () => {
+  for (const role of ['employee', 'cashier', 'branch_manager']) {
+    assert.equal(roleAllowed(role, 'POST', '/staff/virtual-pos/sales').allowed, false);
   }
   for (const path of [
     '/staff/pos/devices',
@@ -69,8 +67,9 @@ test('employee permission is limited to exact sale routes and assigned branch sc
       roleAllowed('employee', path.endsWith('pairing-code') ? 'POST' : 'GET', path).allowed,
       false,
     );
-  assert.equal(roleAllowed('employee', 'GET', '/scope').allowed, true);
+  assert.equal(roleAllowed('employee', 'GET', '/scope').allowed, false);
   assert.equal(roleAllowed('employee', 'POST', '/scope').allowed, false);
+  assert.equal(roleAllowed('employee', 'GET', '/learning/me').allowed, true);
   assert.equal(roleAllowed('employee', 'PUT', '/staff/virtual-pos/terminal').allowed, false);
   assert.equal(roleAllowed('owner', 'PUT', '/staff/virtual-pos/terminal').allowed, true);
   for (const role of ['viewer', 'operator', 'courier', 'editor', 'marketer'])
@@ -314,7 +313,7 @@ test('lost definite rejection is recoverable by request ID only within actor and
   });
 });
 
-test('HTTP staff sale route validates payload, explicit scope, and returns recoverable sale envelope', async (t) => {
+test('unmounted legacy staff router retains payload and sale-envelope validation for historical data', async (t) => {
   const config = require('../src/config/supabase');
   const originalDb = config.supabase;
   const servicePath = require.resolve('../src/services/virtual-pos.service');
@@ -355,7 +354,7 @@ test('HTTP staff sale route validates payload, explicit scope, and returns recov
   app.use((req, _res, next) => {
     req.admin = {
       username: 'worker',
-      role: req.headers['x-role'] || 'employee',
+      role: req.headers['x-role'] || 'admin',
       branchIds: [BRANCH],
     };
     next();
@@ -371,7 +370,7 @@ test('HTTP staff sale route validates payload, explicit scope, and returns recov
     server.closeAllConnections();
     server.close();
   });
-  const send = async (body, branch = BRANCH, role = 'employee') => {
+  const send = async (body, branch = BRANCH, role = 'admin') => {
     const response = await fetch(
       `http://127.0.0.1:${server.address().port}/admin/api/staff/virtual-pos/sales`,
       {
@@ -387,7 +386,7 @@ test('HTTP staff sale route validates payload, explicit scope, and returns recov
     return { status: response.status, body: await response.json() };
   };
   assert.equal((await send(input(), '')).status, 400);
-  assert.equal((await send(input(), OTHER)).status, 403);
+  assert.equal((await send(input(), OTHER, 'employee')).status, 403);
   assert.equal((await send({ ...input(), discount: 5 })).status, 400);
   assert.equal((await send(input(), BRANCH, 'viewer')).status, 403);
   assert.equal(calls.length, 0);

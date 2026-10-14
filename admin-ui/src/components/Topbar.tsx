@@ -31,7 +31,6 @@ import { useFeedback } from './Feedback';
 import StaffPushControl, { type StaffPushControlHandle } from './StaffPushControl';
 
 const routeKeys: Record<string, string> = {
-  '/pos': 'pos',
   '/operations': 'operations',
   '/analytics': 'analytics',
   '/transactions': 'transactions',
@@ -111,7 +110,7 @@ export default function Topbar({
   const usesBranchScope =
     !location.pathname.startsWith('/learning') &&
     (location.pathname !== '/bonus' || ['referrals', 'registers'].includes(bonusTab || '')) &&
-    !['/taplink', '/faq', '/iiko-dashboard', '/photo-reports', '/pos'].includes(location.pathname);
+    !['/taplink', '/faq', '/iiko-dashboard', '/photo-reports'].includes(location.pathname);
   const cityScopes = getAdminCityScopes(scopeLocations);
   const selectedScope = parseAdminScopeSelection(selectedBranchId);
   const selectedCity = cityScopeForSelection(cityScopes, selectedBranchId);

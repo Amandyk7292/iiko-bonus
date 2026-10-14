@@ -37,18 +37,25 @@ describe('admin permissions shown by the frontend', () => {
       '/menu',
       '/learning',
       '/fortune/redeem',
-      '/pos',
     ]);
     expect(canMutateOrders('cashier')).toBe(false);
     expect(canRefundOrders('cashier')).toBe(false);
     expect(canMutateInventory('cashier')).toBe(false);
   });
 
-  it('limits an employee to learning and the assigned branch POS', () => {
-    expect(ADMIN_ALLOWED_PATHS.employee).toEqual(['/learning', '/pos']);
+  it('limits an employee to learning', () => {
+    expect(ADMIN_ALLOWED_PATHS.employee).toEqual(['/learning']);
     expect(ADMIN_ALLOWED_PATHS.branch_manager).toContain('/learning/manage');
     expect(canMutateOrders('employee')).toBe(false);
     expect(canMutateInventory('employee')).toBe(false);
+  });
+
+  it('removes web POS access without changing existing staff workspaces', () => {
+    for (const paths of Object.values(ADMIN_ALLOWED_PATHS)) {
+      expect(paths).not.toContain('/pos');
+    }
+    expect(ADMIN_ALLOWED_PATHS.branch_manager).toContain('/orders');
+    expect(ADMIN_ALLOWED_PATHS.cashier).toContain('/menu');
   });
 
   it.each(['cashier', 'branch_manager'])(

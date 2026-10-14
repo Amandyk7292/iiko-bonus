@@ -36,8 +36,7 @@ interface AccessProfile {
 }
 
 interface StaffDraft {
-  mode: 'phone' | 'cashier' | 'employee';
-  phone: string;
+  mode: 'cashier' | 'employee';
   username: string;
   password: string;
   displayName: string;
@@ -60,7 +59,6 @@ const roleLabelKeys: Record<string, string> = {
 };
 const emptyDraft = (): StaffDraft => ({
   mode: 'cashier',
-  phone: '',
   username: '',
   password: '',
   displayName: '',
@@ -293,34 +291,24 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
   const createStaff = async (event: FormEvent) => {
     event.preventDefault();
     const cashier = draft.mode === 'cashier';
-    const passwordAccount = draft.mode !== 'phone';
     if (
       !draft.displayName.trim() ||
       creating ||
-      (passwordAccount
-        ? !draft.username.trim() || !draft.password || (cashier && draft.branchIds.length !== 1)
-        : !draft.phone.trim())
+      !draft.username.trim() ||
+      !draft.password ||
+      (cashier && draft.branchIds.length !== 1)
     ) {
       return;
     }
     setCreating(true);
     try {
-      await api.createAccessProfile(
-        passwordAccount
-          ? {
-              username: draft.username,
-              password: draft.password,
-              displayName: draft.displayName,
-              role: cashier ? 'cashier' : 'employee',
-              branchIds: draft.branchIds,
-            }
-          : {
-              phone: draft.phone,
-              displayName: draft.displayName,
-              role: draft.role,
-              branchIds: draft.branchIds,
-            },
-      );
+      await api.createAccessProfile({
+        username: draft.username,
+        password: draft.password,
+        displayName: draft.displayName,
+        role: cashier ? 'cashier' : 'employee',
+        branchIds: draft.branchIds,
+      });
       toast(t('access.staffAdded', { name: draft.displayName.trim() }));
       setCreateOpen(false);
       setDraft(emptyDraft());
@@ -531,15 +519,15 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
                       <strong>{profile.display_name || profile.username}</strong>
                       <span className="mono">{profile.username}</span>
                       <span className="access-login-method">
-                        {cashierProfile ? (
+                        {profile.passwordConfigured || cashierProfile ? (
                           <KeyRound aria-hidden="true" size={13} />
                         ) : (
                           <Phone aria-hidden="true" size={13} />
                         )}
-                        {cashierProfile
+                        {profile.passwordConfigured || cashierProfile
                           ? t('access.passwordLogin')
                           : phoneLogin
-                            ? t('access.whatsappLogin')
+                            ? t('access.phoneLoginDisabled')
                             : roleLabels[profile.role]}
                       </span>
                     </span>
@@ -710,11 +698,9 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
               disabled={
                 creating ||
                 !draft.displayName.trim() ||
-                (draft.mode !== 'phone'
-                  ? !draft.username.trim() ||
-                    draft.password.length < 10 ||
-                    (draft.mode === 'cashier' && draft.branchIds.length !== 1)
-                  : !draft.phone.trim())
+                !draft.username.trim() ||
+                draft.password.length < 10 ||
+                (draft.mode === 'cashier' && draft.branchIds.length !== 1)
               }
             >
               <Plus aria-hidden="true" size={16} />
@@ -734,7 +720,6 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
                   ...current,
                   mode: 'cashier',
                   role: 'cashier',
-                  phone: '',
                   branchIds: current.branchIds.slice(0, 1),
                 }))
               }
@@ -751,73 +736,37 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
                   ...current,
                   mode: 'employee',
                   role: 'employee',
-                  phone: '',
                 }))
               }
             >
               <KeyRound aria-hidden="true" size={17} />
               {t('access.employeeAccount')}
             </button>
-            <button
-              type="button"
-              className={draft.mode === 'phone' ? 'is-active' : ''}
-              aria-pressed={draft.mode === 'phone'}
-              onClick={() =>
-                setDraft((current) => ({
-                  ...current,
-                  mode: 'phone',
-                  role: 'operator',
-                  username: '',
-                  password: '',
-                }))
-              }
-            >
-              <Phone aria-hidden="true" size={17} />
-              {t('access.whatsappAccount')}
-            </button>
           </div>
 
           <div className="form-grid form-grid-2">
-            {draft.mode !== 'phone' ? (
-              <label className="field-group">
-                <span className="field-label">{t('access.username')}</span>
-                <input
-                  name="staffUsername"
-                  className="input-classic"
-                  type="text"
-                  autoComplete="username"
-                  required
-                  minLength={3}
-                  maxLength={64}
-                  pattern="[a-z0-9][a-z0-9._-]{2,63}"
-                  spellCheck={false}
-                  value={draft.username}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      username: event.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''),
-                    }))
-                  }
-                  placeholder={draft.mode === 'employee' ? 'employee.aktau.1' : 'cashier.aktau.1'}
-                />
-              </label>
-            ) : (
-              <label className="field-group">
-                <span className="field-label">{t('access.phone')}</span>
-                <input
-                  name="staffPhone"
-                  className="input-classic"
-                  type="tel"
-                  autoComplete="tel"
-                  required
-                  value={draft.phone}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, phone: event.target.value }))
-                  }
-                  placeholder="+7 700 000 00 00"
-                />
-              </label>
-            )}
+            <label className="field-group">
+              <span className="field-label">{t('access.username')}</span>
+              <input
+                name="staffUsername"
+                className="input-classic"
+                type="text"
+                autoComplete="username"
+                required
+                minLength={3}
+                maxLength={64}
+                pattern="[a-z0-9][a-z0-9._-]{2,63}"
+                spellCheck={false}
+                value={draft.username}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    username: event.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''),
+                  }))
+                }
+                placeholder={draft.mode === 'employee' ? 'employee.aktau.1' : 'cashier.aktau.1'}
+              />
+            </label>
             <label className="field-group">
               <span className="field-label">{t('access.staffName')}</span>
               <input
@@ -835,59 +784,44 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
             </label>
           </div>
 
-          {draft.mode !== 'phone' ? (
-            <div className="field-group">
-              <label className="field-label" htmlFor="staff-password">
-                {t('access.password')}
-              </label>
-              <span className="password-field">
-                <input
-                  id="staff-password"
-                  name="staffPassword"
-                  className="input-classic w-full"
-                  type={showCreatePassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  required
-                  minLength={10}
-                  maxLength={72}
-                  value={draft.password}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, password: event.target.value }))
-                  }
-                  aria-describedby="cashier-password-hint"
-                />
-                <button
-                  type="button"
-                  className="icon-button password-toggle"
-                  onClick={() => setShowCreatePassword((current) => !current)}
-                  aria-label={showCreatePassword ? t('auth.hidePassword') : t('auth.showPassword')}
-                  title={showCreatePassword ? t('auth.hidePassword') : t('auth.showPassword')}
-                >
-                  {showCreatePassword ? (
-                    <EyeOff aria-hidden="true" size={18} />
-                  ) : (
-                    <Eye aria-hidden="true" size={18} />
-                  )}
-                </button>
-              </span>
-              <small id="cashier-password-hint" className="field-hint">
-                {t('access.passwordHint')}
-              </small>
-            </div>
-          ) : (
-            <label className="field-group">
-              <span className="field-label">{t('access.roleAndPermissions')}</span>
-              <SelectControl
-                name="staffRole"
-                value={draft.role}
-                onChange={(value) => setDraft((current) => ({ ...current, role: value }))}
-                options={Object.entries(staffRoleLabels).map(([value, label]) => ({
-                  value,
-                  label,
-                }))}
-              />
+          <div className="field-group">
+            <label className="field-label" htmlFor="staff-password">
+              {t('access.password')}
             </label>
-          )}
+            <span className="password-field">
+              <input
+                id="staff-password"
+                name="staffPassword"
+                className="input-classic w-full"
+                type={showCreatePassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                required
+                minLength={10}
+                maxLength={72}
+                value={draft.password}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, password: event.target.value }))
+                }
+                aria-describedby="cashier-password-hint"
+              />
+              <button
+                type="button"
+                className="icon-button password-toggle"
+                onClick={() => setShowCreatePassword((current) => !current)}
+                aria-label={showCreatePassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                title={showCreatePassword ? t('auth.hidePassword') : t('auth.showPassword')}
+              >
+                {showCreatePassword ? (
+                  <EyeOff aria-hidden="true" size={18} />
+                ) : (
+                  <Eye aria-hidden="true" size={18} />
+                )}
+              </button>
+            </span>
+            <small id="cashier-password-hint" className="field-hint">
+              {t('access.passwordHint')}
+            </small>
+          </div>
 
           <BranchAccessPicker
             locations={locations}
@@ -897,16 +831,8 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
           />
 
           <div className="inline-alert inline-alert-info">
-            {draft.mode !== 'phone' ? (
-              <KeyRound aria-hidden="true" size={17} />
-            ) : (
-              <Phone aria-hidden="true" size={17} />
-            )}
-            {draft.mode === 'employee'
-              ? t('access.employeeLoginHint')
-              : draft.mode === 'cashier'
-                ? t('access.cashierLoginHint')
-                : t('access.loginHint')}
+            <KeyRound aria-hidden="true" size={17} />
+            {t(draft.mode === 'employee' ? 'access.employeeLoginHint' : 'access.cashierLoginHint')}
           </div>
         </form>
       </GuardedModal>

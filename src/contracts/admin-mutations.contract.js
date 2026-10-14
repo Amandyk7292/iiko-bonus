@@ -1049,16 +1049,7 @@ const automationBodySchema = z
   })
   .strict();
 
-const staffRoleSchema = z.enum([
-  'employee',
-  'franchisee',
-  'branch_manager',
-  'operator',
-  'marketer',
-  'courier',
-  'viewer',
-  'cashier',
-]);
+const staffRoleSchema = z.enum(['employee', 'cashier']);
 const cashierUsernameSchema = z
   .string()
   .trim()
@@ -1078,9 +1069,8 @@ const cashierPasswordSchema = z
   });
 const accessCreateBodySchema = z
   .object({
-    phone: z.string().trim().min(10).max(32).optional(),
-    username: cashierUsernameSchema.optional(),
-    password: cashierPasswordSchema.optional(),
+    username: cashierUsernameSchema,
+    password: cashierPasswordSchema,
     displayName: shortText(160, 1),
     role: staffRoleSchema,
     branchIds: z
@@ -1092,52 +1082,11 @@ const accessCreateBodySchema = z
   })
   .strict()
   .superRefine((value, context) => {
-    if (
-      value.role === 'cashier' ||
-      (value.role === 'employee' && (value.username || value.password))
-    ) {
-      if (!value.username) {
-        context.addIssue({
-          code: 'custom',
-          path: ['username'],
-          message: 'Укажите логин сотрудника',
-        });
-      }
-      if (!value.password) {
-        context.addIssue({
-          code: 'custom',
-          path: ['password'],
-          message: 'Укажите пароль сотрудника',
-        });
-      }
-      if (value.role === 'cashier' && value.branchIds.length !== 1) {
-        context.addIssue({
-          code: 'custom',
-          path: ['branchIds'],
-          message: 'Кассир должен быть привязан ровно к одной точке',
-        });
-      }
-      if (value.phone) {
-        context.addIssue({
-          code: 'custom',
-          path: ['phone'],
-          message: 'Для входа по паролю используется логин, а не телефон',
-        });
-      }
-      return;
-    }
-    if (!value.phone) {
+    if (value.role === 'cashier' && value.branchIds.length !== 1) {
       context.addIssue({
         code: 'custom',
-        path: ['phone'],
-        message: 'Укажите номер телефона сотрудника',
-      });
-    }
-    if (value.username || value.password) {
-      context.addIssue({
-        code: 'custom',
-        path: ['username'],
-        message: 'Логин и пароль доступны для кассира или сотрудника обучения',
+        path: ['branchIds'],
+        message: 'Кассир должен быть привязан ровно к одной точке',
       });
     }
   });

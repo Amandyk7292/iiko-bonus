@@ -5,8 +5,6 @@ import { uploadMenuPhoto } from './menu-photo-api';
 describe('admin API request abort composition', () => {
   for (const [name, call] of [
     ['password', () => api.login('admin', 'password', '')],
-    ['phone request', () => api.requestAdminPhoneLogin('+77001234567')],
-    ['phone verify', () => api.verifyAdminPhoneLogin('+77001234567', '123456')],
     ['operator access', () => api.exchangeWhatsAppOperatorAccess('token')],
   ] as const) {
     it.each(['headers', 'body', 'error body'])(

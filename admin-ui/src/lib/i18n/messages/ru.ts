@@ -7,8 +7,6 @@ import faq from '../faq';
 import academy from '../academy';
 import loyaltyNavigation from '../loyalty-navigation';
 const ru: Record<string, string> = {
-  'nav.pos': 'Касса',
-  'page.pos.title': 'Касса Bulka',
   'common.previous': 'Предыдущая страница',
   'common.next': 'Следующая страница',
   ...faq.ru,
@@ -92,18 +90,6 @@ const ru: Record<string, string> = {
   'auth.noSession': 'Сервер не выдал сессию',
   'auth.showPassword': 'Показать пароль',
   'auth.hidePassword': 'Скрыть пароль',
-  'auth.phoneSubtitle': 'Войдите по номеру, который владелец добавил в список сотрудников.',
-  'auth.loginMethod': 'Способ входа',
-  'auth.byPhone': 'По телефону',
-  'auth.byPassword': 'По паролю',
-  'auth.phone': 'Номер телефона',
-  'auth.whatsappInstruction':
-    'Откройте WhatsApp, отправьте подготовленное сообщение и получите код.',
-  'auth.openWhatsApp': 'Открыть WhatsApp',
-  'auth.phoneCode': 'Код из WhatsApp',
-  'auth.changePhone': 'Изменить номер',
-  'auth.requestWhatsAppCode': 'Получить код в WhatsApp',
-  'auth.verifyCode': 'Подтвердить и войти',
   'auth.logout': 'Выйти',
   'auth.logoutFull': 'Выйти из системы',
   'auth.loggingOut': 'Выходим…',
@@ -1186,7 +1172,7 @@ const ru: Record<string, string> = {
   'access.accountsHint':
     'Учётных записей: {{count}}. Кассир входит по личному логину и видит только свою точку.',
   'access.noAccounts': 'Учётных записей пока нет',
-  'access.whatsappLogin': 'Вход по WhatsApp-коду',
+  'access.phoneLoginDisabled': 'Вход по телефону отключён',
   'access.passwordLogin': 'Вход по логину и паролю',
   'access.staffName': 'Имя сотрудника',
   'access.roleAndPermissions': 'Должность и права',
@@ -1204,18 +1190,13 @@ const ru: Record<string, string> = {
   'access.noBranches': 'Филиалы пока не настроены.',
   'access.savePermissions': 'Сохранить права',
   'access.newStaff': 'Новый сотрудник',
-  'access.newStaffHint':
-    'Создайте кассиру личный логин или добавьте другого сотрудника по номеру WhatsApp.',
+  'access.newStaffHint': 'Создайте сотруднику личный логин и пароль.',
   'access.accountType': 'Тип учётной записи',
   'access.cashierAccount': 'Кассир по логину',
-  'access.whatsappAccount': 'Сотрудник по WhatsApp',
-  'access.phone': 'Номер телефона',
   'access.username': 'Логин',
   'access.password': 'Пароль',
   'access.passwordHint': '10–72 символа, минимум одна буква и одна цифра.',
   'access.namePlaceholder': 'Имя и фамилия',
-  'access.loginHint':
-    'Для входа сотрудник выберет «По телефону» и получит одноразовый код через WhatsApp.',
   'access.cashierLoginHint':
     'Кассир войдёт по этому логину и паролю и увидит заказы только выбранной точки.',
   'access.resetPassword': 'Сменить пароль',

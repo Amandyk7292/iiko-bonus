@@ -7,8 +7,6 @@ import { BrowserRouter } from './lib/router';
 const apiMocks = vi.hoisted(() => ({
   session: vi.fn(),
   login: vi.fn(),
-  requestAdminPhoneLogin: vi.fn(),
-  verifyAdminPhoneLogin: vi.fn(),
   exchangeWhatsAppOperatorAccess: vi.fn(),
   getAdminScope: vi.fn(),
 }));
@@ -54,6 +52,9 @@ vi.mock('./pages/OrdersPage', () => ({
 vi.mock('./pages/KitchenPage', () => ({
   default: () => <div>kitchen-page</div>,
 }));
+vi.mock('./pages/learning/LearningPage', () => ({
+  default: () => <div>learning-page</div>,
+}));
 vi.mock('./pages/WhatsAppPage', () => ({
   default: ({ role }: { role: string }) => <div>whatsapp-page:{role}</div>,
 }));
@@ -88,8 +89,6 @@ describe('Admin application authentication and role guards', () => {
     localStorage.setItem('adminLocale', 'ru');
     apiMocks.session.mockReset();
     apiMocks.login.mockReset();
-    apiMocks.requestAdminPhoneLogin.mockReset();
-    apiMocks.verifyAdminPhoneLogin.mockReset();
     apiMocks.exchangeWhatsAppOperatorAccess.mockReset();
     apiMocks.getAdminScope.mockReset().mockResolvedValue({ locations: [] });
     window.history.replaceState({}, '', '/admin/');
@@ -109,6 +108,17 @@ describe('Admin application authentication and role guards', () => {
 
     expect(await screen.findByText('operations-page')).toBeInTheDocument();
     expect(apiMocks.login).toHaveBeenCalledWith('admin', 'safe-password', '');
+  });
+
+  it('offers only login and password while preserving the optional verification code', async () => {
+    apiMocks.session.mockRejectedValue(new ApiError('no session', 401));
+    renderApp();
+    expect(await screen.findByLabelText('Имя пользователя')).toBeInTheDocument();
+    expect(screen.getByLabelText('Пароль')).toBeInTheDocument();
+    expect(screen.getByLabelText('Код подтверждения (если включён)')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'По телефону' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Номер телефона')).not.toBeInTheDocument();
+    expect(screen.queryByText(/код.*WhatsApp/)).not.toBeInTheDocument();
   });
 
   it('redirects every role away from a forbidden privileged route', async () => {
@@ -203,6 +213,21 @@ describe('Admin application authentication and role guards', () => {
     await waitFor(() =>
       expect(document.querySelector('.sagi-shell')).toHaveClass('sidebar-is-collapsed'),
     );
+  });
+
+  it.each([
+    ['owner', '/operations', 'operations-page'],
+    ['admin', '/operations', 'operations-page'],
+    ['branch_manager', '/operations', 'operations-page'],
+    ['employee', '/learning', 'learning-page'],
+    ['cashier', '/kitchen', 'kitchen-page'],
+  ])('redirects a removed web POS bookmark for %s to its allowed landing page', async (role, path, content) => {
+    apiMocks.session.mockResolvedValue({ user: { username: role, role, branchIds: [] } });
+    window.history.replaceState({}, '', '/admin/pos');
+    renderApp();
+    expect(await screen.findByText(content)).toBeInTheDocument();
+    expect(window.location.pathname).toBe(`/admin${path}`);
+    expect(screen.queryByText('Касса Bulka')).not.toBeInTheDocument();
   });
 
   it('keeps a WhatsApp operator inside the single permitted workspace', async () => {

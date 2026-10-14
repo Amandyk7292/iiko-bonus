@@ -110,6 +110,15 @@ describe('Sidebar role navigation', () => {
     expect(visiblePaths()).toEqual([]);
   });
 
+  it.each(['owner', 'admin', 'employee', 'cashier', 'branch_manager'])(
+    'removes the web POS destination for %s',
+    (role) => {
+      renderSidebar(role);
+      expect(visiblePaths()).not.toContain('/pos');
+      expect(screen.queryByRole('link', { name: /^Касса$/, hidden: true })).not.toBeInTheDocument();
+    },
+  );
+
   it('keeps privileged owner navigation complete', () => {
     renderSidebar('owner');
     const paths = visiblePaths();

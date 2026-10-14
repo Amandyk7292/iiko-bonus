@@ -4,8 +4,6 @@ import {
   EyeOff,
   LoaderCircle,
   LockKeyhole,
-  MessageCircle,
-  Phone,
 } from './components/BulkaIcons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from './lib/router';
 import {
@@ -47,7 +45,6 @@ const BonusPage = lazy(() => import('./pages/BonusPage'));
 const LoyaltyTiersPage = lazy(() => import('./pages/LoyaltyTiersPage'));
 const FaqPage = lazy(() => import('./pages/FaqPage'));
 const CashierCatalogPage = lazy(() => import('./pages/CashierCatalogPage'));
-const VirtualPosPage = lazy(() => import('./pages/VirtualPosPage'));
 const MenuPage = lazy(() => import('./pages/MenuPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const SecurityPage = lazy(() => import('./pages/SecurityPage'));
@@ -86,44 +83,21 @@ function normalizeNumberInput(event: FormEvent<HTMLDivElement>) {
 
 function LoginScreen({ onLogin }: { onLogin: (user: AdminUser) => void }) {
   const { t } = useI18n();
-  const [loginMode, setLoginMode] = useState<'password' | 'phone'>('password');
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
-  const [phone, setPhone] = useState('');
-  const [phoneCode, setPhoneCode] = useState('');
-  const [phoneCodeRequested, setPhoneCodeRequested] = useState(false);
-  const [whatsappUrl, setWhatsappUrl] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (event: FormEvent) => {
     event.preventDefault();
-    if (loading) return;
-    if (loginMode === 'password' && !password) return;
-    if (loginMode === 'phone' && (!phone.trim() || (phoneCodeRequested && phoneCode.length !== 6)))
-      return;
+    if (loading || !password) return;
     setLoading(true);
     setError('');
     try {
-      if (loginMode === 'password') {
-        const response = await api.login(username, password, code);
-        onLogin(response.user);
-      } else if (!phoneCodeRequested) {
-        const response = await api.requestAdminPhoneLogin(phone);
-        setWhatsappUrl(response.whatsappUrl || '');
-        setPhoneCodeRequested(true);
-        setPhoneCode('');
-        if (response.whatsappUrl) {
-          if (isEmbeddedAdminPortal(window.location.search))
-            window.location.assign(response.whatsappUrl);
-          else window.open(response.whatsappUrl, '_blank', 'noopener,noreferrer');
-        }
-      } else {
-        const response = await api.verifyAdminPhoneLogin(phone, phoneCode);
-        onLogin(response.user);
-      }
+      const response = await api.login(username, password, code);
+      onLogin(response.user);
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === 'AUTH_INVALID') {
         setError(t('auth.invalidPassword'));
@@ -134,25 +108,6 @@ function LoginScreen({ onLogin }: { onLogin: (user: AdminUser) => void }) {
       setLoading(false);
     }
   };
-
-  const changeMode = (mode: 'password' | 'phone') => {
-    if (loading) return;
-    setLoginMode(mode);
-    setError('');
-  };
-
-  const resetPhoneRequest = () => {
-    setPhoneCodeRequested(false);
-    setPhoneCode('');
-    setWhatsappUrl('');
-    setError('');
-  };
-
-  const submitDisabled =
-    loading ||
-    (loginMode === 'password'
-      ? !password
-      : !phone.trim() || (phoneCodeRequested && phoneCode.length !== 6));
 
   return (
     <main className="login-screen">
@@ -172,164 +127,74 @@ function LoginScreen({ onLogin }: { onLogin: (user: AdminUser) => void }) {
           height="58"
         />
         <h1>{t('auth.title')}</h1>
-        <p>{loginMode === 'phone' ? t('auth.phoneSubtitle') : t('auth.subtitle')}</p>
+        <p>{t('auth.subtitle')}</p>
 
-        <div
-          className="segmented-control login-mode-tabs"
-          role="group"
-          aria-label={t('auth.loginMethod')}
-        >
+        <label className="field-label" htmlFor="admin-username">
+          {t('auth.username')}
+        </label>
+        <input
+          id="admin-username"
+          name="username"
+          type="text"
+          value={username}
+          onChange={(event) => setUsername(event.target.value)}
+          autoComplete="username"
+          spellCheck={false}
+          required
+          className="input-classic w-full"
+        />
+        <label className="field-label" htmlFor="admin-password">
+          {t('auth.password')}
+        </label>
+        <div className="password-field">
+          <input
+            id="admin-password"
+            name="password"
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="current-password"
+            required
+            className="input-classic w-full"
+            aria-invalid={Boolean(error)}
+          />
           <button
             type="button"
-            className={loginMode === 'phone' ? 'is-active' : ''}
-            onClick={() => changeMode('phone')}
-            aria-pressed={loginMode === 'phone'}
+            className="icon-button password-toggle"
+            onClick={() => setShowPassword((value) => !value)}
+            aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+            title={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
           >
-            <Phone aria-hidden="true" size={16} /> {t('auth.byPhone')}
-          </button>
-          <button
-            type="button"
-            className={loginMode === 'password' ? 'is-active' : ''}
-            onClick={() => changeMode('password')}
-            aria-pressed={loginMode === 'password'}
-          >
-            <LockKeyhole aria-hidden="true" size={16} /> {t('auth.byPassword')}
+            {showPassword ? (
+              <EyeOff aria-hidden="true" size={19} />
+            ) : (
+              <Eye aria-hidden="true" size={19} />
+            )}
           </button>
         </div>
-
-        {loginMode === 'password' ? (
-          <>
-            <label className="field-label" htmlFor="admin-username">
-              {t('auth.username')}
-            </label>
-            <input
-              id="admin-username"
-              name="username"
-              type="text"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              autoComplete="username"
-              spellCheck={false}
-              required
-              className="input-classic w-full"
-            />
-            <label className="field-label" htmlFor="admin-password">
-              {t('auth.password')}
-            </label>
-            <div className="password-field">
-              <input
-                id="admin-password"
-                name="password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                autoComplete="current-password"
-                required
-                className="input-classic w-full"
-                aria-invalid={Boolean(error)}
-              />
-              <button
-                type="button"
-                className="icon-button password-toggle"
-                onClick={() => setShowPassword((value) => !value)}
-                aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
-                title={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
-              >
-                {showPassword ? (
-                  <EyeOff aria-hidden="true" size={19} />
-                ) : (
-                  <Eye aria-hidden="true" size={19} />
-                )}
-              </button>
-            </div>
-            <label className="field-label" htmlFor="admin-code">
-              {t('auth.code')}
-            </label>
-            <input
-              id="admin-code"
-              name="one-time-code"
-              type="text"
-              value={code}
-              onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-              autoComplete="one-time-code"
-              inputMode="numeric"
-              spellCheck={false}
-              className="input-classic w-full"
-              placeholder="123456"
-            />
-          </>
-        ) : (
-          <>
-            <label className="field-label" htmlFor="admin-phone">
-              {t('auth.phone')}
-            </label>
-            <input
-              id="admin-phone"
-              name="phone"
-              type="tel"
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              autoComplete="tel"
-              readOnly={phoneCodeRequested}
-              required
-              className="input-classic w-full"
-              placeholder="+7 700 000 00 00"
-              aria-invalid={Boolean(error)}
-            />
-            {phoneCodeRequested && (
-              <>
-                <div className="login-phone-status">
-                  <MessageCircle aria-hidden="true" size={17} />
-                  <span>{t('auth.whatsappInstruction')}</span>
-                </div>
-                {whatsappUrl && (
-                  <a
-                    className="btn-outline login-whatsapp-link"
-                    href={whatsappUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <MessageCircle aria-hidden="true" size={17} /> {t('auth.openWhatsApp')}
-                  </a>
-                )}
-                <label className="field-label" htmlFor="admin-phone-code">
-                  {t('auth.phoneCode')}
-                </label>
-                <input
-                  id="admin-phone-code"
-                  name="phone-code"
-                  type="text"
-                  value={phoneCode}
-                  onChange={(event) =>
-                    setPhoneCode(event.target.value.replace(/\D/g, '').slice(0, 6))
-                  }
-                  autoComplete="one-time-code"
-                  inputMode="numeric"
-                  spellCheck={false}
-                  className="input-classic w-full"
-                  placeholder="123456"
-                />
-                <button type="button" className="login-change-phone" onClick={resetPhoneRequest}>
-                  {t('auth.changePhone')}
-                </button>
-              </>
-            )}
-          </>
-        )}
+        <label className="field-label" htmlFor="admin-code">
+          {t('auth.code')}
+        </label>
+        <input
+          id="admin-code"
+          name="one-time-code"
+          type="text"
+          value={code}
+          onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+          autoComplete="one-time-code"
+          inputMode="numeric"
+          spellCheck={false}
+          className="input-classic w-full"
+          placeholder="123456"
+        />
         {error && (
           <p id="login-error" className="field-error" role="alert">
             {error}
           </p>
         )}
-        <button type="submit" disabled={submitDisabled} className="btn-classic login-submit">
+        <button type="submit" disabled={loading || !password} className="btn-classic login-submit">
           {loading && <LoaderCircle aria-hidden="true" className="spin" size={18} />}
-          {loading
-            ? t('auth.signingIn')
-            : loginMode === 'phone'
-              ? phoneCodeRequested
-                ? t('auth.verifyCode')
-                : t('auth.requestWhatsAppCode')
-              : t('auth.signIn')}
+          {t(loading ? 'auth.signingIn' : 'auth.signIn')}
         </button>
       </form>
     </main>
@@ -596,7 +461,7 @@ export default function App() {
             />
             <div
               className="sagi-page"
-              key={location.pathname === '/pos' ? 'pos' : location.pathname === '/bonus' ? 'bonus' : selectedBranchId || 'all-branches'}
+              key={location.pathname === '/bonus' ? 'bonus' : selectedBranchId || 'all-branches'}
             >
               <Suspense fallback={<PageState type="loading" />}>
                 <Routes>
@@ -610,7 +475,6 @@ export default function App() {
                     element={guard('/learning', <LearningPage role={role} />)}
                   />
                   <Route path="/operations" element={guard('/operations', <OperationsPage />)} />
-                  <Route path="/pos" element={guard('/pos', <VirtualPosPage username={adminUser?.username || ''} />)} />
                   <Route path="/analytics" element={guard('/analytics', <AnalyticsPage />)} />
                   <Route path="/settlements" element={guard('/settlements', <SettlementsPage />)} />
                   <Route

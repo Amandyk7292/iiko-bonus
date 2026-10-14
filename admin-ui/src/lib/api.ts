@@ -1,5 +1,4 @@
 import type { CashierCatalog, CashierStockChange } from './cashier-catalog';
-import type { VirtualPosCatalog, VirtualPosSale, VirtualPosSaleRequest } from './virtual-pos';
 import type { PaymentDiagnostics } from './payment-diagnostics';
 import { parseAdminScopeSelection } from './admin-city-scope';
 import { composeRequestAbortSignal } from './api-request-abort';
@@ -50,14 +49,12 @@ export class ApiError extends Error {
   code?: string;
   details?: unknown;
   requestId?: string;
-  safelyRejected: boolean;
   constructor(
     message: string,
     status: number,
     code?: string,
     details?: unknown,
     requestId?: string,
-    safelyRejected = false,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -65,12 +62,10 @@ export class ApiError extends Error {
     this.code = code;
     this.details = details;
     this.requestId = requestId;
-    this.safelyRejected = safelyRejected;
   }
 }
 
 type ApiErrorPayload = {
-  safelyRejected?: boolean;
   error?: string;
   message?: string;
   code?: string;
@@ -149,7 +144,6 @@ import type {
   AdminGlobalTimelineEvent,
   AdminGlobalCustomerProfile,
   AdminGlobalSupportSummary,
-  AdminPhoneLoginChallenge,
   StaffPushDevice,
   StaffPushPlatform,
   WhatsAppAssistantSettings,
@@ -214,7 +208,6 @@ export type {
   AdminGlobalTimelineEvent,
   AdminGlobalCustomerProfile,
   AdminGlobalSupportSummary,
-  AdminPhoneLoginChallenge,
   StaffPushDevice,
   StaffPushPlatform,
   WhatsAppAssistantSettings,
@@ -308,7 +301,6 @@ export async function request<T>(
         errorData.code,
         errorData.details ?? errorData.fields,
         requestId,
-        errorData.safelyRejected === true,
       );
     }
 
@@ -338,12 +330,6 @@ async function publicAuthRequest<T>(endpoint: string, data: Record<string, unkno
 }
 
 export const api = {
-  getVirtualPosCatalog: (branchId: string, signal?: AbortSignal) =>
-    request<VirtualPosCatalog>('/staff/virtual-pos/catalog', { signal }, { branchScope: branchId }),
-  createVirtualPosSale: (branchId: string, data: VirtualPosSaleRequest) =>
-    request<{ sale: VirtualPosSale }>('/staff/virtual-pos/sales', json('POST', data), { branchScope: branchId }),
-  getVirtualPosSale: (branchId: string, requestId: string) =>
-    request<{ sale: VirtualPosSale }>(`/staff/virtual-pos/sales/${encodeURIComponent(requestId)}`, {}, { branchScope: branchId }),
   getCashierCatalog: () => request<CashierCatalog>('/staff/catalog'),
   updateCashierProduct: (id: string, data: CashierStockChange) =>
     request(`/staff/catalog/${encodeURIComponent(id)}`, json('PATCH', data)),
@@ -358,14 +344,6 @@ export const api = {
       throw error;
     }
   },
-
-  requestAdminPhoneLogin: (phone: string) =>
-    publicAuthRequest<AdminPhoneLoginChallenge>('/login/phone/request', { phone }),
-
-  verifyAdminPhoneLogin: (phone: string, code: string) =>
-    acceptAdminLogin(
-      publicAuthRequest<{ user: AdminUser }>('/login/phone/verify', { phone, code }),
-    ),
 
   exchangeWhatsAppOperatorAccess: (token: string) =>
     acceptAdminLogin(

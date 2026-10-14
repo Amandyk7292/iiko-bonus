@@ -7,8 +7,6 @@ import faq from '../faq';
 import academy from '../academy';
 import loyaltyNavigation from '../loyalty-navigation';
 const kk: Record<string, string> = {
-  'nav.pos': 'Касса',
-  'page.pos.title': 'Bulka кассасы',
   'common.previous': 'Алдыңғы бет',
   'common.next': 'Келесі бет',
   ...faq.kk,
@@ -94,17 +92,6 @@ const kk: Record<string, string> = {
   'auth.noSession': 'Сервер сессия бермеді',
   'auth.showPassword': 'Құпиясөзді көрсету',
   'auth.hidePassword': 'Құпиясөзді жасыру',
-  'auth.phoneSubtitle': 'Иесі қызметкерлер тізіміне қосқан телефон нөмірімен кіріңіз.',
-  'auth.loginMethod': 'Кіру тәсілі',
-  'auth.byPhone': 'Телефонмен',
-  'auth.byPassword': 'Құпиясөзбен',
-  'auth.phone': 'Телефон нөмірі',
-  'auth.whatsappInstruction': 'WhatsApp ашып, дайын хабарламаны жіберіңіз де, кіру кодын алыңыз.',
-  'auth.openWhatsApp': 'WhatsApp ашу',
-  'auth.phoneCode': 'WhatsApp коды',
-  'auth.changePhone': 'Нөмірді өзгерту',
-  'auth.requestWhatsAppCode': 'WhatsApp кодын алу',
-  'auth.verifyCode': 'Растау және кіру',
   'auth.logout': 'Шығу',
   'auth.logoutFull': 'Жүйеден шығу',
   'auth.loggingOut': 'Шығудамыз…',
@@ -1176,7 +1163,7 @@ const kk: Record<string, string> = {
   'access.accountsHint':
     'Тіркелгілер: {{count}}. Кассир жеке логинмен кіріп, тек өз нүктесін көреді.',
   'access.noAccounts': 'Тіркелгілер әлі жоқ',
-  'access.whatsappLogin': 'WhatsApp коды арқылы кіру',
+  'access.phoneLoginDisabled': 'Телефон арқылы кіру өшірілген',
   'access.passwordLogin': 'Логин және құпиясөз арқылы кіру',
   'access.staffName': 'Қызметкердің аты',
   'access.roleAndPermissions': 'Лауазым және құқықтар',
@@ -1194,18 +1181,13 @@ const kk: Record<string, string> = {
   'access.noBranches': 'Филиалдар әлі бапталмаған.',
   'access.savePermissions': 'Құқықтарды сақтау',
   'access.newStaff': 'Жаңа қызметкер',
-  'access.newStaffHint':
-    'Кассирге жеке логин жасаңыз немесе басқа қызметкерді WhatsApp нөмірімен қосыңыз.',
+  'access.newStaffHint': 'Қызметкерге жеке логин және құпиясөз жасаңыз.',
   'access.accountType': 'Тіркелгі түрі',
   'access.cashierAccount': 'Логинмен кіретін кассир',
-  'access.whatsappAccount': 'WhatsApp арқылы қызметкер',
-  'access.phone': 'Телефон нөмірі',
   'access.username': 'Логин',
   'access.password': 'Құпиясөз',
   'access.passwordHint': '10–72 таңба, кемінде бір әріп және бір сан.',
   'access.namePlaceholder': 'Аты-жөні',
-  'access.loginHint':
-    'Қызметкер кіру үшін «Телефон арқылы» тәсілін таңдап, WhatsApp арқылы бір реттік код алады.',
   'access.cashierLoginHint':
     'Кассир осы логин және құпиясөзбен кіріп, тек таңдалған нүктенің тапсырыстарын көреді.',
   'access.resetPassword': 'Құпиясөзді өзгерту',
