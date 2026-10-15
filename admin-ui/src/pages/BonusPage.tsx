@@ -43,8 +43,9 @@ interface BonusSettings {
   max_discount_percent: number | string;
   bonus_expiration: {
     enabled: boolean;
-    expiration_days: number | string;
-    notify_before_days: number | string;
+    expiration_months: 6;
+    notify_days: [30, 15, 7];
+    auto_write_off: true;
   };
   [key: string]: unknown;
 }
@@ -101,8 +102,9 @@ export default function BonusPage({ scope = '' }: { scope?: string }) {
         max_discount_percent: Number(data.max_discount_percent ?? 0),
         bonus_expiration: {
           enabled: Boolean(data.bonus_expiration?.enabled),
-          expiration_days: Number(data.bonus_expiration?.expiration_days ?? 90),
-          notify_before_days: Number(data.bonus_expiration?.notify_before_days ?? 30),
+          expiration_months: 6 as const,
+          notify_days: [30, 15, 7] as [30, 15, 7],
+          auto_write_off: true as const,
         },
       };
       setSettings(loaded);
@@ -120,12 +122,6 @@ export default function BonusPage({ scope = '' }: { scope?: string }) {
 
   const setPercent = (key: 'base_cashback_percent' | 'max_discount_percent', value: string) =>
     setSettings((current) => current && { ...current, [key]: value });
-  const setExpiration = (key: 'expiration_days' | 'notify_before_days', value: string) =>
-    setSettings(
-      (current) =>
-        current && { ...current, bonus_expiration: { ...current.bonus_expiration, [key]: value } },
-    );
-
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!settings || saving) return;
@@ -137,7 +133,6 @@ export default function BonusPage({ scope = '' }: { scope?: string }) {
       setError(invalid?.validationMessage || t('common.error'));
       return;
     }
-    const saved = JSON.parse(savedSettings) as BonusSettings;
     const payload = {
       ...settings,
       base_cashback_percent: Number(settings.base_cashback_percent),
@@ -147,15 +142,6 @@ export default function BonusPage({ scope = '' }: { scope?: string }) {
         inviter_bonus: Number(settings.bonus_referral.inviter_bonus),
         friend_bonus: Number(settings.bonus_referral.friend_bonus),
         min_first_order: Number(settings.bonus_referral.min_first_order),
-      },
-      bonus_expiration: {
-        ...settings.bonus_expiration,
-        expiration_days: Number(
-          settings.bonus_expiration.expiration_days || saved.bonus_expiration.expiration_days,
-        ),
-        notify_before_days: Number(
-          settings.bonus_expiration.notify_before_days || saved.bonus_expiration.notify_before_days,
-        ),
       },
     };
     setSaving(true);
@@ -338,34 +324,14 @@ export default function BonusPage({ scope = '' }: { scope?: string }) {
               {settings.bonus_expiration.enabled && (
                 <div className="form-grid form-grid-2 reveal-panel">
                   <div className="field-group">
-                    <label className="field-label" htmlFor="expiration-days">
-                      {t('bonus.inactiveDays')}
-                    </label>
-                    <input
-                      id="expiration-days"
-                      type="number"
-                      min="1"
-                      disabled={saving}
-                      value={settings.bonus_expiration.expiration_days}
-                      onChange={(event) => setExpiration('expiration_days', event.target.value)}
-                      className="input-classic"
-                      required
-                    />
+                    <span className="field-label">{t('bonus.expirationTerm')}</span>
+                    <strong>{t('bonus.expirationRule')}</strong>
+                    <p className="field-hint">{t('bonus.expirationHint')}</p>
+                    <p className="field-hint">{t('bonus.winbackRule')}</p>
                   </div>
                   <div className="field-group">
-                    <label className="field-label" htmlFor="notify-days">
-                      {t('bonus.notifyDays')}
-                    </label>
-                    <input
-                      id="notify-days"
-                      type="number"
-                      min="1"
-                      disabled={saving}
-                      value={settings.bonus_expiration.notify_before_days}
-                      onChange={(event) => setExpiration('notify_before_days', event.target.value)}
-                      className="input-classic"
-                      required
-                    />
+                    <span className="field-label">{t('bonus.notifyDays')}</span>
+                    <strong>{t('bonus.notifySchedule')}</strong>
                   </div>
                 </div>
               )}

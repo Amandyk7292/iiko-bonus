@@ -1,5 +1,3 @@
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 async function loadBonusActivity(client, customers) {
   const activity = new Map();
   for (let offset = 0; offset < customers.length; offset += 500) {
@@ -30,24 +28,25 @@ async function listPositiveCustomers(client) {
 async function attachBonusExpiration(client, customers, settings) {
   const policy = settings.bonus_expiration || {};
   const enabled = policy.enabled !== false && policy.auto_write_off !== false;
-  const days = Number(policy.expiration_days || 90);
-  const activity = enabled
-    ? await loadBonusActivity(
-        client,
-        customers.filter((customer) => Number(customer.balance) > 0),
-      )
-    : new Map();
+  const forecasts = new Map();
+  const positive = customers.filter((customer) => Number(customer.balance) > 0);
+  if (enabled) {
+    for (let offset = 0; offset < positive.length; offset += 500) {
+      const { data, error } = await client.rpc('bonus_expiry_customer_forecasts', {
+        p_customer_ids: positive.slice(offset, offset + 500).map((customer) => customer.id),
+      });
+      if (error) throw new Error(error.message);
+      for (const row of data || []) forecasts.set(row.customer_id, row);
+    }
+  }
   return customers.map((customer) => {
-    const lastActivity = activity.get(customer.id) || customer.created_at;
-    const timestamp = Date.parse(lastActivity || '');
+    const forecast = forecasts.get(customer.id);
     return {
       ...customer,
       bonus_expiration_enabled: enabled,
-      bonus_expiration_days: days,
-      bonus_expires_at:
-        enabled && Number(customer.balance) > 0 && Number.isFinite(timestamp)
-          ? new Date(timestamp + days * DAY_MS).toISOString()
-          : null,
+      bonus_expiration_months: 6,
+      bonus_expires_at: forecast?.next_expiry_at || null,
+      bonus_expiring_amount: Math.max(0, Number(forecast?.expiring_amount || 0)),
     };
   });
 }

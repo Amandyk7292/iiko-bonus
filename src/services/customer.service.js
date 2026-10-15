@@ -5,11 +5,7 @@ const { localDateBoundaryIso } = require('../utils/date.util');
 const { getSecretWalletCardNumber } = require('../utils/wallet-card.util');
 const { queueCustomerLoyaltySync } = require('./loyalty-sync.service');
 const { getSettings } = require('./settings.service');
-const {
-  attachBonusExpiration,
-  loadBonusActivity,
-  listPositiveCustomers,
-} = require('./bonus-expiration.service');
+const { attachBonusExpiration } = require('./bonus-expiration.service');
 
 const customerError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
@@ -811,47 +807,32 @@ async function updateFcmTokenByCustomerId(customerId, fcmToken, language = null)
 }
 
 /**
- * Автоматическое сгорание баллов у неактивных клиентов (> inactivityDays дней, например 90)
+ * Expire only unused due credit lots. The old name keeps the admin route
+ * compatible; a cached client's inactivity-day argument is never used.
  */
-async function checkAndExpireInactiveBonuses(inactivityDays = 90) {
-  const customers = await listPositiveCustomers(supabase);
-  const activity = await loadBonusActivity(supabase, customers);
-
-  const now = new Date();
-  const cutoffTime = now.getTime() - inactivityDays * 24 * 60 * 60 * 1000;
+async function checkAndExpireInactiveBonuses() {
   let expiredCount = 0;
   let totalExpiredAmount = 0;
-
-  for (const c of customers) {
-    const lastActivityDate = new Date(activity.get(c.id) || c.created_at);
-
-    if (lastActivityDate.getTime() < cutoffTime) {
-      const expiredAmt = Number(c.balance);
-      if (expiredAmt > 0) {
-        const orderId = `EXPIRED_${inactivityDays}_DAYS_${now.toISOString().slice(0, 10)}`;
-        const { data: expired, error: updateErr } = await supabase.rpc('expire_customer_bonus', {
-          p_customer_id: c.id,
-          p_expected_balance: expiredAmt,
-          p_order_id: orderId,
-          p_inactive_before: new Date(cutoffTime).toISOString(),
-        });
-
-        if (!updateErr && Number(expired) > 0) {
-          expiredCount++;
-          totalExpiredAmount += Number(expired);
-          queueCustomerLoyaltySync(c.id);
-        }
-      }
-    }
+  for (let batch = 0; batch < 25; batch++) {
+    const { data, error } = await supabase.rpc('expire_due_bonus_credit_lots', { p_limit: 200 });
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error('Bonus expiry returned no result');
+    expiredCount += Number(data.expiredCount || 0);
+    totalExpiredAmount += Number(data.totalExpiredAmount || 0);
+    for (const customerId of new Set([
+      ...(data.customerIds || []),
+      ...(data.winbackCustomerIds || []),
+    ]))
+      queueCustomerLoyaltySync(customerId);
+    if (!data.hasMore) break;
   }
-
-  return { expiredCount, totalExpiredAmount };
+  return { expiredCount, totalExpiredAmount: Number(totalExpiredAmount.toFixed(2)) };
 }
 
 /**
  * Автоматическое уведомление клиентов, которые не приходили более N дней (по умолчанию 30 дней)
  */
-async function checkAndNotifyInactiveCustomers(inactivityDays = 30, expirationDays = 90) {
+async function checkAndNotifyInactiveCustomers(inactivityDays = 30) {
   // 1. Получаем клиентов с балансом > 0
   const { data: customers, error } = await supabase.from('customers').select('*').gt('balance', 0);
 
@@ -885,7 +866,6 @@ async function checkAndNotifyInactiveCustomers(inactivityDays = 30, expirationDa
 
   const now = new Date();
   const cutoffTime = now.getTime() - inactivityDays * 24 * 60 * 60 * 1000;
-  const expireCutoffTime = now.getTime() - expirationDays * 24 * 60 * 60 * 1000;
   const reminderCooldown = now.getTime() - 30 * 24 * 60 * 60 * 1000;
 
   let notifiedCount = 0;
@@ -896,16 +876,10 @@ async function checkAndNotifyInactiveCustomers(inactivityDays = 30, expirationDa
       latestActivityMap[c.id] || (c.created_at ? new Date(c.created_at) : new Date(0));
     const lastReminderDate = latestReminderMap[c.id] ? new Date(latestReminderMap[c.id]) : null;
 
-    // Если клиент был неактивен дольше 30 дней, но еще не дольше 90 дней (когда баллы уже сгорели)
-    if (lastActivityDate.getTime() < cutoffTime && lastActivityDate.getTime() >= expireCutoffTime) {
+    if (lastActivityDate.getTime() < cutoffTime) {
       // Проверяем, что напоминание не отправлялось в последние 30 дней
       if (!lastReminderDate || lastReminderDate.getTime() < reminderCooldown) {
-        const daysInactive = Math.floor(
-          (now.getTime() - lastActivityDate.getTime()) / (24 * 60 * 60 * 1000),
-        );
-        const daysLeft = Math.max(1, expirationDays - daysInactive);
-
-        const message = `Вы давно не заглядывали к нам! На вашем счету <b>${c.balance} бонусов</b>, они сгорят через ${daysLeft} дней.\n\nЗагляните к нам за свежей выпечкой и ароматным кофе!`;
+        const message = `Вы давно не заглядывали к нам! На вашем счету <b>${c.balance} бонусов</b>.\n\nЗагляните к нам за свежей выпечкой и ароматным кофе!`;
 
         try {
           const { sendMessage } = require('./telegram.service');
@@ -913,8 +887,8 @@ async function checkAndNotifyInactiveCustomers(inactivityDays = 30, expirationDa
           if (c.telegram_id) await sendMessage(c.telegram_id, message).catch(() => {});
           await sendPushToCustomer(
             c.id,
-            'Мы скучаем! Ваши бонусы скоро сгорят',
-            `На счету ${c.balance} бонусов, они сгорят через ${daysLeft} дней. Загляните к нам за кофе!`,
+            'Мы скучаем!',
+            `На счету ${c.balance} бонусов. Загляните к нам за кофе!`,
             {},
             c.fcm_token,
           ).catch(() => {});
@@ -924,7 +898,7 @@ async function checkAndNotifyInactiveCustomers(inactivityDays = 30, expirationDa
             orderId: 'REMINDER_30_DAYS',
             type: 'churn_reminder',
             amount: 0,
-            description: `Отправлено напоминание о сгорании ${c.balance} бонусов`,
+            description: 'Отправлено приглашение вернуться в Bulka',
           });
 
           notifiedCount++;

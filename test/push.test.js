@@ -430,3 +430,60 @@ test('push migration enforces one token and installation owner', () => {
   assert.match(sql, /remove_invalid_customer_push_token/i);
   assert.match(sql, /on delete cascade/i);
 });
+
+test('bonus expiry warnings set Android, APNs and web lifetimes and refuse expired dispatches', async (t) => {
+  const at = Date.parse('2026-10-15T07:00:00Z');
+  t.mock.timers.enable({ apis: ['Date'], now: at });
+  const payload = {
+    type: 'bonus_expiry_reminder',
+    reminderVersion: 'credit-lots-v1',
+    reminderDays: 30,
+    amount: 500,
+    reminderExpiresAt: '2026-10-15T19:00:00Z',
+    pushDedupeKey: 'bonus-expiry:customer:2026-11-14:30',
+  };
+  const before = sentMessages.length;
+  assert.equal(
+    (await sendPushNotificationDetailed('bonus-ttl-device-1234567890', 'Title', 'Body', payload))
+      .delivered,
+    true,
+  );
+  const message = sentMessages.at(-1);
+  assert.equal(message.android.ttl, 12 * 60 * 60 * 1000);
+  assert.equal(
+    message.apns.headers['apns-expiration'],
+    String(Date.parse(payload.reminderExpiresAt) / 1000),
+  );
+  assert.equal(message.webpush.headers.TTL, String(12 * 60 * 60));
+  t.mock.timers.setTime(Date.parse(payload.reminderExpiresAt));
+  assert.equal(
+    (await sendPushNotificationDetailed('bonus-ttl-device-1234567890', 'Title', 'Body', payload))
+      .expired,
+    true,
+  );
+  assert.equal(sentMessages.length - before, 1);
+});
+
+test('missing durable outbox schema never falls back to an untracked bonus expiry push', async () => {
+  const from = supabase.from;
+  const before = sentMessages.length;
+  supabase.from = (table) =>
+    table === 'push_notification_outbox'
+      ? {
+          insert: () => ({
+            select: () => ({
+              single: async () => ({ error: { code: '42P01', message: 'missing outbox' } }),
+            }),
+          }),
+        }
+      : from.call(supabase, table);
+  try {
+    await assert.rejects(
+      sendPushToCustomer('customer-1', 'Title', 'Body', { type: 'bonus_expiry_reminder' }),
+      { code: '42P01' },
+    );
+    assert.equal(sentMessages.length, before);
+  } finally {
+    supabase.from = from;
+  }
+});

@@ -6,12 +6,16 @@ const {
   listPositiveCustomers,
 } = require('../src/services/bonus-expiration.service');
 
-test('expiry date uses latest activity plus policy days and zero balances have no deadline', async () => {
+test('customer expiry advertises only the nearest remaining tranche, never the whole wallet', async () => {
   const client = {
     rpc: async (name, args) => {
-      assert.equal(name, 'customer_bonus_activity');
+      assert.equal(name, 'bonus_expiry_customer_forecasts');
       assert.deepEqual(args.p_customer_ids, ['active']);
-      return { data: [{ customer_id: 'active', last_activity_at: '2026-08-01T12:00:00Z' }] };
+      return {
+        data: [
+          { customer_id: 'active', next_expiry_at: '2027-02-01T12:00:00Z', expiring_amount: 40 },
+        ],
+      };
     },
   };
   const rows = await attachBonusExpiration(
@@ -24,7 +28,9 @@ test('expiry date uses latest activity plus policy days and zero balances have n
       bonus_expiration: { enabled: true, auto_write_off: true, expiration_days: 90 },
     },
   );
-  assert.equal(rows[0].bonus_expires_at, '2026-10-30T12:00:00.000Z');
+  assert.equal(rows[0].bonus_expires_at, '2027-02-01T12:00:00Z');
+  assert.equal(rows[0].bonus_expiring_amount, 40);
+  assert.equal(rows[0].bonus_expiration_months, 6);
   assert.equal(rows[1].bonus_expires_at, null);
 });
 
@@ -50,7 +56,7 @@ test('activity read errors stop expiration rather than treating clients as inact
   );
 });
 
-test('daily expiration reads every customer and batches activity beyond API row limits', async () => {
+test('customer forecasts batch beyond API row limits', async () => {
   const rows = Array.from({ length: 1101 }, (_, id) => ({ id: String(id), balance: 1 }));
   const client = {
     from: () => {
@@ -66,7 +72,7 @@ test('daily expiration reads every customer and batches activity beyond API row 
   const customers = await listPositiveCustomers(client);
   assert.equal(customers.length, 1101);
   const batches = [];
-  await loadBonusActivity(
+  await attachBonusExpiration(
     {
       rpc: async (_name, args) => {
         batches.push(args.p_customer_ids.length);
@@ -74,6 +80,7 @@ test('daily expiration reads every customer and batches activity beyond API row 
       },
     },
     customers,
+    { bonus_expiration: { enabled: true } },
   );
   assert.deepEqual(batches, [500, 500, 101]);
 });

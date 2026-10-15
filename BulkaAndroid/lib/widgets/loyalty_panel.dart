@@ -224,11 +224,13 @@ class _BonusExpiryNoticeState extends State<_BonusExpiryNotice> {
     }
     final summary = _summary;
     final nextExpiry = summary?.nextExpiryAt;
-    if (summary == null || nextExpiry == null || summary.totalExpiring <= 0) {
+    if (summary == null ||
+        nextExpiry == null ||
+        summary.amountAtNextExpiry <= 0) {
       return const SizedBox.shrink();
     }
     final message = 'bonus_expiry_message'.trArgs({
-      'amount': formatMoney(summary.totalExpiring),
+      'amount': formatMoney(summary.amountAtNextExpiry),
       'date': formatUiDate(context, nextExpiry.toLocal()),
     });
     return Semantics(

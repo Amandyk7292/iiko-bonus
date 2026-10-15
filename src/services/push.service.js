@@ -3,6 +3,7 @@ const { getMessaging } = require('firebase-admin/messaging');
 const { supabase } = require('../config/supabase');
 const { notificationAllowed } = require('./notification-preferences.service');
 const { inactiveReminderTiming } = require('./inactive-reminder-window');
+const { bonusExpiryReminderTiming } = require('./bonus-expiry-reminder.service');
 const {
   PUSH_OUTBOX_SCHEMA_MISSING_CODES,
   deliverPushOutbox,
@@ -208,7 +209,11 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
       click_action: 'FLUTTER_NOTIFICATION_CLICK',
     };
     const reminderTiming =
-      normalizedData.type === 'marketing_inactive' ? inactiveReminderTiming(normalizedData) : null;
+      normalizedData.type === 'marketing_inactive'
+        ? inactiveReminderTiming(normalizedData)
+        : normalizedData.type === 'bonus_expiry_reminder'
+          ? bonusExpiryReminderTiming(normalizedData)
+          : null;
     if (reminderTiming && reminderTiming.state !== 'ready') {
       return { delivered: false, terminal: true, expired: true, error: 'push/reminder_expired' };
     }
@@ -436,7 +441,13 @@ async function sendPushToCustomer(customerId, title, body, data = {}, fallbackTo
         String(outboxError?.code || ''),
       );
       // Daily reminders require durable deduplication, including during schema outages.
-      if (!schemaUnavailable || data.type === 'marketing_inactive') throw outboxError;
+      if (
+        !schemaUnavailable ||
+        ['marketing_inactive', 'bonus_expiry_reminder', 'marketing_bonus_expiring'].includes(
+          data.type,
+        )
+      )
+        throw outboxError;
       console.error('Push outbox migration is not installed; using immediate delivery.');
     }
     if (queued) {

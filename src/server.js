@@ -15,6 +15,7 @@ const {
 } = require('./services/branch-photo-telegram-bot.service');
 const { shouldRunPhotoTelegram } = require('./config/photo-telegram');
 const { getSettings } = require('./services/settings.service');
+const { runBonusExpiryReminders } = require('./services/bonus-expiry-reminder.service');
 const { shouldRunBots } = require('./config/env');
 const forteService = require('./services/forte.service');
 const forteWidgetService = require('./services/forte-widget.service');
@@ -160,14 +161,14 @@ if (!process.env.VERCEL) {
 
   registerWorker('daily-bonus-expiration', {
     enabled: runWorkers,
-    intervalMs: 24 * 60 * 60 * 1000,
+    intervalMs: 60 * 60 * 1000,
   });
   const runDailyChecks = () =>
     runMonitoredWorker('daily-bonus-expiration', async () => {
       const settings = await getSettings();
       const expiration = settings.bonus_expiration || {};
       if (expiration.enabled !== false && expiration.auto_write_off !== false) {
-        await checkAndExpireInactiveBonuses(Number(expiration.expiration_days || 90));
+        await checkAndExpireInactiveBonuses();
       }
     });
 
@@ -197,7 +198,13 @@ if (!process.env.VERCEL) {
     staffOrderAlertTimer.unref?.();
 
     setTimeout(runDailyChecks, 5000);
-    setInterval(runDailyChecks, 24 * 60 * 60 * 1000);
+    setInterval(runDailyChecks, 60 * 60 * 1000);
+
+    registerWorker('bonus-expiry-reminders', { enabled: true, intervalMs: 60 * 60 * 1000 });
+    const remindBonusExpiry = () =>
+      runMonitoredWorker('bonus-expiry-reminders', runBonusExpiryReminders);
+    setTimeout(remindBonusExpiry, 16 * 1000).unref?.();
+    setInterval(remindBonusExpiry, 60 * 60 * 1000).unref?.();
 
     const reconcileForteOrders = () =>
       runMonitoredWorker('forte-reconciliation', async () => {

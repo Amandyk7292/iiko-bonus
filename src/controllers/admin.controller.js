@@ -287,8 +287,7 @@ const expireInactiveHandler = async (req, res) => {
     if (!hasGlobalBranchAccess(req.admin)) {
       return res.status(403).json({ error: 'Массовое сгорание доступно только владельцу' });
     }
-    const days = req.body.days || 90;
-    const result = await checkAndExpireInactiveBonuses(days);
+    const result = await checkAndExpireInactiveBonuses();
     res.json({ success: true, ...result });
   } catch (err) {
     res.status(500).json({ error: err.message });

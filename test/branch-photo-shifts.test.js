@@ -63,9 +63,9 @@ test('migration preserves legacy report and photo rows and expands uniqueness wi
     ])
   ).rows[0];
   assert.deepEqual(saved, { shift: 'daily', photo_count: 1 });
-  const legacy = (await service.calendar(OWNER, {}, { db: database(pg) })).reports.find(
-    (r) => r.uploadId === upload || r.kind === 'hall',
-  );
+  const legacy = (
+    await service.calendar(OWNER, { end: '2026-10-01' }, { db: database(pg) })
+  ).reports.find((r) => r.uploadId === upload || r.kind === 'hall');
   assert.equal(legacy.deviceId, null);
   assert.equal(legacy.deviceName, null);
   assert.deepEqual(

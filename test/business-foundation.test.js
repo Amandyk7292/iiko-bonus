@@ -3,7 +3,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 
-const { buildExpirySummary } = require('../src/services/bonus-expiry.service');
 const { eligibility, parseQrPayload, parseToken } = require('../src/services/pickup-handoff.service');
 const {
   giftCertificateListQuerySchema,
@@ -56,40 +55,6 @@ test('secret envelopes authenticate ciphertext, purpose and AAD', () => {
   );
   assert.notEqual(credentialHash('same', 'pickup-pin'), credentialHash('same', 'pickup-token'));
   assert.notEqual(branchPosTokenHash('same'), credentialHash('same', 'pickup-token'));
-});
-
-test('bonus expiry consumes credits FIFO and reconciles to the current balance', () => {
-  const now = new Date('2026-07-29T00:00:00.000Z');
-  const summary = buildExpirySummary({
-    balance: 60,
-    days: 40,
-    now,
-    transactions: [
-      {
-        type: 'deposit',
-        amount: 100,
-        timestamp: '2026-07-01T00:00:00.000Z',
-        expires_at: '2026-08-10T00:00:00.000Z',
-      },
-      {
-        type: 'withdrawal',
-        amount: 40,
-        timestamp: '2026-07-10T00:00:00.000Z',
-      },
-    ],
-  });
-  assert.equal(summary.currentBalance, 60);
-  assert.equal(summary.totalExpiring, 60);
-  assert.equal(summary.buckets[0].amount, 60);
-
-  const fallback = buildExpirySummary({
-    balance: 25,
-    days: 40,
-    now,
-    transactions: [],
-    fallbackExpiryAt: '2026-08-15T00:00:00.000Z',
-  });
-  assert.equal(fallback.totalExpiring, 25);
 });
 
 test('pickup credentials are one-order, bounded and pickup-only', () => {

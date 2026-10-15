@@ -89,6 +89,11 @@ class _StaffSettingsState extends State<StaffSettings> {
       fields: fields,
       initial: initial,
       save: (values) async {
+        final normalizedValues = Map<String, dynamic>.from(values);
+        if (key == 'bonus_birthday') {
+          normalizedValues.remove('expiration_days');
+          normalizedValues['expiration_months'] = 6;
+        }
         for (final entry in values.entries) {
           if ((entry.key.endsWith('_days') || entry.key == 'delay_days') &&
               entry.value is num &&
@@ -105,23 +110,42 @@ class _StaffSettingsState extends State<StaffSettings> {
         await widget.api.request(
           '/settings',
           method: 'POST',
-          body: key.isEmpty ? values : {key: values},
+          body: key.isEmpty
+              ? values
+              : {
+                  key: key == 'bonus_expiration'
+                      ? {
+                          'enabled': values['enabled'] == true,
+                          'expiration_months': 6,
+                          'notify_days': [30, 15, 7],
+                          'auto_write_off': true,
+                        }
+                      : normalizedValues,
+                },
         );
       },
     );
     if (saved == true && mounted) unawaited(_load());
   }
 
-  Widget _group(String key, String title, List<StaffField> fields) => Card(
+  Widget _group(
+    String key,
+    String title,
+    List<StaffField> fields, {
+    String? hint,
+  }) => Card(
     margin: const EdgeInsets.symmetric(vertical: 8),
     child: ListTile(
       contentPadding: const EdgeInsets.all(18),
       title: Text(title),
       subtitle: key.isNotEmpty && (_settings?[key] as Map?)?['enabled'] != null
           ? Text(
-              (_settings![key] as Map)['enabled'] == true
-                  ? staffText('Включено', 'Қосылған', 'Enabled')
-                  : staffText('Выключено', 'Өшірілген', 'Disabled'),
+              [
+                (_settings![key] as Map)['enabled'] == true
+                    ? staffText('Включено', 'Қосылған', 'Enabled')
+                    : staffText('Выключено', 'Өшірілген', 'Disabled'),
+                ?hint,
+              ].join('\n'),
             )
           : null,
       trailing: const Icon(Icons.chevron_right),
@@ -314,31 +338,12 @@ class _StaffSettingsState extends State<StaffSettings> {
               'Бонустардың аяқталуы',
               'Bonus expiration',
             ),
-            [
-              _flag('enabled', 'Включено', 'Қосылған', 'Enabled'),
-              _number(
-                'expiration_days',
-                'Срок, дней',
-                'Мерзім, күн',
-                'Expires after days',
-                minimum: 1,
-                maxValue: 3650,
-              ),
-              _number(
-                'notify_before_days',
-                'Предупредить за, дней',
-                'Алдын ала ескерту, күн',
-                'Notify days before',
-                minimum: 1,
-                maxValue: 3650,
-              ),
-              _flag(
-                'auto_write_off',
-                'Автоматически списывать',
-                'Автоматты есептен шығару',
-                'Automatic expiration',
-              ),
-            ],
+            [_flag('enabled', 'Включено', 'Қосылған', 'Enabled')],
+            hint: staffText(
+              '6 месяцев с каждого начисления. Пуш за 30, 15 и 7 дней. Сначала расходуются старые бонусы. После сгорания и 90 дней без покупок — 1 000 бонусов для возвращения, один раз до новой покупки.',
+              'Әр есептелген сәттен бастап 6 ай. Пуш 30, 15 және 7 күн бұрын. Алдымен ескі бонустар жұмсалады. Бонустар жойылып, 90 күн сатып алу болмаған соң — оралу үшін 1 000 бонус, жаңа сатып алуға дейін бір рет.',
+              '6 months from each accrual. Push reminders 30, 15 and 7 days before. Oldest bonuses are spent first. After expiration and 90 days without a purchase: 1,000 welcome-back bonuses, once until the next purchase.',
+            ),
           ),
           _group(
             'bonus_birthday',
@@ -346,16 +351,13 @@ class _StaffSettingsState extends State<StaffSettings> {
             [
               _flag('enabled', 'Включено', 'Қосылған', 'Enabled'),
               _number('bonus_amount', 'Бонус', 'Бонус', 'Bonus amount'),
-              _number(
-                'expiration_days',
-                'Срок, дней',
-                'Мерзім, күн',
-                'Validity, days',
-                minimum: 1,
-                maxValue: 3650,
-              ),
               _text('message', 'Сообщение', 'Хабарлама', 'Message', 500),
             ],
+            hint: staffText(
+              'Бонусы действуют 6 месяцев с начисления.',
+              'Бонустар есептелген сәттен бастап 6 ай жарамды.',
+              'Bonuses are valid for 6 months from accrual.',
+            ),
           ),
           _group(
             'bonus_cross',

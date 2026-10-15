@@ -271,6 +271,17 @@ it('shows the saved expiry date beside a positive balance', async () => {
   expect(screen.queryByText('Сгорание выключено')).not.toBeInTheDocument();
 });
 
+it('shows only the expiring lot amount rather than the entire customer balance', async () => {
+  api.getCustomers.mockResolvedValue({
+    customers: [{ ...customer, balance: 700, bonus_expiration_enabled: true,
+      bonus_expiring_amount: 500, bonus_expires_at: '2027-07-15T12:00:00Z' }],
+    total: 1,
+  });
+  show();
+  expect(await screen.findByText(/500 бонусов сгорят.*2027/)).toBeVisible();
+  expect(screen.queryByText(/700 бонусов сгорят/)).not.toBeInTheDocument();
+});
+
 it('allows correction after a definite validation rejection of the first attempt', async () => {
   const user = userEvent.setup();
   api.addCustomerBonus.mockRejectedValueOnce(

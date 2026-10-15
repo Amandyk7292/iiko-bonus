@@ -142,7 +142,7 @@ class _StaffCustomersState extends State<StaffCustomers>
       _ => staffText(
         'Списать истёкшие бонусы?',
         'Мерзімі өткен бонустарды есептен шығару керек пе?',
-        'Expire inactive bonuses?',
+        'Write off expired bonuses?',
       ),
     };
     final yes = await showDialog<bool>(
@@ -151,11 +151,17 @@ class _StaffCustomersState extends State<StaffCustomers>
         title: Text(title),
         content: Text(
           customer == null
-              ? staffText(
-                  'Действие затронет всех неактивных клиентов по текущим правилам программы.',
-                  'Әрекет бағдарламаның ағымдағы ережелеріне сәйкес барлық белсенді емес клиенттерге қолданылады.',
-                  'This applies to all inactive customers under the current loyalty rules.',
-                )
+              ? action == 'expire-inactive'
+                    ? staffText(
+                        'Спишется только неиспользованный остаток начислений старше 6 месяцев. Более новые бонусы сохранятся.',
+                        'Тек 6 айдан бұрын есептелген, пайдаланылмаған бонустар есептен шығарылады. Жаңа бонустар сақталады.',
+                        'Only unused bonuses earned more than 6 months ago will expire. Newer bonuses will remain.',
+                      )
+                    : staffText(
+                        'Действие затронет всех неактивных клиентов по текущим правилам программы.',
+                        'Әрекет бағдарламаның ағымдағы ережелеріне сәйкес барлық белсенді емес клиенттерге қолданылады.',
+                        'This applies to all inactive customers under the current loyalty rules.',
+                      )
               : '${customer['name'] ?? ''}\n${customer['phone'] ?? ''}',
         ),
         actions: [

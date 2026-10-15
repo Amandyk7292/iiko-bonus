@@ -75,3 +75,23 @@ test('settings updates use one bulk upsert and refresh the cache', async (t) => 
   assert.equal(settings.tier_silver_th, 60000);
   assert.equal(calls.select, 1);
 });
+
+test('cached client settings cannot restore inactivity expiry or change fixed milestones', async (t) => {
+  const { service, calls } = loadSettingsService(t, [
+    {
+      key: 'bonus_expiration',
+      value: JSON.stringify({ enabled: true, expiration_days: 90, notify_before_days: 30 }),
+    },
+  ]);
+  const expected = {
+    enabled: true,
+    expiration_months: 6,
+    notify_days: [30, 15, 7],
+    auto_write_off: true,
+  };
+  assert.deepEqual((await service.getSettings()).bonus_expiration, expected);
+  await service.updateSettings({
+    bonus_expiration: { enabled: true, expiration_days: 1, notify_before_days: 1 },
+  });
+  assert.deepEqual(JSON.parse(calls.upsert[0].payload[0].value), expected);
+});

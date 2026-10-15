@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const { queueCustomerLoyaltySync } = require('./loyalty-sync.service');
 
 const bonusError = (code = 'CHECKOUT_BONUS_CHANGED') =>
   Object.assign(new Error('Баланс бонусов изменился. Обновите расчёт заказа.'), {
@@ -20,6 +21,8 @@ async function priceCheckoutBonus(
     p_order_total: total,
   });
   if (error || !data) throw bonusError('CHECKOUT_BONUS_UNAVAILABLE');
+  if (Number(data.expiredAmount || 0) > 0 || Number(data.winbackAmount || 0) > 0)
+    queueCustomerLoyaltySync(data.bonusOwnerId || customerId);
   const available = Math.max(0, Math.floor(Number(data.available || 0)));
   if (!Number.isSafeInteger(available)) throw bonusError('CHECKOUT_BONUS_UNAVAILABLE');
   const maximum = Math.min(available, Math.floor(total / 2));

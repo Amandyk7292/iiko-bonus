@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { supabase } = require('../config/supabase');
+const { prepareBonusExpiryReminder } = require('./bonus-expiry-reminder.service');
 
 const PUSH_OUTBOX_SCHEMA_MISSING_CODES = new Set(['42P01', '42883', 'PGRST202', 'PGRST205']);
 
@@ -271,7 +272,7 @@ async function deliverPushOutbox(
   if (error) throw error;
   const outcomes = [];
   for (const rawRow of data || []) {
-    const row = normalizeOutbox(rawRow);
+    let row = normalizeOutbox(rawRow);
     // A previous worker may have stopped after FCM accepted the request.
     // Keep those tokens out of all further attempts, even after lease expiry.
     row.uncertainTokens = normalizeTokens([...row.uncertainTokens, ...row.inFlightTokens]);
@@ -280,6 +281,19 @@ async function deliverPushOutbox(
       if (typeof isAllowed === 'function' && !(await isAllowed(row.customerId, row.data))) {
         outcomes.push(await markSkipped(row, 'Notification preferences changed', { db }));
         continue;
+      }
+      if (row.data.type === 'marketing_bonus_expiring') {
+        outcomes.push(await markSkipped(row, 'Replaced by dated bonus expiry reminders', { db }));
+        continue;
+      }
+      const prepared = await prepareBonusExpiryReminder(row, { db });
+      if (!prepared) {
+        outcomes.push(await markSkipped(row, 'Bonus expiry tranche no longer applies', { db }));
+        continue;
+      }
+      if (prepared !== row) {
+        row = prepared;
+        await updateOutbox(row, { title: row.title, body: row.body, payload: row.data }, { db });
       }
       row.tokens = await currentCustomerPushTokens(row.customerId, row.tokens, { db });
       if (!row.tokens.length) {

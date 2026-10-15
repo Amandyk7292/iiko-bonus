@@ -19,14 +19,14 @@ const defaultSettings = {
   },
   bonus_expiration: {
     enabled: true,
-    expiration_days: 90,
-    notify_before_days: 30,
+    expiration_months: 6,
+    notify_days: [30, 15, 7],
     auto_write_off: true,
   },
   bonus_birthday: {
     enabled: true,
     bonus_amount: 500,
-    expiration_days: 14,
+    expiration_months: 6,
     message: 'С днем рождения! Дарим бонусы от Bulka.',
   },
   bonus_promocodes: [],
@@ -104,6 +104,17 @@ function parseSettingValue(value) {
   return text;
 }
 
+// Old app releases still submit days. They cannot silently restore the retired
+// inactivity policy or turn six calendar months into a fixed number of days.
+function normalizeBonusExpiration(value = {}) {
+  return {
+    enabled: value?.enabled !== false,
+    expiration_months: 6,
+    notify_days: [30, 15, 7],
+    auto_write_off: value?.auto_write_off !== false,
+  };
+}
+
 async function loadSettings() {
   const { data, error } = await supabase.from('settings').select('*');
   if (error || !data) {
@@ -112,6 +123,8 @@ async function loadSettings() {
   }
   const settings = { ...defaultSettings };
   for (const row of data) settings[row.key] = parseSettingValue(row.value);
+  settings.bonus_expiration = normalizeBonusExpiration(settings.bonus_expiration);
+  settings.bonus_birthday = normalizeBirthdayBonus(settings.bonus_birthday);
   return settings;
 }
 
@@ -137,6 +150,12 @@ function clearSettingsCache() {
   settingsCacheExpiresAt = 0;
 }
 
+function normalizeBirthdayBonus(value = {}) {
+  const birthday = { ...defaultSettings.bonus_birthday, ...value, expiration_months: 6 };
+  delete birthday.expiration_days;
+  return birthday;
+}
+
 async function updateSettings(newSettings) {
   if (!newSettings || typeof newSettings !== 'object' || Array.isArray(newSettings))
     throw new Error('Settings payload must be an object');
@@ -154,7 +173,11 @@ async function updateSettings(newSettings) {
       const numeric = Number(newSettings[key]);
       if (!Number.isFinite(numeric) || numeric < 0) throw new Error(`Invalid threshold: ${key}`);
     }
-    if (key === 'bonus_promocodes') {
+    if (key === 'bonus_expiration') {
+      normalizedSettings[key] = normalizeBonusExpiration(newSettings[key]);
+    } else if (key === 'bonus_birthday') {
+      normalizedSettings[key] = normalizeBirthdayBonus(newSettings[key]);
+    } else if (key === 'bonus_promocodes') {
       if (!Array.isArray(newSettings[key]) || newSettings[key].length > 100) {
         throw new Error('bonus_promocodes must be an array with at most 100 items');
       }

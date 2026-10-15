@@ -15,7 +15,7 @@ const settings = {
   base_cashback_percent: 2,
   max_discount_percent: 30,
   bonus_referral: { enabled: true, inviter_bonus: 1000, friend_bonus: 500, min_first_order: 0 },
-  bonus_expiration: { enabled: false, expiration_days: 90, notify_before_days: 30 },
+  bonus_expiration: { enabled: false, expiration_months: 6, notify_days: [30, 15, 7], auto_write_off: true },
 };
 const invitation = {
   id: 'invite-123',
@@ -142,6 +142,24 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('bonus workspace', () => {
+  it('replaces legacy inactivity settings with a fixed per-accrual term and all reminder milestones', async () => {
+    vi.mocked(api.getSettings).mockResolvedValue({
+      ...settings,
+      bonus_expiration: { enabled: true, expiration_days: 90, notify_before_days: 30 },
+    });
+    render(wrap(<BonusPage />));
+    fireEvent.click(screen.getByRole('tab', { name: 'Настройки' }));
+    expect(await screen.findByText('6 месяцев с каждого начисления')).toBeVisible();
+    expect(screen.getByText('За 30, 15 и 7 дней до сгорания')).toBeVisible();
+    expect(screen.queryByLabelText('Дней неактивности')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledWith(expect.objectContaining({
+      bonus_expiration: {
+        enabled: true, expiration_months: 6, notify_days: [30, 15, 7], auto_write_off: true,
+      },
+    })));
+  });
+
   it('locks editable settings during a pending save and retains the draft when that save fails', async () => {
     let fail!: (reason: Error) => void;
     vi.mocked(api.updateSettings).mockReturnValueOnce(
@@ -156,7 +174,7 @@ describe('bonus workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     expect(cashback).toBeDisabled();
     expect(screen.getByLabelText('Новому клиенту, ₸ бонусами')).toBeDisabled();
-    expect(screen.getByLabelText('Включить списание при длительной неактивности')).toBeDisabled();
+    expect(screen.getByLabelText('Включить автосгорание бонусов')).toBeDisabled();
     await act(async () => {
       fail(new Error('Не сохранено'));
     });
@@ -268,8 +286,7 @@ describe('bonus workspace', () => {
     fireEvent.change(await screen.findByLabelText('Базовый кэшбэк (%)'), {
       target: { value: '4' },
     });
-    fireEvent.click(screen.getByLabelText('Включить списание при длительной неактивности'));
-    fireEvent.change(screen.getByLabelText('Дней неактивности'), { target: { value: '120' } });
+    fireEvent.click(screen.getByLabelText('Включить автосгорание бонусов'));
     fireEvent.change(screen.getByLabelText('Новому клиенту, ₸ бонусами'), {
       target: { value: '700' },
     });
@@ -289,7 +306,8 @@ describe('bonus workspace', () => {
     );
     fireEvent.click(screen.getByRole('tab', { name: /Настройки/ }));
     expect(screen.getByLabelText('Базовый кэшбэк (%)')).toHaveValue(4);
-    expect(screen.getByLabelText('Дней неактивности')).toHaveValue(120);
+    expect(screen.getByText('6 месяцев с каждого начисления')).toBeVisible();
+    expect(screen.getByText('За 30, 15 и 7 дней до сгорания')).toBeVisible();
     expect(screen.getByLabelText('Новому клиенту, ₸ бонусами')).toHaveValue(700);
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     await waitFor(() =>
@@ -297,7 +315,7 @@ describe('bonus workspace', () => {
         expect.objectContaining({
           base_cashback_percent: 4,
           max_discount_percent: 30,
-          bonus_expiration: { enabled: true, expiration_days: 120, notify_before_days: 30 },
+          bonus_expiration: { enabled: true, expiration_months: 6, notify_days: [30, 15, 7], auto_write_off: true },
           bonus_referral: expect.objectContaining({
             inviter_bonus: 1000,
             friend_bonus: 700,

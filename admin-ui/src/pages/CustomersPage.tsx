@@ -34,6 +34,7 @@ interface Customer {
   balance?: number;
   total_spent?: number;
   bonus_expires_at?: string | null;
+  bonus_expiring_amount?: number | null;
   bonus_expiration_enabled?: boolean;
 }
 
@@ -535,9 +536,15 @@ export default function CustomersPage({ user }: CustomersPageProps) {
                           {customer.bonus_expiration_enabled === false
                             ? t('customers.expirationOff')
                             : customer.bonus_expires_at
-                              ? t('customers.expiresAt', {
-                                  date: formatDate(customer.bonus_expires_at),
-                                })
+                              ? t(
+                                  Number(customer.bonus_expiring_amount) > 0
+                                    ? 'customers.expiringAmount'
+                                    : 'customers.expiresAt',
+                                  {
+                                    date: formatDate(customer.bonus_expires_at),
+                                    amount: formatNumber(Number(customer.bonus_expiring_amount)),
+                                  },
+                                )
                               : t('customers.expirationUnknown')}
                         </div>
                       )}

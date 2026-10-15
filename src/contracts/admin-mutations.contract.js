@@ -247,8 +247,11 @@ const settingsBodySchema = optionalPatch(
       bonus_expiration: z
         .object({
           enabled: z.boolean(),
-          expiration_days: z.coerce.number().int().min(1).max(3_650),
-          notify_before_days: z.coerce.number().int().min(1).max(3_650),
+          expiration_months: z.literal(6).optional(),
+          notify_days: z.tuple([z.literal(30), z.literal(15), z.literal(7)]).optional(),
+          // Accepted for cached/native clients; settings.service normalizes them.
+          expiration_days: z.coerce.number().int().min(1).max(3_650).optional(),
+          notify_before_days: z.coerce.number().int().min(1).max(3_650).optional(),
           auto_write_off: z.boolean().optional(),
         })
         .strict()
@@ -257,7 +260,8 @@ const settingsBodySchema = optionalPatch(
         .object({
           enabled: z.boolean(),
           bonus_amount: moneySchema,
-          expiration_days: z.coerce.number().int().min(1).max(3_650),
+          expiration_months: z.literal(6).optional(),
+          expiration_days: z.coerce.number().int().min(1).max(3_650).optional(),
           message: shortText(500),
         })
         .strict()
