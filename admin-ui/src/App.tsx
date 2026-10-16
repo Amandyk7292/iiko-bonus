@@ -1,10 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
-import {
-  Eye,
-  EyeOff,
-  LoaderCircle,
-  LockKeyhole,
-} from './components/BulkaIcons';
+import { Eye, EyeOff, LoaderCircle, LockKeyhole } from './components/BulkaIcons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from './lib/router';
 import {
   ApiError,
@@ -37,6 +32,7 @@ const TransactionsPage = lazy(() => import('./pages/TransactionsPage'));
 const IikoPage = lazy(() => import('./pages/IikoPage'));
 const IikoDashboardPage = lazy(() => import('./pages/IikoDashboardPage'));
 const PhotoReportsPage = lazy(() => import('./pages/PhotoReportsPage'));
+const RoundsPage = lazy(() => import('./pages/rounds/RoundsPage'));
 const BroadcastPage = lazy(() => import('./pages/BroadcastPage'));
 const StoriesPage = lazy(() => import('./pages/StoriesPage'));
 const TaplinkPage = lazy(() => import('./pages/TaplinkPage'));
@@ -557,6 +553,7 @@ export default function App() {
                     }
                   />
                   <Route path="/kitchen" element={guard('/kitchen', <KitchenPage role={role} />)} />
+                  <Route path="/rounds" element={guard('/rounds', <RoundsPage />)} />
                   <Route
                     path="/photo-reports"
                     element={guard('/photo-reports', <PhotoReportsPage role={role} />)}

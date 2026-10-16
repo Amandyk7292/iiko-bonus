@@ -6,7 +6,9 @@ import dashboard from '../iiko-dashboard';
 import faq from '../faq';
 import academy from '../academy';
 import loyaltyNavigation from '../loyalty-navigation';
+import roundsNavigation from '../rounds-navigation';
 const kk: Record<string, string> = {
+  ...roundsNavigation.kk,
   'common.previous': 'Алдыңғы бет',
   'common.next': 'Келесі бет',
   ...faq.kk,
@@ -482,7 +484,8 @@ const kk: Record<string, string> = {
   'customers.notifyBody': 'Оң балансы бар белсенді емес қонақтар хабарлама алады.',
   'customers.notified': 'Еске салулар жіберілді: {{count}}.',
   'customers.expireTitle': 'Мерзімі өткен бонустарды есептен шығару керек пе?',
-  'customers.expireBody': 'Тек 6 айдан бұрын есептелген, пайдаланылмаған бонустар есептен шығарылады. Жаңа бонустар сақталады.',
+  'customers.expireBody':
+    'Тек 6 айдан бұрын есептелген, пайдаланылмаған бонустар есептен шығарылады. Жаңа бонустар сақталады.',
   'customers.expired': 'Клиенттер: {{count}}, шығарылған бонус: {{amount}}.',
   'customers.deleted': 'Клиент жойылды',
   'customers.details': 'Толығырақ',
@@ -527,8 +530,10 @@ const kk: Record<string, string> = {
   'bonus.expirationEnable': 'Бонустарды автоматты есептен шығаруды қосу',
   'bonus.expirationTerm': 'Жарамдылық мерзімі',
   'bonus.expirationRule': 'Әр есептелген сәттен бастап 6 ай',
-  'bonus.expirationHint': 'Алдымен ең ескі бонустар жұмсалады. Жаңа сатып алу олардың мерзімін ұзартпайды.',
-  'bonus.winbackRule': 'Бонустар жойылып, 90 күн сатып алу болмаған соң — оралу үшін 1 000 бонус. Қайта беру тек жаңа сатып алудан және келесі үзілістен кейін.',
+  'bonus.expirationHint':
+    'Алдымен ең ескі бонустар жұмсалады. Жаңа сатып алу олардың мерзімін ұзартпайды.',
+  'bonus.winbackRule':
+    'Бонустар жойылып, 90 күн сатып алу болмаған соң — оралу үшін 1 000 бонус. Қайта беру тек жаңа сатып алудан және келесі үзілістен кейін.',
   'bonus.notifyDays': 'Пуш-ескертулер',
   'bonus.notifySchedule': 'Мерзімі аяқталуға 30, 15 және 7 күн қалғанда',
   'bonus.saved': 'Бонус ережелері сақталды',

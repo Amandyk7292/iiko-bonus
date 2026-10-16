@@ -54,6 +54,7 @@ const routeKeys: Record<string, string> = {
   '/unavailable': 'unavailable',
   '/kitchen': 'kitchen',
   '/photo-reports': 'photoReports',
+  '/rounds': 'rounds',
   '/learning': 'learning',
   '/learning/manage': 'learningManage',
   '/marketing': 'marketing',
@@ -110,7 +111,9 @@ export default function Topbar({
   const usesBranchScope =
     !location.pathname.startsWith('/learning') &&
     (location.pathname !== '/bonus' || ['referrals', 'registers'].includes(bonusTab || '')) &&
-    !['/taplink', '/faq', '/iiko-dashboard', '/photo-reports'].includes(location.pathname);
+    !['/taplink', '/faq', '/iiko-dashboard', '/photo-reports', '/rounds'].includes(
+      location.pathname,
+    );
   const cityScopes = getAdminCityScopes(scopeLocations);
   const selectedScope = parseAdminScopeSelection(selectedBranchId);
   const selectedCity = cityScopeForSelection(cityScopes, selectedBranchId);

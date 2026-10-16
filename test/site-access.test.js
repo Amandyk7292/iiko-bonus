@@ -91,6 +91,10 @@ test('only public website routes are protected', () => {
   assert.equal(isProtectedSitePath('/courier'), false);
   assert.equal(isProtectedSitePath('/taplink'), false);
   assert.equal(isProtectedSitePath('/taplink/styles.css'), false);
+  assert.equal(isProtectedSitePath('/rounds'), false);
+  assert.equal(isProtectedSitePath('/rounds/'), false);
+  assert.equal(isProtectedSitePath('/rounds/camera.js'), false);
+  assert.equal(isProtectedSitePath('/rounds-other'), true);
   assert.equal(isProtectedSitePath('/apiary'), true);
 });
 

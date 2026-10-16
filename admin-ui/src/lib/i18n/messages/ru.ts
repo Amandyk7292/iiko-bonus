@@ -6,7 +6,9 @@ import dashboard from '../iiko-dashboard';
 import faq from '../faq';
 import academy from '../academy';
 import loyaltyNavigation from '../loyalty-navigation';
+import roundsNavigation from '../rounds-navigation';
 const ru: Record<string, string> = {
+  ...roundsNavigation.ru,
   'common.previous': 'Предыдущая страница',
   'common.next': 'Следующая страница',
   ...faq.ru,
@@ -489,7 +491,8 @@ const ru: Record<string, string> = {
   'customers.notifyBody': 'Уведомления получат неактивные гости с положительным балансом.',
   'customers.notified': 'Напоминания отправлены: {{count}}.',
   'customers.expireTitle': 'Списать истёкшие бонусы?',
-  'customers.expireBody': 'Спишется только неиспользованный остаток начислений старше 6 месяцев. Более новые бонусы сохранятся.',
+  'customers.expireBody':
+    'Спишется только неиспользованный остаток начислений старше 6 месяцев. Более новые бонусы сохранятся.',
   'customers.expired': 'Обработано клиентов: {{count}}, списано бонусов: {{amount}}.',
   'customers.deleted': 'Клиент удалён',
   'customers.details': 'Детали',
@@ -534,8 +537,10 @@ const ru: Record<string, string> = {
   'bonus.expirationEnable': 'Включить автосгорание бонусов',
   'bonus.expirationTerm': 'Срок действия',
   'bonus.expirationRule': '6 месяцев с каждого начисления',
-  'bonus.expirationHint': 'Сначала расходуются самые старые бонусы. Новая покупка не продлевает их срок.',
-  'bonus.winbackRule': 'После сгорания и 90 дней без покупок — 1 000 бонусов для возвращения. Повторно — после новой покупки и следующего перерыва.',
+  'bonus.expirationHint':
+    'Сначала расходуются самые старые бонусы. Новая покупка не продлевает их срок.',
+  'bonus.winbackRule':
+    'После сгорания и 90 дней без покупок — 1 000 бонусов для возвращения. Повторно — после новой покупки и следующего перерыва.',
   'bonus.notifyDays': 'Пуш-напоминания',
   'bonus.notifySchedule': 'За 30, 15 и 7 дней до сгорания',
   'bonus.saved': 'Правила бонусов сохранены',

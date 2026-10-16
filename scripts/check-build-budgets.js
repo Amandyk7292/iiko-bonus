@@ -49,11 +49,13 @@ if (adminDirectory) {
   const deferredFortune = javascript.filter((file) =>
     /^(?:FortunePage|FortuneRedeemPage|fortune)-/.test(path.basename(file)),
   );
+  const deferredRounds = javascript.filter((file) => /^RoundsPage-/.test(path.basename(file)));
   const coreJavascript = javascript.filter(
     (file) =>
       !deferredPriceLabelPdf.includes(file) &&
       !deferredPriceLabelCorel.includes(file) &&
       !deferredAcademy.includes(file) &&
+      !deferredRounds.includes(file) &&
       !deferredFortune.includes(file),
   );
   const styles = assets.filter((file) => file.endsWith('.css'));
@@ -61,6 +63,11 @@ if (adminDirectory) {
   const priceLabelPdfGzip = deferredPriceLabelPdf.map(gzipSize);
   const priceLabelCorelGzip = deferredPriceLabelCorel.map(gzipSize);
   const styleGzip = styles.map(gzipSize);
+  assertBudget(
+    'Admin deferred rounds total gzip',
+    deferredRounds.reduce((sum, file) => sum + gzipSize(file), 0),
+    8_000,
+  );
   assertBudget(
     'Admin deferred academy total gzip',
     deferredAcademy.reduce((sum, file) => sum + gzipSize(file), 0),

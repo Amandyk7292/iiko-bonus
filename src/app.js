@@ -349,6 +349,7 @@ app.use(['/admin/api/staff/virtual-pos', '/api/loyalty/virtual-pos'], (_req, res
 app.use(adminRoutes);
 require('./routes/public/fortune.routes').registerFortunePage(app);
 app.use(require('./routes/branch-photo-reports.routes'));
+app.use(require('./routes/rounds.routes'));
 app.use(require('./routes/pos-pairing.routes'));
 app.use(require('./routes/front-inventory.routes'));
 app.use(require('./routes/front-auto-receipt.routes'));

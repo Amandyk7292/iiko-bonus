@@ -52,6 +52,7 @@ const sections = [
       { to: '/orders', label: 'nav.orders', icon: ShoppingBag },
       { to: '/kitchen', label: 'nav.kitchen', icon: ClipboardList },
       { to: '/photo-reports', label: 'nav.photoReports', icon: Images },
+      { to: '/rounds', label: 'nav.rounds', icon: ClipboardList },
     ],
   },
   {

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#fff9ec" />
+    <title>Мои обходы · Bulka</title>
+    <link rel="stylesheet" href="/rounds/rounds.css?v=20261016-1" />
+    <script src="/rounds/model.js?v=20261016-1" defer></script>
+    <script src="/rounds/camera.js?v=20261016-1" defer></script>
+    <script src="/rounds/app.js?v=20261016-1" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">К заданиям</a>
+    <main>
+      <header class="brand">
+        <img src="/admin/bulka_logo.png" alt="Bulka" width="106" height="42" />
+        <button id="logout" class="text-button" type="button" hidden>Выйти</button>
+      </header>
+      <div id="loading" class="loading" role="status">
+        <span class="spinner" aria-hidden="true"></span>Загрузка…
+      </div>
+      <section id="login" class="panel login-panel" aria-labelledby="login-title" hidden>
+        <p class="eyebrow">Для сотрудников</p>
+        <h1 id="login-title">Мои обходы</h1>
+        <form id="login-form">
+          <label for="username">Логин</label>
+          <input
+            id="username"
+            name="username"
+            autocomplete="username"
+            autocapitalize="none"
+            spellcheck="false"
+            maxlength="80"
+            required
+          />
+          <label for="password">Пароль</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            maxlength="128"
+            required
+          />
+          <p id="login-error" class="error" role="alert" hidden></p>
+          <button id="login-submit" class="primary" type="submit">Войти</button>
+        </form>
+      </section>
+      <div id="content" tabindex="-1">
+        <section id="dashboard" hidden>
+          <p id="greeting" class="eyebrow"></p>
+          <h1>Мои обходы</h1>
+          <nav class="day-picker" aria-label="День обхода">
+            <button
+              id="previous-day"
+              class="icon-button"
+              type="button"
+              aria-label="Предыдущий день"
+            >
+              ‹
+            </button>
+            <label class="date-control" for="round-date"
+              ><span id="day-label"></span
+              ><input id="round-date" type="date" aria-label="Дата обходов"
+            /></label>
+            <button id="next-day" class="icon-button" type="button" aria-label="Следующий день">
+              ›
+            </button>
+          </nav>
+          <div id="day-progress" class="day-progress" hidden></div>
+          <div id="round-list" class="round-list" aria-live="polite"></div>
+        </section>
+        <section id="detail" hidden>
+          <button id="back" class="text-button back-button" type="button">‹ Все обходы</button>
+          <div id="round-detail"></div>
+        </section>
+      </div>
+      <p id="page-error" class="error" role="alert" hidden></p>
+      <button id="retry-page" class="secondary" type="button" hidden>Попробовать снова</button>
+      <p id="announcement" class="sr-only" role="status" aria-live="polite"></p>
+    </main>
+    <dialog id="camera-dialog" aria-labelledby="camera-title">
+      <div class="camera-layout">
+        <header class="camera-header">
+          <h2 id="camera-title">Фото</h2>
+          <button id="close-camera" class="camera-close" type="button" aria-label="Закрыть камеру">
+            ×
+          </button>
+        </header>
+        <div class="viewfinder">
+          <video
+            id="camera-video"
+            autoplay
+            muted
+            playsinline
+            aria-label="Изображение с камеры"
+          ></video>
+          <p id="camera-message" role="status">Открываем камеру…</p>
+          <span id="recording-time" class="recording-time" role="status" hidden>00:00 / 01:00</span>
+        </div>
+        <footer class="camera-footer">
+          <p id="camera-error" class="camera-error" role="alert" hidden></p>
+          <button id="camera-retry" class="secondary" type="button" hidden>
+            Попробовать снова
+          </button>
+          <button
+            id="capture-photo"
+            class="shutter"
+            type="button"
+            aria-label="Сделать фото"
+            disabled
+          >
+            <span></span>
+          </button>
+          <button id="record-video" class="record-button" type="button" disabled>
+            Начать запись
+          </button>
+          <button id="stop-video" class="record-button recording" type="button" hidden>
+            Остановить запись
+          </button>
+          <button id="switch-camera" class="camera-switch" type="button" disabled>
+            Сменить камеру
+          </button>
+        </footer>
+      </div>
+    </dialog>
+  </body>
+</html>

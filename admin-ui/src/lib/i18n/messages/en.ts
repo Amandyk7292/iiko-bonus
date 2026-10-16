@@ -1,7 +1,9 @@
 import referralReport from '../referral-report';
 import dashboard from '../iiko-dashboard';
 import deliveryResolution from '../delivery-resolution';
+import roundsNavigation from '../rounds-navigation';
 const en: Record<string, string> = {
+  ...roundsNavigation.en,
   'common.previous': 'Previous page',
   'common.next': 'Next page',
   ...dashboard.en,
@@ -469,7 +471,8 @@ const en: Record<string, string> = {
   'customers.notifyBody': 'Inactive guests with a positive balance will receive a notification.',
   'customers.notified': 'Reminders sent: {{count}}.',
   'customers.expireTitle': 'Write off expired bonuses?',
-  'customers.expireBody': 'Only unused bonuses earned more than 6 months ago will expire. Newer bonuses will remain.',
+  'customers.expireBody':
+    'Only unused bonuses earned more than 6 months ago will expire. Newer bonuses will remain.',
   'customers.expired': 'Customers processed: {{count}}, bonuses expired: {{amount}}.',
   'customers.deleted': 'Customer deleted',
   'customers.details': 'Details',
@@ -514,8 +517,10 @@ const en: Record<string, string> = {
   'bonus.expirationEnable': 'Enable automatic bonus expiration',
   'bonus.expirationTerm': 'Validity',
   'bonus.expirationRule': '6 months from each accrual',
-  'bonus.expirationHint': 'The oldest bonuses are spent first. New purchases do not extend their validity.',
-  'bonus.winbackRule': 'After expiration and 90 days without a purchase: 1,000 welcome-back bonuses. Awarded again only after a new purchase and another absence.',
+  'bonus.expirationHint':
+    'The oldest bonuses are spent first. New purchases do not extend their validity.',
+  'bonus.winbackRule':
+    'After expiration and 90 days without a purchase: 1,000 welcome-back bonuses. Awarded again only after a new purchase and another absence.',
   'bonus.notifyDays': 'Push reminders',
   'bonus.notifySchedule': '30, 15 and 7 days before expiration',
   'bonus.saved': 'Bonus rules saved',

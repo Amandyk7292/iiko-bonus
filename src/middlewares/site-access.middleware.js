@@ -27,6 +27,7 @@ const EXEMPT_SITE_PREFIXES = [
   '/assets/brand',
   '/internal',
   '/taplink',
+  '/rounds',
 ];
 
 const isSameOrChildPath = (requestPath, prefix) =>

@@ -16,6 +16,21 @@ const {
 
 const scriptSources = (policy) => policy.match(/(?:^|;\s*)script-src ([^;]+)/)?.[1] || '';
 
+test('rounds camera has isolated same-origin scripts and blob media playback', () => {
+  for (const route of ['/rounds', '/rounds/', '/rounds/index.html']) {
+    const policy = serializePolicy(directivesForPath(route, 'test-nonce'));
+    assert.equal(scriptSources(policy), "'self'");
+    assert.match(policy, /frame-ancestors 'none'/);
+    assert.match(policy, /media-src 'self' blob:/);
+    assert.match(policy, /connect-src 'self'/);
+    assert.doesNotMatch(policy, /unsafe-inline|unsafe-eval/);
+  }
+  assert.doesNotMatch(
+    serializePolicy(directivesForPath('/api/rounds/media/test', 'test-nonce')),
+    /media-src/,
+  );
+});
+
 test('academy accepts HTTPS video without allowing remote scripts or frames', () => {
   const policy = serializePolicy(directivesForPath('/admin/learning', 'test-nonce'));
   assert.match(policy, /media-src 'self' https:/);
@@ -79,6 +94,32 @@ test('registration and isolated documents receive executable least-privilege CSP
   });
   t.after(() => server.close());
   const origin = `http://127.0.0.1:${server.address().port}`;
+
+  for (const route of ['/rounds', '/rounds/', '/rounds/index.html']) {
+    const response = await fetch(`${origin}${route}`);
+    assert.equal(response.status, 200, route);
+    assert.match(await response.text(), /id="login-form"/, route);
+    assert.match(
+      response.headers.get('permissions-policy') || '',
+      /camera=\(self\), microphone=\(self\)/,
+      route,
+    );
+    assert.match(
+      response.headers.get('content-security-policy') || '',
+      /media-src 'self' blob:/,
+      route,
+    );
+    assert.match(response.headers.get('cache-control') || '', /no-store/, route);
+  }
+  for (const asset of ['camera.js', 'app.js', 'model.js', 'rounds.css']) {
+    const response = await fetch(`${origin}/rounds/${asset}`);
+    assert.equal(response.status, 200, asset);
+    assert.match(
+      response.headers.get('content-type') || '',
+      asset.endsWith('.css') ? /text\/css/ : /javascript/,
+      asset,
+    );
+  }
 
   for (const route of ['/guest', '/guest/', '/wallet', '/wallet/']) {
     const response = await fetch(`${origin}${route}?source=csp-test`);

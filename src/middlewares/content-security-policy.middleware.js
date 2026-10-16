@@ -54,7 +54,14 @@ const registrationPolicy = {
   ...staticDocumentPolicy('public/app.html'),
   imgSrc: ["'self'", 'data:'],
 };
+const roundsPolicy = {
+  ...staticDocumentPolicy('public/rounds/index.html'),
+  frameAncestors: ["'none'"],
+  mediaSrc: ["'self'", 'blob:'],
+};
 const staticDocumentPolicies = new Map([
+  ['/rounds', roundsPolicy],
+  ['/rounds/index.html', roundsPolicy],
   ['/chatgpt', staticDocumentPolicy('public/chatgpt/index.html')],
   ['/chatgpt/', staticDocumentPolicy('public/chatgpt/index.html')],
   [
