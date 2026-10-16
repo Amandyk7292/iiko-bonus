@@ -114,6 +114,15 @@ const directoryStatus = { success: true, status: {
   lastFailureAt: null, failureSince: null, consecutiveFailures: 0, cashierCount: 71,
 } };
 const mockRequest = vi.mocked(request);
+async function chooseReferralDate(value: string) {
+  fireEvent.click(screen.getByLabelText('С даты'));
+  const calendar = screen.getByRole('dialog', { name: 'Выбрать дату' });
+  fireEvent.change(within(calendar).getByLabelText('Год'), { target: { value: value.slice(0, 4) } });
+  fireEvent.change(within(calendar).getByLabelText('Месяц'), { target: { value: value.slice(5, 7) } });
+  fireEvent.click(calendar.querySelector(`[data-date="${value}"]`)!);
+  fireEvent.click(within(calendar).getByRole('button', { name: 'Применить' }));
+  await waitFor(() => expect(calendar).not.toBeInTheDocument());
+}
 const wrap = (content: React.ReactNode) => (
   <BrowserRouter>
     <I18nProvider>
@@ -388,7 +397,7 @@ describe('compact referral reports', () => {
     } as never);
     const page = render(wrap(<ReferralReport scope="branch-1" />));
     await screen.findByText('Тестовый клиент');
-    fireEvent.change(screen.getByLabelText('С даты'), { target: { value: '2026-09-01' } });
+    await chooseReferralDate('2026-09-01');
     await screen.findByText('Тестовый клиент');
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
     await waitFor(() =>
@@ -412,7 +421,7 @@ describe('compact referral reports', () => {
       ),
     );
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('С даты')).toHaveValue('2026-09-01');
+    expect(screen.getByLabelText('С даты')).toHaveTextContent('01.09.2026');
     await screen.findByText('Тестовый клиент');
     fireEvent.click(screen.getByRole('button', { name: 'Рассмотреть' }));
     expect(within(screen.getByRole('dialog')).getByLabelText('Причина решения')).toHaveValue('');
@@ -531,7 +540,7 @@ describe('compact referral reports', () => {
         items: [{ ...invitation, owner_name: 'Новый период' }],
       } as never);
     render(wrap(<ReferralReport />));
-    fireEvent.change(screen.getByLabelText('С даты'), { target: { value: '2026-09-01' } });
+    await chooseReferralDate('2026-09-01');
     await screen.findByText('Новый период');
     await act(async () => {
       first(report);

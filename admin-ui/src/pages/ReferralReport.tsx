@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import DateInput from '../components/DateInput';
 import { AlertTriangle, ArrowRight, CheckCircle2, Gift, LoaderCircle, Monitor, RefreshCw, Search } from '../components/BulkaIcons';
 import { request, type PosHealthResponse } from '../lib/api';
 import { useI18n } from '../lib/i18n';
@@ -97,8 +98,8 @@ export default function ReferralReport({ view = 'referrals', scope = '' }: { vie
       <button className="icon-button" type="button" aria-label={t('referrals.refresh')} title={t('referrals.refresh')} disabled={loading || !valid} onClick={() => void load()}><RefreshCw size={18} className={loading ? 'spin' : ''} aria-hidden="true" /></button>
     </header>
     {view === 'referrals' && <div className="bonus-date-filters">
-      <label className="field-group"><span className="field-label">{t('referrals.from')}</span><input className="input-classic" type="date" required value={from} max={to} onChange={(e) => { setOffset(0); setFrom(e.target.value); }} /></label>
-      <label className="field-group"><span className="field-label">{t('referrals.to')}</span><input className="input-classic" type="date" required value={to} min={from} onChange={(e) => { setOffset(0); setTo(e.target.value); }} /></label>
+      <label className="field-group"><span className="field-label">{t('referrals.from')}</span><DateInput className="input-classic" aria-label={t('referrals.from')} type="date" required value={from} max={to} onChange={(e) => { setOffset(0); setFrom(e.target.value); }} /></label>
+      <label className="field-group"><span className="field-label">{t('referrals.to')}</span><DateInput className="input-classic" aria-label={t('referrals.to')} type="date" required value={to} min={from} onChange={(e) => { setOffset(0); setTo(e.target.value); }} /></label>
     </div>}
     {!valid && <p className="inline-alert" role="alert">{text.dates}</p>}
     {error && !review && <div className="inline-alert inline-alert-error" role="alert">{error}<button className="btn-outline" type="button" onClick={() => void load()}>{t('common.retry')}</button></div>}

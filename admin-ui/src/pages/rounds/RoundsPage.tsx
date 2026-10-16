@@ -12,6 +12,7 @@ import {
 } from '../../components/BulkaIcons';
 import { useFeedback } from '../../components/Feedback';
 import PageState from '../../components/PageState';
+import DateInput from '../../components/DateInput';
 import { roundsApi } from './api';
 import { calendarDays, dayLabel, shiftDay, todayKz } from './model';
 import { CredentialsModal, InspectorForm, RoundForm } from './RoundForms';
@@ -215,7 +216,7 @@ export default function RoundsPage() {
           <>
             <label>
               С
-              <input
+              <DateInput
                 aria-label="Дата с"
                 type="date"
                 value={from}
@@ -224,7 +225,7 @@ export default function RoundsPage() {
             </label>
             <label>
               По
-              <input
+              <DateInput
                 aria-label="Дата по"
                 type="date"
                 value={to}

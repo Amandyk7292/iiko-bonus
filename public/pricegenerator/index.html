@@ -10,8 +10,10 @@
     <link rel="stylesheet" href="/pricegenerator/edit-access.css?v=20260920-1" />
     <style id="print-page-settings"></style>
     <script src="/pricegenerator/edit-access.js?v=20260920-1" defer></script>
-    <script src="/pricegenerator/app.js?v=20261004-1" defer></script>
+    <script src="/assets/brand/bulka-calendar.js?v=20261016-1" defer></script>
+    <script src="/pricegenerator/app.js?v=20261016-calendar-1" defer></script>
     <link rel="stylesheet" href="/assets/brand/bulka-controls.css?v=bulka-premium-1" />
+    <link rel="stylesheet" href="/assets/brand/bulka-calendar.css?v=20261016-1" />
   </head>
   <body>
     <header class="topbar">
@@ -109,7 +111,9 @@
             ></label>
           </div>
           <div class="row two">
-            <label>Дата изготовления<input id="made-date" type="date" /></label>
+            <label
+              >Дата изготовления<input id="made-date" type="text" data-bulka-calendar required
+            /></label>
             <label>Время изготовления<input id="made-time" type="time" value="12:00" /></label>
             <label class="admin-only"
               >Формат даты<select id="date-format">

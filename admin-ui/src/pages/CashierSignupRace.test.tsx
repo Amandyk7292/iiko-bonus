@@ -35,6 +35,16 @@ const renderRace = () =>
       <CashierSignupRace />
     </I18nProvider>,
   );
+async function chooseDate(label: string, value: string, locale: 'ru' | 'kk' = 'ru') {
+  const kk = locale === 'kk';
+  fireEvent.click(screen.getByLabelText(label));
+  const calendar = screen.getByRole('dialog', { name: kk ? 'Күнді таңдау' : 'Выбрать дату' });
+  fireEvent.change(within(calendar).getByLabelText(kk ? 'Жыл' : 'Год'), { target: { value: value.slice(0, 4) } });
+  fireEvent.change(within(calendar).getByLabelText(kk ? 'Ай' : 'Месяц'), { target: { value: value.slice(5, 7) } });
+  fireEvent.click(calendar.querySelector(`[data-date="${value}"]`)!);
+  fireEvent.click(within(calendar).getByRole('button', { name: kk ? 'Қолдану' : 'Применить' }));
+  await waitFor(() => expect(calendar).not.toBeInTheDocument());
+}
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;
   let reject!: (error: Error) => void;
@@ -59,9 +69,12 @@ describe('cashier registration race', () => {
     renderRace();
     expect(screen.getByRole('status')).toHaveTextContent('Загружаем рейтинг');
     await screen.findByRole('rowheader', { name: /Алия Рублева/ });
-    const from = (screen.getByLabelText('С даты') as HTMLInputElement).value;
-    const to = (screen.getByLabelText('По дату') as HTMLInputElement).value;
+    const params = new URL(mocks.request.mock.calls[0][0], 'http://localhost').searchParams;
+    const from = params.get('from')!;
+    const to = params.get('to')!;
     expect(from).toBe(`${to.slice(0, 7)}-01`);
+    expect(screen.getByLabelText('С даты')).toHaveTextContent(from.split('-').reverse().join('.'));
+    expect(screen.getByLabelText('По дату')).toHaveTextContent(to.split('-').reverse().join('.'));
     expect(mocks.request).toHaveBeenCalledWith(
       `/bonus/cashier-race?from=${from}&to=${to}`,
       { signal: expect.any(AbortSignal) },
@@ -279,7 +292,7 @@ describe('cashier registration race', () => {
     mocks.request.mockResolvedValueOnce(response()).mockReturnValueOnce(next.promise);
     renderRace();
     await screen.findByText('Алия Рублева');
-    fireEvent.change(screen.getByLabelText('С даты'), { target: { value: '2000-01-01' } });
+    await chooseDate('С даты', '2000-01-01');
     expect(screen.queryByText('Алия Рублева')).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Загружаем рейтинг');
     await waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(2));
@@ -293,7 +306,7 @@ describe('cashier registration race', () => {
     const next = deferred<ReturnType<typeof response>>();
     mocks.request.mockReturnValueOnce(old.promise).mockReturnValueOnce(next.promise);
     renderRace();
-    fireEvent.change(screen.getByLabelText('С даты'), { target: { value: '2000-01-01' } });
+    await chooseDate('С даты', '2000-01-01');
     await waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(2));
     expect(mocks.request.mock.calls[0][1].signal.aborted).toBe(true);
     await act(async () => next.resolve(response([item({ name: 'Текущая дата' })])));
@@ -303,7 +316,7 @@ describe('cashier registration race', () => {
     expect(screen.getByText('Текущая дата')).toBeInTheDocument();
   });
 
-  it('does not request an incomplete or reversed period and offers recovery after a server error', async () => {
+  it('keeps a valid required date range in the picker and offers recovery after a server error', async () => {
     mocks.request
       .mockRejectedValueOnce(new Error('Сервис временно недоступен'))
       .mockResolvedValue(response());
@@ -312,11 +325,15 @@ describe('cashier registration race', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Сервис временно недоступен');
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
     await screen.findByText('Алия Рублева');
-    fireEvent.change(screen.getByLabelText('По дату'), { target: { value: '' } });
-    expect(screen.getByRole('alert')).toHaveTextContent('Выберите начальную и конечную даты');
-    expect(screen.queryByText('Алия Рублева')).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('По дату'), { target: { value: '1999-01-01' } });
-    expect(screen.getByRole('alert')).toHaveTextContent('Выберите начальную и конечную даты');
+    fireEvent.click(screen.getByLabelText('По дату'));
+    const calendar = screen.getByRole('dialog', { name: 'Выбрать дату' });
+    expect(within(calendar).queryByRole('button', { name: 'Очистить' })).not.toBeInTheDocument();
+    fireEvent.change(within(calendar).getByLabelText('Год'), { target: { value: '1999' } });
+    fireEvent.change(within(calendar).getByLabelText('Месяц'), { target: { value: '01' } });
+    expect(calendar.querySelector('[data-date="1999-01-01"]')).toBeDisabled();
+    fireEvent.click(within(calendar).getByRole('button', { name: 'Отмена' }));
+    await waitFor(() => expect(calendar).not.toBeInTheDocument());
+    expect(screen.getByText('Алия Рублева')).toBeInTheDocument();
     expect(mocks.request).toHaveBeenCalledTimes(2);
   });
 
@@ -380,7 +397,7 @@ describe('cashier registration race', () => {
     await screen.findByText('Алия Рублева');
     expect(screen.getByRole('heading', { name: 'Кассирлер жарысы' })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Қала'), { target: { value: 'Актау' } });
-    fireEvent.change(screen.getByLabelText('Басталу күні'), { target: { value: '2000-01-01' } });
+    await chooseDate('Басталу күні', '2000-01-01', 'kk');
     await screen.findByText('Кассирлер табылмады');
     expect(screen.getByLabelText('Қала')).toHaveValue('Актау');
     expect(screen.getByRole('option', { name: 'Актау' })).toBeInTheDocument();

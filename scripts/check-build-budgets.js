@@ -87,9 +87,10 @@ if (adminDirectory) {
     // measure 449,528 B after shared guard/input deduplication.
     // Employee login/nav adds under 1 KiB to that shared shell. Fortune route
     // registration/nav measures 451,669 B (+85 B over the previous cap).
-    // Retain 171 B headroom and the largest-chunk limit.
+    // Shared custom date/month controls, form validation and nested-dialog guards
+    // measure 451,886 B. Allow 114 B headroom; retain the largest-chunk limit.
     // Exporters load only on download and keep their separate budgets below.
-    451_840,
+    452_000,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   assertBudget('Admin deferred price-label PDF gzip', Math.max(0, ...priceLabelPdfGzip), 185_000);

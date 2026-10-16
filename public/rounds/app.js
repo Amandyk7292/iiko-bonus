@@ -17,6 +17,10 @@
     completing: new Set(),
     camera: null,
   };
+  const dateCalendar = window.BulkaCalendar.attach($('round-date'), {
+    clearable: false,
+    format: (value) => (value === M.localDate() ? 'Сегодня · ' : '') + M.displayDate(value),
+  });
   const capture = new C.Capture($('camera-video'));
   let cameraGeneration = 0;
   let lastFocus = null;
@@ -135,9 +139,7 @@
   }
   function renderList() {
     $('greeting').textContent = state.inspector.name;
-    $('round-date').value = state.date;
-    $('day-label').textContent =
-      (state.date === M.localDate() ? 'Сегодня · ' : '') + M.displayDate(state.date);
+    dateCalendar.setValue(state.date);
     const summary = M.summary(state.rounds);
     $('day-progress').hidden = !summary.total;
     $('day-progress').classList.toggle('is-complete', summary.allDone);
@@ -195,8 +197,7 @@
     state.round = null;
     state.detailId = null;
     view('dashboard');
-    $('round-date').value = state.date;
-    $('day-label').textContent = M.displayDate(state.date);
+    dateCalendar.setValue(state.date);
     if (!quiet) {
       $('round-list').innerHTML =
         '<div class="loading" role="status"><span class="spinner" aria-hidden="true"></span>Загрузка обходов…</div>';

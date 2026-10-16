@@ -25,9 +25,15 @@ const response = (items: CashierPayrollRow[] = [row()], overrides: Partial<Cashi
   { completed: 0, rewardAmount: 0, paidAmount: 0, outstandingAmount: 0 }), ...overrides,
 });
 function renderPayroll(props: { active?: boolean; scope?: string } = {}) {
-  const view = render(<I18nProvider><CashierPayroll {...props} /></I18nProvider>);
-  fireEvent.change(screen.getByLabelText('Месяц'), { target: { value: '2026-10' } });
-  return view;
+  return render(<I18nProvider><CashierPayroll {...props} /></I18nProvider>);
+}
+async function chooseMonth(value: string) {
+  fireEvent.click(screen.getByLabelText('Месяц'));
+  const calendar = screen.getByRole('dialog', { name: 'Выбрать месяц' });
+  fireEvent.change(within(calendar).getByLabelText('Год'), { target: { value: value.slice(0, 4) } });
+  fireEvent.click(calendar.querySelector(`[data-date="${value}-01"]`)!);
+  fireEvent.click(within(calendar).getByRole('button', { name: 'Применить' }));
+  await waitFor(() => expect(calendar).not.toBeInTheDocument());
 }
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;
@@ -72,7 +78,7 @@ describe('cashier monthly payroll', () => {
     const next = deferred<CashierPayrollResponse>();
     mocks.request.mockReturnValueOnce(old.promise).mockReturnValueOnce(next.promise);
     const view = renderPayroll({ scope: 'first' });
-    fireEvent.change(screen.getByLabelText('Месяц'), { target: { value: '2026-09' } });
+    await chooseMonth('2026-09');
     expect(readCalls()[0][1].signal.aborted).toBe(true);
     await act(async () => next.resolve(response([row({ name: 'Сентябрь' })], { month: '2026-09' })));
     await screen.findByText('Сентябрь');
@@ -265,15 +271,29 @@ describe('cashier monthly payroll', () => {
     expect(screen.getByRole('button', { name: 'Скачать Excel' })).not.toBeDisabled();
   });
 
-  it('does not request an empty, invalid or year-zero month', async () => {
+  it('keeps month changes as a draft until applied and does not request an empty month', async () => {
     renderPayroll();
     await screen.findByText('Алия Рублева');
-    fireEvent.change(screen.getByLabelText('Месяц'), { target: { value: '' } });
-    expect(screen.getByRole('alert')).toHaveTextContent('Выберите месяц');
-    fireEvent.change(screen.getByLabelText('Месяц'), { target: { value: '0000-01' } });
+    fireEvent.click(screen.getByLabelText('Месяц'));
+    let calendar = screen.getByRole('dialog');
+    expect(calendar.querySelector('.date-input-grid')).not.toBeInTheDocument();
+    expect(calendar.querySelectorAll('[data-date]')).toHaveLength(12);
+    fireEvent.change(within(calendar).getByLabelText('Месяц'), { target: { value: '09' } });
+    expect(readCalls()).toHaveLength(1);
+    fireEvent.click(within(calendar).getByRole('button', { name: 'Отмена' }));
+    await waitFor(() => expect(calendar).not.toBeInTheDocument());
+    expect(screen.getByLabelText('Месяц')).toHaveTextContent(/октябрь 2026/);
+    fireEvent.click(screen.getByLabelText('Месяц'));
+    calendar = screen.getByRole('dialog');
+    fireEvent.click(within(calendar).getByRole('button', { name: 'Очистить' }));
+    await waitFor(() => expect(calendar).not.toBeInTheDocument());
     expect(screen.getByRole('alert')).toHaveTextContent('Выберите месяц');
     expect(readCalls()).toHaveLength(1);
     expect(screen.queryByText('Алия Рублева')).not.toBeInTheDocument();
+    await chooseMonth('2026-09');
+    await screen.findByText('Алия Рублева');
+    expect(readCalls()).toHaveLength(2);
+    expect(readCalls()[1][0]).toBe('/bonus/cashier-payroll?month=2026-09');
   });
 
   it('retains successful data after a failed refresh and retries without losing filters', async () => {

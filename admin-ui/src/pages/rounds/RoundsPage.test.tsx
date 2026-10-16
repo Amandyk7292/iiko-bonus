@@ -126,6 +126,16 @@ const renderPage = () =>
     </I18nProvider>,
   );
 const ready = async () => screen.findByRole('region', { name: 'Календарь обходов' });
+const chooseDate = (trigger: HTMLElement, iso: string) => {
+  fireEvent.click(trigger);
+  const calendar = screen.getByRole('dialog', { name: 'Выбрать дату' });
+  fireEvent.change(within(calendar).getByLabelText('Год'), { target: { value: iso.slice(0, 4) } });
+  fireEvent.change(within(calendar).getByLabelText('Месяц'), {
+    target: { value: iso.slice(5, 7) },
+  });
+  fireEvent.click(calendar.querySelector(`[data-date="${iso}"]`)!);
+  fireEvent.click(within(calendar).getByRole('button', { name: 'Применить' }));
+};
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
@@ -297,10 +307,10 @@ describe('rounds calendar and reports', () => {
     await ready();
     await act(async () => resolveOld({ ...data, rounds: [round('устаревший')], inspectors: [] }));
     expect(screen.queryByText('Обход устаревший')).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Дата по'), { target: { value: '2026-12-01' } });
+    chooseDate(screen.getByLabelText('Дата по'), '2026-12-01');
     expect(screen.getByRole('alert')).toHaveTextContent('от 1 до 30 дней');
     const calls = vi.mocked(roundsApi.list).mock.calls.length;
-    fireEvent.change(screen.getByLabelText('Дата по'), { target: { value: '2026-10-29' } });
+    chooseDate(screen.getByLabelText('Дата по'), '2026-10-29');
     await ready();
     expect(roundsApi.list).toHaveBeenCalledTimes(calls + 1);
   });
@@ -336,6 +346,42 @@ describe('rounds calendar and reports', () => {
 });
 
 describe('assignments and employee access', () => {
+  it('preserves edited selections across city switches and saves only branches of the current city', async () => {
+    renderPage();
+    await ready();
+    fireEvent.click(screen.getByRole('tab', { name: 'Сотрудники' }));
+    fireEvent.click(
+      within(screen.getByRole('heading', { name: 'Аман' }).closest('article')!).getByRole(
+        'button',
+        { name: 'Изменить' },
+      ),
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Изменить сотрудника' });
+    const city = within(dialog).getByLabelText('Город');
+    expect(within(dialog).getByLabelText('Жасыл дала')).toBeChecked();
+    expect(within(dialog).getByLabelText('Central Park')).toBeChecked();
+    fireEvent.click(within(dialog).getByLabelText('Central Park'));
+    fireEvent.change(city, { target: { value: 'Астана' } });
+    expect(within(dialog).getByLabelText('Розы Баглановой')).not.toBeChecked();
+    fireEvent.submit(within(dialog).getByRole('button', { name: 'Сохранить' }).closest('form')!);
+    expect(roundsApi.updateInspector).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Выберите хотя бы один филиал');
+    fireEvent.click(within(dialog).getByLabelText('Розы Баглановой'));
+    fireEvent.change(city, { target: { value: 'Актау' } });
+    expect(within(dialog).getByLabelText('Жасыл дала')).toBeChecked();
+    expect(within(dialog).getByLabelText('Central Park')).not.toBeChecked();
+    fireEvent.change(city, { target: { value: 'Астана' } });
+    expect(within(dialog).getByLabelText('Розы Баглановой')).toBeChecked();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() =>
+      expect(roundsApi.updateInspector).toHaveBeenCalledWith('inspector-1', {
+        name: 'Аман',
+        city: 'Астана',
+        branchIds: ['branch-3'],
+      }),
+    );
+  });
+
   it('creates employee access only for selected city branches and copies the one-time password', async () => {
     renderPage();
     await ready();
@@ -348,6 +394,10 @@ describe('assignments and employee access', () => {
     fireEvent.change(within(dialog).getByLabelText('Город'), { target: { value: 'Актау' } });
     expect(within(dialog).queryByLabelText('Розы Баглановой')).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByLabelText('Жасыл дала'));
+    fireEvent.change(within(dialog).getByLabelText('Город'), { target: { value: 'Астана' } });
+    fireEvent.click(within(dialog).getByLabelText('Розы Баглановой'));
+    fireEvent.change(within(dialog).getByLabelText('Город'), { target: { value: 'Актау' } });
+    expect(within(dialog).getByLabelText('Жасыл дала')).toBeChecked();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Создать доступ' }));
     await waitFor(() =>
       expect(roundsApi.createInspector).toHaveBeenCalledWith({
@@ -376,7 +426,7 @@ describe('assignments and employee access', () => {
     expect(within(dialog).queryByLabelText('Розы Баглановой')).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByLabelText('Жасыл дала'));
     fireEvent.click(within(dialog).getByLabelText('Central Park'));
-    fireEvent.change(within(dialog).getByLabelText('Дата'), { target: { value: '2026-10-20' } });
+    chooseDate(within(dialog).getByLabelText('Дата'), '2026-10-20');
     fireEvent.change(within(dialog).getByLabelText('Выполнить до'), { target: { value: '17:30' } });
     fireEvent.change(within(dialog).getByLabelText('Что проверить'), {
       target: { value: '  Витрина  ' },

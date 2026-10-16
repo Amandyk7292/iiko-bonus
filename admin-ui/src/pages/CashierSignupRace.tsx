@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import DateInput from '../components/DateInput';
 import { Copy, Download, QrCode, RefreshCw, Search, ShieldAlert, Trophy, Users, Wallet } from '../components/BulkaIcons';
 import Modal from '../components/Modal';
 import { request } from '../lib/api';
@@ -339,9 +340,10 @@ export default function CashierSignupRace({ active = true }: { active?: boolean 
       <div className="cashier-race-filters">
         <label className="field-group" htmlFor="cashier-race-from">
           <span>{text.from}</span>
-          <input
+          <DateInput
             className="input-classic"
             id="cashier-race-from"
+            aria-label={text.from}
             type="date"
             required
             value={from}
@@ -351,9 +353,10 @@ export default function CashierSignupRace({ active = true }: { active?: boolean 
         </label>
         <label className="field-group" htmlFor="cashier-race-to">
           <span>{text.to}</span>
-          <input
+          <DateInput
             className="input-classic"
             id="cashier-race-to"
+            aria-label={text.to}
             type="date"
             required
             value={to}

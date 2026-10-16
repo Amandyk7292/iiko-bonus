@@ -7,9 +7,11 @@
     <meta name="theme-color" content="#fff9ec" />
     <title>Мои обходы · Bulka</title>
     <link rel="stylesheet" href="/rounds/rounds.css?v=20261016-1" />
+    <link rel="stylesheet" href="/assets/brand/bulka-calendar.css?v=20261016-1" />
+    <script src="/assets/brand/bulka-calendar.js?v=20261016-1" defer></script>
     <script src="/rounds/model.js?v=20261016-1" defer></script>
     <script src="/rounds/camera.js?v=20261016-1" defer></script>
-    <script src="/rounds/app.js?v=20261016-1" defer></script>
+    <script src="/rounds/app.js?v=20261016-calendar-1" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#content">К заданиям</a>
@@ -61,10 +63,15 @@
             >
               ‹
             </button>
-            <label class="date-control" for="round-date"
-              ><span id="day-label"></span
-              ><input id="round-date" type="date" aria-label="Дата обходов"
-            /></label>
+            <div class="date-control">
+              <input
+                id="round-date"
+                type="text"
+                data-bulka-calendar
+                aria-label="Дата обходов"
+                required
+              />
+            </div>
             <button id="next-day" class="icon-button" type="button" aria-label="Следующий день">
               ›
             </button>

@@ -1,0 +1,287 @@
+.bulka-calendar-source {
+  position: absolute !important;
+  inset: auto !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.bulka-calendar-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 12px 14px;
+  border: 1px solid #e7d8c7;
+  border-radius: 13px;
+  background: linear-gradient(145deg, #fff, #fffbf3);
+  color: #59351f;
+  font: inherit;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+.bulka-calendar-trigger span {
+  overflow-wrap: anywhere;
+}
+.bulka-calendar-trigger svg {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.date-control > .bulka-calendar-trigger {
+  border: 0;
+  background: transparent;
+  justify-content: center;
+  padding: 9px 4px;
+  font-size: 14px;
+}
+.date-control > .bulka-calendar-trigger svg {
+  display: none;
+}
+.bulka-calendar-trigger[aria-invalid='true'] {
+  border-color: #b14632;
+}
+.bulka-calendar-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+dialog.bulka-calendar {
+  box-sizing: border-box;
+  position: fixed;
+  inset: 0;
+  width: min(408px, calc(100vw - 24px));
+  height: fit-content;
+  min-height: 0;
+  max-width: none;
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  margin: auto;
+  border: 1px solid #e7d8c7;
+  border-radius: 24px;
+  background: #fffdf8;
+  color: #59351f;
+  font:
+    14px/1.4 Montserrat,
+    system-ui,
+    sans-serif;
+  box-shadow: 0 22px 70px #40200e38;
+  overflow: auto;
+}
+dialog.bulka-calendar::backdrop {
+  background: #38251880;
+  backdrop-filter: blur(4px);
+}
+.bulka-calendar * {
+  box-sizing: border-box;
+}
+.bulka-calendar [hidden] {
+  display: none !important;
+}
+.bulka-calendar-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px 10px 20px;
+  border-bottom: 1px solid #eee3d4;
+}
+.bulka-calendar h2 {
+  margin: 0;
+  font:
+    600 17px/1.4 Montserrat,
+    system-ui,
+    sans-serif;
+}
+.bulka-calendar-body {
+  padding: 12px;
+}
+.bulka-calendar-heading {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 86px 44px;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.bulka-calendar select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid #e7d8c7;
+  border-radius: 11px;
+  background: #fff;
+  color: #59351f;
+  font: inherit;
+  text-transform: capitalize;
+}
+.bulka-calendar button {
+  min-height: 44px;
+  border: 1px solid transparent;
+  color: #59351f;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: none;
+}
+.bulka-calendar button.bulka-calendar-icon {
+  min-width: 44px;
+  width: 44px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #f9f1e5;
+  font-size: 27px;
+  line-height: 1;
+}
+.bulka-calendar-weekdays,
+.bulka-calendar-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.bulka-calendar-weekdays {
+  margin-bottom: 5px;
+  color: #86715f;
+  text-align: center;
+  font-size: 12px;
+}
+.bulka-calendar-weekdays span {
+  padding: 5px 0;
+}
+.bulka-calendar button.bulka-calendar-day {
+  min-width: 44px;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  font-variant-numeric: tabular-nums;
+}
+.bulka-calendar button.bulka-calendar-day.is-outside {
+  color: #8a7768;
+  font-weight: 400;
+}
+.bulka-calendar button.bulka-calendar-day[aria-current='date'] {
+  border-color: #e5bd59;
+  background: #fff5d9;
+}
+.bulka-calendar button.bulka-calendar-day[aria-selected='true'] {
+  border-color: #674027;
+  background: linear-gradient(125deg, #80502e, #57311c);
+  color: #fff;
+}
+.bulka-calendar button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.bulka-calendar button:hover:not(:disabled) {
+  background-color: #fff1cb;
+}
+.bulka-calendar button.bulka-calendar-day[aria-selected='true']:hover {
+  background: #674027;
+}
+.bulka-calendar-selection {
+  min-height: 20px;
+  margin: 12px 4px 0;
+  color: #795c44;
+  text-align: center;
+}
+.bulka-calendar-error {
+  margin: 8px 4px 0;
+  color: #a03729;
+  font-size: 12px;
+  text-align: center;
+}
+.bulka-calendar-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid #eee3d4;
+}
+.bulka-calendar button.bulka-calendar-text {
+  margin-right: auto;
+  padding: 8px;
+  background: transparent;
+  border-radius: 10px;
+  font-size: 12px;
+}
+.bulka-calendar button.bulka-calendar-cancel {
+  padding: 10px 14px;
+  border-color: #e7d8c7;
+  border-radius: 12px;
+  background: #fffaf1;
+}
+.bulka-calendar button.bulka-calendar-apply {
+  padding: 10px 20px;
+  border-color: #dda329;
+  border-radius: 12px;
+  background: linear-gradient(118deg, #ffdf84, #ffc23b 52%, #efa51c);
+}
+.bulka-calendar :is(button, select):focus-visible,
+.bulka-calendar-trigger:focus-visible {
+  outline: 3px solid #9a642c;
+  outline-offset: 2px;
+}
+@media (max-width: 400px) {
+  .bulka-calendar-heading {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+  }
+  .bulka-calendar-heading > :nth-child(1) {
+    grid-area: 1/1;
+  }
+  .bulka-calendar-heading > :nth-child(2) {
+    grid-area: 1/2;
+  }
+  .bulka-calendar-heading > :nth-child(3) {
+    grid-area: 2/2;
+  }
+  .bulka-calendar-heading > :nth-child(4) {
+    grid-area: 1/3;
+  }
+}
+@media (max-width: 359px) {
+  dialog.bulka-calendar {
+    width: calc(100vw - 4px);
+    border-radius: 18px;
+  }
+  .bulka-calendar-body {
+    padding: 10px 2px;
+  }
+  .bulka-calendar-heading {
+    margin-right: 8px;
+    margin-left: 8px;
+  }
+  .bulka-calendar-footer {
+    padding: 10px;
+    gap: 6px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bulka-calendar,
+  .bulka-calendar *,
+  .bulka-calendar-trigger {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media print {
+  .bulka-calendar {
+    display: none !important;
+  }
+}

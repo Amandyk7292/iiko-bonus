@@ -1,4 +1,5 @@
 import { type FormEvent } from 'react';
+import DateInput from '../../components/DateInput';
 import { Plus } from '../../components/BulkaIcons';
 import Modal from '../../components/GuardedModal';
 import { useI18n } from '../../lib/i18n';
@@ -175,7 +176,7 @@ export default function CampaignEditor({
             <summary>{text('Период акции', 'Акция мерзімі')}</summary>
             <div className="fortune-fields">
               <Field label={text('Начало', 'Басталуы')}>
-                <input
+                <DateInput
                   type="datetime-local"
                   className="input-classic"
                   value={localDate(draft.startsAt)}
@@ -183,7 +184,7 @@ export default function CampaignEditor({
                 />
               </Field>
               <Field label={text('Окончание', 'Аяқталуы')}>
-                <input
+                <DateInput
                   type="datetime-local"
                   className="input-classic"
                   value={localDate(draft.endsAt)}

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import DateInput from '../components/DateInput';
 import { ChevronLeft, ChevronRight, RefreshCw, Search, Tablet, X } from '../components/BulkaIcons';
 import PageState from '../components/PageState';
 import { useI18n } from '../lib/i18n';
@@ -146,8 +147,9 @@ export default function PhotoReportsPage({ role = 'viewer' }: { role?: string })
           </button>
           <label>
             <span className="sr-only">{text('Дата отчёта', 'Есеп күні')}</span>
-            <input
+            <DateInput
               className="input-classic"
+              aria-label={text('Дата отчёта', 'Есеп күні')}
               type="date"
               value={end}
               max={maxDate}

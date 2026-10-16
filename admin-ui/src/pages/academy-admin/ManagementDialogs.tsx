@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import DateInput from '../../components/DateInput';
 import GuardedModal from '../../components/GuardedModal';
 import { Save } from '../../components/BulkaIcons';
 import { Field, Toggle } from './Fields';
@@ -201,7 +202,7 @@ export function EmployeeEditor({
             'Емтиханға жіберу үшін еңбек өтілі осы күннен есептеледі.',
           )}
         >
-          <input
+          <DateInput
             className="input-classic"
             type="date"
             value={startDate}
@@ -392,7 +393,7 @@ export function AssignmentEditor({
           </p>
         )}
         <Field label={text('Пройти до (необязательно)', 'Өту мерзімі (міндетті емес)')}>
-          <input
+          <DateInput
             className="input-classic"
             type="datetime-local"
             value={dueAt}

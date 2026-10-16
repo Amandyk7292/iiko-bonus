@@ -190,7 +190,7 @@ describe('branch closing report calendar', () => {
     );
     renderPage();
     await screen.findByRole('button', { name: /Актау · 19А · Зал .*Отправлен · 3 фото/ });
-    expect(screen.getByLabelText('Дата отчёта')).toHaveValue(date);
+    expect(screen.getByLabelText('Дата отчёта')).toHaveTextContent(date.split('-').reverse().join('.'));
     expect(screen.getByLabelText('Показать')).toHaveValue('14');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await act(async () => {
@@ -490,10 +490,18 @@ describe('branch closing report calendar', () => {
       branches: [a, b],
       reports: [],
     });
-    fireEvent.change(screen.getByLabelText('Дата отчёта'), { target: { value: previousDate } });
+    fireEvent.click(screen.getByLabelText('Дата отчёта'));
+    const calendar = screen.getByRole('dialog', { name: 'Выбрать дату' });
+    fireEvent.change(within(calendar).getByLabelText('Год'), { target: { value: previousDate.slice(0, 4) } });
+    fireEvent.change(within(calendar).getByLabelText('Месяц'), { target: { value: previousDate.slice(5, 7) } });
+    fireEvent.click(calendar.querySelector(`[data-date="${previousDate}"]`)!);
+    expect(mocks.request).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('Дата отчёта')).toHaveTextContent(date.split('-').reverse().join('.'));
+    fireEvent.click(within(calendar).getByRole('button', { name: 'Применить' }));
+    await waitFor(() => expect(calendar).not.toBeInTheDocument());
     await screen.findByRole('button', { name: /Актау · 19А · Зал.*Не отправлен/ });
     await act(async () => resolveOld(await original(`/photo-reports?end=${date}&days=14`)));
-    expect(screen.getByLabelText('Дата отчёта')).toHaveValue(previousDate);
+    expect(screen.getByLabelText('Дата отчёта')).toHaveTextContent(previousDate.split('-').reverse().join('.'));
     expect(screen.queryByRole('button', { name: /Отправлен · 3 фото/ })).not.toBeInTheDocument();
   });
 

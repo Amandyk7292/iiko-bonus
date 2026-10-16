@@ -47,6 +47,8 @@ export default function GuardedModal({
   const captureClick = (event: MouseEvent<HTMLDivElement>) => {
     const element = event.target as HTMLElement;
     if (element.closest('[role=option], [data-unsaved-change]')) setDirty(true);
+    // Calendar dialogs use a portal. Their own dismissal must not close this editor.
+    if (element.closest('.modal-panel') !== event.currentTarget.closest('.modal-panel')) return;
     const button = element.closest('button');
     if (
       button &&
@@ -66,11 +68,19 @@ export default function GuardedModal({
         footer={props.footer && <div onClickCapture={captureClick}>{props.footer}</div>}
       >
         <div
-          onChangeCapture={() => setDirty(true)}
+          onChangeCapture={(event) => {
+            if (
+              (event.target as HTMLElement).closest('.modal-panel') ===
+              event.currentTarget.closest('.modal-panel')
+            )
+              setDirty(true);
+          }}
           onClickCapture={captureClick}
           onKeyDownCapture={(e) => {
             if (
               ['Enter', 'ArrowUp', 'ArrowDown'].includes(e.key) &&
+              (e.target as HTMLElement).closest('.modal-panel') ===
+                e.currentTarget.closest('.modal-panel') &&
               (e.target as HTMLElement).closest('[role=combobox]')
             )
               setDirty(true);

@@ -1,6 +1,7 @@
 (() => {
   'use strict';
   const $ = (id) => document.getElementById(id);
+  const madeDateCalendar = window.BulkaCalendar.attach($('made-date'));
   const cityFromUrl = new URLSearchParams(location.search).get('city');
   const cityFromStorage = localStorage.getItem('bulka-pricegenerator-city');
   const initialCity = ['aktau', 'astana'].includes(cityFromUrl)
@@ -143,7 +144,7 @@
     state.layout = structuredClone(snapshot.layout);
     state.label = structuredClone(snapshot.label);
     state.paper = structuredClone(snapshot.paper);
-    $('made-date').value = snapshot.madeDate;
+    madeDateCalendar.setValue(snapshot.madeDate);
     $('made-time').value = snapshot.madeTime || '12:00';
     $('date-format').value = snapshot.dateFormat;
     renderedDate = snapshot.madeDate;
@@ -726,7 +727,7 @@
       notice('Товары не загружены. Обычная печать недоступна.', true);
     }
   }
-  $('made-date').value = localCalendarDate();
+  madeDateCalendar.setValue(localCalendarDate());
   $('retry-products').addEventListener('click', loadDefaults);
   $('copies').addEventListener('input', () => {
     $('copies-error').hidden = true;
@@ -974,6 +975,7 @@
   window.setInterval(() => {
     const currentDate = $('made-date').value;
     if (currentDate === renderedDate) return;
+    madeDateCalendar.refresh();
     renderedDate = currentDate;
     renderStage();
     recordHistory();

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Copy, Plus, Trash2 } from '../../components/BulkaIcons';
 import Modal from '../../components/Modal';
+import DateInput from '../../components/DateInput';
 import { roundsApi } from './api';
 import { evidenceLabels, todayKz } from './model';
 import type { Branch, Credentials, EvidenceType, Inspector, TaskDraft } from './types';
@@ -109,7 +110,7 @@ export function InspectorForm({
             value={city}
             onChange={(event) => {
               setCity(event.target.value);
-              setBranchIds([]);
+              setError('');
             }}
           >
             {!city && <option value="">Выберите город</option>}
@@ -243,7 +244,7 @@ export function RoundForm({
         <div className="rounds-form-pair">
           <label>
             Дата
-            <input
+            <DateInput
               type="date"
               required
               value={date}

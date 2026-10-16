@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../lib/i18n';
@@ -101,6 +101,16 @@ const fixture = (): Dashboard => ({
   results: [],
 });
 const text = (ru: string) => ru;
+async function chooseDate(label: string, value: string) {
+  fireEvent.click(screen.getByLabelText(label));
+  const calendar = screen.getByRole('dialog', { name: 'Выбрать дату' });
+  fireEvent.change(within(calendar).getByLabelText('Год'), { target: { value: value.slice(0, 4) } });
+  fireEvent.change(within(calendar).getByLabelText('Месяц'), { target: { value: value.slice(5, 7) } });
+  fireEvent.click(calendar.querySelector(`[data-date="${value.slice(0, 10)}"]`)!);
+  if (value.includes('T')) fireEvent.change(within(calendar).getByLabelText('Время'), { target: { value: value.slice(11, 16) } });
+  fireEvent.click(within(calendar).getByRole('button', { name: 'Применить' }));
+  await waitFor(() => expect(calendar).not.toBeInTheDocument());
+}
 const mount = (element: React.ReactNode) =>
   render(
     <BrowserRouter>
@@ -142,8 +152,7 @@ describe('Academy management', () => {
     await user.click(screen.getByRole('button', { name: 'Настроить' }));
     const dialog = screen.getByRole('dialog', { name: 'Алия' });
     await user.selectOptions(within(dialog).getByLabelText('Должность'), ids[8]);
-    await user.clear(within(dialog).getByLabelText('Первый рабочий день'));
-    await user.type(within(dialog).getByLabelText('Первый рабочий день'), '2026-02-01');
+    await chooseDate('Первый рабочий день', '2026-02-01');
     await user.click(within(dialog).getByLabelText(/Доступ к обучению/));
     await user.click(within(dialog).getByRole('button', { name: 'Сохранить' }));
     await waitFor(() =>
@@ -172,6 +181,20 @@ describe('Academy management', () => {
         dueAt: null,
       }),
     );
+  });
+  it('sets an optional assignment deadline through the calendar without changing local time conversion', async () => {
+    const user = userEvent.setup();
+    mount(<AcademyAdminPage role="branch_manager" />);
+    await user.click(await screen.findByRole('button', { name: 'Сотрудники' }));
+    await user.click(screen.getByRole('button', { name: 'Назначить' }));
+    const dialog = screen.getByRole('dialog', { name: 'Назначить обучение' });
+    await user.selectOptions(within(dialog).getByLabelText('Название *'), ids[0]);
+    await chooseDate('Пройти до (необязательно)', '2026-12-30T18:45');
+    expect(within(dialog).getByLabelText('Пройти до (необязательно)')).toHaveTextContent('30.12.2026 · 18:45');
+    await user.click(within(dialog).getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(mocks.saveLearning).toHaveBeenCalledWith('/assignments', expect.objectContaining({
+      dueAt: new Date('2026-12-30T18:45').toISOString(),
+    })));
   });
   it('requires a review decision for a passed promotion and prevents duplicate actions while saving', async () => {
     const data = fixture();

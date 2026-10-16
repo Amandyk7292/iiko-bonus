@@ -113,8 +113,10 @@
   flex: 1;
 }
 .rounds-filters input,
+.rounds-filters .date-input-trigger,
 .rounds-filters select,
 .rounds-form input:not([type='checkbox']),
+.rounds-form .date-input-trigger,
 .rounds-form select,
 .rounds-form textarea {
   box-sizing: border-box;

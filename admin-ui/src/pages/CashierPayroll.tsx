@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCheck, Download, History, RefreshCw, Search, Wallet } from '../components/BulkaIcons';
 import Modal from '../components/Modal';
+import DateInput from '../components/DateInput';
 import { ApiError, getAdminBranchScope, request } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { exportCashierPayroll } from './cashier-payroll-api';
@@ -202,7 +203,7 @@ export default function CashierPayroll({ active = true, scope = getAdminBranchSc
       </header>
       <div className="cashier-payroll-filters">
         <label className="field-group" htmlFor="cashier-payroll-month"><span>{text.month}</span>
-          <input id="cashier-payroll-month" className="input-classic" type="month" value={month}
+          <DateInput id="cashier-payroll-month" aria-label={text.month} className="input-classic" type="month" value={month}
             onChange={(event) => setMonth(event.target.value)} />
         </label>
         <label className="field-group" htmlFor="cashier-payroll-city"><span>{text.city}</span>

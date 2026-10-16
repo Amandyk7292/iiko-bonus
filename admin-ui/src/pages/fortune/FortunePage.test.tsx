@@ -85,6 +85,16 @@ function wrap(children: React.ReactNode) {
     </BrowserRouter>,
   );
 }
+async function chooseCampaignDate(label: string, value: string) {
+  fireEvent.click(screen.getByLabelText(label));
+  const calendar = screen.getByRole('dialog', { name: 'Выбрать дату' });
+  fireEvent.change(within(calendar).getByLabelText('Год'), { target: { value: value.slice(0, 4) } });
+  fireEvent.change(within(calendar).getByLabelText('Месяц'), { target: { value: value.slice(5, 7) } });
+  fireEvent.click(calendar.querySelector(`[data-date="${value.slice(0, 10)}"]`)!);
+  fireEvent.change(within(calendar).getByLabelText('Время'), { target: { value: value.slice(11, 16) } });
+  fireEvent.click(within(calendar).getByRole('button', { name: 'Применить' }));
+  await waitFor(() => expect(calendar).not.toBeInTheDocument());
+}
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.setItem('adminLocale', 'ru');
@@ -97,6 +107,21 @@ beforeEach(() => {
 });
 
 describe('Fortune administration', () => {
+  it('saves campaign dates and times selected in the shared calendar as the same UTC instants', async () => {
+    const onSaved = vi.fn();
+    wrap(<CampaignEditor campaign={campaign()} branches={[branch]} onClose={vi.fn()} onSaved={onSaved} />);
+    fireEvent.click(screen.getByText('Период акции'));
+    await chooseCampaignDate('Начало', '2026-10-20T10:15');
+    await chooseCampaignDate('Окончание', '2026-10-21T21:45');
+    expect(screen.getByLabelText('Начало')).toHaveTextContent('20.10.2026 · 10:15');
+    expect(screen.getByLabelText('Окончание')).toHaveTextContent('21.10.2026 · 21:45');
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
+    await waitFor(() => expect(mocks.saveCampaign).toHaveBeenCalledWith(campaign().id, expect.objectContaining({
+      startsAt: new Date('2026-10-20T10:15').toISOString(),
+      endsAt: new Date('2026-10-21T21:45').toISOString(),
+    }), expect.any(AbortSignal)));
+    expect(onSaved).toHaveBeenCalledOnce();
+  });
   it('only loads campaign controls for owner/admin', async () => {
     wrap(<FortunePage role="viewer" />);
     expect(screen.getByText('Раздел доступен администратору')).toBeInTheDocument();
