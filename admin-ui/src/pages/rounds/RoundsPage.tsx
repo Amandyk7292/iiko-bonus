@@ -17,6 +17,7 @@ import { roundsApi } from './api';
 import { calendarDays, dayLabel, shiftDay, todayKz } from './model';
 import { CredentialsModal, InspectorForm, RoundForm } from './RoundForms';
 import RoundDetails, { Status } from './RoundDetails';
+import RoundsTableScroll from './RoundsTableScroll';
 import type { Branch, Credentials, Inspector, RoundsData } from './types';
 import { useAutoRefresh } from './useAutoRefresh';
 import './rounds.css';
@@ -337,12 +338,7 @@ export default function RoundsPage() {
                   description="Назначьте сотруднику филиалы в разделе «Сотрудники»."
                 />
               ) : (
-                <div
-                  className="rounds-calendar-wrap"
-                  role="region"
-                  aria-label="Календарь обходов"
-                  tabIndex={0}
-                >
+                <RoundsTableScroll>
                   <table className="rounds-calendar">
                     <thead>
                       <tr>
@@ -402,7 +398,7 @@ export default function RoundsPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </RoundsTableScroll>
               )}
               {branches.length > 0 &&
                 inspectors.some((inspector) => inspector.active) &&

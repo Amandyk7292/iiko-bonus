@@ -206,11 +206,8 @@
   box-sizing: border-box;
   width: 100%;
   overflow: auto;
-  max-height: 75vh;
-  border: 1px solid var(--rounds-line);
-  border-radius: 18px;
+  max-height: 60vh;
   background: #fff;
-  box-shadow: 0 8px 28px #6b431206;
 }
 .rounds-calendar {
   width: 100%;

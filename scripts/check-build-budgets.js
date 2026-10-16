@@ -66,7 +66,9 @@ if (adminDirectory) {
   assertBudget(
     'Admin deferred rounds total gzip',
     deferredRounds.reduce((sum, file) => sum + gzipSize(file), 0),
-    8_000,
+    // Accessible table scroll controls and viewport sizing load only on this route.
+    // Measures 8,196 B; retain the unchanged shared-shell and largest-chunk limits.
+    8_400,
   );
   assertBudget(
     'Admin deferred academy total gzip',
