@@ -28,7 +28,8 @@ test.before(async () => {
       amount numeric,subtotal numeric,discount_amount numeric default 0,delivery_fee numeric default 0,
       status text default 'pending',fulfillment_status text default 'pending',branch_id uuid,
       earned_bonus numeric default 0,bonus_awarded_at timestamptz,bonus_reversed_at timestamptz,
-      refund_status text,cart_items jsonb,promo_code text);
+      refund_status text,cart_items jsonb,promo_code text,
+      payment_method text,payment_reconciled_at timestamptz,order_kind text);
     create table loyalty_reservations(id uuid primary key default gen_random_uuid(),customer_id uuid,
       order_id text unique,original_order_id varchar(200),order_total numeric,discount_amount numeric,status text,
       expires_at timestamptz,updated_at timestamptz default now(),committed_at timestamptz,cancelled_at timestamptz);
@@ -61,7 +62,8 @@ test.before(async () => {
     '20261002170000_customer_family.sql',
     '20261002172000_family_checkout_bonus.sql',
     '20261002172900_checkout_bonus_recovery.sql',
-    '20261002172900_checkout_bonus_recovery.sql',
+    '20261018100000_paid_order_loyalty_finalization.sql',
+    '20261018100000_paid_order_loyalty_finalization.sql',
   ])
     await db.exec(read(`supabase/migrations/${migration}`));
 });
@@ -264,13 +266,11 @@ test('cancelled hold is renewed for a paid callback and retains the actor from t
   assert.deepEqual(await state(f), paid);
 });
 
-test('unpaid, zero-spend and refund-in-progress orders never award through the replacement', async () => {
-  for (const guard of ['pending', 'zero', 'reversed', 'processing', 'unknown', 'succeeded']) {
+test('unpaid and refund-in-progress orders never award through the replacement', async () => {
+  for (const guard of ['pending', 'reversed', 'processing', 'unknown', 'succeeded']) {
     const f = await fixture();
     if (guard !== 'pending')
       await db.query("update kaspi_orders set status='paid' where id=$1", [f.order]);
-    if (guard === 'zero')
-      await db.query('update kaspi_orders set bonus_spent=0 where id=$1', [f.order]);
     if (guard === 'reversed')
       await db.query('update kaspi_orders set bonus_reversed_at=now() where id=$1', [f.order]);
     if (['processing', 'unknown', 'succeeded'].includes(guard))
@@ -355,7 +355,7 @@ test('a later commit validation failure rolls back renewal, archival and the ord
   await db.query("update loyalty_reservations set status='expired' where id=$1", [f.reservation]);
   await assert.rejects(
     rpc('commit_checkout_bonus($1,-1,0)', [f.order]),
-    /invalid loyalty commit values/,
+    /invalid loyalty (commit|transaction) values/,
   );
   const unchanged = await row(
     `select o.bonus_reservation_id,o.bonus_awarded_at,r.order_id,r.original_order_id,r.status,

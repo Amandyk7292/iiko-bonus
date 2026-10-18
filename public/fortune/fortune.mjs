@@ -7,6 +7,22 @@ const routeValid =
   parts.length === 3 && parts[0] === 'fortune' && uuid.test(parts[1]) && uuid.test(parts[2]);
 const endpoint = routeValid ? `/api/fortune/${parts[1]}/${parts[2]}` : null;
 const storageKey = `bulka-fortune:${parts[1]}:${parts[2]}`;
+const prizesStorageKey = `${storageKey}:prizes`;
+let previousPrizes = [];
+try {
+  const values = JSON.parse(sessionStorage.getItem(prizesStorageKey) || '[]');
+  if (Array.isArray(values))
+    previousPrizes = values.filter((value) => {
+      try {
+        fortuneClaimLinks(value.claimToken);
+        return typeof value.label === 'string' && Date.parse(value.expiresAt) > Date.now();
+      } catch {
+        return false;
+      }
+    });
+} catch {
+  /* An unreadable history does not prevent participation. */
+}
 let prizes = [];
 let receiptToken = null;
 let rotation = 0;
@@ -35,6 +51,33 @@ function remember(value) {
     sessionStorage.setItem(storageKey, JSON.stringify(value));
   } catch {
     /* Current tab remains usable. */
+  }
+}
+function renderPreviousPrizes(currentToken) {
+  const links = previousPrizes
+    .filter((value) => value.claimToken !== currentToken && Date.parse(value.expiresAt) > Date.now())
+    .map((value) => {
+      const link = document.createElement('a');
+      link.className = 'button secondary';
+      link.href = fortuneClaimLinks(value.claimToken).web;
+      link.textContent = value.label;
+      return link;
+    });
+  $('previous-prize-list').replaceChildren(...links);
+  $('previous-prizes').hidden = links.length === 0;
+}
+function keepPrize(result) {
+  if (result.win.prizeKind === 'none') return;
+  if (!previousPrizes.some((value) => value.claimToken === result.claimToken))
+    previousPrizes.push({
+      claimToken: result.claimToken,
+      label: result.win.prizeLabel,
+      expiresAt: result.win.expiresAt,
+    });
+  try {
+    sessionStorage.setItem(prizesStorageKey, JSON.stringify(previousPrizes));
+  } catch {
+    /* Keep links available in the current page if tab storage is full. */
   }
 }
 async function request(path, options) {
@@ -123,9 +166,12 @@ function displayReceipt(receipt) {
     `Чек №${receipt.number} · ${new Intl.NumberFormat('ru-KZ', { maximumFractionDigits: 2 }).format(receipt.total)} ₸`;
   $('receipt-step').hidden = true;
   $('spin-step').hidden = false;
+  $('result-step').hidden = true;
+  renderPreviousPrizes();
   $('status').textContent = '';
 }
 function displayWin(result) {
+  keepPrize(result);
   drawing(rotation);
   const noPrize = result.win.prizeKind === 'none';
   const links = noPrize ? null : fortuneClaimLinks(result.claimToken);
@@ -148,10 +194,34 @@ function displayWin(result) {
     $('claim-app').href = links.app;
   }
   $('wheel-frame').classList.toggle('won', !noPrize);
+  renderPreviousPrizes(result.claimToken);
+}
+async function newReceipt() {
+  if (busy) return;
+  busy = true;
+  receiptToken = null;
+  remember(null);
+  rotation = 0;
+  $('photo').value = '';
+  $('receipt').textContent = '';
+  $('result-step').hidden = true;
+  $('spin-step').hidden = true;
+  $('receipt-step').hidden = true;
+  $('wheel').style.transition = 'none';
+  $('wheel').style.transform = 'rotate(0deg)';
+  $('wheel-frame').classList.remove('won');
+  $('status').textContent = 'Загружаем колесо…';
+  renderPreviousPrizes();
+  try {
+    await load();
+  } finally {
+    busy = false;
+  }
 }
 async function load() {
   clearError();
   $('retry').hidden = true;
+  renderPreviousPrizes();
   if (!endpoint) {
     showError(new Error('Ссылка на колесо недействительна. Отсканируйте QR в пекарне.'));
     $('status').textContent = '';
@@ -282,6 +352,7 @@ async function spin() {
 $('photo').addEventListener('change', upload);
 $('spin').addEventListener('click', spin);
 $('retry').addEventListener('click', () => retryAction());
+$('new-receipt').addEventListener('click', newReceipt);
 load();
 document.fonts.ready.then(() => {
   if (prizes.length) drawing($('result-step').hidden ? 0 : rotation);

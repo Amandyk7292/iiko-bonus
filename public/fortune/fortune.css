@@ -238,6 +238,23 @@ h2 {
   font-size: 12px;
   min-height: 44px;
 }
+.previous-prizes {
+  margin-top: 20px;
+  border-top: 1px solid #782b0e24;
+  padding-top: 12px;
+  text-align: left;
+}
+.previous-prizes summary {
+  display: list-item;
+  min-height: 44px;
+  padding: 12px 0;
+  cursor: pointer;
+  font-size: 13px;
+}
+.previous-prizes summary:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
 .error {
   margin: 0 0 16px;
   padding: 12px 14px;

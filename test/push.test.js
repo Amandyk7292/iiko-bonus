@@ -418,6 +418,27 @@ test('closed delivery replaces the persistent Android status', async () => {
   assert.equal(message.android.notification.sticky, false);
 });
 
+test('successive order state events share provider collapse keys across all transports', async () => {
+  const messages = [];
+  for (const orderStatus of ['ready', 'completed']) {
+    await sendPushNotificationDetailed('device-token-delivery-1234567890', 'Title', 'Body', {
+      type: 'order',
+      orderId: 'order-collapse-test',
+      orderStatus,
+      pushDedupeKey: `different-event-${orderStatus}`,
+    });
+    messages.push(sentMessages.at(-1));
+  }
+  for (const message of messages) {
+    assert.equal(message.android.collapseKey, 'bulka-order-order-collapse-test');
+    assert.equal(message.android.notification.tag, 'bulka-order-order-collapse-test');
+    assert.equal(message.apns.headers['apns-collapse-id'], 'bulka-order-order-collapse-test');
+    assert.equal(message.webpush.notification.tag, 'bulka-order-order-collapse-test');
+  }
+  assert.equal(messages[0].android.notification.sticky, true);
+  assert.equal(messages[1].android.notification.sticky, false);
+});
+
 test('push migration enforces one token and installation owner', () => {
   const sql = fs.readFileSync(
     path.join(__dirname, '..', 'supabase', 'migrations', '20260715193000_push_device_tokens.sql'),

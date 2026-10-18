@@ -109,8 +109,49 @@ test('the newest exact CI run must be completed successfully', () => {
         headSha: SHA,
         repository: REPOSITORY,
       }),
-    /No \.github\/workflows\/ci\.yml push run/,
+    /No \.github\/workflows\/ci\.yml push or workflow_dispatch run/,
   );
+});
+
+test('manual CI may supply the exact release but cannot bypass commit, branch, workflow, repository or latest-failure guards', () => {
+  const manual = successfulRun({ event: 'workflow_dispatch' });
+  assert.equal(
+    requireSuccessfulWorkflowRun([manual], { headSha: SHA, repository: REPOSITORY }),
+    manual,
+  );
+  for (const invalid of [
+    { head_sha: OTHER_SHA },
+    { head_branch: 'feature' },
+    { path: '.github/workflows/another.yml' },
+    { head_repository: { full_name: 'another/repository' } },
+    { event: 'pull_request' },
+    { event: 'schedule' },
+  ]) {
+    assert.throws(
+      () =>
+        requireSuccessfulWorkflowRun([{ ...manual, ...invalid }], {
+          headSha: SHA,
+          repository: REPOSITORY,
+        }),
+      /No .* run exists/,
+    );
+  }
+  for (const event of ['push', 'workflow_dispatch']) {
+    const failed = successfulRun({
+      event,
+      id: 2222,
+      updated_at: '2026-08-08T11:00:00Z',
+      conclusion: 'failure',
+    });
+    assert.throws(
+      () =>
+        requireSuccessfulWorkflowRun([manual, failed], {
+          headSha: SHA,
+          repository: REPOSITORY,
+        }),
+      /completed\/failure/,
+    );
+  }
 });
 
 test('production artifact must be exact, unique, current, and unexpired', () => {
@@ -147,51 +188,59 @@ test('production artifact must be exact, unique, current, and unexpired', () => 
   );
 });
 
-test('full provenance check is deterministic with offline Git and HTTP mocks', async () => {
-  const commands = new Map([
-    ['status --porcelain=v1 --untracked-files=all', ''],
-    ['rev-parse --abbrev-ref HEAD', 'main'],
-    ['rev-parse HEAD', SHA],
-    ['remote get-url origin', 'https://github.com/Amandyk7292/iiko-bonus.git'],
-    ['ls-remote --exit-code origin refs/heads/main', `${SHA}\trefs/heads/main`],
-  ]);
-  const requestedUrls = [];
-  const result = await checkReleaseProvenance({
-    cwd: process.cwd(),
-    token: 'test-token',
-    gitRunner(args) {
-      const key = args.join(' ');
-      assert.ok(commands.has(key), `Unexpected Git command: ${key}`);
-      return commands.get(key);
-    },
-    async fetchImpl(url, options) {
-      requestedUrls.push(url);
-      assert.equal(options.headers.Authorization, 'Bearer test-token');
-      if (url.includes('/actions/runs/1234/artifacts')) {
+for (const event of ['push', 'workflow_dispatch'])
+  test(`full provenance accepts an exact ${event} artifact with offline Git and HTTP mocks`, async () => {
+    const commands = new Map([
+      ['status --porcelain=v1 --untracked-files=all', ''],
+      ['rev-parse --abbrev-ref HEAD', 'main'],
+      ['rev-parse HEAD', SHA],
+      ['remote get-url origin', 'https://github.com/Amandyk7292/iiko-bonus.git'],
+      ['ls-remote --exit-code origin refs/heads/main', `${SHA}\trefs/heads/main`],
+    ]);
+    const requestedUrls = [];
+    const result = await checkReleaseProvenance({
+      cwd: process.cwd(),
+      token: 'test-token',
+      gitRunner(args) {
+        const key = args.join(' ');
+        assert.ok(commands.has(key), `Unexpected Git command: ${key}`);
+        return commands.get(key);
+      },
+      async fetchImpl(url, options) {
+        requestedUrls.push(url);
+        assert.equal(options.headers.Authorization, 'Bearer test-token');
+        if (url.includes('/actions/runs/1234/artifacts')) {
+          return {
+            ok: true,
+            status: 200,
+            async json() {
+              return { artifacts: [productionArtifact()] };
+            },
+          };
+        }
         return {
           ok: true,
           status: 200,
           async json() {
-            return { artifacts: [productionArtifact()] };
+            return { workflow_runs: [successfulRun({ event })] };
           },
         };
-      }
-      return {
-        ok: true,
-        status: 200,
-        async json() {
-          return { workflow_runs: [successfulRun()] };
-        },
-      };
-    },
+      },
+    });
+    assert.equal(result.commitSha, SHA);
+    assert.equal(result.workflowRunId, 1234);
+    assert.equal(result.artifactId, 5678);
+    assert.match(requestedUrls[0], /actions\/workflows\/ci\.yml\/runs/);
+    assert.match(requestedUrls[0], new RegExp(`head_sha=${SHA}`));
+    const lookup = new URL(requestedUrls[0]);
+    assert.equal(lookup.searchParams.get('branch'), 'main');
+    assert.equal(
+      lookup.searchParams.has('event'),
+      false,
+      'Lookup must not filter out manual CI runs',
+    );
+    assert.match(requestedUrls[1], /actions\/runs\/1234\/artifacts/);
   });
-  assert.equal(result.commitSha, SHA);
-  assert.equal(result.workflowRunId, 1234);
-  assert.equal(result.artifactId, 5678);
-  assert.match(requestedUrls[0], /actions\/workflows\/ci\.yml\/runs/);
-  assert.match(requestedUrls[0], new RegExp(`head_sha=${SHA}`));
-  assert.match(requestedUrls[1], /actions\/runs\/1234\/artifacts/);
-});
 
 test('artifact download verifies GitHub digest before an atomic write', async (t) => {
   const bytes = Buffer.from('attested CI artifact');

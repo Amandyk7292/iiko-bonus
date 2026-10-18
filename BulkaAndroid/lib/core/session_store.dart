@@ -108,6 +108,7 @@ abstract final class SessionStore {
     'transactions',
     'accessToken',
     'refreshToken',
+    'notification_preferences_cache_v1',
   };
 
   static const _scopedCustomerPrefixes = {
@@ -124,6 +125,7 @@ abstract final class SessionStore {
     'customer_orders_cache_',
     'pending_gift_purchase_v1_',
     'pending_forte_operation_v1_',
+    'notification_preferences_cache_v2_',
   };
 
   static Future<void> write(String accessToken, String? refreshToken) =>

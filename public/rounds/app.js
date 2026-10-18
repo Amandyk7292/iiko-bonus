@@ -15,6 +15,7 @@
     comments: new Map(),
     taskErrors: new Map(),
     completing: new Set(),
+    completionQueue: Promise.resolve(),
     camera: null,
   };
   const dateCalendar = window.BulkaCalendar.attach($('round-date'), {
@@ -108,6 +109,8 @@
   }
   function showLogin(message = '') {
     state.epoch++;
+    state.completing.clear();
+    state.completionQueue = Promise.resolve();
     closeCamera();
     abortUploads();
     state.uploads.forEach(disposeUpload);
@@ -192,6 +195,8 @@
   async function loadList(quiet = false) {
     if (!state.inspector) return;
     const epoch = ++state.epoch;
+    state.completing.clear();
+    state.completionQueue = Promise.resolve();
     closeCamera();
     if (!quiet) abortUploads();
     state.round = null;
@@ -418,6 +423,8 @@
     closeCamera();
     abortUploads();
     const epoch = ++state.epoch;
+    state.completing.clear();
+    state.completionQueue = Promise.resolve();
     state.round = null;
     state.detailId = id;
     view('detail');
@@ -610,23 +617,31 @@
     )
       return;
     const epoch = state.epoch;
+    const comment = state.comments.get(id) || '';
     state.completing.add(id);
     state.taskErrors.delete(id);
     renderDetail();
     try {
-      const data = await request('/tasks/' + encodeURIComponent(id) + '/complete', {
-        method: 'POST',
-        body: { comment: state.comments.get(id) || '' },
+      const pending = state.completionQueue.then(async () => {
+        if (epoch !== state.epoch) return;
+        const data = await request('/tasks/' + encodeURIComponent(id) + '/complete', {
+          method: 'POST',
+          body: { comment },
+        });
+        if (epoch !== state.epoch) return;
+        state.round = data.round;
+        state.comments.delete(id);
+        announce(state.round.status === 'completed' ? 'Обход выполнен.' : 'Задание выполнено.');
       });
-      if (epoch !== state.epoch) return;
-      state.round = data.round;
-      state.comments.delete(id);
-      announce(state.round.status === 'completed' ? 'Обход выполнен.' : 'Задание выполнено.');
+      state.completionQueue = pending.catch(() => {});
+      await pending;
     } catch (error) {
       if (epoch === state.epoch) state.taskErrors.set(id, errorMessage(error));
     } finally {
-      state.completing.delete(id);
-      if (epoch === state.epoch) renderDetail();
+      if (epoch === state.epoch) {
+        state.completing.delete(id);
+        renderDetail();
+      }
     }
   }
   async function removeMedia(id, taskId, button) {

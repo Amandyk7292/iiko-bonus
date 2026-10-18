@@ -6,9 +6,13 @@ abstract final class OrderLiveStatus {
   );
   static BulkaApiClient? _api;
   static String? _lastPayload;
+  static int _syncGeneration = 0;
   static Timer? _expiryTimer;
   static final _pendingTokens = <String, Map<String, dynamic>>{};
   static final _registeringTokens = <String>{};
+  static BulkaApiClient? _preferencesClient;
+  static String? _preferencesScope;
+  static Future<NotificationPreferences>? _preferencesLoad;
 
   static void attach(BulkaApiClient api) {
     _api = api;
@@ -70,20 +74,55 @@ abstract final class OrderLiveStatus {
   }
 
   static Future<bool> _ordersEnabled() async {
+    final client = _api;
+    final scope = client?.sessionCacheScope;
+    if (scope == null) return true;
+    bool sameAccount() =>
+        identical(client, _api) && scope == client!.sessionCacheScope;
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_notificationPreferencesCacheKey);
-    if (raw == null) return true;
+    if (!sameAccount()) return false;
+    final cacheKey = _notificationPreferencesCacheKey(scope);
+    bool? cachedPreference() {
+      final raw = prefs.getString(cacheKey);
+      if (raw == null) return null;
+      try {
+        return NotificationPreferences.fromJson(
+          _asMap(jsonDecode(raw)),
+        ).ordersEnabled;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final cached = cachedPreference();
+    if (cached != null) return cached;
+    final pending =
+        identical(_preferencesClient, client) && _preferencesScope == scope
+        ? _preferencesLoad
+        : null;
+    final loading = pending ?? client!.getNotificationPreferences();
+    _preferencesClient = client;
+    _preferencesScope = scope;
+    _preferencesLoad = loading;
     try {
-      return NotificationPreferences.fromJson(
-        _asMap(jsonDecode(raw)),
-      ).ordersEnabled;
+      final remote = await loading;
+      if (!sameAccount()) return false;
+      // A settings save may have completed while the GET was in flight.
+      final saved = cachedPreference();
+      if (saved != null) return saved;
+      await prefs.setString(cacheKey, jsonEncode(remote.toJson()));
+      return sameAccount() && remote.ordersEnabled;
     } catch (_) {
-      return true;
+      // Retry on the next refresh without inventing a stored user preference.
+      return false;
+    } finally {
+      if (identical(_preferencesLoad, loading)) _preferencesLoad = null;
     }
   }
 
   static Future<void> sync(CustomerOrder? order) async {
     if (kIsWeb) return;
+    final generation = ++_syncGeneration;
     _expiryTimer?.cancel();
     _expiryTimer = null;
     final expiresAt =
@@ -91,11 +130,24 @@ abstract final class OrderLiveStatus {
         ? order.liveActivityExpiresAt
         : null;
     final expired = expiresAt != null && !expiresAt.isAfter(DateTime.now());
+    final client = _api;
+    final scope = client?.sessionCacheScope;
+    final enabled =
+        order != null &&
+        order.paymentStatus == 'paid' &&
+        !order.isClosed &&
+        !expired &&
+        await _ordersEnabled();
+    if (generation != _syncGeneration ||
+        !identical(client, _api) ||
+        scope != client?.sessionCacheScope) {
+      return;
+    }
     if (order == null ||
         order.paymentStatus != 'paid' ||
         order.isClosed ||
         expired ||
-        !(await _ordersEnabled())) {
+        !enabled) {
       await clear(order: order, dismissImmediately: expired);
       return;
     }
@@ -130,7 +182,9 @@ abstract final class OrderLiveStatus {
         'updateOrderStatus',
         payload,
       );
-      if (applied != false) _lastPayload = encoded;
+      if (applied != false && generation == _syncGeneration) {
+        _lastPayload = encoded;
+      }
     } catch (error) {
       debugPrint('Native order status unavailable: $error');
     }
@@ -141,6 +195,7 @@ abstract final class OrderLiveStatus {
     bool dismissImmediately = false,
   }) async {
     if (kIsWeb) return;
+    _syncGeneration++;
     _expiryTimer?.cancel();
     _expiryTimer = null;
     _lastPayload = null;

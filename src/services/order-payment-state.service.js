@@ -222,7 +222,7 @@ class OrderPaymentStateService {
   async awardOrderBonus(order) {
     if (!order?.customer_id || order.bonus_awarded_at) return order;
     const bonusCustomerId = order.bonus_customer_id || order.customer_id;
-    const { getCustomerById, applyLoyaltyTransaction } = require('./customer.service');
+    const { getCustomerById } = require('./customer.service');
     const { getSettings } = require('./settings.service');
     const { getActiveLoyaltyTiers } = require('./tier.service');
     const { getTierInfo } = require('../utils/tier.util');
@@ -239,32 +239,18 @@ class OrderPaymentStateService {
       settings.bonus_activation?.enabled === false
         ? 0
         : Number(settings.bonus_activation?.delay_days || 0);
-    if (Number(order.bonus_spent || 0) > 0) {
-      const { commitCheckoutBonus } = require('./checkout-bonus.service');
-      const result = await commitCheckoutBonus(order, earnedBonus, activationDelayDays);
-      if (result?.status !== 'committed') return null;
-      queueCustomerLoyaltySync(bonusCustomerId);
-      return { ...order, earned_bonus: earnedBonus, bonus_awarded_at: new Date().toISOString() };
-    }
-    await applyLoyaltyTransaction({
-      customerId: bonusCustomerId,
-      orderId: `kaspi:${order.operation_id}`,
-      discountAmount: 0,
-      earnedBonus,
-      orderTotal: eligibleAmount,
-      realMoneyPaid: eligibleAmount,
-      activationDelayDays,
-      items: order.cart_items,
-      branchId: order.branch_id,
-    });
-    const { data, error } = await supabase
-      .from('kaspi_orders')
-      .update({ earned_bonus: earnedBonus, bonus_awarded_at: new Date().toISOString() })
-      .eq('id', order.id)
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
+    // Cashback-only purchases need the same order lock as bonus spending.
+    // The RPC rechecks refund/payment state and commits the ledger and marker
+    // together, so a stale paid snapshot cannot earn after a full refund.
+    const { commitCheckoutBonus } = require('./checkout-bonus.service');
+    const result = await commitCheckoutBonus(order, earnedBonus, activationDelayDays);
+    if (result?.status !== 'committed') return null;
+    queueCustomerLoyaltySync(bonusCustomerId);
+    return {
+      ...order,
+      earned_bonus: Number(result.earnedBonus ?? earnedBonus),
+      bonus_awarded_at: result.bonusAwardedAt || new Date().toISOString(),
+    };
   }
 
   async recordPaidOrder(operationId) {
@@ -390,7 +376,16 @@ class OrderPaymentStateService {
     let recorded = order;
     if (Number(order.bonus_spent || 0) > 0 && !order.bonus_awarded_at) {
       recorded = await this.awardOrderBonus(order);
-      if (!recorded) return refundUnavailableOrder('Бонусы для этого заказа уже недоступны');
+      if (!recorded) {
+        const latest = await this.getOrderStatus(order.operation_id, order.customer_id);
+        if (
+          latest.status !== 'paid' ||
+          ['processing', 'unknown', 'succeeded'].includes(String(latest.refund_status || '')) ||
+          latest.bonus_reversed_at
+        )
+          return latest;
+        return refundUnavailableOrder('Бонусы для этого заказа уже недоступны');
+      }
     }
     if (order.fulfillment_status === 'pending' || lateCleanupCancellation) {
       const { data, error } = await supabase
@@ -433,6 +428,9 @@ class OrderPaymentStateService {
       }
     }
     const finalOrder = recorded.bonus_awarded_at ? recorded : await this.awardOrderBonus(recorded);
+    if (!finalOrder) {
+      return this.getOrderStatus(order.operation_id, order.customer_id);
+    }
     await recordSystemEvent(finalOrder.customer_id, {
       type: 'payment_paid',
       orderId: finalOrder.id,

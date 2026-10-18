@@ -1,6 +1,7 @@
 part of '../main.dart';
 
-const _notificationPreferencesCacheKey = 'notification_preferences_cache_v1';
+String _notificationPreferencesCacheKey(String? scope) =>
+    customerPreferenceKey('notification_preferences_cache_v2', scope);
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({required this.api, super.key});
@@ -17,17 +18,24 @@ class _NotificationSettingsScreenState
   bool _loading = true;
   bool _saving = false;
   bool _dirty = false;
+  int _editRevision = 0;
   String? _error;
+  late final String? _sessionScope;
+  bool get _sameAccount => _sessionScope == widget.api.sessionCacheScope;
+  String get _cacheKey => _notificationPreferencesCacheKey(_sessionScope);
 
   @override
   void initState() {
     super.initState();
+    _sessionScope = widget.api.sessionCacheScope;
     unawaited(_load());
   }
 
   Future<void> _load() async {
+    final revision = _editRevision;
     final prefs = await SharedPreferences.getInstance();
-    final cached = prefs.getString(_notificationPreferencesCacheKey);
+    if (!mounted || !_sameAccount) return;
+    final cached = prefs.getString(_cacheKey);
     if (cached != null) {
       try {
         final decoded = _asMap(jsonDecode(cached));
@@ -41,25 +49,26 @@ class _NotificationSettingsScreenState
     }
     try {
       final remote = await widget.api.getNotificationPreferences();
-      await prefs.setString(
-        _notificationPreferencesCacheKey,
-        jsonEncode(remote.toJson()),
-      );
-      if (!mounted) return;
+      if (!mounted || !_sameAccount || revision != _editRevision) return;
+      await prefs.setString(_cacheKey, jsonEncode(remote.toJson()));
+      if (!mounted || !_sameAccount || revision != _editRevision) return;
       setState(() {
         _preferences = remote;
         _error = null;
-        _dirty = false;
       });
     } catch (error) {
-      if (mounted) setState(() => _error = localizeErrorMessage(error));
+      if (mounted && _sameAccount) {
+        setState(() => _error = localizeErrorMessage(error));
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && _sameAccount) setState(() => _loading = false);
     }
   }
 
   void _change(NotificationPreferences value) {
+    if (_saving || !_sameAccount) return;
     setState(() {
+      _editRevision++;
       _preferences = value;
       _dirty = true;
       _error = null;
@@ -97,34 +106,36 @@ class _NotificationSettingsScreenState
   }
 
   Future<void> _save() async {
-    if (_saving || !_dirty) return;
+    if (_saving || !_dirty || !_sameAccount) return;
     setState(() => _saving = true);
     try {
       final saved = await widget.api.updateNotificationPreferences(
         _preferences,
       );
+      if (!mounted || !_sameAccount) return;
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        _notificationPreferencesCacheKey,
-        jsonEncode(saved.toJson()),
-      );
+      if (!mounted || !_sameAccount) return;
+      await prefs.setString(_cacheKey, jsonEncode(saved.toJson()));
+      if (!mounted || !_sameAccount) return;
       if (!saved.ordersEnabled) await OrderLiveStatus.clear();
-      if (!mounted) return;
+      if (!mounted || !_sameAccount) return;
       setState(() {
         _preferences = saved;
         _dirty = false;
         _error = null;
       });
       await BulkaMotion.confirm();
-      if (mounted) {
+      if (mounted && _sameAccount) {
         ScaffoldMessenger.of(context).showSnackBar(
           bulkaSnackBar(content: Text('notifications_settings_saved'.tr)),
         );
       }
     } catch (error) {
-      if (mounted) setState(() => _error = localizeErrorMessage(error));
+      if (mounted && _sameAccount) {
+        setState(() => _error = localizeErrorMessage(error));
+      }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted && _sameAccount) setState(() => _saving = false);
     }
   }
 

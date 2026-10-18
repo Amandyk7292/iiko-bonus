@@ -44,7 +44,7 @@ test('referral reward settings survive save and reload on every screen size', as
     };
     return route.fulfill({ status: path in responses ? 200 : 404, json: responses[path] ?? {} });
   });
-  await page.goto('/admin/bonus');
+  await page.goto('/admin/bonus?tab=settings');
   await page.waitForLoadState('networkidle');
   await expect(page.getByLabel('Пригласившему, ₸ бонусами')).toHaveValue('1000');
   await page.getByLabel('Пригласившему, ₸ бонусами').fill('1500');
@@ -87,7 +87,7 @@ test('referral report shows rewards, POS failures and records an audited review'
       return route.fulfill({ contentType: 'text/event-stream', body: '' });
     if (path.endsWith('/review')) {
       decision = route.request().postDataJSON();
-      item.review_state = 'approved';
+      item.review_state = 'rejected';
       return route.fulfill({ json: { success: true } });
     }
     const responses: Record<string, unknown> = {
@@ -136,6 +136,7 @@ test('referral report shows rewards, POS failures and records an audited review'
         canReview: true,
         posError: false,
         pos: {
+          summary: { total: 1, online: 0, attention: 1, openCases: 0 },
           devices: [
             {
               id: 'terminal',
@@ -149,6 +150,9 @@ test('referral report shows rewards, POS failures and records an audited review'
               health: 'offline',
               lastError: 'Нет связи с сервером',
               queues: { loyaltyFailed: 2, offlineReceipts: 3 },
+              statuses: {},
+              printerStatus: 'unknown',
+              connectedToMain: false,
             },
           ],
         },
@@ -156,19 +160,25 @@ test('referral report shows rewards, POS failures and records an audited review'
     };
     return route.fulfill({ status: path in responses ? 200 : 404, json: responses[path] ?? {} });
   });
-  await page.goto('/admin/bonus');
+  await page.goto('/admin/bonus?tab=referrals');
+  await page.locator('.bonus-invitation > details > summary').click();
   await expect(
     page.getByText('Повторные регистрации с одного устройства', { exact: true }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Рассмотреть', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Одобрить', exact: true })).toBeDisabled();
   await page.getByLabel('Причина решения').fill('Проверено по обращению клиента');
-  await page.getByRole('button', { name: 'Одобрить', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Одобрить', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Отклонить', exact: true }).click();
   await expect
     .poll(() => decision)
-    .toEqual({ action: 'approve', note: 'Проверено по обращению клиента' });
+    .toEqual({ action: 'reject', note: 'Проверено по обращению клиента' });
+  await page.getByRole('tab', { name: 'Кассы', exact: true }).click();
+  await page.locator('.bonus-device > details > summary').click();
   await expect(page.getByText('Нет связи с сервером')).toBeVisible();
-  await expect(page.getByText('Ошибки бонусов: 2 · Офлайн-чеки: 3')).toBeVisible();
+  const queues = page.locator('.bonus-device .bonus-detail-list');
+  await expect(queues.locator('div').filter({ hasText: 'Ошибки бонусов' })).toHaveText('Ошибки бонусов2');
+  await expect(queues.locator('div').filter({ hasText: 'Офлайн-чеки' })).toHaveText('Офлайн-чеки3');
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
   ).toBeLessThanOrEqual(1);

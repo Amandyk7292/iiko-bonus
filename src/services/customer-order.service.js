@@ -623,6 +623,8 @@ async function notifyOrderStatus(order) {
         orderId: String(order.id),
         orderNumber: String(order.order_number),
         orderStatus: String(order.fulfillment_status || ''),
+        orderPaymentStatus: String(order.status || ''),
+        orderUpdatedAt: String(order.updated_at || ''),
         fulfillmentType: effectiveFulfillmentType(order),
         orderEta: String(order.promised_ready_at || order.estimated_delivery_at || ''),
         deepLink: `${String(process.env.PUBLIC_BASE_URL || 'https://bulka.com.kz').replace(/\/$/, '')}/orders?order=${encodeURIComponent(order.id)}`,

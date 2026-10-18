@@ -45,6 +45,11 @@ async function setup(page: Page, admin = false) {
       writes.push(route.request().postDataJSON());
       return route.fulfill({ json: { success: true } });
     }
+    if (['/assets/brand/bulka-calendar.js', '/assets/brand/bulka-calendar.css'].includes(url.pathname))
+      return route.fulfill({
+        body: await readFile(path.resolve('../public', url.pathname.slice(1))),
+        contentType: url.pathname.endsWith('.js') ? 'text/javascript' : 'text/css',
+      });
     const file =
       url.pathname === '/pricegenerator' ? 'index.html' : url.pathname.split('/').at(-1)!;
     if (url.pathname.startsWith('/pricegenerator') && assets.has(file))

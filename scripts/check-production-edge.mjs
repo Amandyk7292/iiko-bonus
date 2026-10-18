@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { isValidReleaseVersion } from './finalize-flutter-web.js';
+
 const baseUrl = new URL(process.env.PRODUCTION_BASE_URL || 'https://bulka.com.kz');
 const canonicalHost = baseUrl.hostname;
 const wwwUrl = new URL(baseUrl.toString());
@@ -59,12 +61,16 @@ await check('release-provenance', async () => {
   const { response } = await request('/release-version.json');
   if (!response.ok) throw new Error(`release version returned ${response.status}`);
   const body = await response.json();
-  // Local releases use the same 12-character Git revision as the web cache keys;
-  // CI artifacts may use the full commit SHA.
-  if (!/^(?:[a-f0-9]{12}|[a-f0-9]{40})$/.test(String(body?.version || ''))) {
-    throw new Error('release version is not a commit SHA');
+  // Use the builder's contract: both Git revisions and explicit release labels
+  // are valid cache keys. Artifact provenance is checked by the release gate.
+  if (!isValidReleaseVersion(body?.version)) {
+    throw new Error('release version must be 6-64 URL-safe characters');
   }
-  if (!/^[a-f0-9]{64}$/.test(String(body?.mainSha256 || ''))) {
+  if (
+    typeof body?.mainSha256 !== 'string' ||
+    body.mainSha256.length !== 64 ||
+    !/^[a-f0-9]{64}$/.test(body.mainSha256)
+  ) {
     throw new Error('release bundle checksum is invalid');
   }
 });

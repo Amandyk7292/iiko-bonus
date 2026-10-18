@@ -662,9 +662,9 @@ class ForteService {
     const metadata = {
       provider_payment_confirmed_at: nextStatus === 'paid' ? new Date().toISOString() : null,
       provider_status: normalized.status || 'Unknown',
-      payment_reconciled_at: FINAL_PAYMENT_STATUSES.has(nextStatus)
-        ? new Date().toISOString()
-        : null,
+      // A final bank state is not yet a completed local finalization. Keep
+      // recovery eligible until inventory, loyalty and fulfillment succeed.
+      payment_reconciled_at: null,
       last_error:
         nextStatus === 'failed' || nextStatus === 'expired'
           ? `ForteBank: ${normalized.status || 'Unknown'}`
@@ -707,6 +707,17 @@ class ForteService {
       typeof this.orderService.reverseOrderLoyalty === 'function'
     ) {
       updatedOrder = (await this.orderService.reverseOrderLoyalty(updatedOrder)) || updatedOrder;
+    }
+    if (FINAL_PAYMENT_STATUSES.has(nextStatus) && updatedOrder.status === nextStatus) {
+      const { data: finalized, error: finalizationError } = await this.db
+        .from('kaspi_orders')
+        .update({ payment_reconciled_at: new Date().toISOString() })
+        .eq('id', order.id)
+        .eq('status', nextStatus)
+        .select('*')
+        .maybeSingle();
+      if (finalizationError) throw finalizationError;
+      updatedOrder = finalized || updatedOrder;
     }
     return { order: updatedOrder, status: nextStatus, providerStatus: normalized.status };
   }

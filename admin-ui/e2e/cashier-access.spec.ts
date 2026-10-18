@@ -118,7 +118,7 @@ test('owner creates a password cashier for exactly one branch', async ({ page },
   const cashier = page.getByRole('button', { name: /Алия Актау 17.*cashier\.aktau\.17/ });
   await expect(cashier).toBeVisible();
   await cashier.click();
-  await expect(page.getByText('Вход по логину и паролю', { exact: true })).toBeVisible();
+  await expect(cashier.getByText('Вход по логину и паролю', { exact: true })).toBeVisible();
   expect(createdBody).toEqual({
     username: 'cashier.aktau.17',
     password: 'BulkaCashier17',

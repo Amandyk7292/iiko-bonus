@@ -36,17 +36,28 @@ function deliveryDb(
     owners = row.pending_tokens.map((token) => ({ token, customer_id: row.customer_id })),
     customer = { id: row.customer_id },
     ownerError = null,
+    order = null,
+    orderError = null,
   } = {},
 ) {
   const updates = [];
   return {
     updates,
+    orderReads: 0,
     async rpc(name, args) {
       assert.equal(name, 'claim_push_notification_outbox');
       assert.equal(args.p_limit, 50);
       return { data: [row], error: null };
     },
     from(table) {
+      if (table === 'kaspi_orders') {
+        this.orderReads++;
+        return {
+          select: () => ({
+            eq: () => ({ maybeSingle: async () => ({ data: order, error: orderError }) }),
+          }),
+        };
+      }
       if (table === 'customer_push_tokens')
         return { select: () => ({ in: async () => ({ data: owners, error: ownerError }) }) };
       if (table === 'customers')
@@ -252,6 +263,160 @@ test('ownership lookup failure retries without delivering private data', async (
   );
   assert.equal(sends, 0);
   assert.equal(db.updates.at(-1).values.status, 'retry');
+});
+
+test('a rejected ready push is skipped after collected notification succeeds', async () => {
+  const order = {
+    id: 'order-1',
+    customer_id: queuedRow().customer_id,
+    status: 'paid',
+    fulfillment_status: 'ready',
+    delivery_status: 'unassigned',
+    updated_at: '2026-10-18T07:00:00Z',
+  };
+  const ready = queuedRow({
+    payload: { type: 'order', orderId: order.id, orderStatus: 'ready' },
+  });
+  const readyDb = deliveryDb(ready, { order });
+  const accepted = [];
+  const rejected = await deliverPushOutbox(
+    {
+      sendToken: async () => ({
+        delivered: false,
+        terminal: false,
+        error: 'messaging/server-unavailable',
+      }),
+    },
+    { db: readyDb },
+  );
+  assert.equal(rejected[0].status, 'retry');
+  Object.assign(order, { fulfillment_status: 'completed', updated_at: '2026-10-18T07:01:00Z' });
+  const completedDb = deliveryDb(
+    queuedRow({
+      id: 'completed-push',
+      payload: { type: 'order', orderId: order.id, orderStatus: 'completed' },
+    }),
+    { order },
+  );
+  const sendToken = async (_token, _title, _body, data) => {
+    accepted.push(data.orderStatus);
+    assert.equal(data.orderUpdatedAt, order.updated_at);
+    return { delivered: true, terminal: true };
+  };
+  assert.equal((await deliverPushOutbox({ sendToken }, { db: completedDb }))[0].status, 'sent');
+  Object.assign(ready, readyDb.updates.at(-1).values, {
+    status: 'processing',
+    attempt_count: 2,
+    lease_token: 'second-ready-lease',
+  });
+  const [retry] = await deliverPushOutbox({ sendToken }, { db: readyDb });
+  assert.equal(retry.status, 'skipped');
+  assert.equal(retry.attempted, 0);
+  assert.equal(readyDb.updates.at(-1).values.last_error, 'Order notification superseded');
+  assert.deepEqual(accepted, ['completed', 'completed']); // two installations, only final state
+  assert.equal(readyDb.orderReads, 2);
+  assert.equal(completedDb.orderReads, 1);
+});
+
+for (const [name, fields, payload] of [
+  ['advanced fulfillment', { fulfillment_status: 'completed' }, { orderStatus: 'ready' }],
+  ['advanced delivery', { delivery_status: 'delivered' }, { deliveryStatus: 'en_route' }],
+  ['different owner', { customer_id: 'another-customer' }, { orderStatus: 'ready' }],
+  [
+    'new refund state',
+    { status: 'refunded' },
+    { orderStatus: 'ready', orderPaymentStatus: 'paid' },
+  ],
+  ['deleted order', null, { orderStatus: 'ready' }],
+]) {
+  test(`outbox suppresses obsolete order push: ${name}`, async () => {
+    const order = fields && {
+      customer_id: queuedRow().customer_id,
+      fulfillment_status: 'ready',
+      status: 'paid',
+      delivery_status: 'en_route',
+      ...fields,
+    };
+    const db = deliveryDb(
+      queuedRow({
+        payload: {
+          type: payload.deliveryStatus ? 'delivery' : 'order',
+          orderId: 'order-1',
+          ...payload,
+        },
+      }),
+      { order },
+    );
+    let sends = 0;
+    const [outcome] = await deliverPushOutbox(
+      {
+        sendToken: async () => {
+          sends++;
+        },
+      },
+      { db },
+    );
+    assert.equal(outcome.status, 'skipped');
+    assert.equal(sends, 0);
+    assert.equal(
+      db.updates.some(({ values }) => values.in_flight_tokens?.length),
+      false,
+    );
+  });
+}
+
+test('an unavailable order read safely retries before any provider call', async () => {
+  const db = deliveryDb(
+    queuedRow({
+      payload: { type: 'order', orderId: 'order-1', orderStatus: 'ready' },
+    }),
+    { orderError: new Error('Order database unavailable') },
+  );
+  let sends = 0;
+  await assert.rejects(
+    deliverPushOutbox(
+      {
+        sendToken: async () => {
+          sends++;
+        },
+      },
+      { db },
+    ),
+    /Order database unavailable/,
+  );
+  assert.equal(sends, 0);
+  assert.equal(db.updates.at(-1).values.status, 'retry');
+  assert.equal(
+    db.updates.some(({ values }) => values.in_flight_tokens?.length),
+    false,
+  );
+});
+
+test('courier delivered push matches completed persisted fulfillment without rejecting unrelated updates', async () => {
+  const order = {
+    customer_id: queuedRow().customer_id,
+    fulfillment_status: 'completed',
+    delivery_status: 'delivered',
+    updated_at: '2026-10-18T08:01:00Z',
+  };
+  const data = {
+    type: 'delivery',
+    orderId: 'order-1',
+    orderStatus: 'delivered',
+    deliveryStatus: 'delivered',
+    orderUpdatedAt: '2026-10-18T08:00:00Z',
+  };
+  const db = deliveryDb(queuedRow({ payload: data }), { order });
+  const [outcome] = await deliverPushOutbox(
+    {
+      sendToken: async (_token, _title, _body, payload) => {
+        assert.equal(payload.orderUpdatedAt, data.orderUpdatedAt);
+        return { delivered: true, terminal: true };
+      },
+    },
+    { db },
+  );
+  assert.equal(outcome.status, 'sent');
 });
 
 test('registered legacy installation still works for its current customer', async () => {

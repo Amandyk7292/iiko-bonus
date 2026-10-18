@@ -260,6 +260,34 @@ async function markDelivered(row, results, { db = supabase } = {}) {
 
 const { currentCustomerPushTokens } = require('./push-token-ownership.service');
 
+async function currentOrderPushState(row, { db = supabase } = {}) {
+  const payload = row.data;
+  const orderStatus = cleanText(payload.orderStatus, 40);
+  const deliveryStatus = cleanText(payload.deliveryStatus, 40);
+  if (
+    !['order', 'delivery'].includes(payload.type) ||
+    !payload.orderId ||
+    (!orderStatus && !deliveryStatus)
+  )
+    return { current: true };
+  const { data: order, error } = await db
+    .from('kaspi_orders')
+    .select('id,customer_id,status,fulfillment_status,delivery_status,updated_at')
+    .eq('id', payload.orderId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!order || String(order.customer_id) !== row.customerId) return { current: false };
+  // Courier completion uses "delivered" for the notification, while the order
+  // lifecycle persists "completed". Both states must agree for that final event.
+  const expectedStatus =
+    payload.type === 'delivery' && orderStatus === 'delivered' ? 'completed' : orderStatus;
+  const current =
+    (!expectedStatus || order.fulfillment_status === expectedStatus) &&
+    (!deliveryStatus || order.delivery_status === deliveryStatus) &&
+    (!payload.orderPaymentStatus || order.status === payload.orderPaymentStatus);
+  return { current, updatedAt: order.updated_at };
+}
+
 async function deliverPushOutbox(
   { sendToken, isAllowed, limit = 50, messageId = null },
   { db = supabase } = {},
@@ -303,6 +331,16 @@ async function deliverPushOutbox(
             : await markSkipped(row, 'No active push tokens', { db }),
         );
         continue;
+      }
+      // Recheck the persisted lifecycle immediately before every first delivery
+      // and retry, so a delayed "ready" event cannot reopen a collected order.
+      const orderState = await currentOrderPushState(row, { db });
+      if (!orderState.current) {
+        outcomes.push(await markSkipped(row, 'Order notification superseded', { db }));
+        continue;
+      }
+      if (!row.data.orderUpdatedAt && orderState.updatedAt) {
+        row.data = { ...row.data, orderUpdatedAt: orderState.updatedAt };
       }
       await updateOutbox(row, { in_flight_tokens: row.tokens }, { db });
       const results = await Promise.all(

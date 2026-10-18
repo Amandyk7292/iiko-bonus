@@ -33,11 +33,31 @@ test('Forte retains the provider-neutral order state contract and legacy loyalty
     path.join(projectRoot, 'src', 'services', 'order-payment-state.service.js'),
     'utf8',
   );
+  const checkoutBonusSource = fs.readFileSync(
+    path.join(projectRoot, 'src', 'services', 'checkout-bonus.service.js'),
+    'utf8',
+  );
+  const checkoutBonusSql = fs.readFileSync(
+    path.join(
+      projectRoot,
+      'supabase',
+      'migrations',
+      '20261018100000_paid_order_loyalty_finalization.sql',
+    ),
+    'utf8',
+  );
 
   assert.match(forteSource, /require\('\.\/order-payment-state\.service'\)/);
   assert.doesNotMatch(forteSource, /kaspi\.service/);
   assert.match(orderStateSource, /p_order_id:\s*`kaspi:\$\{order\.operation_id\}`/);
-  assert.match(orderStateSource, /orderId:\s*`kaspi:\$\{order\.operation_id\}`/);
+  // Earning moved into the refund-safe checkout transaction; the legacy ledger
+  // key must stay identical to the reversal key across that JS -> SQL boundary.
+  assert.match(orderStateSource, /commitCheckoutBonus\(order, earnedBonus, activationDelayDays\)/);
+  assert.match(checkoutBonusSource, /supabase\.rpc\('commit_checkout_bonus',\s*\{\s*p_order_id: order\.id/);
+  assert.match(
+    checkoutBonusSql,
+    /apply_loyalty_transaction\(v_owner,\s*'kaspi:'\s*\|\|\s*v_order\.operation_id/,
+  );
 
   const service = new OrderPaymentStateService();
   const order = service.orderRecord({

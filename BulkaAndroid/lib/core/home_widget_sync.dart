@@ -7,6 +7,8 @@ abstract final class HomeWidgetSync {
   static const appGroupId = 'group.com.bulka.bonus';
   static const androidProvider = 'BulkaHomeWidgetProvider';
   static const iOSWidgetKind = 'BulkaHomeWidget';
+  static const _orderVersionsKey = 'widget_order_versions_v1';
+  static const _orderVersionLimit = 64;
 
   static bool get _supported {
     if (kIsWeb) return false;
@@ -36,42 +38,46 @@ abstract final class HomeWidgetSync {
     }
     if (!_supported) return;
     try {
-      await initialize();
-      await Future.wait([
-        HomeWidget.saveWidgetData<String>('widget_language', AppLang.current),
-        HomeWidget.saveWidgetData<bool>('widget_is_signed_in', true),
-        HomeWidget.saveWidgetData<double>('widget_balance', customer.balance),
-        HomeWidget.saveWidgetData<String>(
-          'widget_tier',
-          customer.tier?.localizedName ?? '',
-        ),
-        HomeWidget.saveWidgetData<String>(
-          'widget_tier_translations',
-          jsonEncode(customer.tier?.localizedNames ?? const <String, String>{}),
-        ),
-        HomeWidget.saveWidgetData<String>('widget_order_id', activeOrder?.id),
-        HomeWidget.saveWidgetData<int>(
-          'widget_order_number',
-          activeOrder?.number,
-        ),
-        HomeWidget.saveWidgetData<String>(
-          'widget_order_status',
-          activeOrder?.orderStatus,
-        ),
-        HomeWidget.saveWidgetData<String>(
-          'widget_delivery_status',
-          activeOrder?.deliveryStatus,
-        ),
-        HomeWidget.saveWidgetData<String>(
-          'widget_order_type',
-          activeOrder?.effectiveFulfillmentType,
-        ),
-        HomeWidget.saveWidgetData<String>(
-          'widget_order_eta',
-          activeOrder?.estimatedDeliveryAt?.toIso8601String(),
-        ),
-      ]);
-      await _reload();
+      await PushDedupeLock.synchronized(() async {
+        await initialize();
+        await Future.wait([
+          HomeWidget.saveWidgetData<String>('widget_language', AppLang.current),
+          HomeWidget.saveWidgetData<bool>('widget_is_signed_in', true),
+          HomeWidget.saveWidgetData<double>('widget_balance', customer.balance),
+          HomeWidget.saveWidgetData<String>(
+            'widget_tier',
+            customer.tier?.localizedName ?? '',
+          ),
+          HomeWidget.saveWidgetData<String>(
+            'widget_tier_translations',
+            jsonEncode(
+              customer.tier?.localizedNames ?? const <String, String>{},
+            ),
+          ),
+          HomeWidget.saveWidgetData<String>('widget_order_id', activeOrder?.id),
+          HomeWidget.saveWidgetData<int>(
+            'widget_order_number',
+            activeOrder?.number,
+          ),
+          HomeWidget.saveWidgetData<String>(
+            'widget_order_status',
+            activeOrder?.orderStatus,
+          ),
+          HomeWidget.saveWidgetData<String>(
+            'widget_delivery_status',
+            activeOrder?.deliveryStatus,
+          ),
+          HomeWidget.saveWidgetData<String>(
+            'widget_order_type',
+            activeOrder?.effectiveFulfillmentType,
+          ),
+          HomeWidget.saveWidgetData<String>(
+            'widget_order_eta',
+            activeOrder?.estimatedDeliveryAt?.toIso8601String(),
+          ),
+        ]);
+        await _reload();
+      });
     } catch (_) {
       // Widget synchronization is best-effort and must not affect ordering or
       // loyalty flows.
@@ -81,21 +87,24 @@ abstract final class HomeWidgetSync {
   static Future<void> clear() async {
     if (!_supported) return;
     try {
-      await initialize();
-      await Future.wait([
-        HomeWidget.saveWidgetData<String>('widget_language', AppLang.current),
-        HomeWidget.saveWidgetData<bool>('widget_is_signed_in', false),
-        HomeWidget.saveWidgetData<double>('widget_balance', 0),
-        HomeWidget.saveWidgetData<String>('widget_tier', null),
-        HomeWidget.saveWidgetData<String>('widget_tier_translations', null),
-        HomeWidget.saveWidgetData<String>('widget_order_id', null),
-        HomeWidget.saveWidgetData<int>('widget_order_number', null),
-        HomeWidget.saveWidgetData<String>('widget_order_status', null),
-        HomeWidget.saveWidgetData<String>('widget_delivery_status', null),
-        HomeWidget.saveWidgetData<String>('widget_order_type', null),
-        HomeWidget.saveWidgetData<String>('widget_order_eta', null),
-      ]);
-      await _reload();
+      await PushDedupeLock.synchronized(() async {
+        await initialize();
+        await Future.wait([
+          HomeWidget.saveWidgetData<String>('widget_language', AppLang.current),
+          HomeWidget.saveWidgetData<bool>('widget_is_signed_in', false),
+          HomeWidget.saveWidgetData<double>('widget_balance', 0),
+          HomeWidget.saveWidgetData<String>('widget_tier', null),
+          HomeWidget.saveWidgetData<String>('widget_tier_translations', null),
+          HomeWidget.saveWidgetData<String>('widget_order_id', null),
+          HomeWidget.saveWidgetData<int>('widget_order_number', null),
+          HomeWidget.saveWidgetData<String>('widget_order_status', null),
+          HomeWidget.saveWidgetData<String>('widget_delivery_status', null),
+          HomeWidget.saveWidgetData<String>('widget_order_type', null),
+          HomeWidget.saveWidgetData<String>('widget_order_eta', null),
+          HomeWidget.saveWidgetData<String>(_orderVersionsKey, null),
+        ]);
+        await _reload();
+      });
     } catch (_) {}
   }
 
@@ -104,61 +113,104 @@ abstract final class HomeWidgetSync {
     final type = data['type']?.toString();
     if (!const {'bonus', 'order', 'delivery', 'refund'}.contains(type)) return;
     try {
-      await initialize();
-      final writes = <Future<bool?>>[
-        HomeWidget.saveWidgetData<bool>('widget_is_signed_in', true),
-      ];
-      final balance = double.tryParse(data['balance']?.toString() ?? '');
-      if (balance != null) {
-        writes.add(
-          HomeWidget.saveWidgetData<double>('widget_balance', balance),
+      // The foreground and Firebase background isolates share the native
+      // widget. Keep the identity check and its writes in one critical section.
+      await PushDedupeLock.synchronized(() async {
+        await initialize();
+        final orderId = data['orderId']?.toString();
+        final updatedAt = DateTime.tryParse(
+          data['orderUpdatedAt']?.toString() ?? '',
         );
-      }
+        Map<String, dynamic>? versions;
+        if (orderId != null && orderId.isNotEmpty && updatedAt != null) {
+          final rawVersions = await HomeWidget.getWidgetData<String>(
+            _orderVersionsKey,
+          );
+          try {
+            versions = rawVersions == null
+                ? <String, dynamic>{}
+                : _asMap(jsonDecode(rawVersions));
+          } catch (_) {
+            versions = <String, dynamic>{};
+          }
+          final version = updatedAt.toUtc().microsecondsSinceEpoch;
+          final appliedVersion = _nullableInt(versions[orderId]);
+          if (appliedVersion != null && version <= appliedVersion) return;
+          versions.remove(orderId);
+          versions[orderId] = version;
+          while (versions.length > _orderVersionLimit) {
+            versions.remove(versions.keys.first);
+          }
+        }
+        final writes = <Future<bool?>>[
+          HomeWidget.saveWidgetData<bool>('widget_is_signed_in', true),
+        ];
+        final balance = double.tryParse(data['balance']?.toString() ?? '');
+        if (balance != null) {
+          writes.add(
+            HomeWidget.saveWidgetData<double>('widget_balance', balance),
+          );
+        }
 
-      final status = data['orderStatus']?.toString();
-      final closed = const {
-        'completed',
-        'delivered',
-        'cancelled',
-        'canceled',
-        'refunded',
-      }.contains(status);
-      final orderId = data['orderId']?.toString();
-      final orderNumber = int.tryParse(data['orderNumber']?.toString() ?? '');
-      if (closed) {
-        writes.addAll([
-          HomeWidget.saveWidgetData<String>('widget_order_id', null),
-          HomeWidget.saveWidgetData<int>('widget_order_number', null),
-          HomeWidget.saveWidgetData<String>('widget_order_status', null),
-          HomeWidget.saveWidgetData<String>('widget_delivery_status', null),
-          HomeWidget.saveWidgetData<String>('widget_order_type', null),
-          HomeWidget.saveWidgetData<String>('widget_order_eta', null),
-        ]);
-      } else if (orderId != null && orderId.isNotEmpty && orderNumber != null) {
-        writes.addAll([
-          HomeWidget.saveWidgetData<String>('widget_order_id', orderId),
-          HomeWidget.saveWidgetData<int>('widget_order_number', orderNumber),
-          if (status != null && status.isNotEmpty)
-            HomeWidget.saveWidgetData<String>('widget_order_status', status),
-          if ((data['deliveryStatus']?.toString() ?? '').isNotEmpty)
-            HomeWidget.saveWidgetData<String>(
-              'widget_delivery_status',
-              data['deliveryStatus'].toString(),
-            ),
-          if ((data['fulfillmentType']?.toString() ?? '').isNotEmpty)
-            HomeWidget.saveWidgetData<String>(
-              'widget_order_type',
-              data['fulfillmentType'].toString(),
-            ),
-          if ((data['orderEta']?.toString() ?? '').isNotEmpty)
-            HomeWidget.saveWidgetData<String>(
-              'widget_order_eta',
-              data['orderEta'].toString(),
-            ),
-        ]);
-      }
-      await Future.wait(writes);
-      await _reload();
+        final status = data['orderStatus']?.toString();
+        final closed = const {
+          'completed',
+          'delivered',
+          'cancelled',
+          'canceled',
+          'refunded',
+        }.contains(status);
+        final orderNumber = int.tryParse(data['orderNumber']?.toString() ?? '');
+        final displayedOrderId = closed
+            ? await HomeWidget.getWidgetData<String>('widget_order_id')
+            : null;
+        if (closed &&
+            orderId != null &&
+            orderId.isNotEmpty &&
+            orderId == displayedOrderId) {
+          writes.addAll([
+            HomeWidget.saveWidgetData<String>('widget_order_id', null),
+            HomeWidget.saveWidgetData<int>('widget_order_number', null),
+            HomeWidget.saveWidgetData<String>('widget_order_status', null),
+            HomeWidget.saveWidgetData<String>('widget_delivery_status', null),
+            HomeWidget.saveWidgetData<String>('widget_order_type', null),
+            HomeWidget.saveWidgetData<String>('widget_order_eta', null),
+          ]);
+        } else if (!closed &&
+            orderId != null &&
+            orderId.isNotEmpty &&
+            orderNumber != null) {
+          writes.addAll([
+            HomeWidget.saveWidgetData<String>('widget_order_id', orderId),
+            HomeWidget.saveWidgetData<int>('widget_order_number', orderNumber),
+            if (status != null && status.isNotEmpty)
+              HomeWidget.saveWidgetData<String>('widget_order_status', status),
+            if ((data['deliveryStatus']?.toString() ?? '').isNotEmpty)
+              HomeWidget.saveWidgetData<String>(
+                'widget_delivery_status',
+                data['deliveryStatus'].toString(),
+              ),
+            if ((data['fulfillmentType']?.toString() ?? '').isNotEmpty)
+              HomeWidget.saveWidgetData<String>(
+                'widget_order_type',
+                data['fulfillmentType'].toString(),
+              ),
+            if ((data['orderEta']?.toString() ?? '').isNotEmpty)
+              HomeWidget.saveWidgetData<String>(
+                'widget_order_eta',
+                data['orderEta'].toString(),
+              ),
+          ]);
+        }
+        await Future.wait(writes);
+        if (versions != null) {
+          await HomeWidget.saveWidgetData<String>(
+            _orderVersionsKey,
+            jsonEncode(versions),
+          );
+        }
+        await _reload();
+      });
     } catch (_) {
       // Background delivery is best-effort. The foreground refresh remains
       // the source of truth when the operating system suppresses background
@@ -174,22 +226,24 @@ abstract final class HomeWidgetSync {
   static Future<void> setLanguage(String language) async {
     if (!_supported) return;
     try {
-      await initialize();
-      await HomeWidget.saveWidgetData<String>('widget_language', language);
-      final tier = await HomeWidget.getWidgetData<String>('widget_tier');
-      if (tier != null) {
-        final rawNames = await HomeWidget.getWidgetData<String>(
-          'widget_tier_translations',
-        );
-        final names = rawNames == null
-            ? const <String, dynamic>{}
-            : _asMap(jsonDecode(rawNames));
-        await HomeWidget.saveWidgetData<String>(
-          'widget_tier',
-          names[language]?.toString() ?? localizeTierName(tier),
-        );
-      }
-      await _reload();
+      await PushDedupeLock.synchronized(() async {
+        await initialize();
+        await HomeWidget.saveWidgetData<String>('widget_language', language);
+        final tier = await HomeWidget.getWidgetData<String>('widget_tier');
+        if (tier != null) {
+          final rawNames = await HomeWidget.getWidgetData<String>(
+            'widget_tier_translations',
+          );
+          final names = rawNames == null
+              ? const <String, dynamic>{}
+              : _asMap(jsonDecode(rawNames));
+          await HomeWidget.saveWidgetData<String>(
+            'widget_tier',
+            names[language]?.toString() ?? localizeTierName(tier),
+          );
+        }
+        await _reload();
+      });
     } catch (_) {}
   }
 }

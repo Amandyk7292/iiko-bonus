@@ -23,6 +23,8 @@ test.before(async () => {
       original_order_id text,order_total numeric,discount_amount numeric,status text,expires_at timestamptz,
       updated_at timestamptz default now(),committed_at timestamptz,cancelled_at timestamptz);
     create table settings(key text primary key,value text);
+    create table kaspi_orders(id uuid primary key default gen_random_uuid(),operation_id text,status text,
+      refund_status text,amount numeric,partially_refunded_amount numeric default 0);
     insert into settings values('bonus_expiration','{"enabled":true,"auto_write_off":true,"expiration_months":6}');
     create table loyalty_faq(id uuid primary key,answer_ru text,answer_kk text);
     create function family_bonus_owner(uuid) returns uuid language sql immutable as $$select $1$$;
@@ -45,6 +47,12 @@ test.before(async () => {
   await db.exec(readFileSync('supabase/migrations/20261015110000_bonus_credit_lots.sql', 'utf8'));
   await db.exec(
     readFileSync('supabase/migrations/20261015130000_bonus_expiry_winback.sql', 'utf8'),
+  );
+  await db.exec(
+    readFileSync('supabase/migrations/20261018101000_winback_retained_purchase.sql', 'utf8'),
+  );
+  await db.exec(
+    readFileSync('supabase/migrations/20261018101000_winback_retained_purchase.sql', 'utf8'),
   );
 });
 test.after(() => db.close());
@@ -284,4 +292,77 @@ test('clients and service_role cannot mint gifts through the internal grant or b
           .allowed,
         false,
       );
+});
+
+test('a fully refunded online purchase and a reversed POS sale cannot re-arm the previous absence gift', async () => {
+  for (const online of [false, true]) {
+    const id = await customer();
+    const original = `retained-${id}`;
+    await credit(id, 500, '2030-01-01T00:00:00Z', { orderTotal: 1000, orderId: original });
+    assert.equal((await expire(id, '2030-07-02T00:00:00Z')).winbackAmount, 1000);
+    const operation = randomUUID();
+    const returned = online ? `kaspi:${operation}` : `bp1:returned-${operation}`;
+    await credit(id, 50, '2030-08-01T00:00:00Z', { orderTotal: 1000, orderId: returned });
+    if (online) {
+      // State alone is authoritative even if loyalty reversal has not finished.
+      await db.query(
+        "insert into kaspi_orders(operation_id,status,refund_status,amount) values($1,'refunded','succeeded',1000)",
+        [operation],
+      );
+    } else {
+      await db.query(
+        "insert into transactions(customer_id,order_id,type,amount,order_total,timestamp) values($1,$2,'refund_reversal',50,1000,'2030-08-02')",
+        [id, `${returned}:refund`],
+      );
+    }
+    const expired = await expire(id, '2031-02-02T00:00:00Z');
+    assert.equal(expired.winbackAmount, 0);
+    assert.equal((await claims(id)).length, 1);
+    assert.equal((await claims(id))[0].cycle_key, `purchase:${original}`);
+  }
+});
+
+test('a recent full refund does not postpone the retained purchase inactivity clock, while partial purchases still count', async () => {
+  const id = await customer();
+  await credit(id, 500, '2030-01-01T00:00:00Z', { orderTotal: 1000, orderId: `old-${id}` });
+  const operation = randomUUID();
+  await credit(id, 50, '2030-07-01T00:00:00Z', { orderTotal: 1000, orderId: `kaspi:${operation}` });
+  await db.query(
+    "insert into kaspi_orders(operation_id,status,refund_status,amount) values($1,'refunded','succeeded',1000)",
+    [operation],
+  );
+  assert.equal((await expire(id)).winbackAmount, 1000);
+  assert.equal((await claims(id))[0].cycle_key, `purchase:old-${id}`);
+
+  const partialId = await customer();
+  const partialOp = randomUUID();
+  await credit(partialId, 500, '2030-01-01T00:00:00Z', {
+    orderTotal: 1000,
+    orderId: `kaspi:${partialOp}`,
+  });
+  await db.query(
+    "insert into kaspi_orders(operation_id,status,refund_status,amount,partially_refunded_amount) values($1,'paid','partial',1000,500)",
+    [partialOp],
+  );
+  assert.equal((await expire(partialId)).winbackAmount, 1000);
+  assert.equal((await claims(partialId))[0].cycle_key, `purchase:kaspi:${partialOp}`);
+});
+
+test('refund of the purchase behind an already granted gift cannot open an older or initial cycle', async () => {
+  const id = await customer();
+  const operation = randomUUID();
+  await credit(id, 500, '2030-01-01T00:00:00Z', {
+    orderTotal: 1000,
+    orderId: `kaspi:${operation}`,
+  });
+  await db.query("insert into kaspi_orders(operation_id,status,amount) values($1,'paid',1000)", [
+    operation,
+  ]);
+  assert.equal((await expire(id)).winbackAmount, 1000);
+  await db.query(
+    "update kaspi_orders set status='refunded',refund_status='succeeded' where operation_id=$1",
+    [operation],
+  );
+  assert.equal((await expire(id, '2031-01-17T00:00:00Z')).winbackAmount, 0);
+  assert.equal((await claims(id)).length, 1);
 });

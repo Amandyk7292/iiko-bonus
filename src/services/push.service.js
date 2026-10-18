@@ -224,6 +224,11 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
       return { delivered: false, terminal: true, expired: true, error: 'push/reminder_expired' };
     }
     const isOrderStatus = ['order', 'delivery'].includes(normalizedData.type);
+    if (isOrderStatus && normalizedData.orderId) {
+      // Different state events must collapse into the same order notification.
+      normalizedData.pushCollapseKey = `order-${normalizedData.orderId}`;
+    }
+    const collapseKey = normalizedData.pushCollapseKey || normalizedData.pushDedupeKey;
     const isStaffOrder = ['staff.order.new', 'staff.order.test'].includes(normalizedData.type);
     const defaultStaffTtlMs =
       normalizedData.type === 'staff.order.new'
@@ -267,13 +272,9 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
         priority: isOrderStatus ? 'normal' : 'high',
         ...(staffTtlMs ? { ttl: staffTtlMs } : {}),
         ...(reminderTtlMs ? { ttl: reminderTtlMs } : {}),
-        ...(normalizedData.pushDedupeKey
+        ...(collapseKey
           ? {
-              collapseKey:
-                `bulka-${normalizedData.pushCollapseKey || normalizedData.pushDedupeKey}`.slice(
-                  0,
-                  64,
-                ),
+              collapseKey: `bulka-${collapseKey}`.slice(0, 64),
             }
           : {}),
         notification: {
@@ -291,28 +292,21 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
                 channelId: isStaffOrder ? 'bulka_staff_orders' : 'bulka_bonus_notifications',
                 priority: 'high',
                 defaultSound: true,
-                ...(normalizedData.pushDedupeKey
+                ...(collapseKey
                   ? {
-                      tag: `bulka-${normalizedData.pushCollapseKey || normalizedData.pushDedupeKey}`.slice(
-                        0,
-                        160,
-                      ),
+                      tag: `bulka-${collapseKey}`.slice(0, 160),
                     }
                   : {}),
               }),
         },
       },
       apns: {
-        ...(normalizedData.pushDedupeKey || staffTtlMs || reminderTtlMs
+        ...(collapseKey || staffTtlMs || reminderTtlMs
           ? {
               headers: {
-                ...(normalizedData.pushDedupeKey
+                ...(collapseKey
                   ? {
-                      'apns-collapse-id':
-                        `bulka-${normalizedData.pushCollapseKey || normalizedData.pushDedupeKey}`.slice(
-                          0,
-                          64,
-                        ),
+                      'apns-collapse-id': `bulka-${collapseKey}`.slice(0, 64),
                     }
                   : {}),
                 ...(staffTtlMs
@@ -340,12 +334,9 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
         notification: {
           icon: '/icons/Icon-192.png',
           badge: '/icons/Icon-192.png',
-          ...(normalizedData.pushDedupeKey
+          ...(collapseKey
             ? {
-                tag: `bulka-${normalizedData.pushCollapseKey || normalizedData.pushDedupeKey}`.slice(
-                  0,
-                  160,
-                ),
+                tag: `bulka-${collapseKey}`.slice(0, 160),
               }
             : {}),
         },
@@ -381,18 +372,28 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
 async function getCustomerPushTokens(customerId, fallbackToken = null) {
   const tokens = new Set();
   if (customerId) {
-    const { data, error } = await supabase
-      .from('customer_push_tokens')
-      .select('token')
-      .eq('customer_id', customerId)
-      .order('last_seen_at', { ascending: false });
-    if (!error) {
-      for (const row of data || []) {
-        const token = String(row.token || '').trim();
-        if (token) tokens.add(token);
+    try {
+      const { data, error } = await supabase
+        .from('customer_push_tokens')
+        .select('token')
+        .eq('customer_id', customerId)
+        .order('last_seen_at', { ascending: false });
+      if (error && !PUSH_SCHEMA_MISSING_CODES.has(String(error.code || ''))) throw error;
+      if (!error) {
+        for (const row of data || []) {
+          const token = String(row.token || '').trim();
+          if (token) tokens.add(token);
+        }
       }
-    } else if (!PUSH_SCHEMA_MISSING_CODES.has(String(error.code || ''))) {
-      console.error('Failed to read customer push tokens:', error.message);
+    } catch (cause) {
+      // No provider call has happened. Preserve the delivery intent for a safe retry.
+      throw Object.assign(
+        new Error('Customer push token lookup temporarily unavailable', { cause }),
+        {
+          code: 'PUSH_TOKENS_UNAVAILABLE',
+          retryable: true,
+        },
+      );
     }
   }
   const fallback = String(fallbackToken || '').trim();

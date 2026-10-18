@@ -22,12 +22,15 @@ test.before(async () => {
       updated_at timestamptz default now());
     create table transactions(id uuid primary key default gen_random_uuid(), customer_id uuid, order_id text,
       type text, amount numeric, order_total numeric, description text, items jsonb, branch_id uuid,
-      available_at timestamptz, activated_at timestamptz, created_at timestamptz default now(), timestamp timestamptz default now());
+      available_at timestamptz, activated_at timestamptz, expires_at timestamptz, expired_at timestamptz,
+      created_at timestamptz default now(), timestamp timestamptz default now());
     create table kaspi_orders(id uuid primary key, customer_id uuid, operation_id text, client_request_id uuid,
       amount numeric, subtotal numeric, discount_amount numeric default 0, delivery_fee numeric default 0,
       status text default 'pending', fulfillment_status text default 'pending', branch_id uuid,
       earned_bonus numeric default 0, bonus_awarded_at timestamptz, bonus_reversed_at timestamptz,
-      refund_status text, cart_items jsonb, promo_code text);
+      refund_status text, cart_items jsonb, promo_code text,
+      payment_method text, payment_reconciled_at timestamptz, order_kind text,
+      partially_refunded_amount numeric default 0);
     create table loyalty_reservations(id uuid primary key default gen_random_uuid(), customer_id uuid,
       order_id text unique, order_total numeric, discount_amount numeric, status text,
       expires_at timestamptz, updated_at timestamptz default now(), committed_at timestamptz, cancelled_at timestamptz);
@@ -36,6 +39,10 @@ test.before(async () => {
     create table promotion_redemptions(order_id uuid, promotion_id uuid, discount_amount numeric,
       refunded_discount_amount numeric default 0, released_at timestamptz);
     create table targeted_promotions(id uuid, used_count integer, updated_at timestamptz);
+    create table settings(key text primary key,value text);
+    create table loyalty_faq(id uuid primary key,answer_ru text,answer_kk text);
+    create function queue_bonus_winback_notification(uuid,uuid,numeric default 1000)
+      returns void language sql as $$select$$;
   `);
   const finances = read(
     'supabase/migrations/20260715120000_financial_branch_courier_hardening.sql',
@@ -71,6 +78,12 @@ test.before(async () => {
       'apply_partial_refund_adjustments',
     ),
   );
+  await db.exec(read('supabase/migrations/20261002172900_checkout_bonus_recovery.sql'));
+  await db.exec(read('supabase/migrations/20261015110000_bonus_credit_lots.sql'));
+  await db.exec(read('supabase/migrations/20261015130000_bonus_expiry_winback.sql'));
+  await db.exec(read('supabase/migrations/20261018101000_winback_retained_purchase.sql'));
+  await db.exec(read('supabase/migrations/20261018100000_paid_order_loyalty_finalization.sql'));
+  await db.exec(read('supabase/migrations/20261018100000_paid_order_loyalty_finalization.sql'));
 });
 test.after(() => db.close());
 
@@ -440,4 +453,193 @@ test('customers outside a family keep their own balance and refund behavior', as
   assert.equal(await balance(actor), 345);
   await rpc('reverse_loyalty_order($1,$2,900)', [actor, `kaspi:${purchase.request}`]);
   assert.equal(await balance(actor), 1200);
+});
+
+test('cashback without bonus spending commits once with the captured family owner and excludes delivery', async () => {
+  const { owner, actor } = await family();
+  const purchase = await order(actor, null, {
+    bonus: 0,
+    subtotal: 1200,
+    discount: 200,
+    amount: 1600,
+    delivery: 600,
+  });
+  await leave(actor);
+  await db.query("update kaspi_orders set status='paid' where id=$1", [purchase.id]);
+  const first = await rpc('commit_checkout_bonus($1,50,0)', [purchase.id]);
+  assert.equal(first.status, 'committed');
+  assert.equal(first.earnedBonus, 50);
+  assert.ok(first.bonusAwardedAt);
+  assert.equal((await rpc('commit_checkout_bonus($1,500,0)', [purchase.id])).earnedBonus, 50);
+  assert.equal(await balance(owner), 1250);
+  assert.equal(await balance(actor), 75);
+  assert.equal(
+    Number((await row('select total_spent from customers where id=$1', [owner])).total_spent),
+    1000,
+  );
+  const ledger = await row('select count(*) n from transactions where order_id=$1', [
+    `kaspi:${purchase.request}`,
+  ]);
+  assert.equal(Number(ledger.n), 1);
+  await db.query(
+    "update kaspi_orders set status='refunded',refund_status='succeeded' where id=$1",
+    [purchase.id],
+  );
+  await rpc('reverse_loyalty_order($1,$2,1000)', [owner, `kaspi:${purchase.request}`]);
+  assert.equal((await rpc('commit_checkout_bonus($1,50,0)', [purchase.id])).status, 'unavailable');
+  assert.equal(await balance(owner), 1200);
+  assert.equal(
+    Number((await row('select total_spent from customers where id=$1', [owner])).total_spent),
+    0,
+  );
+});
+
+test('refund-before-cashback and refund claims block all earning including delayed activation', async () => {
+  for (const state of ['processing', 'unknown', 'succeeded']) {
+    const actor = await customer(0);
+    const purchase = await order(actor, null, {
+      bonus: 0,
+      subtotal: 1000,
+      discount: 0,
+      amount: 1000,
+      delivery: 0,
+    });
+    await db.query("update kaspi_orders set status='paid',refund_status=$2 where id=$1", [
+      purchase.id,
+      state,
+    ]);
+    assert.equal(
+      (await rpc('commit_checkout_bonus($1,50,7)', [purchase.id])).status,
+      'unavailable',
+    );
+    await db.query(
+      "update kaspi_orders set status='refunded',refund_status='succeeded' where id=$1",
+      [purchase.id],
+    );
+    assert.equal(
+      (await rpc('reverse_loyalty_order($1,$2,1000)', [actor, `kaspi:${purchase.request}`]))
+        .applied,
+      false,
+    );
+    await db.query('update kaspi_orders set bonus_reversed_at=now() where id=$1', [purchase.id]);
+    assert.equal(
+      (await rpc('commit_checkout_bonus($1,50,7)', [purchase.id])).status,
+      'unavailable',
+    );
+    assert.equal(await balance(actor), 0);
+    const saved = await row(
+      'select bonus_awarded_at,total_spent from kaspi_orders o join customers c on c.id=o.customer_id where o.id=$1',
+      [purchase.id],
+    );
+    assert.equal(saved.bonus_awarded_at, null);
+    assert.equal(Number(saved.total_spent), 0);
+    assert.equal(
+      Number(
+        (
+          await row('select count(*) n from transactions where order_id=$1', [
+            `kaspi:${purchase.request}`,
+          ])
+        ).n,
+      ),
+      0,
+    );
+  }
+});
+
+test('cashback ledger and order marker roll back together and are recoverable after a failed marker write', async () => {
+  const actor = await customer(0);
+  const purchase = await order(actor, null, {
+    bonus: 0,
+    subtotal: 1000,
+    discount: 0,
+    amount: 1000,
+    delivery: 0,
+  });
+  await db.query("update kaspi_orders set status='paid' where id=$1", [purchase.id]);
+  await db.exec(`create function audit_reject_award_marker() returns trigger language plpgsql as $$begin
+    if new.bonus_awarded_at is not null then raise exception 'injected marker failure'; end if; return new; end$$;
+    create trigger audit_reject_award_marker before update of bonus_awarded_at on kaspi_orders
+    for each row execute function audit_reject_award_marker();`);
+  try {
+    await assert.rejects(
+      rpc('commit_checkout_bonus($1,50,7)', [purchase.id]),
+      /injected marker failure/,
+    );
+    assert.equal(await balance(actor), 0);
+    assert.equal(
+      Number((await row('select total_spent from customers where id=$1', [actor])).total_spent),
+      0,
+    );
+    assert.equal(
+      Number(
+        (
+          await row('select count(*) n from transactions where order_id=$1', [
+            `kaspi:${purchase.request}`,
+          ])
+        ).n,
+      ),
+      0,
+    );
+  } finally {
+    await db.exec(
+      'drop trigger audit_reject_award_marker on kaspi_orders; drop function audit_reject_award_marker();',
+    );
+  }
+  assert.equal((await rpc('commit_checkout_bonus($1,50,7)', [purchase.id])).status, 'committed');
+  await db.query(
+    "update kaspi_orders set status='refunded',refund_status='succeeded' where id=$1",
+    [purchase.id],
+  );
+  const reversal = await rpc('reverse_loyalty_order($1,$2,1000)', [
+    actor,
+    `kaspi:${purchase.request}`,
+  ]);
+  assert.equal(reversal.pendingBonusCancelled, 50);
+  assert.equal(await balance(actor), 0);
+  assert.equal(
+    Number((await row('select total_spent from customers where id=$1', [actor])).total_spent),
+    0,
+  );
+});
+
+test('migration reopens only unfinished paid card product orders and leaves settled and refund claims intact', async () => {
+  const actor = await customer(0);
+  const cases = [
+    { fulfillment: 'pending', awarded: true, reopen: true },
+    { fulfillment: 'new', awarded: false, reopen: true },
+    { fulfillment: 'new', awarded: true, reopen: false },
+    { fulfillment: 'cancelled', awarded: false, reopen: false },
+    { fulfillment: 'new', awarded: false, refund: 'processing', reopen: false },
+    { fulfillment: 'new', awarded: false, refund: 'unknown', reopen: false },
+    { fulfillment: 'new', awarded: false, refund: 'succeeded', reopen: false },
+    { fulfillment: 'pending', awarded: false, kind: 'gift_certificate', reopen: false },
+    { fulfillment: 'pending', awarded: false, payment: 'personal_account', reopen: false },
+    { fulfillment: 'pending', awarded: false, status: 'refunded', reopen: false },
+  ];
+  for (const input of cases) {
+    input.purchase = await order(actor, null, { bonus: 0 });
+    await db.query(
+      `update kaspi_orders set status=$2,fulfillment_status=$3,
+      bonus_awarded_at=case when $4 then now() end,refund_status=$5,order_kind=$6,
+      payment_method=$7,payment_reconciled_at='2026-10-18T00:00:00Z' where id=$1`,
+      [
+        input.purchase.id,
+        input.status || 'paid',
+        input.fulfillment,
+        input.awarded,
+        input.refund || null,
+        input.kind || 'product',
+        input.payment || 'forte_card',
+      ],
+    );
+  }
+  const before = await row('select count(*) n from transactions');
+  await db.exec(read('supabase/migrations/20261018100000_paid_order_loyalty_finalization.sql'));
+  for (const input of cases) {
+    const saved = await row('select payment_reconciled_at from kaspi_orders where id=$1', [
+      input.purchase.id,
+    ]);
+    assert.equal(saved.payment_reconciled_at === null, input.reopen, JSON.stringify(input));
+  }
+  assert.equal(Number((await row('select count(*) n from transactions')).n), Number(before.n));
 });

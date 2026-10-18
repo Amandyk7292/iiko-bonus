@@ -4,6 +4,7 @@ const test = require('node:test');
 const forteService = require('../src/services/forte.service');
 const {
   SAFE_REFUND_RETRY_WINDOW_MS,
+  reconcileFullRefundForOrder,
   reconcileRefundForOrder,
 } = require('../src/services/payment-gateway.service');
 
@@ -117,4 +118,63 @@ test('stale unknown Forte partial refund never performs another mutation', async
   assert.equal(result.status, 'pending');
   assert.match(result.message, /безопасное окно/i);
   assert.equal(mutationCalls, 0);
+});
+
+test('hosted full refund recovery confirms only matching final payment snapshots and never mutates the bank', async (t) => {
+  const originalQuery = forteService.queryOrder;
+  const originalRefund = forteService.refundPayment;
+  let reads = 0;
+  let snapshot;
+  forteService.queryOrder = async () => {
+    reads++;
+    return { normalized: snapshot };
+  };
+  forteService.refundPayment = async () => assert.fail('Full refund recovery must be read-only');
+  t.after(() => {
+    forteService.queryOrder = originalQuery;
+    forteService.refundPayment = originalRefund;
+  });
+  const order = {
+    operation_id: '1000001919999',
+    payment_method: 'forte_card',
+    provider_payment_system: null,
+    amount: 1000,
+    partially_refunded_amount: 100,
+    refund_request_id: '33333333-3333-4333-8333-333333333333',
+    refund_reference: 'known-reference',
+    refund_requested_at: '2020-01-01T00:00:00Z',
+  };
+  const valid = { id: order.operation_id, amount: 1000, currency: 'KZT', status: 'Refunded' };
+  for (const status of ['Refunded', 'Voided']) {
+    snapshot = { ...valid, status };
+    const result = await reconcileFullRefundForOrder(order);
+    assert.equal(result.status, 'confirmed');
+    assert.equal(result.requestId, order.refund_request_id);
+    assert.equal(result.reference, order.refund_reference);
+  }
+  for (const mismatch of [
+    { status: 'FullyPaid' },
+    { status: 'PartPaid' },
+    { status: 'Unknown' },
+    { id: 'another-payment' },
+    { amount: 999 },
+    { currency: 'USD' },
+  ]) {
+    snapshot = { ...valid, ...mismatch };
+    assert.equal((await reconcileFullRefundForOrder(order)).status, 'pending');
+  }
+  const beforeInvalid = reads;
+  for (const invalid of [
+    { refund_request_id: null },
+    { operation_id: null },
+    { amount: 0 },
+    { partially_refunded_amount: 1000 },
+    { partially_refunded_amount: -1 },
+  ])
+    assert.equal((await reconcileFullRefundForOrder({ ...order, ...invalid })).status, 'pending');
+  assert.equal(reads, beforeInvalid);
+  forteService.queryOrder = async () => {
+    throw new Error('Temporary provider read outage');
+  };
+  assert.equal((await reconcileFullRefundForOrder(order)).status, 'pending');
 });

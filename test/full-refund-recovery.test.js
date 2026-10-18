@@ -14,6 +14,7 @@ function harness(
     feeState = 'pickup_rejecting',
     feeConfirmed = true,
     personalAccount = false,
+    hosted = false,
   } = {},
 ) {
   let order = {
@@ -34,7 +35,7 @@ function harness(
     bonus_spent: feeOnly ? 1200 : 0,
     delivery_resolution: feeOnly ? { id: randomUUID(), status: feeState } : null,
     payment_method: personalAccount ? 'personal_account' : 'forte_card',
-    provider_payment_system: personalAccount ? null : 'forte_widget',
+    provider_payment_system: personalAccount || hosted ? null : 'forte_widget',
     customer_id: null,
     cart_items: [],
   };
@@ -264,6 +265,36 @@ test('bank success followed by final DB failure retains reference and worker com
   assert.equal(h.order.refund_status, 'succeeded');
   assert.equal(h.bankCalls, 1);
   assert.equal(await h.recover(), 0);
+});
+
+test('hosted Forte full refund is recovered after final DB failure without replaying the refund', async (t) => {
+  const h = harness(t, { hosted: true, failFinalWrite: true });
+  await assert.rejects(h.cancel(), /Injected final write outage/);
+  const key = h.order.refund_request_id;
+  assert.equal(h.order.refund_status, 'unknown');
+  assert.equal(await h.recover(), 1);
+  assert.equal(h.bankReads, 1);
+  assert.equal(h.bankCalls, 1);
+  assert.equal(h.order.status, 'refunded');
+  assert.equal(h.order.refund_request_id, key);
+  assert.equal(h.followupCalls, 1);
+  assert.equal(await h.recover(), 0);
+});
+
+test('stale hosted Forte processing is recovered without replaying the bank operation', async (t) => {
+  const h = harness(t, { hosted: true, staleProcessing: true });
+  assert.equal(await h.recover(), 1);
+  assert.equal(h.bankReads, 1);
+  assert.equal(h.bankCalls, 0);
+  assert.equal(h.order.refund_status, 'succeeded');
+});
+
+test('hosted Forte full recovery excludes active partial operations', async (t) => {
+  const h = harness(t, { hosted: true, staleProcessing: true, partial: true });
+  assert.equal(await h.recover(), 0);
+  assert.equal(h.bankReads, 0);
+  assert.equal(h.bankCalls, 0);
+  assert.equal(h.order.refund_status, 'processing');
 });
 
 test('failure after succeeded is retried without reverting payment state or calling the bank', async (t) => {

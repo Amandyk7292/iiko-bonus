@@ -97,7 +97,7 @@ function requireSuccessfulWorkflowRun(workflowRuns, { headSha, repository }) {
         run &&
         run.head_sha === headSha &&
         run.head_branch === REQUIRED_BRANCH &&
-        run.event === 'push' &&
+        ['push', 'workflow_dispatch'].includes(run.event) &&
         run.path === WORKFLOW_PATH &&
         (!run.head_repository?.full_name ||
           run.head_repository.full_name.toLowerCase() === repository.toLowerCase()),
@@ -105,7 +105,7 @@ function requireSuccessfulWorkflowRun(workflowRuns, { headSha, repository }) {
     .sort(compareWorkflowRuns);
 
   if (candidates.length === 0) {
-    throw new Error(`No ${WORKFLOW_PATH} push run exists for ${headSha}.`);
+    throw new Error(`No ${WORKFLOW_PATH} push or workflow_dispatch run exists for ${headSha}.`);
   }
   const latest = candidates[0];
   if (latest.status !== 'completed' || latest.conclusion !== 'success') {
@@ -122,7 +122,6 @@ async function loadWorkflowRuns({ fetchImpl, repository, headSha, token }) {
   }
   const query = new URLSearchParams({
     branch: REQUIRED_BRANCH,
-    event: 'push',
     head_sha: headSha,
     per_page: '20',
   });

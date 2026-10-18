@@ -108,13 +108,7 @@ async function reconcileUnknownFullRefunds({
   // Cash-ledger refunds keep their idempotency key permanently. They must be
   // recovered even when the original process stopped before recording success.
   const results = await Promise.all([
-    pendingQuery(
-      db
-        .from('kaspi_orders')
-        .select('*')
-        .eq('payment_method', 'forte_card')
-        .eq('provider_payment_system', 'forte_widget'),
-    ),
+    pendingQuery(db.from('kaspi_orders').select('*').eq('payment_method', 'forte_card')),
     pendingQuery(db.from('kaspi_orders').select('*').eq('payment_method', 'personal_account')),
   ]);
   for (const result of results) if (result.error) throw result.error;

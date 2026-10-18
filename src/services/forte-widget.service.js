@@ -1802,9 +1802,7 @@ class ForteWidgetService {
       provider_card_last_four: /^\d{4}$/.test(normalized.card.lastFour)
         ? normalized.card.lastFour
         : null,
-      payment_reconciled_at: FINAL_PAYMENT_STATUSES.has(nextStatus)
-        ? new Date().toISOString()
-        : null,
+      payment_reconciled_at: null,
       last_error:
         nextStatus === 'failed' || nextStatus === 'expired'
           ? `ForteBank Widget: ${normalized.status || normalized.transactionStatus || nextStatus}`
@@ -1851,6 +1849,17 @@ class ForteWidgetService {
       typeof this.orderService.reverseOrderLoyalty === 'function'
     ) {
       updatedOrder = (await this.orderService.reverseOrderLoyalty(updatedOrder)) || updatedOrder;
+    }
+    if (FINAL_PAYMENT_STATUSES.has(nextStatus) && updatedOrder.status === nextStatus) {
+      const { data: finalized, error: finalizationError } = await this.db
+        .from('kaspi_orders')
+        .update({ payment_reconciled_at: new Date().toISOString() })
+        .eq('id', order.id)
+        .eq('status', nextStatus)
+        .select('*')
+        .maybeSingle();
+      if (finalizationError) throw finalizationError;
+      updatedOrder = finalized || updatedOrder;
     }
     return { order: updatedOrder, status: nextStatus };
   }
@@ -2143,16 +2152,33 @@ class ForteWidgetService {
   async reconcileOrders() {
     if (!this.availability()) return 0;
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await this.db
-      .from('kaspi_orders')
-      .select('*')
-      .eq('payment_method', FORTE_PAYMENT_METHOD)
-      .eq('provider_payment_system', FORTE_WIDGET_INTEGRATION)
-      .eq('status', 'pending')
-      .gte('created_at', cutoff)
-      .order('created_at', { ascending: true })
-      .limit(50);
-    if (error) throw error;
+    const [pending, unfinished] = await Promise.all([
+      this.db
+        .from('kaspi_orders')
+        .select('*')
+        .eq('payment_method', FORTE_PAYMENT_METHOD)
+        .eq('provider_payment_system', FORTE_WIDGET_INTEGRATION)
+        .eq('status', 'pending')
+        .gte('created_at', cutoff)
+        .order('created_at', { ascending: true })
+        .limit(50),
+      this.db
+        .from('kaspi_orders')
+        .select('*')
+        .eq('payment_method', FORTE_PAYMENT_METHOD)
+        .eq('provider_payment_system', FORTE_WIDGET_INTEGRATION)
+        .in('status', ['paid', 'refunded'])
+        .is('payment_reconciled_at', null)
+        .order('created_at', { ascending: true })
+        .limit(50),
+    ]);
+    if (pending.error) throw pending.error;
+    if (unfinished.error) throw unfinished.error;
+    const data = [
+      ...new Map(
+        [...(pending.data || []), ...(unfinished.data || [])].map((order) => [order.id, order]),
+      ).values(),
+    ];
     for (const order of data || []) {
       try {
         await this.syncOrder(order);

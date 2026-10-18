@@ -9,7 +9,9 @@ test('login is Russian, responsive, and uses bundled assets', async ({ page }) =
   await page.goto('/admin/');
 
   await expect(page.locator('html')).toHaveAttribute('lang', 'ru');
-  await expect(page.getByRole('group', { name: 'Способ входа' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Имя пользователя', exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Пароль', exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Способ входа' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Управление Bulka' })).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -15,6 +16,54 @@ Future<void> _incrementUnderPushLock(String counterPath) =>
     });
 
 void main() {
+  test('a failing action releases queued and later lock users', () async {
+    final entered = Completer<void>();
+    final release = Completer<void>();
+    final events = <String>[];
+    final failing = PushDedupeLock.synchronized(() async {
+      events.add('first');
+      entered.complete();
+      await release.future;
+      throw StateError('fixture action failed');
+    });
+    final failed = expectLater(failing, throwsStateError);
+    await entered.future;
+    final following = PushDedupeLock.synchronized(() async {
+      events.add('second');
+    });
+    expect(events, ['first']);
+    release.complete();
+    await failed;
+    await following;
+    await PushDedupeLock.synchronized(() async => events.add('third'));
+    expect(events, ['first', 'second', 'third']);
+  });
+
+  test(
+    'caller timeout does not release a still-running critical section',
+    () async {
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      var nextEntered = false;
+      final running = PushDedupeLock.synchronized(() async {
+        entered.complete();
+        await release.future;
+      });
+      await entered.future;
+      final following = PushDedupeLock.synchronized(() async {
+        nextEntered = true;
+      });
+      await expectLater(
+        running.timeout(const Duration(milliseconds: 20)),
+        throwsA(isA<TimeoutException>()),
+      );
+      expect(nextEntered, false);
+      release.complete();
+      await Future.wait([running, following]);
+      expect(nextEntered, true);
+    },
+  );
+
   test('push lock serializes main and background isolate claims', () async {
     final directory = await Directory.systemTemp.createTemp(
       'bulka-push-lock-test-',

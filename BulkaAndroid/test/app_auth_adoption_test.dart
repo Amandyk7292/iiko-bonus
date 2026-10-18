@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' as io;
 
 import 'package:bulka_bonus/main.dart';
 import 'package:bulka_bonus/core/cart_provider.dart';
@@ -15,6 +16,61 @@ import 'package:shared_preferences/shared_preferences.dart';
 class GuestStaff extends StaffAccountSession {
   @override
   Future<void> restore() async {}
+}
+
+// This suite tests account adoption with a mocked native widget bridge. Keep
+// its file-lock I/O in the same fake-time environment; the widget concurrency
+// suite separately exercises the real lock and interleaved native calls.
+final class _WidgetFixtureIOOverrides extends io.IOOverrides {
+  @override
+  io.File createFile(String path) => path.endsWith('bulka-push-dedupe-v1.lock')
+      ? _FixtureLockFile()
+      : super.createFile(path);
+
+  @override
+  io.Link createLink(String path) => path.endsWith('bulka-push-dedupe-v1.lock')
+      ? _FixtureLockLink()
+      : super.createLink(path);
+}
+
+class _FixtureLockLink extends Fake implements io.Link {
+  String? _owner;
+
+  @override
+  Future<io.Link> create(String target, {bool recursive = false}) async {
+    _owner = target;
+    return this;
+  }
+
+  @override
+  Future<String> target() async => _owner!;
+
+  @override
+  Future<io.Link> delete({bool recursive = false}) async {
+    _owner = null;
+    return this;
+  }
+}
+
+class _FixtureLockFile extends Fake implements io.File {
+  @override
+  Future<io.RandomAccessFile> open({
+    io.FileMode mode = io.FileMode.read,
+  }) async => _FixtureLockHandle();
+}
+
+class _FixtureLockHandle extends Fake implements io.RandomAccessFile {
+  @override
+  Future<io.RandomAccessFile> lock([
+    io.FileLock mode = io.FileLock.exclusive,
+    int start = 0,
+    int end = -1,
+  ]) async => this;
+  @override
+  Future<io.RandomAccessFile> unlock([int start = 0, int end = -1]) async =>
+      this;
+  @override
+  Future<void> close() async {}
 }
 
 http.Response response(Object body, [int status = 200]) => http.Response(
@@ -46,6 +102,11 @@ Map<String, dynamic> profile(String phone, String identity) => {
 };
 
 void main() {
+  setUpAll(() {
+    io.IOOverrides.global = _WidgetFixtureIOOverrides();
+  });
+  tearDownAll(() => io.IOOverrides.global = null);
+
   for (final child in [false, true]) {
     testWidgets(
       'late profile adoption must not replace a newer ${child ? 'child' : 'adult'} account',
@@ -190,6 +251,7 @@ void main() {
               : tester.widget<MainShell>(find.byType(MainShell)).customer?.id;
           final preferences = await SharedPreferences.getInstance();
           await tester.pumpWidget(const SizedBox());
+          await HomeWidgetSync.clear();
           staff.dispose();
           cart.dispose();
           expect(originalShell.api.sessionPhone, newPhone);

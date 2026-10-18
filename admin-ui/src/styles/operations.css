@@ -30,6 +30,11 @@
   gap: 8px;
 }
 
+.sagi-topbar:has(.cashier-staff-controls) .topbar-logout {
+  min-width: 44px;
+  flex-shrink: 0;
+}
+
 .cashier-branch.realtime-status,
 .cashier-connection.realtime-status,
 .cashier-sound-toggle,

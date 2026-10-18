@@ -16,6 +16,7 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
   String? _busyAddressId;
   bool _loading = true;
   bool _loadFailed = false;
+  bool _continuing = false;
   final _navigationGate = _AsyncActionGate();
 
   @override
@@ -55,6 +56,7 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
   }
 
   Future<void> _addAddress() async {
+    if (_continuing) return;
     await _navigationGate.run(() async {
       BulkaMotion.lightImpact();
       DeliveryLocation? initialLocation;
@@ -152,6 +154,7 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
   }
 
   Future<void> _selectAddress(String id) async {
+    if (_continuing) return;
     BulkaMotion.selection();
     final previous = _selectedId;
     setState(() => _selectedId = id);
@@ -167,6 +170,7 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
   }
 
   Future<void> _deleteAddress(DeliveryAddress address) async {
+    if (_continuing) return;
     await _navigationGate.run(() async {
       final confirmed = await showDialog<bool>(
         context: context,
@@ -219,7 +223,7 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
   }
 
   Future<void> _editAddress(DeliveryAddress address) async {
-    if (_busyAddressId != null) return;
+    if (_busyAddressId != null || _continuing) return;
     await _navigationGate.run(() async {
       final edited = await Navigator.of(context).push<DeliveryAddress>(
         MaterialPageRoute(
@@ -251,6 +255,7 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
   }
 
   Future<void> _continue() async {
+    if (_continuing) return;
     DeliveryAddress? selected;
     for (final address in _addresses) {
       if (address.id == _selectedId) {
@@ -259,8 +264,20 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
       }
     }
     if (selected == null) return;
-    await _repository.selectAddress(selected.id);
-    if (mounted) Navigator.of(context).pop(selected);
+    final route = ModalRoute.of(context);
+    setState(() => _continuing = true);
+    try {
+      await _repository.selectAddress(selected.id);
+      if (mounted && route?.isCurrent == true) {
+        Navigator.of(context).pop(selected);
+      }
+    } catch (error) {
+      if (mounted && route?.isCurrent == true) {
+        showApiErrorSnackBar(context, error, fallbackKey: 'error_save');
+      }
+    } finally {
+      if (mounted) setState(() => _continuing = false);
+    }
   }
 
   @override
@@ -366,7 +383,8 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
                 width: double.infinity,
                 height: 60,
                 child: GradientButton(
-                  onPressed: selected ? _continue : null,
+                  onPressed: selected && !_continuing ? _continue : null,
+                  loading: _continuing,
                   height: 60,
                   child: Text(
                     'continue_btn'.tr,

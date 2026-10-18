@@ -5,7 +5,7 @@ import 'dart:math';
 /// Serializes push claims both inside an isolate and across Flutter's main and
 /// Firebase background isolates. The lock file contains no application data.
 abstract final class PushDedupeLock {
-  static Future<void> _tail = Future<void>.value();
+  static Future<void>? _tail;
   static const _staleAfter = Duration(seconds: 15);
   static const _acquireTimeout = Duration(seconds: 20);
 
@@ -14,13 +14,14 @@ abstract final class PushDedupeLock {
     final released = Completer<void>();
     _tail = released.future;
     return (() async {
-      await previous;
+      if (previous != null) await previous;
       try {
         return await (Platform.isWindows
             ? _withWindowsLock(action)
             : _withPosixLock(action));
       } finally {
         released.complete();
+        if (identical(_tail, released.future)) _tail = null;
       }
     })();
   }

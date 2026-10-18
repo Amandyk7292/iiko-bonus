@@ -43,6 +43,47 @@ async function refundPaymentForOrder(order, amount, options = {}) {
 }
 
 async function reconcileFullRefundForOrder(order) {
+  if (isForteOrder(order) && order.provider_payment_system !== 'forte_widget') {
+    // /flex has no transaction lookup by our refund request ID. Read the
+    // validated original payment instead; never replay an uncertain full
+    // refund just because its local success write was interrupted.
+    const pending = {
+      status: 'pending',
+      reference: order.refund_reference || null,
+      requestId: order.refund_request_id || null,
+    };
+    const amount = Number(order.amount);
+    const refunded = Number(order.partially_refunded_amount || 0);
+    if (
+      !order.operation_id ||
+      !order.refund_request_id ||
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      !Number.isFinite(refunded) ||
+      refunded < 0 ||
+      refunded >= amount
+    )
+      return { ...pending, message: 'Сумма или исходная операция возврата требует ручной сверки' };
+    try {
+      const { normalized } = await forteService.queryOrder(order);
+      if (
+        normalized?.id !== String(order.operation_id) ||
+        normalized.currency !== 'KZT' ||
+        !Number.isFinite(normalized.amount) ||
+        Math.round(normalized.amount * 100) !== Math.round(amount * 100)
+      )
+        return { ...pending, message: 'Параметры платежа ForteBank не совпали с исходным заказом' };
+      const status = String(normalized?.status || '')
+        .replace(/[\s_-]/g, '')
+        .toLowerCase();
+      if (['refunded', 'voided'].includes(status)) {
+        return { ...pending, status: 'confirmed' };
+      }
+      return { ...pending, message: 'ForteBank пока не подтвердил полный возврат платежа' };
+    } catch (error) {
+      return { ...pending, message: error.message };
+    }
+  }
   if (order?.payment_method === 'personal_account' && order.refund_request_id) {
     return reconcileRefundForOrder(order, {
       id: order.refund_request_id,

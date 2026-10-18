@@ -9,6 +9,8 @@ const { execFileSync } = require('node:child_process');
 const projectRoot = path.join(__dirname, '..');
 const releasePlaceholder = '__BULKA_RELEASE_VERSION__';
 const releaseVersionPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{5,63}$/;
+const isValidReleaseVersion = (version) =>
+  typeof version === 'string' && version.trim() === version && releaseVersionPattern.test(version);
 
 const sha256File = (filePath) =>
   crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
@@ -22,7 +24,7 @@ const resolveReleaseVersion = (explicitVersion) => {
         encoding: 'utf8',
       }),
   ).trim();
-  if (!releaseVersionPattern.test(candidate)) {
+  if (!isValidReleaseVersion(candidate)) {
     throw new Error('Flutter release version must be 6-64 URL-safe characters');
   }
   return candidate;
@@ -43,9 +45,8 @@ const versionDeferredChunks = (buildDirectory, mainBundlePath, version) => {
     const file = name.replace('.part.js', `.${version}-${fingerprint}.part.js`);
     return { name, file, content };
   });
-  const replaceNames = (content) => chunks.reduce(
-    (result, chunk) => result.replaceAll(chunk.name, chunk.file), content,
-  );
+  const replaceNames = (content) =>
+    chunks.reduce((result, chunk) => result.replaceAll(chunk.name, chunk.file), content);
   for (const chunk of chunks) {
     const targetPath = path.join(buildDirectory, chunk.file);
     fs.writeFileSync(targetPath, replaceNames(chunk.content), 'utf8');
@@ -56,8 +57,10 @@ const versionDeferredChunks = (buildDirectory, mainBundlePath, version) => {
   // chunk names so repeated normal builds do not package/cache stale decoders.
   const currentNames = new Set(chunks.map(({ file }) => file));
   for (const entry of fs.readdirSync(buildDirectory)) {
-    if (/^main\.dart\.js_\d+\.[A-Za-z0-9][A-Za-z0-9._-]{5,63}-[a-f0-9]{16}\.part\.js$/.test(entry)
-        && !currentNames.has(entry)) {
+    if (
+      /^main\.dart\.js_\d+\.[A-Za-z0-9][A-Za-z0-9._-]{5,63}-[a-f0-9]{16}\.part\.js$/.test(entry) &&
+      !currentNames.has(entry)
+    ) {
       fs.unlinkSync(path.join(buildDirectory, entry));
     }
   }
@@ -98,9 +101,12 @@ const finalizeFlutterWebBuild = ({ directory, version }) => {
   fs.copyFileSync(workerSourcePath, workerOutputPath);
   // Compress once during the build, rather than on every cold client request.
   const mainBundle = fs.readFileSync(mainBundlePath);
-  fs.writeFileSync(`${mainBundlePath}.br`, zlib.brotliCompressSync(mainBundle, {
-    params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11 },
-  }));
+  fs.writeFileSync(
+    `${mainBundlePath}.br`,
+    zlib.brotliCompressSync(mainBundle, {
+      params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11 },
+    }),
+  );
   fs.writeFileSync(`${mainBundlePath}.gz`, zlib.gzipSync(mainBundle, { level: 9 }));
 
   const manifest = {
@@ -140,6 +146,7 @@ if (require.main === module) {
 
 module.exports = {
   finalizeFlutterWebBuild,
+  isValidReleaseVersion,
   releasePlaceholder,
   resolveReleaseVersion,
   sha256File,

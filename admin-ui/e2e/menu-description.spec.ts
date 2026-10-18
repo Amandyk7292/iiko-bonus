@@ -90,14 +90,15 @@ test('requires Russian and Kazakh only and copies source text without overwritin
   await expect(page.getByText('Неполное описание', { exact: true })).toHaveCount(4);
   await complete.getByRole('button', { name: 'Изменить', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByRole('button', { name: 'KK', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Қазақша', exact: true }).click();
   await expect(dialog.locator('#edit-description-kk')).toHaveValue('Қазақша сипаттама');
-  await dialog.getByRole('button', { name: 'Скопировать русское описание', exact: true }).click();
+  await dialog.getByText('Помощь с переводом', { exact: true }).click();
+  await dialog.getByRole('button', { name: 'Скопировать описание RU', exact: true }).click();
   await expect
     .poll(() => page.evaluate(() => (window as any).copiedDescription))
     .toBe('Русское описание');
   await expect(dialog.locator('#edit-description-kk')).toHaveValue('Қазақша сипаттама');
-  await expect(dialog.getByRole('link', { name: 'Яндекс Переводчик' })).toHaveAttribute(
+  await expect(dialog.getByRole('link', { name: 'Открыть переводчик' })).toHaveAttribute(
     'href',
     'https://translate.yandex.ru/',
   );

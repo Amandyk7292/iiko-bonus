@@ -698,6 +698,14 @@ test('old canceled unresolved setups rotate through bounded pages while current 
           filters.push((row) => row[key] === value);
           return query;
         },
+        in(key, values) {
+          filters.push((row) => values.includes(row[key]));
+          return query;
+        },
+        is(key, value) {
+          filters.push((row) => (value === null ? row[key] == null : row[key] === value));
+          return query;
+        },
         not(key, operator, value) {
           assert.equal(operator, 'is');
           assert.equal(value, null);

@@ -144,7 +144,10 @@ class AddressRepository {
     final selectedId = await loadSelectedAddressId();
     if (addresses.isEmpty) return null;
     for (final address in addresses) {
-      if (address.id == selectedId || address.isDefault) return address;
+      if (address.id == selectedId) return address;
+    }
+    for (final address in addresses) {
+      if (address.isDefault) return address;
     }
     return addresses.first;
   }
@@ -195,6 +198,16 @@ class AddressRepository {
     if (_syncWithAccount) await api!.setDefaultCustomerAddress(id);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_selectedAddressKey, id);
+    final cached = _readCachedAddresses(prefs);
+    if (cached.any((address) => address.id == id)) {
+      await _cacheAddresses(prefs, [
+        for (final address in cached)
+          DeliveryAddress.fromJson({
+            ...address.toJson(),
+            'isDefault': address.id == id,
+          }),
+      ]);
+    }
   }
 
   Future<void> deleteAddress(String id) async {

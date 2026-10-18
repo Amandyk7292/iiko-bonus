@@ -6,6 +6,8 @@ const stub = (path, exports) => {
   require.cache[resolved] = { id: resolved, filename: resolved, loaded: true, exports };
 };
 let captured;
+let commitResult = { status: 'committed' };
+const commitCalls = [];
 const order = {
   id: 'audit-order',
   customer_id: 'audit-customer',
@@ -39,9 +41,7 @@ stub('services/loyalty-sync.service', { queueCustomerLoyaltySync() {} });
 stub('services/eta.service', {});
 stub('services/customer.service', {
   getCustomerById: async () => ({ total_spent: 0 }),
-  applyLoyaltyTransaction: async (p) => {
-    captured = p.activationDelayDays;
-  },
+  applyLoyaltyTransaction: async () => assert.fail('Online cashback must hold the order lock'),
 });
 stub('services/settings.service', {
   getSettings: async () => ({ bonus_activation: { enabled: false, delay_days: 3 } }),
@@ -51,7 +51,8 @@ stub('utils/tier.util', { getTierInfo: () => ({ percent: 3 }) });
 stub('services/checkout-bonus.service', {
   commitCheckoutBonus: async (_o, _earned, delay) => {
     captured = delay;
-    return { status: 'committed' };
+    commitCalls.push({ order: _o, earned: _earned, delay });
+    return commitResult;
   },
 });
 require('node:test')(
@@ -62,5 +63,22 @@ require('node:test')(
       await service.awardOrderBonus({ ...order, bonus_spent: bonusSpent });
       assert.equal(captured, 0);
     }
+    assert.deepEqual(
+      commitCalls.map((call) => call.order.bonus_spent),
+      [0, 100],
+    );
+  },
+);
+require('node:test')(
+  'cashback returns the committed ledger result and respects a racing refund',
+  async () => {
+    const service = require(root + 'services/order-payment-state.service');
+    const committedAt = '2026-10-18T10:00:00.000Z';
+    commitResult = { status: 'committed', earnedBonus: 17, bonusAwardedAt: committedAt };
+    const result = await service.awardOrderBonus({ ...order, bonus_spent: 0 });
+    assert.equal(result.earned_bonus, 17);
+    assert.equal(result.bonus_awarded_at, committedAt);
+    commitResult = { status: 'unavailable' };
+    assert.equal(await service.awardOrderBonus({ ...order, bonus_spent: 0 }), null);
   },
 );
