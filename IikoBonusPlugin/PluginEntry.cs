@@ -100,7 +100,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 catch(Exception error) { PluginContext.Log.Error("Bulka online payment registration: " + error.Message); }
                 _assemblyReprintButton = RegisterOrderAction("Сборочный чек Bulka",
                     (ValueTuple<IOrder,IOperationService,IViewManager> args) => AssemblyTicket.Reprint(args.Item1,args.Item2,args.Item3,_pickupPhotos));
-                _inbox = new OnlineOrderInbox();
+                _inbox = new OnlineOrderInbox(() => _automaticReceipts?.RequestRetry());
                 _pairingMenu = PluginContext.Operations.AddButtonToPluginsMenu("Привязать кассу", args => PosPairing.Show(args.Item1));
                 _updateMenu = PluginContext.Operations.AddButtonToPluginsMenu("Проверить обновления Bulka", args => PluginUpdateFlow.Show(args.Item1));
                 RegisterOrderAction("Проверить обновления", args => PluginUpdateFlow.Show(args.Item3));

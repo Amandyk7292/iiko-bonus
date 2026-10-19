@@ -22,6 +22,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private readonly PickupPhotoSync photos;
         private readonly Timer timer;
         private int busy;
+        private int retryRequested;
         private volatile bool disposed;
         private volatile int pendingCount;
         internal string StatusText {get;private set;}="Онлайн-чеки: ожидание привязки кассы";
@@ -123,14 +124,16 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private void Tick(object state)
         {
             if(disposed || PosPairing.Current==null || Interlocked.CompareExchange(ref busy,1,0)!=0) return;
+            Interlocked.Exchange(ref retryRequested,0);
             try
             {
                 if(!storageHealthy && !TryLoad()) return;
                 var os=PluginContext.Operations;
-                var jobs=Request<AutomaticReceiptJobs>("poll",new AutomaticReceiptPoll {TerminalId=os.GetHostTerminal().Id.ToString()});
+                var jobs=Request<AutomaticReceiptJobs>("poll",new AutomaticReceiptPoll {TerminalId=os.GetHostTerminal().Id.ToString(),WorkOnly=true});
                 if(jobs?.Jobs==null) throw new InvalidOperationException("Не читается очередь онлайн-чеков");
-                pendingCount=jobs.Jobs.Count;
-                foreach(var job in jobs.Jobs)
+                var ready=WorkJobs(jobs.Jobs).ToArray();
+                pendingCount=ready.Length;
+                foreach(var job in ready)
                 {
                     if(disposed) break;
                     try { if(Process(job,os)) StatusText="Онлайн-чеки: переданы в iikoFront"; }
@@ -140,35 +143,62 @@ namespace Resto.Front.Api.IikoBonusPlugin
                         PluginContext.Log.Warn(StatusText);
                         try { Action(os,"problem",job.OrderId,error:error.Message.Substring(0,Math.Min(400,error.Message.Length))); } catch { }
                     }
+                    // Acceptance/handover can change fiscal work while this
+                    // batch is running. Re-read it before processing more of
+                    // the old snapshot, retaining all durable print evidence.
+                    if(Volatile.Read(ref retryRequested)!=0) break;
                 }
             }
             catch(Exception error) {StatusText="Онлайн-чеки: "+error.Message;}
-            finally {Interlocked.Exchange(ref busy,0);}
+            finally {ReleaseWorker();}
         }
-        internal void RequestRetry() {ThreadPool.QueueUserWorkItem(Tick);}
+        private static IEnumerable<AutomaticReceiptJob> WorkJobs(IEnumerable<AutomaticReceiptJob> jobs) =>
+            jobs.Where(job=>job.FiscalDue || job.AssemblyStatus!="printed").OrderByDescending(job=>job.FiscalDue);
+        private void ReleaseWorker()
+        {
+            Interlocked.Exchange(ref busy,0);
+            // Only the next owner may consume this latch. Another timer tick
+            // can already own busy after the release; clearing here would lose
+            // an acceptance/handover wakeup intended for that newer flight.
+            if(Volatile.Read(ref retryRequested)!=0 && !disposed) ThreadPool.QueueUserWorkItem(Tick);
+        }
+        internal void RequestRetry()
+        {
+            if(disposed) return;
+            // Keep a wakeup that arrives during a network or SDK call. The
+            // current owner alone releases busy and schedules the next poll.
+            if(Interlocked.Exchange(ref retryRequested,1)==0 && Volatile.Read(ref busy)==0)
+                ThreadPool.QueueUserWorkItem(Tick);
+        }
         internal string CheckAndRecover()
         {
             if(disposed || Interlocked.CompareExchange(ref busy,1,0)!=0)
                 return "Очередь уже обрабатывается. Повторите проверку после завершения текущей операции.";
+            Interlocked.Exchange(ref retryRequested,0);
             try {
                 if(PosPairing.Current==null) return "Сначала привяжите кассу.";
                 var os=PluginContext.Operations;
-                var jobs=Request<AutomaticReceiptJobs>("poll",new AutomaticReceiptPoll {TerminalId=os.GetHostTerminal().Id.ToString()});
+                var jobs=Request<AutomaticReceiptJobs>("poll",new AutomaticReceiptPoll {TerminalId=os.GetHostTerminal().Id.ToString(),WorkOnly=true});
                 if(jobs?.Jobs==null) throw new InvalidOperationException("Нет ответа об очереди чеков.");
-                if(jobs.Jobs.Count==0) return "Сервер не сообщает незавершённых заданий для этой кассы.";
+                var ready=WorkJobs(jobs.Jobs).ToArray();
+                if(ready.Length==0) return "Сервер не сообщает незавершённых заданий для этой кассы.";
                 var result=new List<string>();
-                foreach(var job in jobs.Jobs) {
+                foreach(var job in ready) {
                     try { result.Add(Process(job,os) ? "№"+job.Number+": обработан текущий доступный этап" : StatusText); }
                     catch(Exception error) {
                         result.Add("№"+job.Number+": "+error.Message);
                         try {Action(os,"problem",job.OrderId,error:error.Message.Substring(0,Math.Min(400,error.Message.Length)));} catch {}
                     }
+                    if(Volatile.Read(ref retryRequested)!=0) break;
                 }
                 return string.Join("\n\n",result);
-            } finally {Interlocked.Exchange(ref busy,0);}
+            } finally {ReleaseWorker();}
         }
         private bool Process(AutomaticReceiptJob job,IOperationService os)
         {
+            // A prepared assembly ticket is intentionally kept in the server
+            // queue until handover. It needs no repeated claim/bind round trips.
+            if(!job.FiscalDue && job.AssemblyStatus=="printed") return true;
             var paymentType=job.FiscalDue ? FindPaymentType(os) : null;
             var terminal=os.GetHostTerminal();
             if(os.GetHostTerminalsGroup().MainTerminal?.Id!=terminal.Id && !os.IsConnectedToMainTerminal())

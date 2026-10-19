@@ -59,6 +59,7 @@ async function main() {
           return {
             posTransportMiddleware(req, _res, next) {
               req.pairedPos = { branch_id: branchA, token_hash: 'fixture' };
+              req.pairedPosBranch = { id: branchA, active: true };
               next();
             },
           };

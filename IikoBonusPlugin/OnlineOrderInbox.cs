@@ -11,6 +11,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private readonly Timer timer;
         private readonly object gate = new object();
         private readonly SemaphoreSlim network = new SemaphoreSlim(1, 1);
+        private readonly Action requestReceiptProcessing;
         private readonly int[] pages = {1, 1, 1, 1};
         private readonly OrderAlertState alerts = new OrderAlertState();
         private OrderBoardWindow window;
@@ -20,7 +21,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private string revision = "";
         private string search = "";
         private DateTime lastBoardLoaded = DateTime.MinValue;
-        internal OnlineOrderInbox() { timer = new Timer(Poll, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)); }
+        internal OnlineOrderInbox(Action requestReceiptProcessing = null)
+        {
+            this.requestReceiptProcessing = requestReceiptProcessing;
+            timer = new Timer(Poll, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
+        }
 
         private static T Request<T>(HttpMethod method, string path, object body = null)
         {
@@ -185,6 +190,18 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     Request<GuardResponse>(HttpMethod.Post, "orders/board/action", new InboxDecision {
                         OrderId = order.Id, TerminalId = PluginContext.Operations.GetHostTerminal().Id.ToString(), Action = action,
                         ResolutionId = order.DeliveryResolution?.NeedsApproval == true ? order.DeliveryResolution.Id : null });
+                    // The server has confirmed the transition. Wake the receipt
+                    // worker before the board refresh, which may be slow or fail.
+                    if (action == "accept" || action == "hand_over")
+                    {
+                        try { requestReceiptProcessing?.Invoke(); }
+                        catch (Exception error)
+                        {
+                            // A scheduler failure cannot undo a confirmed action
+                            // or make the cashier submit that action again.
+                            try { PluginContext.Log.Warn("Bulka receipt wake-up: " + error.Message); } catch { }
+                        }
+                    }
                     var result = Load(); OnWindow(view => view.Update(result));
                 }
                 catch (Exception error)

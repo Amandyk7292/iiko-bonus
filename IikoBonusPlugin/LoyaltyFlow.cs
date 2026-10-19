@@ -245,7 +245,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
     public static class LoyaltyFlow
     {
-        private static readonly HttpClient _httpClient = new HttpClient();
+        private static readonly HttpClient _httpClient = new HttpClient(new HttpClientHandler { MaxConnectionsPerServer = 8 });
         private static readonly HttpClient _updateHttpClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
         private static readonly string ApiBaseUrl = ReadPluginSetting("IIKO_LOYALTY_API_BASE_URL") ?? "https://bulka.com.kz/api/loyalty";
         private static readonly string ApiToken = ReadPluginSetting("IIKO_LOYALTY_API_TOKEN") ?? ReadPluginSetting("API_TOKEN");

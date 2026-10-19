@@ -82,6 +82,7 @@ function database(policyOverrides = {}, active = true, branchActive = true) {
                   terminal_group_id: randomUUID(),
                   token_hash: posDeviceTokenHash(token),
                   plugin_version: '1.12.1',
+                  branch: { id: branch, active: branchActive },
                 }
               : null
             : table === 'bulka_locations'

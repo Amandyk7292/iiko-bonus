@@ -273,6 +273,7 @@ test('paired POS authentication binds branch, physical terminal, group and gift 
               branch_id: b,
               terminal_group_id: group,
               token_hash: posDeviceTokenHash(token),
+              branch: { id: b, active },
             }
           : table === 'bulka_locations'
             ? active

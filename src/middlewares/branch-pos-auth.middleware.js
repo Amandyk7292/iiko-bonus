@@ -52,12 +52,19 @@ async function branchPosAuthMiddleware(req, res, next) {
             .eq('branch_id', branchId)
             .eq('active', true)
             .maybeSingle(),
-      supabase
-        .from('bulka_locations')
-        .select('id')
-        .eq('id', branchId)
-        .eq('active', true)
-        .maybeSingle(),
+      req.pairedPos
+        ? Promise.resolve({
+            data:
+              req.pairedPosBranch?.id === branchId && req.pairedPosBranch.active === true
+                ? req.pairedPosBranch
+                : null,
+          })
+        : supabase
+            .from('bulka_locations')
+            .select('id')
+            .eq('id', branchId)
+            .eq('active', true)
+            .maybeSingle(),
     ]);
     if (credentialError) throw credentialError;
     if (branchError) throw branchError;

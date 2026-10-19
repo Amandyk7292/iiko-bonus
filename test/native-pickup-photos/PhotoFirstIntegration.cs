@@ -165,6 +165,11 @@ internal static partial class Program
             Scenario(mapped);
             var state=new ReceiptState();
             services.Operations=ReceiptOperations(originalOperations,state);
+            // PluginContext caches its operation service during Initialize;
+            // timer-driven workers must see the same decorated SDK as direct
+            // Process tests rather than the original service-provider value.
+            PluginContext.Uninitialize();
+            PluginContext.Initialize(services,()=>{},Proxy.Make<ILog>(call=>null));
             replacement=new HttpClient(new FakeHttp{Reply=request=>ReceiptReply(request,state)});
             httpField.SetValue(null,replacement);
             photos=NewWorker();automatic=NewAutomatic(photos);
@@ -175,6 +180,8 @@ internal static partial class Program
             if(automatic!=null) Dispose(automatic);
             if(photos!=null) Dispose(photos);
             services.Operations=originalOperations;
+            PluginContext.Uninitialize();
+            PluginContext.Initialize(services,()=>{},Proxy.Make<ILog>(call=>null));
             httpField.SetValue(null,originalHttp);
             replacement?.Dispose();
             directoryField.SetValue(null,originalDirectory);

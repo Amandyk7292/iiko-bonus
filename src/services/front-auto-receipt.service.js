@@ -4,7 +4,7 @@ const {
   unresolvedDeliveryResolution,
   unresolvedDeliveryResolutionStatuses,
 } = require('../utils/delivery-resolution.util');
-async function listAutoReceipts(branchId, { terminalId, assemblyVersion }) {
+async function listAutoReceipts(branchId, { terminalId, assemblyVersion, workOnly = false }) {
   let query = supabase
     .from('front_receipt_jobs')
     .select(
@@ -17,10 +17,18 @@ async function listAutoReceipts(branchId, { terminalId, assemblyVersion }) {
       `and(or(refund_status.is.null,refund_status.in.(partial,failed)),or(delivery_resolution->>status.is.null,delivery_resolution->>status.not.in.(${unresolvedDeliveryResolutionStatuses.join(',')})))`,
       { referencedTable: 'kaspi_orders' },
     )
-    .or(`terminal_id.is.null,terminal_id.eq.${terminalId}`)
-    .order('updated_at', { ascending: true })
-    .limit(20);
+    .or(`terminal_id.is.null,terminal_id.eq.${terminalId}`);
   if (assemblyVersion !== 1) query = query.eq('fiscal_due', true);
+  // Manual reprints and older plugins still need the full unfinished job list.
+  // New automatic workers skip already assembled jobs while awaiting handover.
+  // Filter before LIMIT so idle jobs cannot hide new assembly/fiscal work.
+  if (workOnly) query = query.or('fiscal_due.eq.true,assembly_status.neq.printed');
+  query = query
+    .order('fiscal_due', { ascending: false })
+    .order('updated_at', { ascending: true })
+    .order('created_at', { ascending: true })
+    .order('order_id', { ascending: true })
+    .limit(20);
   const { data, error } = await query;
   if (error) throw error;
   return {

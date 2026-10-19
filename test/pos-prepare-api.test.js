@@ -158,6 +158,7 @@ async function api(t) {
         if (req.headers.authorization !== 'Bearer paired-test')
           return res.status(401).json({ success: false });
         req.pairedPos = { branch_id: h.branch, token_hash: 'paired-hash' };
+        req.pairedPosBranch = { id: h.branch, active: true };
         next();
       },
     },

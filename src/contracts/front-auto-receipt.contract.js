@@ -2,7 +2,11 @@ const { z } = require('../middlewares/validation.middleware');
 const { iikoGuidSchema } = require('./iiko-guid.schema');
 const { frontStockSaleSchema } = require('./front-stock-guard.contract');
 const frontAutoReceiptPollSchema = z
-  .object({ terminalId: iikoGuidSchema, assemblyVersion: z.literal(1).optional() })
+  .object({
+    terminalId: iikoGuidSchema,
+    assemblyVersion: z.literal(1).optional(),
+    workOnly: z.boolean().optional(),
+  })
   .strict();
 const frontAutoReceiptActionSchema = z
   .object({

@@ -416,6 +416,7 @@ test('native HTTP routes require paired branch transport and matching terminal b
     terminal_group_id: randomUUID(),
     token_hash: posDeviceTokenHash(token),
     active: true,
+    branch: { id: BRANCH, active: true },
   };
   const calls = [];
   const db = {

@@ -18,12 +18,28 @@ async function posTransportMiddleware(req, res, next) {
   const token = authorization.replace(/^Bearer /i, '');
   if (!/^pt1_[a-f0-9]{64}$/.test(token)) return reject();
   try {
-    const { data, error } = await supabase
-      .from('pos_devices')
-      .select('terminal_id,branch_id,token_hash,terminal_group_id,plugin_version')
-      .eq('token_hash', posDeviceTokenHash(token))
-      .eq('active', true)
-      .maybeSingle();
+    const updateCheck = req.method === 'GET' && req.path === '/api/loyalty/pos/updates/latest';
+    const checkPolicy = !updateCheck && !String(req.path || '').includes('/pos/health/heartbeat');
+    // Read each request's current device/branch and policy together. Keeping the
+    // branch in this same database snapshot avoids a second network round trip
+    // without caching an authorization decision across requests.
+    const [{ data, error }, { data: policy, error: policyError }] = await Promise.all([
+      supabase
+        .from('pos_devices')
+        .select(
+          'terminal_id,branch_id,token_hash,terminal_group_id,plugin_version,branch:bulka_locations!inner(id,active)',
+        )
+        .eq('token_hash', posDeviceTokenHash(token))
+        .eq('active', true)
+        .maybeSingle(),
+      checkPolicy
+        ? supabase
+            .from('pos_plugin_policy')
+            .select('minimum_version,enforce_minimum,download_url')
+            .eq('singleton', true)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
     if (error) throw error;
     if (!data || !safeEqual(data.token_hash, posDeviceTokenHash(token))) return reject();
     const terminalId = String(req.headers?.['x-bulka-terminal-id'] || '').toLowerCase();
@@ -45,14 +61,8 @@ async function posTransportMiddleware(req, res, next) {
         .eq('terminal_id', data.terminal_id);
       data.plugin_version = reportedVersion;
     }
-    const updateCheck = req.method === 'GET' && req.path === '/api/loyalty/pos/updates/latest';
     // An authenticated outdated register must still be able to obtain its fix.
-    if (!updateCheck && !String(req.path || '').includes('/pos/health/heartbeat')) {
-      const { data: policy, error: policyError } = await supabase
-        .from('pos_plugin_policy')
-        .select('minimum_version,enforce_minimum,download_url')
-        .eq('singleton', true)
-        .maybeSingle();
+    if (checkPolicy) {
       if (policyError) throw policyError;
       const versionOrder = compareVersions(reportedVersion, policy?.minimum_version);
       if (policy?.enforce_minimum === true && (versionOrder === null || versionOrder < 0)) {
@@ -65,6 +75,7 @@ async function posTransportMiddleware(req, res, next) {
       }
     }
     req.pairedPos = data;
+    req.pairedPosBranch = data.branch;
     return next();
   } catch (error) {
     return next(error);
