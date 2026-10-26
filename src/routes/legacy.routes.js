@@ -5,7 +5,12 @@ const { getSettings } = require('../services/settings.service');
 const { getActiveLoyaltyTiers } = require('../services/tier.service');
 const { getTierInfo } = require('../utils/tier.util');
 const { startCustomerOtp } = require('../services/customer-otp.service');
-const { customerOtpProvider } = require('../services/customer-otp-provider.service');
+const {
+  autocallProviderConfig,
+  customerOtpProvider,
+  verifyAutocallOtp,
+} = require('../services/customer-otp-provider.service');
+const { customerOtpDigest } = require('../utils/customer-otp.util');
 const { getOrCreateCustomerByPhone, getCustomerByPhone } = require('../services/customer.service');
 const otpStore = require('../services/otpStore.service');
 const { supabase } = require('../config/supabase');
@@ -236,6 +241,7 @@ router.post(
         password: req.body?.password,
         requestToken: req.body?.token,
         automaticOtpSupported: req.body?.otpDeliveryVersion === 2,
+        channel: req.body?.channel,
       });
       res.json({ success: true, ...result });
     } catch (error) {
@@ -349,6 +355,34 @@ router.post(
       const phone = normalizeCustomerPhone(req.body.phone);
       const { code } = req.body;
       if (!phone || !code) return res.status(400).json({ error: 'Phone and code required' });
+
+      const pendingOtp = await otpStore.get(phone);
+      if (
+        pendingOtp?.otpProvider === 'autocall_otp' &&
+        pendingOtp?.purpose === AUTH_PURPOSES.registration &&
+        /^\d{1,20}$/.test(String(pendingOtp.providerMessageId || '')) &&
+        typeof pendingOtp.codeDigest === 'string' &&
+        /^[a-f0-9]{64}$/.test(pendingOtp.codeDigest) &&
+        /^\d{6}$/.test(code)
+      ) {
+        const submittedDigest = customerOtpDigest(phone, code);
+        const digestMatches = crypto.timingSafeEqual(
+          Buffer.from(pendingOtp.codeDigest, 'hex'),
+          Buffer.from(submittedDigest, 'hex'),
+        );
+        if (digestMatches) {
+          const config = autocallProviderConfig(process.env);
+          const providerCheck = await verifyAutocallOtp({
+            otpId: pendingOtp.providerMessageId,
+            code,
+            config,
+          });
+          if (!providerCheck.valid) {
+            await otpStore.delete(phone);
+            return sendOtpFailure(res, { status: 'expired' });
+          }
+        }
+      }
 
       const consumed = await otpStore.consume(phone, code);
       const failure = sendOtpFailure(res, consumed);

@@ -612,6 +612,52 @@ extension _LoginScreenForms on _LoginScreenState {
             height: 1.35,
           ),
         ),
+        const SizedBox(height: 18),
+        Text(
+          'otp_channel_label'.tr,
+          style: TextStyle(
+            fontFamily: _headingFont,
+            color: Theme.of(context).colorScheme.onSurface,
+            fontSize: BulkaTypeScale.bodySmall,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final option in const [
+              ('whatsapp', 'otp_channel_whatsapp'),
+              ('telegram', 'otp_channel_telegram'),
+              ('sms', 'otp_channel_sms'),
+            ])
+              ChoiceChip(
+                key: ValueKey('otp-channel-${option.$1}'),
+                label: Text(option.$2.tr),
+                selected: _otpChannel == option.$1,
+                onSelected: _loading
+                    ? null
+                    : (_) => _update(() {
+                        _otpChannel = option.$1;
+                        _error = null;
+                      }),
+                selectedColor: context.bulkaColors.brandGold.withValues(
+                  alpha: 0.25,
+                ),
+                labelStyle: TextStyle(
+                  color: context.bulkaColors.brandBrown,
+                  fontWeight: FontWeight.w600,
+                ),
+                side: BorderSide(
+                  color: _otpChannel == option.$1
+                      ? context.bulkaColors.brandBrown
+                      : context.bulkaColors.cardBorder,
+                ),
+                showCheckmark: false,
+              ),
+          ],
+        ),
       ],
       if (_error != null) ...[
         const SizedBox(height: 10),

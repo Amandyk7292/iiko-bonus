@@ -38,6 +38,8 @@ String localizeErrorMessage(
       return 'auth_password_rules'.tr;
     case 'OTP_RATE_LIMITED':
       return 'otp_request_wait'.tr;
+    case 'OTP_CHANNEL_UNAVAILABLE':
+      return 'otp_channel_unavailable'.tr;
     case 'OTP_INVALID_PHONE':
       return 'otp_kz_phone_required'.tr;
     case 'OTP_SEND_FAILED':

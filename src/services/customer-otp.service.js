@@ -16,6 +16,7 @@ async function startCustomerOtp(
     purpose = 'customer_login',
     passwordHash = null,
     automaticOtpSupported = false,
+    channel: requestedChannel,
   },
   { db = supabase, env = process.env, sendOtp = sendAutomaticOtp } = {},
 ) {
@@ -51,11 +52,29 @@ async function startCustomerOtp(
     automaticOtpSupported === true
       ? otpProviderConfig(env, purpose)
       : { provider: 'legacy_whatsapp' };
+  const selectedChannel =
+    requestedChannel ||
+    (['autocall_sms', 'mobizon_sms'].includes(config.provider) ? 'sms' : 'whatsapp');
+  const supportedChannels =
+    config.provider === 'autocall_sms'
+      ? ['whatsapp', 'telegram', 'sms']
+      : config.provider === 'mobizon_sms'
+        ? ['sms']
+        : ['whatsapp'];
+  if (!supportedChannels.includes(selectedChannel)) {
+    throw otpError(
+      'Для этого номера недоступен выбранный способ подтверждения. Выберите другой способ.',
+      422,
+      'OTP_CHANNEL_UNAVAILABLE',
+    );
+  }
+  const useAutocallOtpApi = config.provider === 'autocall_sms' && Boolean(requestedChannel);
   const payload = {
     phone,
     purpose,
     flowId: requestToken,
     ...(passwordHash ? { passwordHash } : {}),
+    ...(useAutocallOtpApi ? { otpProvider: 'autocall_otp', otpChannel: selectedChannel } : {}),
   };
   if (config.provider === 'legacy_whatsapp') {
     const expires = Date.now() + 10 * 60 * 1000;
@@ -96,7 +115,12 @@ async function startCustomerOtp(
   }
   const deliveryArgs = { p_phone: phone, p_flow_id: requestToken, p_digest: digest };
   try {
-    const delivery = await sendOtp({ phone, code, config });
+    const delivery = await sendOtp({
+      phone,
+      code,
+      config,
+      ...(useAutocallOtpApi ? { channel: selectedChannel, customId: requestToken } : {}),
+    });
     const { data: completed, error: completionError } = await db.rpc(
       'complete_customer_otp_delivery',
       { ...deliveryArgs, p_success: true, p_message_id: delivery.messageId },
@@ -104,7 +128,7 @@ async function startCustomerOtp(
     if (completionError || completed !== true) {
       throw otpError('Не удалось отправить код. Попробуйте позже.', 503, 'OTP_SEND_FAILED');
     }
-  } catch {
+  } catch (error) {
     // An unaccepted/uncertain send must not leave a usable confirmation code.
     await db
       .rpc('complete_customer_otp_delivery', {
@@ -113,14 +137,24 @@ async function startCustomerOtp(
         p_message_id: null,
       })
       .catch(() => {});
+    if (error?.code === 'OTP_CHANNEL_UNAVAILABLE') {
+      await db
+        .rpc('release_customer_otp_reservation', {
+          p_phone: phone,
+          p_flow_id: requestToken,
+        })
+        .catch(() => {});
+      throw error;
+    }
+    if (String(error?.code || '').startsWith('OTP_')) throw error;
     throw otpError('Не удалось отправить код. Попробуйте позже.', 503, 'OTP_SEND_FAILED');
   }
   return {
     deliveryMode: 'automatic',
-    channel: ['mobizon_sms', 'autocall_sms'].includes(config.provider) ? 'sms' : 'whatsapp',
+    channel: selectedChannel,
     codeLength: 6,
     expiresInSeconds: 300,
-    retryAfterSeconds: 60,
+    retryAfterSeconds: ['whatsapp', 'telegram'].includes(selectedChannel) ? 120 : 60,
     whatsappUrl: null,
     whatsappPhone: null,
   };

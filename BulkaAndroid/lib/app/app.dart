@@ -1145,9 +1145,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     }
   }
 
-  Future<OtpRequestResult> _startPasswordRegistration(
+  Future<OtpRequestResult> _startPasswordRegistrationWithChannel(
     String phone,
     String password,
+    String channel,
     String token,
   ) async {
     final revision = ++_authenticationRevision;
@@ -1156,6 +1157,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       final result = await _api.startPasswordRegistration(
         phone: phone,
         password: password,
+        channel: channel,
         token: token,
       );
       return _isCurrentAuthentication(revision)
@@ -1165,6 +1167,12 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       return OtpRequestResult(error: _userError(error, 'error_register'));
     }
   }
+
+  Future<OtpRequestResult> _startPasswordRegistration(
+    String phone,
+    String password,
+    String token,
+  ) => _startPasswordRegistrationWithChannel(phone, password, 'sms', token);
 
   Future<String?> _verifyPasswordRegistration(String phone, String code) async {
     final revision = ++_authenticationRevision;
@@ -1450,6 +1458,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
             return result;
           },
           onStartRegistration: _startPasswordRegistration,
+          onStartRegistrationWithChannel: _startPasswordRegistrationWithChannel,
           onVerifyRegistration: _verifyPasswordRegistration,
           onLookupCashierInvite: _api.getCashierInvite,
           onStartPasswordReset: _startPasswordReset,

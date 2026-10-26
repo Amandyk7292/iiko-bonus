@@ -98,7 +98,13 @@ async function getCustomerCredential(customerId, { db = supabase } = {}) {
 }
 
 async function startCustomerRegistration(
-  { phone: rawPhone, password, requestToken: rawRequestToken, automaticOtpSupported = false },
+  {
+    phone: rawPhone,
+    password,
+    requestToken: rawRequestToken,
+    automaticOtpSupported = false,
+    channel,
+  },
   { db = supabase, findCustomer = getCustomerByPhone, requestOtp = startCustomerOtp } = {},
 ) {
   const phone = normalizeCustomerPhone(rawPhone);
@@ -127,6 +133,7 @@ async function startCustomerRegistration(
       purpose: AUTH_PURPOSES.registration,
       passwordHash,
       automaticOtpSupported,
+      channel,
     },
     { db },
   );

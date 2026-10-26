@@ -61,19 +61,24 @@ extension _LoginScreenActions on _LoginScreenState {
     });
     final token = _newRequestToken();
 
+    final password = _passwordController.text;
+    final startRegistrationWithChannel = widget.onStartRegistrationWithChannel;
     final result = flow == _CustomerAuthFlow.registration
-        ? await widget.onStartRegistration(
-            phone,
-            _passwordController.text,
-            token,
-          )
+        ? startRegistrationWithChannel == null
+              ? await widget.onStartRegistration(phone, password, token)
+              : await startRegistrationWithChannel(
+                  phone,
+                  password,
+                  _otpChannel,
+                  token,
+                )
         : await widget.onStartPasswordReset(phone, token);
     if (!mounted || revision != _authRequestRevision || flow != _flow) return;
     _update(() => _loading = false);
     if (flow == _CustomerAuthFlow.registration &&
         result.isSuccess &&
         (!result.isAutomatic ||
-            result.channel != 'sms' ||
+            !['whatsapp', 'telegram', 'sms'].contains(result.channel) ||
             result.codeLength != 6)) {
       _changeOtpPhone();
       _update(() => _error = 'error_send_code'.tr);
@@ -90,7 +95,7 @@ extension _LoginScreenActions on _LoginScreenState {
         _otpDeliveryHasLink = false;
         _otpWhatsappUri = null;
         _otpIsAutomatic = result.isAutomatic;
-        _otpChannel = result.channel == 'sms' ? 'sms' : 'whatsapp';
+        _otpChannel = result.channel ?? _otpChannel;
         _otpCodeLength = result.codeLength == 6 ? 6 : 4;
       });
       _scheduleOtpRetry(result.isAutomatic ? result.retryAfterSeconds : 0);

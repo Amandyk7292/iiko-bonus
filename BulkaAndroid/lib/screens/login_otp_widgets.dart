@@ -17,6 +17,8 @@ extension _LoginOtpWidgets on _LoginScreenState {
         subtitle: _otpIsAutomatic
             ? (_otpChannel == 'sms'
                   ? 'code_sent_sms'.tr
+                  : _otpChannel == 'telegram'
+                  ? 'code_sent_telegram'.tr
                   : 'code_sent_whatsapp'.tr)
             : _otpDeliveryHasLink
             ? 'code_sent_whatsapp'.tr
@@ -239,7 +241,9 @@ extension _LoginOtpWidgets on _LoginScreenState {
             ? null
             : _changeOtpPhone,
         child: Text(
-          'change_phone_btn'.tr,
+          isRegistration
+              ? 'otp_change_channel_or_phone'.tr
+              : 'change_phone_btn'.tr,
           style: const TextStyle(color: _bulkaBrown),
         ),
       ),

@@ -91,11 +91,14 @@ function authenticationTemplate(config, code) {
   };
 }
 
-async function sendAutomaticOtp({ phone, code, config }, dependencies = {}) {
+async function sendAutomaticOtp({ phone, code, config, channel, customId }, dependencies = {}) {
   if (!/^\+7[67]\d{9}$/.test(phone) || !/^\d{6}$/.test(code)) {
     throw otpError('Укажите номер телефона Казахстана.', 400, 'OTP_INVALID_PHONE');
   }
   if (config.provider === 'autocall_sms') {
+    if (channel) {
+      return sendAutocallOtp({ phone, code, channel, customId, config }, dependencies);
+    }
     return sendAutocallSms(
       { phone, text: `Bulka: код ${code}. Действует 5 минут. Никому не сообщайте.`, config },
       dependencies,
@@ -164,6 +167,133 @@ async function sendAutomaticOtp({ phone, code, config }, dependencies = {}) {
     return { messageId: String(messageId).slice(0, 256) };
   } catch {
     throw otpError('Не удалось отправить код. Попробуйте позже.', 503, 'OTP_SEND_FAILED');
+  }
+}
+
+async function sendAutocallOtp(
+  { phone, code, channel, customId, config },
+  { fetchImpl = globalThis.fetch } = {},
+) {
+  if (
+    !/^\+7[67]\d{9}$/.test(phone) ||
+    !/^\d{6}$/.test(code) ||
+    !['whatsapp', 'telegram', 'sms'].includes(channel) ||
+    !config?.token ||
+    (customId != null && (typeof customId !== 'string' || customId.length > 64))
+  ) {
+    throw otpError(UNAVAILABLE, 503, 'OTP_PROVIDER_UNAVAILABLE');
+  }
+
+  try {
+    const response = await fetchImpl(`https://autocall.kz/api/v1/otp/${channel}`, {
+      method: 'POST',
+      redirect: 'error',
+      signal: AbortSignal.timeout(15000),
+      headers: {
+        Authorization: `Bearer ${config.token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        number: phone,
+        code,
+        ttl: 300,
+        brand: 'Bulka',
+        language: 'ru',
+        ...(customId ? { custom_id: customId } : {}),
+      }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (response.status === 422 && ['no_telegram', 'no_whatsapp'].includes(body?.error)) {
+      throw otpError(
+        'Для этого номера недоступен выбранный мессенджер. Выберите другой способ подтверждения.',
+        422,
+        'OTP_CHANNEL_UNAVAILABLE',
+      );
+    }
+    if (response.status === 429) {
+      const retryAfterSeconds = Math.max(
+        1,
+        Math.min(86400, Number(body?.retry_after || response.headers.get('retry-after')) || 60),
+      );
+      throw otpError(
+        'Слишком частые запросы кода. Выберите другой способ или попробуйте позже.',
+        429,
+        'OTP_RATE_LIMITED',
+        {
+          retryAfterSeconds,
+        },
+      );
+    }
+    if (
+      response.status === 422 &&
+      ['country_not_allowed', 'channel_unavailable'].includes(body?.error)
+    ) {
+      throw otpError(
+        'Этот номер нельзя подтвердить выбранным способом.',
+        422,
+        'OTP_CHANNEL_UNAVAILABLE',
+      );
+    }
+    if (response.status === 402) {
+      throw otpError(
+        'Отправка кодов временно недоступна. Попробуйте позже.',
+        503,
+        'OTP_PROVIDER_UNAVAILABLE',
+      );
+    }
+    const validStatuses = new Set(['pending', 'sent', 'delivered', 'read']);
+    if (
+      response.status !== 201 ||
+      !response.ok ||
+      !Number.isSafeInteger(body?.id) ||
+      body.id < 1 ||
+      body.channel !== channel ||
+      body.number !== phone ||
+      String(body.code || '') !== code ||
+      !validStatuses.has(body.status)
+    ) {
+      throw otpError('Не удалось отправить код. Попробуйте другой способ.', 503, 'OTP_SEND_FAILED');
+    }
+    return { messageId: String(body.id) };
+  } catch (error) {
+    if (String(error?.code || '').startsWith('OTP_')) throw error;
+    throw otpError('Не удалось отправить код. Попробуйте позже.', 503, 'OTP_SEND_FAILED');
+  }
+}
+
+async function verifyAutocallOtp({ otpId, code, config }, { fetchImpl = globalThis.fetch } = {}) {
+  if (
+    !/^\d{1,20}$/.test(String(otpId || '')) ||
+    !/^\d{6}$/.test(String(code || '')) ||
+    !config?.token
+  ) {
+    throw otpError(UNAVAILABLE, 503, 'OTP_PROVIDER_UNAVAILABLE');
+  }
+  try {
+    const response = await fetchImpl(
+      `https://autocall.kz/api/v1/otp/${encodeURIComponent(otpId)}/check`,
+      {
+        method: 'POST',
+        redirect: 'error',
+        signal: AbortSignal.timeout(8000),
+        headers: {
+          Authorization: `Bearer ${config.token}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code }),
+      },
+    );
+    if (response.status === 404) return { valid: false };
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || typeof body?.valid !== 'boolean') {
+      throw otpError(UNAVAILABLE, 503, 'OTP_PROVIDER_UNAVAILABLE');
+    }
+    return { valid: body.valid, status: String(body.status || '') };
+  } catch (error) {
+    if (String(error?.code || '').startsWith('OTP_')) throw error;
+    throw otpError(UNAVAILABLE, 503, 'OTP_PROVIDER_UNAVAILABLE');
   }
 }
 
@@ -297,5 +427,7 @@ module.exports = {
   customerOtpProvider,
   otpProviderConfig,
   sendAutomaticOtp,
+  sendAutocallOtp,
   sendAutocallSms,
+  verifyAutocallOtp,
 };

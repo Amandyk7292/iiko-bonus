@@ -6,6 +6,7 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen({
     required this.onLogin,
     required this.onStartRegistration,
+    this.onStartRegistrationWithChannel,
     required this.onVerifyRegistration,
     required this.onStartPasswordReset,
     required this.onResetPassword,
@@ -29,6 +30,13 @@ class LoginScreen extends StatefulWidget {
     String token,
   )
   onStartRegistration;
+  final Future<OtpRequestResult> Function(
+    String phone,
+    String password,
+    String channel,
+    String token,
+  )?
+  onStartRegistrationWithChannel;
   final Future<String?> Function(String phone, String code)
   onVerifyRegistration;
   final Future<OtpRequestResult> Function(String phone, String token)

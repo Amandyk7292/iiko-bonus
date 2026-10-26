@@ -35,6 +35,7 @@ const customerRegistrationStartBodySchema = z
     password: newPasswordSchema,
     token: requestTokenSchema,
     otpDeliveryVersion: z.literal(2).optional(),
+    channel: z.enum(['whatsapp', 'telegram', 'sms']).optional(),
   })
   .strict();
 const customerPasswordResetStartBodySchema = z

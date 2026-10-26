@@ -244,9 +244,9 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'en': 'Create an account',
   },
   'auth_registration_subtitle': {
-    'ru': 'Задайте пароль и подтвердите номер кодом из SMS.',
-    'kk': 'Құпиясөз орнатып, нөмірді SMS кодымен растаңыз.',
-    'en': 'Set a password and confirm your number with an SMS code.',
+    'ru': 'Задайте пароль и выберите, куда отправить код подтверждения.',
+    'kk': 'Құпиясөз орнатып, растау кодын қайда жіберуді таңдаңыз.',
+    'en': 'Set a password and choose where to receive your confirmation code.',
   },
   'auth_recovery_title': {
     'ru': 'Забыли пароль?',
@@ -297,6 +297,32 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'ru': 'Подтвердить номер',
     'kk': 'Нөмірді растау',
     'en': 'Confirm phone',
+  },
+  'otp_channel_label': {
+    'ru': 'Куда отправить код',
+    'kk': 'Кодты қайда жіберу керек',
+    'en': 'Send code to',
+  },
+  'otp_channel_whatsapp': {
+    'ru': 'WhatsApp',
+    'kk': 'WhatsApp',
+    'en': 'WhatsApp',
+  },
+  'otp_channel_telegram': {
+    'ru': 'Telegram',
+    'kk': 'Telegram',
+    'en': 'Telegram',
+  },
+  'otp_channel_sms': {'ru': 'SMS', 'kk': 'SMS', 'en': 'SMS'},
+  'otp_channel_unavailable': {
+    'ru': 'Этот способ не подходит для номера. Выберите другой.',
+    'kk': 'Бұл нөмір үшін бұл әдіс қолжетімсіз. Басқа әдісті таңдаңыз.',
+    'en': 'This method is unavailable for this number. Choose another.',
+  },
+  'otp_change_channel_or_phone': {
+    'ru': 'Изменить номер или способ',
+    'kk': 'Нөмірді немесе тәсілді өзгерту',
+    'en': 'Change phone or method',
   },
   'auth_recovery_button': {
     'ru': 'Получить ссылку по SMS',
@@ -452,6 +478,11 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'ru': 'Код отправлен по SMS.',
     'kk': 'Код SMS арқылы жіберілді.',
     'en': 'Code sent by SMS.',
+  },
+  'code_sent_telegram': {
+    'ru': 'Код отправлен через Telegram.',
+    'kk': 'Код Telegram арқылы жіберілді.',
+    'en': 'Code sent via Telegram.',
   },
   'auth_automatic_verify_title': {
     'ru': 'Введите код',

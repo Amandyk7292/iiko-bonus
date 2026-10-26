@@ -256,14 +256,21 @@ class BulkaApiClient {
   Future<OtpRequestResult> startPasswordRegistration({
     required String phone,
     required String password,
+    String? channel,
     required String token,
   }) async {
-    final json = await _post('/api/auth/register/start', {
+    final requestBody = <String, dynamic>{
       'phone': phone,
       'password': password,
       'token': token,
       'otpDeliveryVersion': 2,
-    }, timeout: const Duration(seconds: 30));
+    };
+    if (channel != null) requestBody['channel'] = channel;
+    final json = await _post(
+      '/api/auth/register/start',
+      requestBody,
+      timeout: const Duration(seconds: 30),
+    );
     return _otpRequestResult(json);
   }
 
