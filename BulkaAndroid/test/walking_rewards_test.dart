@@ -174,7 +174,7 @@ void main() {
       );
       expect(calls.where((call) => call.method == 'attest'), hasLength(1));
       expect(api.walkingProgress.value!.steps, 1234);
-      expect(api.walkingProgress.value!.rewardAmount, 100);
+      expect(api.walkingProgress.value!.rewardAmount, 200);
       expect(api.walkingProgress.value!.creditedAmount, 0);
     },
   );
@@ -322,30 +322,30 @@ void main() {
         {'date': date, 'steps': 10000, 'credited': true, 'rewardAmount': 1000},
         {'date': '2026-10-01', 'complete': true},
       ];
-      serverRewardAmount = 100;
+      serverRewardAmount = 200;
       serverCreditedAmount = 0;
       await api.setWalkingConsent(true);
       await api.syncWalking();
       expect(api.walkingProgress.value!.rewarded, true);
-      expect(api.walkingProgress.value!.rewardAmount, 100);
+      expect(api.walkingProgress.value!.rewardAmount, 200);
       expect(api.walkingProgress.value!.creditedAmount, 1000);
     },
   );
 
   for (final amount in [100, 1000]) {
     iosWidgetTest(
-      'current offer is 100 while displaying the $amount credited reward in both languages',
+      'current offer is 200 while displaying the $amount credited reward in both languages',
       (tester) async {
         serverSteps = 10000;
         serverRewarded = true;
-        serverRewardAmount = 100;
+        serverRewardAmount = 200;
         serverCreditedAmount = amount;
         await api.setWalkingConsent(true);
         for (final language in ['ru', 'kk']) {
           appLanguageNotifier.value = language;
           await showCard(tester);
           expect(
-            find.text(language == 'ru' ? '+100 бонусов' : '+100 бонус'),
+            find.text(language == 'ru' ? '+200 бонусов' : '+200 бонус'),
             findsOneWidget,
           );
           final earned = amount == 1000 ? '1 000' : '100';

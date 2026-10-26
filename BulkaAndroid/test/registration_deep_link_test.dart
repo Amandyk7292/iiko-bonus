@@ -302,7 +302,9 @@ void main() {
           find.byKey(const ValueKey('auth-confirm-password-field')),
           findsOneWidget,
         );
-        expect(find.textContaining('WhatsApp'), findsNothing);
+        for (final channel in ['whatsapp', 'telegram', 'sms']) {
+          expect(find.byKey(ValueKey('otp-channel-$channel')), findsOneWidget);
+        }
         applyExternalClientRoute(Uri.parse('/profile?register=1&extra=repeat'));
         await tester.pumpAndSettle();
         expect(find.byType(LoginScreen, skipOffstage: false), findsOneWidget);
@@ -318,6 +320,7 @@ void main() {
           find.byKey(const ValueKey('auth-confirm-password-field')),
           'Register2026',
         );
+        await tester.tap(find.byKey(const ValueKey('otp-channel-sms')));
         await tester.pump();
         await tester.ensureVisible(find.byType(GradientButton));
         await tester.tap(find.byType(GradientButton));

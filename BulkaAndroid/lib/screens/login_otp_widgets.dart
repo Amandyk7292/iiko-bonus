@@ -9,10 +9,10 @@ extension _LoginOtpWidgets on _LoginScreenState {
         step: isRegistration
             ? 'auth_registration_verify_badge'.tr
             : 'auth_recovery_verify_badge'.tr,
-        title: isRegistration
-            ? 'auth_registration_verify_title'.tr
-            : _otpIsAutomatic
+        title: _otpIsAutomatic
             ? 'auth_automatic_verify_title'.tr
+            : isRegistration
+            ? 'auth_registration_verify_title'.tr
             : 'auth_recovery_verify_title'.tr,
         subtitle: _otpIsAutomatic
             ? (_otpChannel == 'sms'

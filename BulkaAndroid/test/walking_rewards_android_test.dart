@@ -255,7 +255,7 @@ void main() {
       expect(body.containsKey('steps'), false);
       expect(api.walkingProgress.value!.steps, 4321);
       expect(api.walkingProgress.value!.rewarded, false);
-      expect(api.walkingProgress.value!.rewardAmount, 100);
+      expect(api.walkingProgress.value!.rewardAmount, 200);
       expect(api.walkingProgress.value!.creditedAmount, 0);
     },
   );
@@ -293,17 +293,17 @@ void main() {
   );
   for (final amount in [100, 1000]) {
     _androidWidgetTest(
-      'Android reads the current 100 offer and $amount credited amount from its batch result',
+      'Android reads the current 200 offer and $amount credited amount from its batch result',
       (tester) async {
         serverSteps = 10000;
         serverRewarded = true;
-        serverRewardAmount = 100;
+        serverRewardAmount = 200;
         serverCreditedAmount = amount;
         await api.setWalkingConsent(true);
         await showCard(tester);
-        expect(api.walkingProgress.value!.rewardAmount, 100);
+        expect(api.walkingProgress.value!.rewardAmount, 200);
         expect(api.walkingProgress.value!.creditedAmount, amount);
-        expect(find.text('+100 бонусов'), findsOneWidget);
+        expect(find.text('+200 бонусов'), findsOneWidget);
         final earned = amount == 1000 ? '1 000' : '100';
         expect(find.text('$earned бонусов начислено'), findsOneWidget);
       },
@@ -315,12 +315,12 @@ void main() {
       days = [
         {'date': _date, 'steps': 10000, 'credited': true, 'rewardAmount': 1000},
       ];
-      serverRewardAmount = 100;
+      serverRewardAmount = 200;
       serverCreditedAmount = 0;
       await api.setWalkingConsent(true);
       await api.syncWalking();
       expect(api.walkingProgress.value!.rewarded, true);
-      expect(api.walkingProgress.value!.rewardAmount, 100);
+      expect(api.walkingProgress.value!.rewardAmount, 200);
       expect(api.walkingProgress.value!.creditedAmount, 1000);
     },
   );

@@ -95,17 +95,16 @@ void main() {
     );
   });
 
-  for (final channel in ['whatsapp', 'sms']) {
+  for (final channel in ['whatsapp', 'telegram', 'sms']) {
     testWidgets(
-      channel == 'sms'
-          ? 'SMS registration shows six digits and resends after cooldown'
-          : 'WhatsApp registration is rejected without claiming SMS delivery',
+      '$channel registration shows six digits and resends after cooldown',
       (tester) async {
         tester.view.physicalSize = const Size(320, 760);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
         var sends = 0;
+        final requestedChannels = <String>[];
         String? verifiedCode;
         await tester.pumpWidget(
           MaterialApp(
@@ -118,11 +117,15 @@ void main() {
             ),
             home: LoginScreen(
               onLogin: (_, _) async => null,
-              onStartRegistration: (_, _, _) async {
+              onStartRegistration: (_, _, _) async => const OtpRequestResult(
+                error: 'Channel callback was bypassed',
+              ),
+              onStartRegistrationWithChannel: (_, _, requestedChannel, _) async {
                 sends += 1;
+                requestedChannels.add(requestedChannel);
                 return OtpRequestResult(
                   deliveryMode: 'automatic',
-                  channel: channel,
+                  channel: requestedChannel,
                   codeLength: 6,
                   retryAfterSeconds: 60,
                   // Even an unexpected old link must not reintroduce the bot flow.
@@ -155,27 +158,23 @@ void main() {
           find.byKey(const ValueKey('auth-confirm-password-field')),
           'Register2026',
         );
+        final channelOption = find.byKey(ValueKey('otp-channel-$channel'));
+        await tester.ensureVisible(channelOption);
+        await tester.tap(channelOption);
+        await tester.pump();
         await tester.ensureVisible(find.text('Подтвердить номер'));
         await tester.tap(find.text('Подтвердить номер'));
         await tester.pumpAndSettle();
 
         expect(sends, 1);
-        if (channel != 'sms') {
-          expect(find.byKey(const ValueKey('auth-otp-field')), findsNothing);
-          expect(find.text('Код отправлен по SMS.'), findsNothing);
-          expect(find.textContaining('WhatsApp'), findsNothing);
-          expect(
-            find.text('Не удалось отправить код. Повторите.'),
-            findsOneWidget,
-          );
-          expect(verifiedCode, isNull);
-          expect(tester.takeException(), isNull);
-          await tester.pumpWidget(const SizedBox());
-          return;
-        }
-        expect(find.text('Введите код из SMS'), findsOneWidget);
-        expect(find.text('Код отправлен по SMS.'), findsOneWidget);
-        expect(find.textContaining('WhatsApp'), findsNothing);
+        expect(requestedChannels, [channel]);
+        expect(find.text('Введите код'), findsOneWidget);
+        final sentLabel = switch (channel) {
+          'sms' => 'Код отправлен по SMS.',
+          'telegram' => 'Код отправлен через Telegram.',
+          _ => 'Код отправлен через WhatsApp.',
+        };
+        expect(find.text(sentLabel), findsOneWidget);
         expect(find.text('Открыть WhatsApp ещё раз'), findsNothing);
         expect(find.text('Введите 6 цифр из сообщения'), findsOneWidget);
         final resend = find.byKey(const ValueKey('otp-resend-button'));
@@ -192,6 +191,7 @@ void main() {
         await tester.tap(resend);
         await tester.pumpAndSettle();
         expect(sends, 2);
+        expect(requestedChannels, [channel, channel]);
         await tester.enterText(
           find.byKey(const ValueKey('auth-otp-field')),
           '1234',
