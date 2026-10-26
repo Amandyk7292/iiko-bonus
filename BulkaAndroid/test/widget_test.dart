@@ -1315,16 +1315,20 @@ void main() {
         theme: buildBulkaTheme(),
         home: LoginScreen(
           onLogin: (_, _) async => null,
-          onStartRegistration: (phone, password, token) async {
-            startedPhone = phone;
-            startedPassword = password;
-            expect(token, hasLength(16));
-            return const OtpRequestResult(
-              deliveryMode: 'automatic',
-              channel: 'sms',
-              codeLength: 6,
-            );
-          },
+          onStartRegistration: (_, _, _) async =>
+              const OtpRequestResult(error: 'Channel callback was bypassed'),
+          onStartRegistrationWithChannel:
+              (phone, password, channel, token) async {
+                startedPhone = phone;
+                startedPassword = password;
+                expect(token, hasLength(16));
+                expect(channel, 'sms');
+                return const OtpRequestResult(
+                  deliveryMode: 'automatic',
+                  channel: 'sms',
+                  codeLength: 6,
+                );
+              },
           onVerifyRegistration: (_, code) async {
             verifiedCode = code;
             return null;
@@ -1362,13 +1366,14 @@ void main() {
       find.byKey(const ValueKey('auth-confirm-password-field')),
       'Register2026',
     );
+    await tester.tap(find.byKey(const ValueKey('otp-channel-sms')));
     await tester.ensureVisible(find.text('Подтвердить номер'));
     await tester.tap(find.text('Подтвердить номер'));
     await tester.pumpAndSettle();
 
     expect(startedPhone, '+77012345678');
     expect(startedPassword, 'Register2026');
-    expect(find.text('Введите код из SMS'), findsOneWidget);
+    expect(find.text('Введите код'), findsOneWidget);
     expect(find.text('Код отправлен по SMS.'), findsOneWidget);
     expect(find.textContaining('WhatsApp'), findsNothing);
 
