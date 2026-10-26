@@ -450,7 +450,7 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
                       child: Text.rich(
                         TextSpan(
                           text:
-                              '+${_walkingNumber(progress?.rewardAmount ?? 100)} ',
+                              '+${_walkingNumber(progress?.rewardAmount ?? 200)} ',
                           style: const TextStyle(fontFamily: _headingFont),
                           children: [
                             TextSpan(

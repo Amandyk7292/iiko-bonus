@@ -6,7 +6,7 @@ class WalkingProgress {
     required this.steps,
     required this.rewarded,
     this.deviceRewarded = false,
-    this.rewardAmount = 100,
+    this.rewardAmount = 200,
     this.creditedAmount = 0,
   });
   final String date;
@@ -17,7 +17,7 @@ class WalkingProgress {
   final int creditedAmount;
 }
 
-int _walkingRewardAmount(dynamic value, {int fallback = 100}) {
+int _walkingRewardAmount(dynamic value, {int fallback = 200}) {
   final amount = _asInt(value);
   return amount > 0 ? amount : fallback;
 }
@@ -436,7 +436,7 @@ extension WalkingRewardsApi on BulkaApiClient {
         final previous = _walkingRuntime.progress.value;
         final rewardAmount = _walkingRewardAmount(
           result['rewardAmount'],
-          fallback: previous?.rewardAmount ?? 100,
+          fallback: previous?.rewardAmount ?? 200,
         );
         final rewarded =
             result['rewarded'] == true || previous?.rewarded == true;
@@ -547,7 +547,7 @@ extension WalkingRewardsApi on BulkaApiClient {
       final previous = _walkingRuntime.progress.value;
       final rewardAmount = _walkingRewardAmount(
         current['rewardAmount'],
-        fallback: previous?.rewardAmount ?? 100,
+        fallback: previous?.rewardAmount ?? 200,
       );
       final rewarded =
           current['rewarded'] == true ||
