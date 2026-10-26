@@ -314,6 +314,11 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'en': 'Telegram',
   },
   'otp_channel_sms': {'ru': 'SMS', 'kk': 'SMS', 'en': 'SMS'},
+  'otp_sms_delivery_note': {
+    'ru': 'Код подтверждения придёт по SMS.',
+    'kk': 'Растау коды SMS арқылы келеді.',
+    'en': 'The confirmation code will arrive by SMS.',
+  },
   'otp_channel_unavailable': {
     'ru': 'Этот способ не подходит для номера. Выберите другой.',
     'kk': 'Бұл нөмір үшін бұл әдіс қолжетімсіз. Басқа әдісті таңдаңыз.',

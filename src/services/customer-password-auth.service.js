@@ -103,7 +103,6 @@ async function startCustomerRegistration(
     password,
     requestToken: rawRequestToken,
     automaticOtpSupported = false,
-    channel,
   },
   { db = supabase, findCustomer = getCustomerByPhone, requestOtp = startCustomerOtp } = {},
 ) {
@@ -133,7 +132,6 @@ async function startCustomerRegistration(
       purpose: AUTH_PURPOSES.registration,
       passwordHash,
       automaticOtpSupported,
-      channel,
     },
     { db },
   );

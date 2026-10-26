@@ -6,7 +6,6 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen({
     required this.onLogin,
     required this.onStartRegistration,
-    this.onStartRegistrationWithChannel,
     required this.onVerifyRegistration,
     required this.onStartPasswordReset,
     required this.onResetPassword,
@@ -30,13 +29,6 @@ class LoginScreen extends StatefulWidget {
     String token,
   )
   onStartRegistration;
-  final Future<OtpRequestResult> Function(
-    String phone,
-    String password,
-    String channel,
-    String token,
-  )?
-  onStartRegistrationWithChannel;
   final Future<String?> Function(String phone, String code)
   onVerifyRegistration;
   final Future<OtpRequestResult> Function(String phone, String token)
@@ -96,7 +88,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   bool _otpDeliveryHasLink = false;
   Uri? _otpWhatsappUri;
   bool _otpIsAutomatic = false;
-  String _otpChannel = 'whatsapp';
+  String _otpChannel = 'sms';
   int _otpCodeLength = 4;
   int _otpRetrySeconds = 0;
   Timer? _otpRetryTimer;
@@ -139,6 +131,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
       _otpDeliveryPhone = null;
       _otpDeliveryHasLink = false;
       _otpIsAutomatic = false;
+      _otpChannel = 'sms';
       _otpCodeLength = 4;
       _otpRetrySeconds = 0;
     });

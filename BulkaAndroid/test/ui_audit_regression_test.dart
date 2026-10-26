@@ -247,7 +247,7 @@ void main() {
     );
     await tester.enterText(otpInput, '123456');
     await tester.pump();
-    await _tap(tester, find.text('otp_change_channel_or_phone'.tr));
+    await _tap(tester, find.text('change_phone_btn'.tr));
     await tester.enterText(
       find.byKey(const ValueKey('auth-phone-field')),
       '7010000000',

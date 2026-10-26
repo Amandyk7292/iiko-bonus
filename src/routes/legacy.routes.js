@@ -241,7 +241,6 @@ router.post(
         password: req.body?.password,
         requestToken: req.body?.token,
         automaticOtpSupported: req.body?.otpDeliveryVersion === 2,
-        channel: req.body?.channel,
       });
       res.json({ success: true, ...result });
     } catch (error) {

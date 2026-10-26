@@ -241,9 +241,7 @@ extension _LoginOtpWidgets on _LoginScreenState {
             ? null
             : _changeOtpPhone,
         child: Text(
-          isRegistration
-              ? 'otp_change_channel_or_phone'.tr
-              : 'change_phone_btn'.tr,
+          'change_phone_btn'.tr,
           style: const TextStyle(color: _bulkaBrown),
         ),
       ),

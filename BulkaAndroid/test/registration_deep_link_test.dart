@@ -303,7 +303,7 @@ void main() {
           findsOneWidget,
         );
         for (final channel in ['whatsapp', 'telegram', 'sms']) {
-          expect(find.byKey(ValueKey('otp-channel-$channel')), findsOneWidget);
+          expect(find.byKey(ValueKey('otp-channel-$channel')), findsNothing);
         }
         applyExternalClientRoute(Uri.parse('/profile?register=1&extra=repeat'));
         await tester.pumpAndSettle();
@@ -320,8 +320,6 @@ void main() {
           find.byKey(const ValueKey('auth-confirm-password-field')),
           'Register2026',
         );
-        await tester.tap(find.byKey(const ValueKey('otp-channel-sms')));
-        await tester.pump();
         await tester.ensureVisible(find.byType(GradientButton));
         await tester.tap(find.byType(GradientButton));
         await tester.pumpAndSettle();

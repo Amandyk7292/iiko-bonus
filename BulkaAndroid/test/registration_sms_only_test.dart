@@ -62,10 +62,6 @@ Future<void> _requestCode(WidgetTester tester) async {
     'Register2026',
   );
   await tester.pump();
-  final smsChannel = find.byKey(const ValueKey('otp-channel-sms'));
-  await tester.ensureVisible(smsChannel);
-  await tester.tap(smsChannel);
-  await tester.pump();
   final button = find.byType(GradientButton);
   await tester.ensureVisible(button);
   await tester.tap(button);
@@ -77,9 +73,9 @@ void _expectNoWhatsApp() {
   expect(find.byIcon(Icons.open_in_new_rounded), findsNothing);
 }
 
-void _expectChannelOptions() {
+void _expectNoChannelOptions() {
   for (final channel in ['whatsapp', 'telegram', 'sms']) {
-    expect(find.byKey(ValueKey('otp-channel-$channel')), findsOneWidget);
+    expect(find.byKey(ValueKey('otp-channel-$channel')), findsNothing);
   }
 }
 
@@ -87,50 +83,49 @@ void main() {
   setUp(() => appLanguageNotifier.value = 'ru');
 
   for (final language in ['ru', 'kk', 'en']) {
-    testWidgets(
-      'registration lets customers choose SMS in $language at 320px/200% text',
-      (tester) async {
-        appLanguageNotifier.value = language;
-        var sends = 0;
-        final codes = <String>[];
-        await _openRegistration(
-          tester,
-          response: _sms,
-          sent: () => sends++,
-          verify: (_, code) async {
-            codes.add(code);
-            return 'Invalid fixture code';
-          },
-        );
-        _expectChannelOptions();
-        expect(find.textContaining('SMS'), findsOneWidget);
-        await _requestCode(tester);
-        _expectNoWhatsApp();
-        expect(find.text('code_sent_sms'.tr), findsOneWidget);
-        final otp = find.byKey(const ValueKey('auth-otp-field'));
-        expect(tester.widget<Pinput>(otp).length, 6);
-        final rect = tester.getRect(otp);
-        expect(rect.left, greaterThanOrEqualTo(0));
-        expect(rect.right, lessThanOrEqualTo(320));
-        final resend = find.byKey(const ValueKey('otp-resend-button'));
-        expect(tester.widget<TextButton>(resend).onPressed, isNull);
-        await tester.pump(const Duration(seconds: 2));
-        await tester.ensureVisible(resend);
-        await tester.tap(resend);
-        await tester.pumpAndSettle();
-        expect(sends, 2);
-        await tester.ensureVisible(otp);
-        await tester.enterText(otp, '1234');
-        await tester.pump(const Duration(milliseconds: 300));
-        expect(codes, isEmpty);
-        await tester.enterText(otp, '123456');
-        await tester.pumpAndSettle();
-        expect(codes, ['123456']);
-        _expectNoWhatsApp();
-        expect(tester.takeException(), isNull);
-        await tester.pumpWidget(const SizedBox());
-      },
-    );
+    testWidgets('registration uses SMS only in $language at 320px/200% text', (
+      tester,
+    ) async {
+      appLanguageNotifier.value = language;
+      var sends = 0;
+      final codes = <String>[];
+      await _openRegistration(
+        tester,
+        response: _sms,
+        sent: () => sends++,
+        verify: (_, code) async {
+          codes.add(code);
+          return 'Invalid fixture code';
+        },
+      );
+      _expectNoChannelOptions();
+      expect(find.text('otp_sms_delivery_note'.tr), findsOneWidget);
+      await _requestCode(tester);
+      _expectNoWhatsApp();
+      expect(find.text('code_sent_sms'.tr), findsOneWidget);
+      final otp = find.byKey(const ValueKey('auth-otp-field'));
+      expect(tester.widget<Pinput>(otp).length, 6);
+      final rect = tester.getRect(otp);
+      expect(rect.left, greaterThanOrEqualTo(0));
+      expect(rect.right, lessThanOrEqualTo(320));
+      final resend = find.byKey(const ValueKey('otp-resend-button'));
+      expect(tester.widget<TextButton>(resend).onPressed, isNull);
+      await tester.pump(const Duration(seconds: 2));
+      await tester.ensureVisible(resend);
+      await tester.tap(resend);
+      await tester.pumpAndSettle();
+      expect(sends, 2);
+      await tester.ensureVisible(otp);
+      await tester.enterText(otp, '1234');
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(codes, isEmpty);
+      await tester.enterText(otp, '123456');
+      await tester.pumpAndSettle();
+      expect(codes, ['123456']);
+      _expectNoWhatsApp();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
   }
 
   const unsupported = <String, OtpRequestResult>{
@@ -173,7 +168,7 @@ void main() {
         },
       );
       await _requestCode(tester);
-      _expectChannelOptions();
+      _expectNoChannelOptions();
       expect(find.byKey(const ValueKey('auth-otp-field')), findsNothing);
       expect(find.text('code_sent_sms'.tr), findsNothing);
       expect(find.text('auth_registration_verify_title'.tr), findsNothing);
@@ -216,7 +211,7 @@ void main() {
       expect(find.byKey(const ValueKey('auth-otp-field')), findsNothing);
       expect(find.text('code_sent_sms'.tr), findsNothing);
       expect(find.text('error_send_code'.tr), findsOneWidget);
-      _expectChannelOptions();
+      _expectNoChannelOptions();
       final button = find.byType(GradientButton);
       await tester.ensureVisible(button);
       await tester.tap(button);

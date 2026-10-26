@@ -256,7 +256,6 @@ class BulkaApiClient {
   Future<OtpRequestResult> startPasswordRegistration({
     required String phone,
     required String password,
-    String? channel,
     required String token,
   }) async {
     final requestBody = <String, dynamic>{
@@ -265,7 +264,7 @@ class BulkaApiClient {
       'token': token,
       'otpDeliveryVersion': 2,
     };
-    if (channel != null) requestBody['channel'] = channel;
+    requestBody['channel'] = 'sms';
     final json = await _post(
       '/api/auth/register/start',
       requestBody,

@@ -35,6 +35,8 @@ const customerRegistrationStartBodySchema = z
     password: newPasswordSchema,
     token: requestTokenSchema,
     otpDeliveryVersion: z.literal(2).optional(),
+    // Accept the previous app's channel field for compatibility; registration
+    // delivery is fixed to SMS by the server.
     channel: z.enum(['whatsapp', 'telegram', 'sms']).optional(),
   })
   .strict();

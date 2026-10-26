@@ -52,12 +52,15 @@ async function startCustomerOtp(
     automaticOtpSupported === true
       ? otpProviderConfig(env, purpose)
       : { provider: 'legacy_whatsapp' };
+  // AutoCall is enabled for registration by SMS only. Ignore a channel sent by
+  // older clients that still expose the removed WhatsApp/Telegram selector.
   const selectedChannel =
-    requestedChannel ||
-    (['autocall_sms', 'mobizon_sms'].includes(config.provider) ? 'sms' : 'whatsapp');
+    config.provider === 'autocall_sms'
+      ? 'sms'
+      : requestedChannel || (config.provider === 'mobizon_sms' ? 'sms' : 'whatsapp');
   const supportedChannels =
     config.provider === 'autocall_sms'
-      ? ['whatsapp', 'telegram', 'sms']
+      ? ['sms']
       : config.provider === 'mobizon_sms'
         ? ['sms']
         : ['whatsapp'];
@@ -68,7 +71,7 @@ async function startCustomerOtp(
       'OTP_CHANNEL_UNAVAILABLE',
     );
   }
-  const useAutocallOtpApi = config.provider === 'autocall_sms' && Boolean(requestedChannel);
+  const useAutocallOtpApi = config.provider === 'autocall_sms';
   const payload = {
     phone,
     purpose,

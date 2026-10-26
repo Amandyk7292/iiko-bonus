@@ -518,19 +518,25 @@ test('AutoCall accepts a completed campaign only with proof of delivery of the e
   }
 });
 
-test('registration override uses AutoCall SMS while login retains the configured WhatsApp provider', async () => {
+test('registration is forced to AutoCall SMS while login retains its configured provider', async () => {
   for (const [purpose, recipient, expectedProvider, expectedChannel] of [
     ['customer_registration', phone, 'autocall_sms', 'sms'],
     ['customer_login', '+77001234568', 'ycloud_whatsapp', 'whatsapp'],
   ]) {
     let code;
     const result = await startCustomerOtp(
-      { ...request, purpose, phone: recipient },
+      {
+        ...request,
+        purpose,
+        phone: recipient,
+        ...(purpose === 'customer_registration' ? { channel: 'telegram' } : {}),
+      },
       {
         db,
         env: autocallEnv,
         sendOtp: async (message) => {
           assert.equal(message.config.provider, expectedProvider);
+          if (purpose === 'customer_registration') assert.equal(message.channel, 'sms');
           code = message.code;
           return { messageId: 'purpose-accepted' };
         },
