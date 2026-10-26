@@ -1,0 +1,101 @@
+name: Android OTA patch
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: Installed Shorebird release (for example 1.0.10+2026100601)
+        required: true
+        type: string
+      track:
+        description: Publish to stable customers or staging devices
+        required: true
+        type: choice
+        options: [staging, stable]
+        default: stable
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-ota-patch
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: BulkaAndroid
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.38.5'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-pub
+      - run: flutter test --no-pub --concurrency=2
+
+  patch:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: BulkaAndroid
+    env:
+      SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+      RELEASE_VERSION: ${{ inputs.release_version }}
+      PATCH_TRACK: ${{ inputs.track }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Validate release and credentials
+        shell: bash
+        run: |
+          [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ ]]
+          if [[ -z "$SHOREBIRD_TOKEN" ]]; then
+            echo "::error::Missing Shorebird authentication."
+            exit 1
+          fi
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.38.5'
+          cache: true
+      - uses: shorebirdtech/setup-shorebird@4dd9d7dc2d7930bfeadb053b6e94b5110779d1e5
+        with:
+          cache: true
+      - name: Create temporary Android build signing key
+        shell: bash
+        run: |
+          mkdir -p android/keystore
+          keytool -genkeypair -v \
+            -keystore android/keystore/ci-release.jks \
+            -storepass ci-release-password \
+            -alias bulka-ci \
+            -keypass ci-release-password \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 2 \
+            -dname "CN=Bulka CI, OU=Engineering, O=Bulka, L=Astana, C=KZ"
+          {
+            echo 'storeFile=keystore/ci-release.jks'
+            echo 'storePassword=ci-release-password'
+            echo 'keyAlias=bulka-ci'
+            echo 'keyPassword=ci-release-password'
+          } > android/key.properties
+      - run: flutter pub get
+      - name: Build and publish compatible patch
+        shell: bash
+        run: |
+          shorebird patch android \
+            --release-version="$RELEASE_VERSION" \
+            --track="$PATCH_TRACK" \
+            --build-name="${RELEASE_VERSION%+*}" \
+            --build-number="${RELEASE_VERSION##*+}" \
+            --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
+      - name: Remove temporary signing materials
+        if: always()
+        shell: bash
+        run: rm -rf android/keystore android/key.properties
