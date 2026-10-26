@@ -616,7 +616,7 @@ extension _LoginScreenForms on _LoginScreenState {
         Row(
           children: [
             Icon(
-              Icons.sms_outlined,
+              Icons.phone_outlined,
               size: 18,
               color: context.bulkaColors.mutedText,
             ),
