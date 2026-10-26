@@ -55,6 +55,10 @@ if (!process.env.VERCEL) {
   let photoTelegramStartupTimer;
   let photoTelegramDigestWorker;
   let photoTelegramDigestTask;
+  let photoTelegramAlertTimer;
+  let photoTelegramAlertStartupTimer;
+  let photoTelegramAlertWorker;
+  let photoTelegramAlertTask;
   let shuttingDown = false;
   const cashierDirectoryEnabled =
     runWorkers &&
@@ -78,6 +82,13 @@ if (!process.env.VERCEL) {
     setInterval(syncCashiers, CASHIER_DIRECTORY_SYNC_INTERVAL_MS).unref?.();
   }
   registerWorker('branch-photo-telegram-digest', {
+    enabled: photoTelegramEnabled,
+    intervalMs: 30000,
+    maxRunMs: 120000,
+    critical: false,
+    alertOnFailure: true,
+  });
+  registerWorker('suspicious-purchase-telegram-alerts', {
     enabled: photoTelegramEnabled,
     intervalMs: 30000,
     maxRunMs: 120000,
@@ -434,6 +445,24 @@ if (!process.env.VERCEL) {
       photoTelegramStartupTimer.unref?.();
       photoTelegramTimer = setInterval(runDigest, 30000);
       photoTelegramTimer.unref?.();
+
+      photoTelegramAlertWorker = require('./services/suspicious-purchase-telegram-alert.service')
+        .createSuspiciousPurchaseAlertWorker();
+      const runSuspiciousPurchaseAlerts = () => {
+        if (shuttingDown || photoTelegramAlertTask) return;
+        const task = runMonitoredWorker('suspicious-purchase-telegram-alerts', () =>
+          photoTelegramAlertWorker.tick(),
+        );
+        photoTelegramAlertTask = task;
+        const clearTask = () => {
+          if (photoTelegramAlertTask === task) photoTelegramAlertTask = undefined;
+        };
+        void task.then(clearTask, clearTask);
+      };
+      photoTelegramAlertStartupTimer = setTimeout(runSuspiciousPurchaseAlerts, 7000);
+      photoTelegramAlertStartupTimer.unref?.();
+      photoTelegramAlertTimer = setInterval(runSuspiciousPurchaseAlerts, 30000);
+      photoTelegramAlertTimer.unref?.();
     }
 
     if (runBots) {
@@ -470,11 +499,15 @@ if (!process.env.VERCEL) {
     logger.info({ event: 'server_shutdown_started', signal }, 'Server shutdown started');
     clearTimeout(photoTelegramStartupTimer);
     clearInterval(photoTelegramTimer);
+    clearTimeout(photoTelegramAlertStartupTimer);
+    clearInterval(photoTelegramAlertTimer);
     photoTelegramDigestWorker?.stop();
+    photoTelegramAlertWorker?.stop();
     const photoTelegramStopped = photoTelegramEnabled
       ? Promise.allSettled([
           Promise.resolve().then(() => stopPhotoTelegramBot()),
           photoTelegramDigestTask,
+          photoTelegramAlertTask,
         ]).then((results) => {
           if (results.some((result) => result.status === 'rejected')) {
             logger.warn({ event: 'photo_telegram_stop_failed' }, 'Photo report bot stop failed');
