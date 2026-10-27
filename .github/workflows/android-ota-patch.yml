@@ -40,7 +40,10 @@ jobs:
 
   patch:
     needs: verify
-    runs-on: ubuntu-latest
+    # A clean Actions Windows path avoids the spaces in the local user profile
+    # that broke Flutter native-asset tooling, without bypassing Shorebird's
+    # normal asset compatibility check.
+    runs-on: windows-latest
     timeout-minutes: 45
     defaults:
       run:
@@ -52,13 +55,13 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Validate release and credentials
-        shell: bash
+        shell: pwsh
         run: |
-          [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ ]]
-          if [[ -z "$SHOREBIRD_TOKEN" ]]; then
-            echo "::error::Missing Shorebird authentication."
-            exit 1
-          fi
+          if ($env:RELEASE_VERSION -notmatch '^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$') {
+            throw 'Invalid Shorebird release version.'
+          if ([string]::IsNullOrWhiteSpace($env:SHOREBIRD_TOKEN)) {
+            throw 'Missing Shorebird authentication.'
+          }
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           flutter-version: '3.38.5'
@@ -67,35 +70,56 @@ jobs:
         with:
           cache: true
       - name: Create temporary Android build signing key
-        shell: bash
+        shell: pwsh
         run: |
-          mkdir -p android/keystore
-          keytool -genkeypair -v \
-            -keystore android/keystore/ci-release.jks \
-            -storepass ci-release-password \
-            -alias bulka-ci \
-            -keypass ci-release-password \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 2 \
-            -dname "CN=Bulka CI, OU=Engineering, O=Bulka, L=Astana, C=KZ"
-          {
-            echo 'storeFile=keystore/ci-release.jks'
-            echo 'storePassword=ci-release-password'
-            echo 'keyAlias=bulka-ci'
-            echo 'keyPassword=ci-release-password'
-          } > android/key.properties
+          New-Item -ItemType Directory -Force -Path 'android/keystore' | Out-Null
+          keytool -genkeypair -v `
+            -keystore android/keystore/ci-release.jks `
+            -storepass ci-release-password `
+            -alias bulka-ci `
+            -keypass ci-release-password `
+            -keyalg RSA `
+            -keysize 2048 `
+            -validity 2 `
+            -dname 'CN=Bulka CI, OU=Engineering, O=Bulka, L=Astana, C=KZ'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          @'
+          storeFile=keystore/ci-release.jks
+          storePassword=ci-release-password
+          keyAlias=bulka-ci
+          keyPassword=ci-release-password
+          '@ | Set-Content -Path 'android/key.properties' -Encoding ascii
       - run: flutter pub get
       - name: Build and publish compatible patch
-        shell: bash
+        shell: pwsh
         run: |
-          shorebird patch android \
-            --release-version="$RELEASE_VERSION" \
-            --track="$PATCH_TRACK" \
-            --build-name="${RELEASE_VERSION%+*}" \
-            --build-number="${RELEASE_VERSION##*+}" \
-            --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
+          $versionParts = $env:RELEASE_VERSION -split '\+', 2
+          $shorebirdArgs = @(
+            'patch', 'android',
+            "--release-version=$env:RELEASE_VERSION",
+            "--track=$env:PATCH_TRACK",
+            "--build-name=$($versionParts[0])",
+            "--build-number=$($versionParts[1])",
+            '--dart-define=BULKA_API_BASE_URL=https://bulka.com.kz'
+          )
+          & shorebird @shorebirdArgs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Remove temporary signing materials
         if: always()
-        shell: bash
-        run: rm -rf android/keystore android/key.properties
+        shell: pwsh
+        run: |
+          $root = (Resolve-Path '.').Path
+          $separator = [IO.Path]::DirectorySeparatorChar
+          $targets = @(
+            (Join-Path $root 'android/keystore'),
+            (Join-Path $root 'android/key.properties')
+          )
+          foreach ($target in $targets) {
+            $resolvedTarget = [IO.Path]::GetFullPath($target)
+            if (-not $resolvedTarget.StartsWith($root + $separator, [StringComparison]::OrdinalIgnoreCase)) {
+              throw 'Refusing to remove a signing path outside the Android workspace.'
+            }
+            if (Test-Path -LiteralPath $resolvedTarget) {
+              Remove-Item -LiteralPath $resolvedTarget -Recurse -Force
+            }
+          }
