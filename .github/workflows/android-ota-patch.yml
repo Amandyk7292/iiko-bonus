@@ -67,6 +67,11 @@ jobs:
         with:
           flutter-version: '3.38.5'
           cache: true
+      - name: Enable long Git paths for Shorebird's Flutter checkout
+        shell: pwsh
+        run: |
+          git config --global core.longpaths true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: shorebirdtech/setup-shorebird@4dd9d7dc2d7930bfeadb053b6e94b5110779d1e5
         with:
           cache: true
