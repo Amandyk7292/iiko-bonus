@@ -42,6 +42,8 @@ void main() {
   var missingBridge = false;
   var days = <Map<String, dynamic>>[];
   var permissionDenied = false;
+  var motionAuthorized = true;
+  var permissionPromptCount = 0;
   var registered = true;
   var serverSteps = 1234;
   var serverRewarded = false;
@@ -58,6 +60,8 @@ void main() {
     days = [];
     missingBridge = false;
     permissionDenied = false;
+    motionAuthorized = true;
+    permissionPromptCount = 0;
     registered = true;
     serverSteps = 1234;
     serverRewarded = false;
@@ -70,7 +74,7 @@ void main() {
           calls.add(call);
           if (missingBridge) throw MissingPluginException();
           if (call.method == 'capabilities') {
-            return {'supported': true, 'authorized': true};
+            return {'supported': true, 'authorized': motionAuthorized};
           }
           if (call.method == 'identity') {
             return {'deviceId': 'a' * 64, 'keyId': 'native-key'};
@@ -79,7 +83,11 @@ void main() {
             return {'attestation': 'native-attestation'};
           }
           if (call.method == 'measure') {
-            if (permissionDenied) {
+            if (!motionAuthorized) {
+              permissionPromptCount++;
+              if (!permissionDenied) motionAuthorized = true;
+            }
+            if (permissionDenied || !motionAuthorized) {
               throw PlatformException(code: 'WALKING_PERMISSION');
             }
             if (measurementGate != null) return measurementGate!.future;
@@ -572,6 +580,19 @@ void main() {
   );
 
   iosWidgetTest(
+    'stored Bulka consent still triggers the iOS motion permission request',
+    (tester) async {
+      motionAuthorized = false;
+      await api.setWalkingConsent(true);
+      await showCard(tester);
+      expect(permissionPromptCount, 1);
+      expect(measurementCount(), 1);
+      expect(find.text('1 234'), findsOneWidget);
+      expect(find.text('Открыть настройки'), findsNothing);
+    },
+  );
+
+  iosWidgetTest(
     'a pending measurement stays single flight across timer and resume',
     (tester) async {
       await api.setWalkingConsent(true);
@@ -594,7 +615,7 @@ void main() {
   );
 
   iosWidgetTest(
-    'measurement failure retries automatically without a step retry button',
+    'permission denial waits for iPhone settings, then syncs when the app resumes',
     (tester) async {
       await api.setWalkingConsent(true);
       permissionDenied = true;
@@ -602,13 +623,30 @@ void main() {
       expect(measurementCount(), 1);
       expect(find.text('Открыть настройки'), findsOneWidget);
       permissionDenied = false;
-      now = const Duration(minutes: 1);
-      await tester.pump(const Duration(minutes: 1));
+      motionAuthorized = true;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
       expect(measurementCount(), 2);
       expect(find.text('1 234'), findsOneWidget);
       expect(find.text('Повторить'), findsNothing);
       expect(find.text('Обновить'), findsNothing);
+    },
+  );
+
+  iosWidgetTest(
+    'permission denial does not poll until the iPhone returns from settings',
+    (tester) async {
+      await api.setWalkingConsent(true);
+      permissionDenied = true;
+      await showCard(tester);
+      expect(measurementCount(), 1);
+      permissionDenied = false;
+      motionAuthorized = true;
+      now = const Duration(minutes: 1);
+      await tester.pump(const Duration(minutes: 1));
+      await tester.pumpAndSettle();
+      expect(measurementCount(), 1);
     },
   );
 

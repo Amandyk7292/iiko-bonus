@@ -96,6 +96,7 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
     if (!_canRefresh ||
         !_supported ||
         !_consent ||
+        (_permission && WalkingRewardsNative.isIOS) ||
         _disconnecting ||
         _busy ||
         _loading) {
@@ -160,6 +161,19 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
       final capabilities = await WalkingRewardsNative.capabilities();
       final consent = await api.walkingConsent();
       if (!isCurrent() || _busy) return;
+      final wasPermissionBlocked = _permission;
+      final authorized = capabilities['authorized'] == true;
+      // Core Motion asks iOS for Motion & Fitness access only when a pedometer
+      // query runs. Existing Bulka consent can outlive an iOS permission reset,
+      // so let one sync attempt trigger the system prompt instead of stopping
+      // at the capability check forever.
+      final requestIosPermission =
+          consent && WalkingRewardsNative.isIOS && !authorized;
+      final retryAfterPermissionChange =
+          consent &&
+          WalkingRewardsNative.isIOS &&
+          wasPermissionBlocked &&
+          authorized;
       setState(() {
         _supported = capabilities['supported'] == true;
         _consent = consent;
@@ -167,7 +181,8 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
             capabilities['requiresPlayServicesUpdate'] == true;
         _permission =
             consent &&
-            capabilities['authorized'] != true &&
+            !authorized &&
+            !requestIosPermission &&
             !_requiresPlayServicesUpdate;
         if (_permission) _failed = true;
       });
@@ -175,8 +190,10 @@ class _WalkingRewardsCardState extends State<WalkingRewardsCard>
       if (_supported &&
           consent &&
           !_requiresPlayServicesUpdate &&
-          capabilities['authorized'] == true) {
-        await _sync();
+          (authorized || requestIosPermission)) {
+        await _sync(
+          requestPermission: requestIosPermission || retryAfterPermissionChange,
+        );
       }
     } catch (_) {
       if (isCurrent()) setState(() => _failed = true);
