@@ -135,6 +135,26 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Future<void> _openKamajiWhatsApp() async {
+    var opened = false;
+    try {
+      opened = await launchUrl(
+        Uri.https('wa.me', '/77019344464', {
+          'text': 'kamaji_whatsapp_message'.tr,
+        }),
+        mode: LaunchMode.externalApplication,
+        webOnlyWindowName: kIsWeb ? '_blank' : null,
+      );
+    } catch (_) {
+      opened = false;
+    }
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(bulkaSnackBar(content: Text('error_open_whatsapp'.tr)));
+    }
+  }
+
   Future<void> _openNotifications() async {
     await _navigationGate.run(() async {
       await Navigator.of(context).push<void>(
@@ -270,6 +290,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         const SizedBox(height: 18),
                       ],
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _KamajiPromoBanner(onTap: _openKamajiWhatsApp),
+                      ),
+                      const SizedBox(height: 18),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: _SectionTitle('home_select_order_type'.tr),
@@ -709,6 +734,39 @@ class _GuestLoyaltyCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _KamajiPromoBanner extends StatelessWidget {
+  const _KamajiPromoBanner({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'kamaji_banner_semantics'.tr,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Ink(
+              height: 142,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: _kamajiDeliveryBannerImage,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

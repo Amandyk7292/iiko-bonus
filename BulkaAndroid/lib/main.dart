@@ -177,6 +177,7 @@ part 'screens/admin_portal_screen.dart';
 part 'screens/welcome_screen.dart';
 part 'screens/permission_welcome.dart';
 part 'screens/home_screen.dart';
+part 'screens/kamaji_banner_image.dart';
 part 'screens/home_feed_controller.dart';
 part 'screens/login_screen.dart';
 part 'screens/login_actions.dart';

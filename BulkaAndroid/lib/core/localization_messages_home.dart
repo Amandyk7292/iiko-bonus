@@ -42,6 +42,16 @@ const Map<String, Map<String, String>> _homeAndLoyaltyTranslations = {
     'kk': 'Акцияларды жүктеу мүмкін болмады.',
     'en': 'Promotions could not be loaded.',
   },
+  'kamaji_banner_semantics': {
+    'ru': 'Заказать суши Kamaji в WhatsApp',
+    'kk': 'Kamaji сушиін WhatsApp арқылы тапсырыс беру',
+    'en': 'Order Kamaji sushi on WhatsApp',
+  },
+  'kamaji_whatsapp_message': {
+    'ru': 'Здравствуйте! Хочу заказать суши Kamaji.',
+    'kk': 'Сәлеметсіз бе! Kamaji сушиіне тапсырыс бергім келеді.',
+    'en': 'Hello! I would like to order Kamaji sushi.',
+  },
   // Loyalty panel & QR
   'show_qr_cashier': {
     'ru': 'Покажите QR-\nкод кассиру',
