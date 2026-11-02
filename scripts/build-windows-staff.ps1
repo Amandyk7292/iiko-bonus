@@ -189,7 +189,7 @@ foreach ($architecture in @('x86', 'x64')) {
 }
 
 $report = [ordered]@{
-    application = 'Bulka Staff'; version = '1.0.1'; url = 'https://bulka.com.kz/?desktop=1'
+    application = 'Bulka Staff'; version = '1.0.2'; url = 'https://bulka.com.kz/?desktop=1&desktopVersion=1.0.2'
     builtAt = (Get-Date).ToUniversalTime().ToString('o'); workspace = $repositoryRoot
     minimumWindows = '6.1'; userProfile = '%LOCALAPPDATA%\Bulka\Staff\Profile'
     launchers = $launcherChecks; launcherOnly = [bool]$LaunchersOnly
@@ -203,11 +203,11 @@ if ($LaunchersOnly) {
 }
 
 $lock = Get-Content -LiteralPath $lockPath -Raw | ConvertFrom-Json
-if ($lock.schemaVersion -ne 1 -or $lock.runtime.name -ne 'Supermium' -or $lock.runtime.releaseTag -notmatch '^v[0-9]+-r[0-9]+$') {
+if ($lock.schemaVersion -ne 1 -or $lock.runtime.name -ne 'Supermium' -or $lock.runtime.releaseTag -notmatch '^v[0-9]+-r[0-9]+(?:\.[0-9]+)?$') {
     throw 'Unsupported runtime lock schema or unpinned release tag.'
 }
 $releasePrefix = 'https://github.com/win32ss/supermium/releases/download/' + $lock.runtime.releaseTag + '/'
-$licensePrefix = 'https://raw.githubusercontent.com/win32ss/supermium/' + $lock.runtime.releaseTag + '/'
+$licensePrefix = 'https://raw.githubusercontent.com/chromium/chromium/' + $lock.runtime.browserVersion + '/'
 Assert-OfficialUrl $lock.runtime.licenseUrl $licensePrefix
 New-Item -ItemType Directory -Path $RuntimeCacheDirectory -Force | Out-Null
 $licensePath = Get-VerifiedCacheFile $lock.runtime.licenseUrl $lock.runtime.licenseFileName $lock.runtime.licenseSha256
@@ -245,7 +245,7 @@ foreach ($architecture in @('x86')) {
 Copy-Item -LiteralPath $lockPath -Destination (Join-Path $buildRoot 'runtime-lock.json')
 $licenseText = [IO.File]::ReadAllText($licensePath)
 $notices = @"
-Bulka Staff 1.0.1
+Bulka Staff 1.0.2
 Browser runtime: $($lock.runtime.name) $($lock.runtime.version) / $($lock.runtime.browserVersion)
 Official release: $($lock.runtime.releaseUrl)
 Corresponding source: $($lock.runtime.sourceUrl)
@@ -258,7 +258,7 @@ $licenseText
 $installerArguments = @('/Qp', "/DBuildRoot=$buildRoot", (Join-Path $sourceDirectory 'BulkaStaff.iss'))
 & $InnoCompiler @installerArguments 2>&1 | Tee-Object -FilePath (Join-Path $buildRoot 'installer-build.txt') | Write-Host
 if ($LASTEXITCODE -ne 0) { throw 'Universal Windows installer compilation failed.' }
-$installerPath = Join-Path $buildRoot 'release\Bulka-Staff-Setup-1.0.1-Universal.exe'
+$installerPath = Join-Path $buildRoot 'release\Bulka-Staff-Setup-1.0.2-Universal.exe'
 if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) { throw 'The compiler did not produce the expected installer.' }
 $installerHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $checksumPath = $installerPath + '.sha256'

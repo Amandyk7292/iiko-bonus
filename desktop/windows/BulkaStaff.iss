@@ -1,7 +1,7 @@
 #ifndef BuildRoot
   #error BuildRoot must identify the verified build payload directory.
 #endif
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.2"
 #define MyAppName "Bulka — кассир"
 
 [Setup]

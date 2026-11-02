@@ -7,7 +7,7 @@
 
 namespace {
 const wchar_t* const kAppName = L"Bulka — кассир";
-const wchar_t* const kUrl = L"https://bulka.com.kz/?desktop=1";
+const wchar_t* const kUrl = L"https://bulka.com.kz/?desktop=1&desktopVersion=1.0.2";
 const wchar_t* const kMutexName = L"Local\\Bulka.Staff.Launcher.v1";
 const wchar_t* const kWindowClass = L"BulkaStaffLauncherWindowV1";
 const UINT kActivateMessage = WM_APP + 1;

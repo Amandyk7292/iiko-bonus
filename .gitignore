@@ -19,6 +19,7 @@ IikoBonusPlugin/obj/
 !package.json
 !package-lock.json
 !shared/design/bulka-icons.json
+!BulkaAndroid/web/staff-release.json
 !vercel.json
 !BulkaAndroid/android/app/google-services.json
 !BulkaAndroid/web/manifest.json

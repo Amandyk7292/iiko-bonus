@@ -39,7 +39,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     int count = 0; wchar_t** arguments = CommandLineToArgvW(GetCommandLineW(), &count);
     wchar_t appData[MAX_PATH] = {}; SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, appData);
     const std::wstring expectedProfile = std::wstring(L"--user-data-dir=") + appData + L"\\Bulka\\Staff\\Profile";
-    if (count != 6 || std::wstring(arguments[1]) != L"--app=https://bulka.com.kz/?desktop=1" ||
+    if (count != 6 || std::wstring(arguments[1]) != L"--app=https://bulka.com.kz/?desktop=1&desktopVersion=1.0.2" ||
         std::wstring(arguments[2]) != expectedProfile || std::wstring(arguments[3]) != L"--start-maximized" ||
         std::wstring(arguments[4]) != L"--no-first-run" || std::wstring(arguments[5]) != L"--no-default-browser-check") {
         Trace("unsafe-or-incorrect-arguments\n"); LocalFree(arguments); return 10;
