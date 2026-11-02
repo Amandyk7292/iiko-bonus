@@ -26,6 +26,7 @@ export interface ProductSalesQuery {
   to: string;
   department: string;
 }
+export type ProductSalesExportView = 'daily' | 'points';
 export interface ProductSalesRow {
   date: string;
   department: string;

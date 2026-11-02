@@ -86,6 +86,9 @@ const productSalesQuery = z
     const days = (Date.parse(input.to) - Date.parse(input.from)) / 86400000;
     return days >= 0 && days <= 366;
   }, 'Период должен быть от 1 до 367 дней');
+const productSalesExportQuery = z
+  .object({ view: z.enum(['daily', 'points']).default('daily') })
+  .strict();
 const balancesQuery = z.object({ serverId, date }).strict();
 const revisionQuery = z
   .object({ serverId, from: date, to: date, department: z.string().max(250).default('') })
@@ -223,6 +226,7 @@ module.exports = {
   departmentsQuery,
   productSearchQuery,
   productSalesQuery,
+  productSalesExportQuery,
   balancesQuery,
   revisionQuery,
   cashReportQuery,

@@ -12,6 +12,30 @@
 .id-product-sales-heading p {
   margin: 0;
 }
+.id-product-sales-export {
+  position: relative;
+  flex: 0 0 auto;
+}
+.id-product-sales-export-options {
+  position: absolute;
+  z-index: 25;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  gap: 4px;
+  min-width: 240px;
+  padding: 6px;
+  border: 1px solid var(--id-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 28px #35281720;
+}
+.id-product-sales-export-options button {
+  width: 100%;
+  justify-content: flex-start;
+  white-space: normal;
+  text-align: left;
+}
 .id-product-sales-lookup {
   position: relative;
   width: min(560px, 100%);

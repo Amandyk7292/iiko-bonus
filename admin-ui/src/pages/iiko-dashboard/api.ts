@@ -3,6 +3,7 @@ import type { AnalyticsQuery } from './Rankings';
 import type {
   Columns,
   ProductChoice,
+  ProductSalesExportView,
   ProductSalesQuery,
   ProductSalesResult,
   Query,
@@ -97,17 +98,23 @@ export async function exportReport(query: Query | AnalyticsQuery) {
   }
   await download(await response.blob(), `iiko-${query.from}-${query.to}.xlsx`);
 }
-export async function exportProductSales(query: ProductSalesQuery) {
-  const response = await fetch(`/admin/api${base}/product-sales/export`, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(query),
-    signal: AbortSignal.timeout(90000),
-  });
+export async function exportProductSales(query: ProductSalesQuery, view: ProductSalesExportView) {
+  const response = await fetch(
+    `/admin/api${base}/product-sales/export?${new URLSearchParams({ view })}`,
+    {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(query),
+      signal: AbortSignal.timeout(90000),
+    },
+  );
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     throw new ApiError('', response.status, body.code);
   }
-  await download(await response.blob(), `iiko-product-sales-${query.from}-${query.to}.xlsx`);
+  await download(
+    await response.blob(),
+    `iiko-product-sales-${view}-${query.from}-${query.to}.xlsx`,
+  );
 }

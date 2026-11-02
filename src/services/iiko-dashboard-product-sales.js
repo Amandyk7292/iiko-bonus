@@ -159,12 +159,14 @@ async function productSales(service, input) {
   };
 }
 
-function exportProductSales(report) {
+function exportProductSales(report, view = 'daily') {
   const date = (value) => `${value.slice(8, 10)}.${value.slice(5, 7)}.${value.slice(0, 4)}`;
+  const byPoints = view === 'points';
+  const items = byPoints ? report.byDepartment : report.daily;
+  const dimension = byPoints ? 'department' : 'date';
   return {
     columns: {
-      date: { name: 'Дата iiko' },
-      department: { name: 'Точка' },
+      [dimension]: { name: byPoints ? 'Точка' : 'Дата iiko' },
       product: { name: 'Товар' },
       unit: { name: 'Единица' },
       quantity: { name: 'Количество' },
@@ -172,9 +174,8 @@ function exportProductSales(report) {
       gross: { name: 'Сумма до скидок, ₸' },
     },
     rows: [
-      ...report.rows.map((row) => ({
-        date: date(row.date),
-        department: row.department,
+      ...items.map((row) => ({
+        [dimension]: byPoints ? row.department : date(row.date),
         product: report.product.name,
         unit: report.unit,
         quantity: row.quantity,
@@ -182,8 +183,7 @@ function exportProductSales(report) {
         gross: row.gross,
       })),
       {
-        date: 'Итого',
-        department: report.selectedDepartment || report.city,
+        [dimension]: 'Итого',
         product: report.product.name,
         unit: report.unit,
         ...report.summary,

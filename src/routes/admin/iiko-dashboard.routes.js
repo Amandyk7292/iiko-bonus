@@ -6,6 +6,7 @@ const {
   departmentsQuery,
   productSearchQuery,
   productSalesQuery,
+  productSalesExportQuery,
   balancesQuery,
   balancesExportQuery,
   revisionQuery,
@@ -205,7 +206,7 @@ function registerIikoDashboardRoutes(router, reporting = service) {
   router.post(
     '/admin/api/iiko-dashboard/product-sales/export',
     ownerOnly,
-    validateRequest({ body: productSalesQuery }),
+    validateRequest({ body: productSalesQuery, query: productSalesExportQuery }),
     async (req, res) => {
       try {
         const result = await productSalesJobs.result(JSON.stringify(req.body), () =>
@@ -213,13 +214,16 @@ function registerIikoDashboardRoutes(router, reporting = service) {
         );
         res.set(
           'Content-Disposition',
-          `attachment; filename="iiko-product-sales-${req.body.from}-${req.body.to}.xlsx"`,
+          `attachment; filename="iiko-product-sales-${req.query.view}-${req.body.from}-${req.body.to}.xlsx"`,
         );
         res
           .type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
           .send(
             reportWorkbook(
-              require('../../services/iiko-dashboard-product-sales').exportProductSales(result),
+              require('../../services/iiko-dashboard-product-sales').exportProductSales(
+                result,
+                req.query.view,
+              ),
             ),
           );
       } catch (error) {

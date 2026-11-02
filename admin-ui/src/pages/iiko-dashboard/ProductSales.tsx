@@ -1,5 +1,5 @@
-import { useEffect, useId, useState } from 'react';
-import { Download, Search } from '../../components/BulkaIcons';
+import { useEffect, useId, useRef, useState } from 'react';
+import { ChevronDown, Download, Search } from '../../components/BulkaIcons';
 import { useI18n } from '../../lib/i18n';
 import { dashboardApi, exportProductSales } from './api';
 import { loadControls } from './load-controls';
@@ -7,6 +7,7 @@ import {
   errorKey,
   validRange,
   type ProductChoice,
+  type ProductSalesExportView,
   type ProductSalesQuery,
   type ProductSalesResult,
 } from './model';
@@ -30,6 +31,8 @@ export default function ProductSales({
   const { t, formatDate, formatNumber } = useI18n();
   const inputId = useId();
   const listId = `${inputId}-suggestions`;
+  const exportOptionsId = `${inputId}-export-options`;
+  const exportRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
   const [product, setProduct] = useState<ProductChoice>();
   const [suggestions, setSuggestions] = useState<ProductChoice[]>([]);
@@ -44,11 +47,26 @@ export default function ProductSales({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const periodValid = validRange(from, to);
   const current = product ? { serverId, from, to, department, productId: product.id } : undefined;
   const isCurrent = submitted && current && JSON.stringify(submitted) === JSON.stringify(current);
   const visibleReport = isCurrent ? report : undefined;
   const visibleOptions = suggestions.slice(0, 40);
+
+  useEffect(() => {
+    if (!visibleReport) setExportOpen(false);
+  }, [visibleReport]);
+
+  useEffect(() => {
+    if (!exportOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (event.target instanceof Node && !exportRef.current?.contains(event.target))
+        setExportOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
+  }, [exportOpen]);
 
   useEffect(() => {
     setProduct(undefined);
@@ -149,6 +167,14 @@ export default function ProductSales({
     setSubmitted(current);
     setAttempt((value) => value + 1);
   };
+  const exportView = (view: ProductSalesExportView) => {
+    if (!submitted) return;
+    setExportOpen(false);
+    setExporting(true);
+    void exportProductSales(submitted, view)
+      .catch((caught) => setError(errorKey(caught)))
+      .finally(() => setExporting(false));
+  };
 
   return (
     <section className="card id-panel id-product-sales">
@@ -157,20 +183,44 @@ export default function ProductSales({
           <h2>{t('id.productSales')}</h2>
           <p className="id-muted">{t('id.productSalesHint')}</p>
         </div>
-        <button
-          type="button"
-          disabled={!visibleReport || loading || exporting}
-          onClick={() => {
-            if (!submitted) return;
-            setExporting(true);
-            void exportProductSales(submitted)
-              .catch((caught) => setError(errorKey(caught)))
-              .finally(() => setExporting(false));
+        <div
+          className="id-product-sales-export"
+          ref={exportRef}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+              setExportOpen(false);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') setExportOpen(false);
           }}
         >
-          <Download size={17} />
-          {t('id.productSalesExport')}
-        </button>
+          <button
+            type="button"
+            aria-expanded={exportOpen}
+            aria-controls={exportOpen ? exportOptionsId : undefined}
+            disabled={!visibleReport || loading || exporting}
+            onClick={() => setExportOpen((open) => !open)}
+          >
+            <Download size={17} />
+            {t('id.productSalesExport')}
+            <ChevronDown size={15} aria-hidden="true" />
+          </button>
+          {exportOpen && (
+            <div
+              className="id-product-sales-export-options"
+              id={exportOptionsId}
+              role="group"
+              aria-label={t('id.productSalesExportOptions')}
+            >
+              <button type="button" onClick={() => exportView('daily')}>
+                {t('id.productSalesExportByDay')}
+              </button>
+              <button type="button" onClick={() => exportView('points')}>
+                {t('id.productSalesExportByPoint')}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       <div className="id-product-sales-form">
         <div

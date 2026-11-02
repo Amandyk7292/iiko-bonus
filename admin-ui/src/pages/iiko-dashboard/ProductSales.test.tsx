@@ -71,12 +71,14 @@ it('finds the iiko product in Kazakh, shows August sales and exports that select
   expect(screen.getByText('Bulka 16 мкр 85 дом')).toBeVisible();
   await waitFor(() => expect(download).toBeEnabled());
   fireEvent.click(download);
+  fireEvent.click(screen.getByRole('button', { name: 'Отчёт по дням' }));
   expect(mock.exportProductSales).toHaveBeenCalledWith(
     expect.objectContaining({
       productId,
       from: '2026-08-01',
       to: '2026-08-31',
     }),
+    'daily',
   );
 });
 
