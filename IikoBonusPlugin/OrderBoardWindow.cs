@@ -235,7 +235,6 @@ namespace Resto.Front.Api.IikoBonusPlugin
             if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
             Topmost = true;
             Activate();
-            System.Media.SystemSounds.Exclamation.Play();
             if (automatic && !used && activeSearch.Length == 0) SelectStage(0);
             scrolls[0].ScrollToTop();
         }

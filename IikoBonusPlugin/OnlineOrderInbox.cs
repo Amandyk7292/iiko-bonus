@@ -9,9 +9,12 @@ namespace Resto.Front.Api.IikoBonusPlugin
     internal sealed class OnlineOrderInbox : IDisposable
     {
         private readonly Timer timer;
+        private readonly Timer alarmTimer;
         private readonly object gate = new object();
         private readonly SemaphoreSlim network = new SemaphoreSlim(1, 1);
         private readonly Action requestReceiptProcessing;
+        private OrderAlarmPlayer orderAlarm;
+        private bool alarmUnavailable;
         private readonly int[] pages = {1, 1, 1, 1};
         private readonly OrderAlertState alerts = new OrderAlertState();
         private OrderBoardWindow window;
@@ -25,6 +28,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             this.requestReceiptProcessing = requestReceiptProcessing;
             timer = new Timer(Poll, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
+            alarmTimer = new Timer(_ => PulseOrderAlarm(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
         }
 
         private static T Request<T>(HttpMethod method, string path, object body = null)
@@ -71,25 +75,28 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     var peek = Request<InboxResponse>(HttpMethod.Post, "orders/board/poll", new InboxPoll {
                         TerminalId = PluginContext.Operations.GetHostTerminal().Id.ToString() });
                     if (peek == null) throw new InvalidOperationException("Нет ответа от Bulka.");
-                    bool visible, needsAttention, refreshSearch;
+                    bool visible, openForNewOrder, refreshSearch, hadPending;
                     lock (gate)
                     {
                         visible = window != null;
                         // Global revisions cover the operational board. An explicitly
                         // searched historical order may change outside that window.
                         refreshSearch = search.Length > 0 && DateTime.UtcNow - lastBoardLoaded >= TimeSpan.FromSeconds(10);
+                        hadPending = alerts.HasPending;
                         alerts.Observe(peek.Total, peek.NewestOrderNumber, peek.Orders?.FirstOrDefault()?.Id ?? "");
-                        needsAttention = alerts.IsDue(DateTime.UtcNow, visible);
+                        openForNewOrder = alerts.HasUnpresentedOrder;
                     }
+                    PulseOrderAlarm();
+                    if (hadPending && peek.Total == 0) StopOrderAlarm();
                     if (visible && (peek.Revision != revision || refreshSearch))
                     {
                         var result = Load(); OnWindow(view => view.Update(result)); revision = peek.Revision;
                     }
                     else if (visible) OnWindow(view => view.SetConnected());
-                    if (needsAttention && visible) OnWindow(view => {
+                    if (openForNewOrder && visible) OnWindow(view => {
                         view.AlertNewOrder(); lock (gate) alerts.Presented();
                     });
-                    else if (needsAttention) RequestAutomaticOpen();
+                    else if (openForNewOrder) RequestAutomaticOpen();
                 }
                 finally { network.Release(); }
             }
@@ -110,6 +117,47 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 catch (Exception error) { PluginContext.Log.Warn("Bulka board open: " + error.Message); }
                 finally { Interlocked.Exchange(ref opening, 0); }
             });
+        }
+
+        private void PlayOrderAlarm()
+        {
+            if (alarmUnavailable)
+            {
+                try { System.Media.SystemSounds.Exclamation.Play(); }
+                catch { }
+                return;
+            }
+            try
+            {
+                if (orderAlarm == null) orderAlarm = new OrderAlarmPlayer();
+                orderAlarm.Play();
+            }
+            catch (Exception error)
+            {
+                alarmUnavailable = true;
+                PluginContext.Log.Warn("Bulka order alert audio unavailable: " + error.Message);
+                try { System.Media.SystemSounds.Exclamation.Play(); }
+                catch { }
+            }
+        }
+
+        private void PulseOrderAlarm()
+        {
+            bool soundDue;
+            lock (gate)
+            {
+                if (disposed || !alerts.HasPending) return;
+                var now = DateTime.UtcNow;
+                soundDue = alerts.SoundIsDue(now);
+                if (soundDue) alerts.Sounded(now);
+            }
+            if (soundDue) PlayOrderAlarm();
+        }
+
+        private void StopOrderAlarm()
+        {
+            try { orderAlarm?.Stop(); }
+            catch (Exception error) { PluginContext.Log.Warn("Bulka order alert audio stop: " + error.Message); }
         }
         internal long? Show(IViewManager vm, bool canImport = false, bool automatic = false)
         {
@@ -214,7 +262,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         }
         public void Dispose()
         {
-            disposed = true; timer.Dispose(); OnWindow(view => view.Close());
+            disposed = true; timer.Dispose(); alarmTimer.Dispose(); StopOrderAlarm(); orderAlarm?.Dispose(); OnWindow(view => view.Close());
         }
     }
 }
