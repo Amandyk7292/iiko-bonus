@@ -44,10 +44,10 @@ jobs:
       - run: flutter test --no-pub --concurrency=2
   patch:
     needs: verify
-    # Match the macOS 26 ARM image used by the last successful Shorebird patch.
+    # GitHub's macos-26 label selects the ARM image used by the last successful patch.
     # Its compiled asset catalogs matched the installed release; the Intel image
     # changed CoreUI metadata and Shorebird correctly rejected that patch.
-    runs-on: macos-26-arm64
+    runs-on: macos-26
     timeout-minutes: 45
     defaults:
       run:
