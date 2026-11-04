@@ -14,6 +14,23 @@ CatalogProduct product(String id, String category, {bool stopped = false}) =>
     );
 
 void main() {
+  test('uses the configured menu order for category sections', () {
+    final categories = catalogCategoriesAvailableFirst(
+      [
+        MapEntry('Десерты', [product('cake', 'Десерты', stopped: true)]),
+        MapEntry('Круассаны', [product('croissant', 'Круассаны')]),
+        MapEntry('Булочки', [product('bun', 'Булочки')]),
+      ],
+      categoryOrder: ['Булочки', 'Десерты', 'Круассаны'],
+    );
+
+    expect(categories.map((entry) => entry.key), [
+      'Булочки',
+      'Десерты',
+      'Круассаны',
+    ]);
+  });
+
   test(
     'categories with available products come first and stay alphabetical',
     () {

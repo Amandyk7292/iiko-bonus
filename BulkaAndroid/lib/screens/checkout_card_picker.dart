@@ -341,14 +341,20 @@ class _CheckoutCardBrand extends StatelessWidget {
       child: add
           ? const Icon(Icons.add_rounded, size: 28)
           : brand == 'VISA'
-          ? const Text(
-              'VISA',
-              style: TextStyle(
-                fontFamily: _headingFont,
-                fontSize: 17,
-                fontWeight: FontWeight.w900,
-                fontStyle: FontStyle.italic,
-                color: Color(0xff143879),
+          ? FittedBox(
+              key: const ValueKey('checkout-visa-brand-logo'),
+              fit: BoxFit.scaleDown,
+              child: const Text(
+                'VISA',
+                maxLines: 1,
+                softWrap: false,
+                style: TextStyle(
+                  fontFamily: _headingFont,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  fontStyle: FontStyle.italic,
+                  color: Color(0xff143879),
+                ),
               ),
             )
           : brand == 'MASTERCARD'

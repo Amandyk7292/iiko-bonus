@@ -3,6 +3,8 @@ import { MenuIncompleteDescription } from './menu-completeness';
 import PriceLabelButton from '../../components/PriceLabelButton';
 import ProductQrButton from '../../components/ProductQrButton';
 import {
+  ArrowDown,
+  ArrowUp,
   Eye,
   EyeOff,
   Image as ImageIcon,
@@ -73,6 +75,8 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
     hiddenCategoryIds,
     visibleGroups,
     sortedAdminGroups,
+    categoryOrderSaving,
+    moveCategoryOrder,
     productsInVisibleCategories,
     filteredProducts,
     sortedCustomProducts,
@@ -362,117 +366,147 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
           )}
         </div>
       ) : activeTab === 'categories' ? (
-        <div
-          id="menu-panel-categories"
-          role="tabpanel"
-          aria-labelledby="menu-tab-categories"
-          className="grid grid-cols-1 md:grid-cols-2 gap-4"
-        >
-          {sortedAdminGroups.map((g) => {
-            const override = categoryOverrides[g.id];
-            const categoryDisplayName = resolvedCategoryName(g, override);
-            const isDirectlyHidden = Boolean(override?.is_hidden);
-            const isHidden = hiddenCategoryIds.has(g.id);
-            const isHiddenByDuplicate = isHidden && !isDirectlyHidden;
-            const visibilityPending = Boolean(override?._visibility_pending);
-            const count = rawProducts.filter((p) => p.parentGroup === g.id).length;
+        <div id="menu-panel-categories" role="tabpanel" aria-labelledby="menu-tab-categories">
+          <p className="mb-3 text-sm text-gray-500" role="status">
+            {categoryOrderSaving
+              ? 'Сохраняем порядок категорий…'
+              : 'Порядок стрелок задаёт порядок категорий в мобильном каталоге.'}
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4" aria-busy={categoryOrderSaving}>
+            {sortedAdminGroups.map((g) => {
+              const override = categoryOverrides[g.id];
+              const categoryDisplayName = resolvedCategoryName(g, override);
+              const isDirectlyHidden = Boolean(override?.is_hidden);
+              const isHidden = hiddenCategoryIds.has(g.id);
+              const isHiddenByDuplicate = isHidden && !isDirectlyHidden;
+              const visibilityPending = Boolean(override?._visibility_pending);
+              const count = rawProducts.filter((p) => p.parentGroup === g.id).length;
+              const reorderableGroups = sortedAdminGroups.filter(
+                (group) => hiddenCategoryIds.has(group.id) === isHidden,
+              );
+              const reorderableIndex = reorderableGroups.findIndex((group) => group.id === g.id);
 
-            return (
-              <div
-                key={g.id}
-                className={`bg-white rounded-2xl p-4 border flex items-center justify-between gap-4 ${
-                  isHidden
-                    ? 'opacity-60 border-dashed border-gray-300'
-                    : 'border-gray-100 shadow-sm'
-                }`}
-              >
-                <div className="flex items-center gap-4 flex-1">
-                  <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-gray-100 shrink-0">
-                    {photoUpload('category', g.id)?.preview || override?.custom_image_url ? (
-                      <img
-                        src={photoUpload('category', g.id)?.preview || override?.custom_image_url}
-                        alt={categoryDisplayName}
-                        className="w-full h-full object-cover"
-                        width="160"
-                        height="120"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <ImageIcon className="text-gray-400" size={24} />
-                      </div>
-                    )}
-                    <label
-                      className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/45 text-white transition-opacity focus-within:outline focus-within:outline-3 focus-within:outline-amber-300"
-                      aria-label={`Загрузить фото для категории ${categoryDisplayName}`}
-                      title="Загрузить фото категории"
-                    >
-                      {photoUpload('category', g.id) ? (
-                        <LoaderCircle className="spin" size={20} />
+              return (
+                <div
+                  key={g.id}
+                  className={`bg-white rounded-2xl p-4 border flex items-center justify-between gap-4 ${
+                    isHidden
+                      ? 'opacity-60 border-dashed border-gray-300'
+                      : 'border-gray-100 shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-gray-100 shrink-0">
+                      {photoUpload('category', g.id)?.preview || override?.custom_image_url ? (
+                        <img
+                          src={photoUpload('category', g.id)?.preview || override?.custom_image_url}
+                          alt={categoryDisplayName}
+                          className="w-full h-full object-cover"
+                          width="160"
+                          height="120"
+                          loading="lazy"
+                        />
                       ) : (
-                        <Upload aria-hidden="true" size={20} />
+                        <div className="w-full h-full flex items-center justify-center">
+                          <ImageIcon className="text-gray-400" size={24} />
+                        </div>
                       )}
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        disabled={Boolean(photoUpload('category', g.id)) || !activeProfileKey}
-                        className="sr-only"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          e.target.value = '';
-                          if (file) void handleUploadCategoryPhoto(g.id, file);
-                        }}
-                      />
-                    </label>
+                      <label
+                        className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/45 text-white transition-opacity focus-within:outline focus-within:outline-3 focus-within:outline-amber-300"
+                        aria-label={`Загрузить фото для категории ${categoryDisplayName}`}
+                        title="Загрузить фото категории"
+                      >
+                        {photoUpload('category', g.id) ? (
+                          <LoaderCircle className="spin" size={20} />
+                        ) : (
+                          <Upload aria-hidden="true" size={20} />
+                        )}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          disabled={Boolean(photoUpload('category', g.id)) || !activeProfileKey}
+                          className="sr-only"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = '';
+                            if (file) void handleUploadCategoryPhoto(g.id, file);
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    <div>
+                      <h3 className="font-semibold text-gray-900 text-base">
+                        {categoryDisplayName}
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-0.5">Товаров в категории: {count}</p>
+                    </div>
                   </div>
 
-                  <div>
-                    <h3 className="font-semibold text-gray-900 text-base">{categoryDisplayName}</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">Товаров в категории: {count}</p>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => void moveCategoryOrder(g.id, -1)}
+                      disabled={categoryOrderSaving || reorderableIndex === 0}
+                      className="icon-button"
+                      aria-label={`Поднять категорию ${categoryDisplayName}`}
+                      title="Поднять категорию"
+                    >
+                      <ArrowUp aria-hidden="true" size={17} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void moveCategoryOrder(g.id, 1)}
+                      disabled={
+                        categoryOrderSaving || reorderableIndex === reorderableGroups.length - 1
+                      }
+                      className="icon-button"
+                      aria-label={`Опустить категорию ${categoryDisplayName}`}
+                      title="Опустить категорию"
+                    >
+                      <ArrowDown aria-hidden="true" size={17} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openCategoryEditModal(g)}
+                      className="icon-button bg-amber-50 text-amber-700"
+                      aria-label={`Изменить названия категории ${categoryDisplayName}`}
+                      title="Изменить названия RU / KZ"
+                    >
+                      <Pencil aria-hidden="true" size={17} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleCategoryHidden(g.id, isDirectlyHidden)}
+                      disabled={isHiddenByDuplicate || visibilityPending}
+                      aria-busy={visibilityPending}
+                      title={
+                        isHiddenByDuplicate
+                          ? 'Категория скрыта вместе с одноимённой категорией'
+                          : undefined
+                      }
+                      className={`btn-outline compact-button inline-flex items-center gap-2 shrink-0 ${
+                        isHidden ? 'text-gray-500' : 'text-green-700'
+                      }`}
+                    >
+                      {isHidden ? (
+                        <EyeOff aria-hidden="true" size={16} />
+                      ) : (
+                        <Eye aria-hidden="true" size={16} />
+                      )}
+                      <span>
+                        {isHiddenByDuplicate
+                          ? 'Скрыта как дубликат'
+                          : isHidden
+                            ? 'Категория скрыта'
+                            : 'Включена'}
+                      </span>
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => openCategoryEditModal(g)}
-                    className="icon-button bg-amber-50 text-amber-700"
-                    aria-label={`Изменить названия категории ${categoryDisplayName}`}
-                    title="Изменить названия RU / KZ"
-                  >
-                    <Pencil aria-hidden="true" size={17} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleCategoryHidden(g.id, isDirectlyHidden)}
-                    disabled={isHiddenByDuplicate || visibilityPending}
-                    aria-busy={visibilityPending}
-                    title={
-                      isHiddenByDuplicate
-                        ? 'Категория скрыта вместе с одноимённой категорией'
-                        : undefined
-                    }
-                    className={`btn-outline compact-button inline-flex items-center gap-2 shrink-0 ${
-                      isHidden ? 'text-gray-500' : 'text-green-700'
-                    }`}
-                  >
-                    {isHidden ? (
-                      <EyeOff aria-hidden="true" size={16} />
-                    ) : (
-                      <Eye aria-hidden="true" size={16} />
-                    )}
-                    <span>
-                      {isHiddenByDuplicate
-                        ? 'Скрыта как дубликат'
-                        : isHidden
-                          ? 'Категория скрыта'
-                          : 'Включена'}
-                    </span>
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       ) : (
         /* Вкладка: Свои блюда (кастомные) */

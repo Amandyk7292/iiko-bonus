@@ -74,6 +74,7 @@ export interface CategoryOverride {
   name_translations?: Record<string, string> | null;
   custom_image_url?: string;
   is_hidden?: boolean;
+  sort_order?: number;
 }
 
 export const resolveIikoProductPrices = (products: IikoProduct[] = []): IikoProduct[] =>

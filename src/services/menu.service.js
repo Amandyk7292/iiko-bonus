@@ -367,6 +367,31 @@ class MenuService {
   }
 
   /**
+   * Сохраняет порядок категорий города одной пакетной операцией.
+   * Нумерация начинается с 1: ноль остаётся значением по умолчанию для старых строк.
+   */
+  async setCategoryOrder(categoryIds, { profileKey = 'default' } = {}) {
+    if (!Array.isArray(categoryIds) || categoryIds.length < 1 || categoryIds.length > 500) {
+      throw menuError('Некорректный список категорий');
+    }
+    const ids = categoryIds.map((id, index) => cleanId(id, `категория ${index + 1}`));
+    if (new Set(ids).size !== ids.length) throw menuError('Категории не должны повторяться');
+
+    const profile = cleanProfileKey(profileKey);
+    const updatedAt = new Date().toISOString();
+    const rows = ids.map((id, index) => ({
+      iiko_profile: profile,
+      iiko_category_id: id,
+      sort_order: index + 1,
+      updated_at: updatedAt,
+    }));
+    const { error } = await supabase
+      .from('menu_category_overrides')
+      .upsert(rows, { onConflict: 'iiko_profile,iiko_category_id' });
+    if (error) throw new Error('Ошибка сохранения порядка категорий: ' + error.message);
+  }
+
+  /**
    * Получает все кастомные товары
    */
   async getCustomProducts({ strict = false, profileKey } = {}) {

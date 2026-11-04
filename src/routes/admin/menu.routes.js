@@ -324,6 +324,47 @@ function registerMenuAdminRoutes(router) {
   );
 
   router.post(
+    '/admin/api/menu/category/order',
+    adminAuthMiddleware,
+    validateRequest(adminMutationSchemas.menuCategoryOrder),
+    async (req, res) => {
+      try {
+        const selectedIikoApi = await getIikoClientForBranch(req.admin?.selectedBranchId);
+        if (req.body.profileKey !== selectedIikoApi.profileKey) {
+          return res
+            .status(409)
+            .json({ success: false, error: 'Город изменился. Обновите меню и попробуйте снова.' });
+        }
+        const rawMenu = await selectedIikoApi.getMenu({ strict: true });
+        const currentIds = (rawMenu.groups || []).map((group) => String(group.id));
+        const requestedIds = req.body.categoryIds;
+        if (
+          currentIds.length !== requestedIds.length ||
+          new Set(currentIds).size !== currentIds.length ||
+          currentIds.some((id) => !requestedIds.includes(id))
+        ) {
+          return res.status(409).json({
+            success: false,
+            error: 'Список категорий изменился. Обновите меню и повторите изменение порядка.',
+          });
+        }
+        await menuService.setCategoryOrder(requestedIds, {
+          profileKey: selectedIikoApi.profileKey,
+        });
+        realtime.publish(
+          'menu.updated',
+          { categoryOrder: true, profileKey: selectedIikoApi.profileKey },
+          { broadcast: true },
+        );
+        res.locals.clientDataPublished = true;
+        res.json({ success: true });
+      } catch (error) {
+        res.status(error.statusCode || 500).json({ success: false, error: error.message });
+      }
+    },
+  );
+
+  router.post(
     '/admin/api/menu/category/override',
     adminAuthMiddleware,
     validateRequest(adminMutationSchemas.categoryOverride),

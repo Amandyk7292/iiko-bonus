@@ -249,6 +249,15 @@ void main() {
       await _openMethods(tester);
       expect(find.text('checkout_payment_title'.tr), findsOneWidget);
       expect(find.text('2500.00 ₸'), findsOneWidget);
+      final visaBadge = find.byKey(const ValueKey('checkout-visa-brand-logo'));
+      final visaText = find.descendant(
+        of: visaBadge,
+        matching: find.byType(Text),
+      );
+      final visaLogo = tester.widget<Text>(visaText);
+      expect(visaLogo.maxLines, 1);
+      expect(visaLogo.softWrap, isFalse);
+      expect(tester.widget<FittedBox>(visaBadge).fit, BoxFit.scaleDown);
       expect(find.text('checkout_add_new_card'.tr), findsOneWidget);
       expect(find.text('payment_methods_verification_hint'.tr), findsNothing);
       expect(find.text('Apple Pay'), findsNothing);

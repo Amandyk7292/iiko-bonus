@@ -1,6 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const supabase = { from() { throw new Error('Unexpected database access'); } };
+const supabase = {
+  from() {
+    throw new Error('Unexpected database access');
+  },
+};
 require.cache[require.resolve('../src/config/supabase')] = { exports: { supabase } };
 const service = require('../src/services/menu.service');
 const { adminMutationSchemas } = require('../src/contracts/admin-mutations.contract');
@@ -52,6 +56,40 @@ test('missing target or a product from another profile rejects entire selection 
   }
 });
 
+test('category order is saved as one profile-scoped batch with a one-based order', async (t) => {
+  const writes = [];
+  t.mock.method(supabase, 'from', (table) => ({
+    upsert: async (rows, options) => {
+      writes.push({ table, rows, options });
+      return { error: null };
+    },
+  }));
+
+  await service.setCategoryOrder(['bread', 'buns', 'cakes'], { profileKey: 'astana' });
+
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].table, 'menu_category_overrides');
+  assert.equal(writes[0].options.onConflict, 'iiko_profile,iiko_category_id');
+  assert.deepEqual(
+    writes[0].rows.map(({ iiko_profile, iiko_category_id, sort_order }) => ({
+      iiko_profile,
+      iiko_category_id,
+      sort_order,
+    })),
+    [
+      { iiko_profile: 'astana', iiko_category_id: 'bread', sort_order: 1 },
+      { iiko_profile: 'astana', iiko_category_id: 'buns', sort_order: 2 },
+      { iiko_profile: 'astana', iiko_category_id: 'cakes', sort_order: 3 },
+    ],
+  );
+});
+
+test('category order rejects duplicates and invalid ids before database access', async (t) => {
+  t.mock.method(supabase, 'from', () => assert.fail('Must not write an invalid order'));
+  await assert.rejects(service.setCategoryOrder(['buns', 'buns']), { statusCode: 400 });
+  await assert.rejects(service.setCategoryOrder(['invalid id']), { statusCode: 400 });
+});
+
 test('bulk contract requires explicit profile and a bounded non-empty product selection', () => {
   const schema = adminMutationSchemas.moveMenuProducts.body;
   assert.equal(
@@ -68,6 +106,20 @@ test('bulk contract requires explicit profile and a bounded non-empty product se
     { productIds: ['a'], categoryId: 'buns' },
   ])
     assert.equal(schema.safeParse(payload).success, false);
+});
+
+test('category order contract requires a unique category list and profile key', () => {
+  const schema = adminMutationSchemas.menuCategoryOrder.body;
+  assert.equal(
+    schema.safeParse({ categoryIds: ['bread', 'buns'], profileKey: 'default' }).success,
+    true,
+  );
+  assert.equal(
+    schema.safeParse({ categoryIds: ['bread', 'bread'], profileKey: 'default' }).success,
+    false,
+  );
+  assert.equal(schema.safeParse({ categoryIds: [], profileKey: 'default' }).success, false);
+  assert.equal(schema.safeParse({ categoryIds: ['bread'] }).success, false);
 });
 
 test('category overrides survive iiko sync and recover if the destination disappears', () => {

@@ -86,6 +86,7 @@ export function useMenuPageController({
   const [rawGroups, setRawGroups] = useState<IikoGroup[]>([]);
   const [productOverrides, setProductOverrides] = useState<Record<string, ProductOverride>>({});
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, CategoryOverride>>({});
+  const [categoryOrderSaving, setCategoryOrderSaving] = useState(false);
   const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
   const [activeProfileKey, setActiveProfileKey] = useState<string>();
   const categoryMove = useMenuCategoryMove(selectedBranchId, activeProfileKey, setProductOverrides);
@@ -364,6 +365,49 @@ export function useMenuPageController({
     }
   };
 
+  const moveCategoryOrder = async (categoryId: string, direction: -1 | 1) => {
+    if (!activeProfileKey || categoryOrderSaving) return;
+    const sourceIndex = sortedAdminGroups.findIndex((group) => group.id === categoryId);
+    const targetIndex = sourceIndex + direction;
+    if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= sortedAdminGroups.length) return;
+
+    const sourceIsHidden = hiddenCategoryIds.has(categoryId);
+    const target = sortedAdminGroups[targetIndex];
+    if (hiddenCategoryIds.has(target.id) !== sourceIsHidden) return;
+
+    const nextGroups = [...sortedAdminGroups];
+    [nextGroups[sourceIndex], nextGroups[targetIndex]] = [
+      nextGroups[targetIndex],
+      nextGroups[sourceIndex],
+    ];
+
+    setCategoryOrderSaving(true);
+    try {
+      await api.setMenuCategoryOrder(
+        nextGroups.map((group) => group.id),
+        activeProfileKey,
+      );
+      setCategoryOverrides((previous) => {
+        const next = { ...previous };
+        nextGroups.forEach((group, index) => {
+          next[group.id] = {
+            ...(previous[group.id] || { iiko_category_id: group.id }),
+            sort_order: index + 1,
+          };
+        });
+        return next;
+      });
+      toast('Порядок категорий сохранён', 'success');
+    } catch (error) {
+      toast(
+        error instanceof Error ? error.message : 'Не удалось изменить порядок категорий',
+        'error',
+      );
+    } finally {
+      setCategoryOrderSaving(false);
+    }
+  };
+
   const handleSaveCustom = async (e: FormEvent, saveAppearance?: () => Promise<boolean>) => {
     e.preventDefault();
     if (!customForm.name || !customForm.price) return;
@@ -548,6 +592,16 @@ export function useMenuPageController({
         const hiddenComparison =
           Number(hiddenCategoryIds.has(left.id)) - Number(hiddenCategoryIds.has(right.id));
         if (hiddenComparison !== 0) return hiddenComparison;
+        const leftOrder = Number(categoryOverrides[left.id]?.sort_order || 0);
+        const rightOrder = Number(categoryOverrides[right.id]?.sort_order || 0);
+        const leftHasCustomOrder = Number.isInteger(leftOrder) && leftOrder > 0;
+        const rightHasCustomOrder = Number.isInteger(rightOrder) && rightOrder > 0;
+        if (leftHasCustomOrder && rightHasCustomOrder && leftOrder !== rightOrder) {
+          return leftOrder - rightOrder;
+        }
+        if (leftHasCustomOrder !== rightHasCustomOrder) return leftHasCustomOrder ? -1 : 1;
+        const sourceOrder = Number(left.order || 0) - Number(right.order || 0);
+        if (sourceOrder !== 0) return sourceOrder;
         return compareMenuNames(
           resolvedCategoryName(left, categoryOverrides[left.id]),
           resolvedCategoryName(right, categoryOverrides[right.id]),
@@ -611,6 +665,7 @@ export function useMenuPageController({
     rawGroups,
     productOverrides,
     categoryOverrides,
+    categoryOrderSaving,
     customProducts,
     activeProfileKey,
     profileStatuses,
@@ -657,6 +712,7 @@ export function useMenuPageController({
     handleToggleCategoryHidden,
     openCategoryEditModal,
     handleSaveCategoryEdit,
+    moveCategoryOrder,
     handleSaveCustom,
     openEditModal,
     handleSaveProductEdit,

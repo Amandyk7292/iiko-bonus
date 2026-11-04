@@ -1195,6 +1195,11 @@ export const api = {
       '/menu/category/override',
       json('POST', { iikoCategoryId, overrides }),
     ),
+  setMenuCategoryOrder: (categoryIds: string[], profileKey: string) =>
+    request<{ success: boolean }>(
+      '/menu/category/order',
+      json('POST', { categoryIds, profileKey }),
+    ),
   upsertCustomProduct: (product: Record<string, any>) =>
     request<{ success: boolean }>('/menu/custom-product', json('POST', product)),
   deleteCustomProduct: (id: string) =>

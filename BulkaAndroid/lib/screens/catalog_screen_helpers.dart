@@ -148,10 +148,22 @@ List<CatalogProduct> catalogProductsAlphabetically(
   ..sort((left, right) => catalogAlphabeticalCompare(left.title, right.title));
 
 List<MapEntry<String, List<CatalogProduct>>> catalogCategoriesAvailableFirst(
-  Iterable<MapEntry<String, List<CatalogProduct>>> categories,
-) {
+  Iterable<MapEntry<String, List<CatalogProduct>>> categories, {
+  List<String> categoryOrder = const [],
+}) {
   final sorted = categories.toList();
+  final orderByCategory = {
+    for (var index = 0; index < categoryOrder.length; index++)
+      categoryOrder[index]: index,
+  };
   sorted.sort((left, right) {
+    final leftOrder = orderByCategory[left.key];
+    final rightOrder = orderByCategory[right.key];
+    if (leftOrder != null && rightOrder != null && leftOrder != rightOrder) {
+      return leftOrder.compareTo(rightOrder);
+    }
+    if (leftOrder != null && rightOrder == null) return -1;
+    if (leftOrder == null && rightOrder != null) return 1;
     final leftAvailable = left.value.any((product) => !product.isStopListed);
     final rightAvailable = right.value.any((product) => !product.isStopListed);
     if (leftAvailable != rightAvailable) return leftAvailable ? -1 : 1;

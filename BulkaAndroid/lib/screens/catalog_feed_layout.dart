@@ -12,6 +12,7 @@ class _CatalogFeedRow {
 class _CatalogFeedLayout {
   _CatalogFeedLayout({
     required this.products,
+    required this.categoryOrder,
     required this.width,
     required this.textScaler,
     required this.direction,
@@ -31,6 +32,7 @@ class _CatalogFeedLayout {
       }
       for (final group in catalogCategoriesAvailableFirst(
         groups.entries.toList(),
+        categoryOrder: categoryOrder,
       )) {
         categoryOffsets[group.key] = totalExtent;
         _add(
@@ -59,6 +61,7 @@ class _CatalogFeedLayout {
 
   static const spacing = 14.0;
   final List<CatalogProduct> products;
+  final List<String> categoryOrder;
   final double width;
   final TextScaler textScaler;
   final TextDirection direction;
@@ -213,6 +216,7 @@ extension _CatalogFeedView on _CatalogScreenState {
     final cached = _catalogFeedLayout;
     if (cached == null ||
         cached.width != width ||
+        !listEquals(cached.categoryOrder, _categories) ||
         cached.textScaler != scale ||
         cached.direction != direction ||
         cached.locale != AppLang.current ||
@@ -222,6 +226,7 @@ extension _CatalogFeedView on _CatalogScreenState {
       _catalogClampedSelection = null;
       _catalogFeedLayout = _CatalogFeedLayout(
         products: products,
+        categoryOrder: _categories,
         width: width,
         textScaler: scale,
         direction: direction,

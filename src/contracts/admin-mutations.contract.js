@@ -1211,6 +1211,22 @@ const adminMutationSchemas = {
       })
       .strict(),
   ),
+  menuCategoryOrder: withBody(
+    z
+      .object({
+        categoryIds: z
+          .array(safeResourceIdSchema)
+          .min(1)
+          .max(500)
+          .refine((ids) => new Set(ids).size === ids.length, 'Категории не должны повторяться'),
+        profileKey: z
+          .string()
+          .min(1)
+          .max(64)
+          .regex(/^[a-z0-9_-]+$/),
+      })
+      .strict(),
+  ),
   categoryOverride: withBody(categoryOverrideBodySchema),
   customProduct: withBody(customProductBodySchema),
   customProductDelete: withParams(customProductParamsSchema),
