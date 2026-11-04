@@ -44,8 +44,9 @@ jobs:
       - run: flutter test --no-pub --concurrency=2
   patch:
     needs: verify
-    # Use the standard Intel host while GitHub's macOS ARM pool is capacity-limited.
-    runs-on: macos-15-intel
+    # The plugin uses NWPath.isUltraConstrained, which requires the newer iOS SDK.
+    # Intel also avoids the capacity-limited macOS ARM runner pool.
+    runs-on: macos-26-intel
     timeout-minutes: 45
     defaults:
       run:
