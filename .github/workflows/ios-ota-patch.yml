@@ -44,7 +44,8 @@ jobs:
       - run: flutter test --no-pub --concurrency=2
   patch:
     needs: verify
-    runs-on: macos-latest
+    # Use the standard Intel host while GitHub's macOS ARM pool is capacity-limited.
+    runs-on: macos-15-intel
     timeout-minutes: 45
     defaults:
       run:
