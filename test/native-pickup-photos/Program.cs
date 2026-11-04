@@ -473,7 +473,7 @@ internal static partial class Program
                 PhotoFirstIntegration();
             }
             ReceiptLatencyIntegration();
-            Check(Plugin.GetName().Version.ToString(3)=="1.15.1","current 1.15.1 plugin preserves configured receipt queue and delayed callbacks");
+            Check(Plugin.GetName().Version.ToString(3)=="1.15.2","current 1.15.2 plugin preserves configured receipt queue and delayed callbacks");
             Console.WriteLine("PASS: "+assertions+" photo-print assertions; intercepted HTTP and SDK only, no physical printer.");
         }
         finally
