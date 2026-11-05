@@ -259,6 +259,12 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive && !kIsWeb) {
+      // Capture any steps reached since the last foreground poll before the
+      // operating system suspends the app. The normal consent, session and
+      // signed-measurement checks still apply.
+      unawaited(_api.autoSyncWalking());
+    }
     if (state == AppLifecycleState.resumed) {
       // This is deliberately independent of customer authentication. A forced
       // logout can leave a Firebase token deletion pending while the app stays

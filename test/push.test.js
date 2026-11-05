@@ -249,10 +249,32 @@ test('push is delivered to every registered installation with string data', asyn
     assert.equal(message.data.orderId, '42');
     assert.equal(message.data.payload, '{"ready":true}');
     assert.equal(message.webpush.fcmOptions.link, 'https://bulka.com.kz/app/');
+    assert.equal(message.android.priority, 'high');
+    assert.equal(message.apns.headers['apns-push-type'], 'alert');
+    assert.equal(message.apns.headers['apns-priority'], '10');
+    assert.deepEqual(message.notification, {
+      title: 'Order ready',
+      body: 'Collect it at the counter',
+    });
     assert.equal('badge' in message.apns.payload.aps, false);
     assert.equal(message.android.notification.channelId, 'bulka_order_status');
     assert.equal(message.android.notification.sticky, true);
   }
+});
+
+test('bonus alerts are displayable by the operating system while the app is closed', async () => {
+  await sendPushNotificationDetailed(
+    'device-token-bonus-123456789012',
+    'Bonus added',
+    'Your reward is ready',
+    { type: 'loyalty', pushDedupeKey: 'bonus-event-example' },
+  );
+  const message = sentMessages.at(-1);
+  assert.deepEqual(message.notification, { title: 'Bonus added', body: 'Your reward is ready' });
+  assert.equal(message.android.priority, 'high');
+  assert.equal(message.apns.headers['apns-push-type'], 'alert');
+  assert.equal(message.apns.headers['apns-priority'], '10');
+  assert.equal(message.apns.payload.aps.sound, 'default');
 });
 
 test('staff order pushes expire after 15 minutes and tests expire sooner', async () => {

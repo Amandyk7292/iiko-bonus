@@ -269,7 +269,10 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
       },
       data: normalizedData,
       android: {
-        priority: isOrderStatus ? 'normal' : 'high',
+        // These messages all contain a visible notification. Normal-priority
+        // order updates can otherwise wait until Android exits Doze, leaving a
+        // customer unaware that their order is ready.
+        priority: 'high',
         ...(staffTtlMs ? { ttl: staffTtlMs } : {}),
         ...(reminderTtlMs ? { ttl: reminderTtlMs } : {}),
         ...(collapseKey
@@ -301,27 +304,26 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
         },
       },
       apns: {
-        ...(collapseKey || staffTtlMs || reminderTtlMs
-          ? {
-              headers: {
-                ...(collapseKey
-                  ? {
-                      'apns-collapse-id': `bulka-${collapseKey}`.slice(0, 64),
-                    }
-                  : {}),
-                ...(staffTtlMs
-                  ? {
-                      // APNs accepts an absolute Unix timestamp. Keep staff
-                      // notifications bounded even if a device reconnects late.
-                      'apns-expiration': String(Math.floor(staffExpiryMs / 1000)),
-                    }
-                  : {}),
-                ...(reminderTtlMs
-                  ? { 'apns-expiration': String(Math.floor(reminderTiming.expiresMs / 1000)) }
-                  : {}),
-              },
-            }
-          : {}),
+        headers: {
+          // This is an alert, even when the optional content-available flag
+          // also lets the app refresh its widget in the background.
+          'apns-push-type': 'alert',
+          'apns-priority': '10',
+          ...(collapseKey
+            ? {
+                'apns-collapse-id': `bulka-${collapseKey}`.slice(0, 64),
+              }
+            : {}),
+          ...(staffTtlMs
+            ? {
+                // Keep staff notifications bounded if a device reconnects late.
+                'apns-expiration': String(Math.floor(staffExpiryMs / 1000)),
+              }
+            : {}),
+          ...(reminderTtlMs
+            ? { 'apns-expiration': String(Math.floor(reminderTiming.expiresMs / 1000)) }
+            : {}),
+        },
         payload: {
           aps: {
             sound: 'default',
