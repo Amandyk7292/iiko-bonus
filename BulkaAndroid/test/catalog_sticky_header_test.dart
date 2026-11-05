@@ -355,7 +355,8 @@ void main() {
         home: ChangeNotifierProvider(
           create: (_) => CartProvider(),
           child: CatalogScreen(
-            api: BulkaApiClient(client: client),
+            api: BulkaApiClient(client: client)
+              ..setSession(accessToken: 'fixture-token'),
             onRequestOrderType: () => homeRequests++,
           ),
         ),
@@ -557,7 +558,8 @@ void main() {
         home: ChangeNotifierProvider(
           create: (_) => CartProvider(),
           child: CatalogScreen(
-            api: BulkaApiClient(client: client),
+            api: BulkaApiClient(client: client)
+              ..setSession(accessToken: 'fixture-token'),
             hasSelectedOrderType: true,
           ),
         ),

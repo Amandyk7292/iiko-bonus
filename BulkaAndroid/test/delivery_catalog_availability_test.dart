@@ -279,6 +279,7 @@ void main() {
           branchReads,
           everyElement(futureNearestSlot ? _closed.id : _open.id),
         );
+        api.setSession(accessToken: 'fixture-token');
         await _tapAdd(tester);
         expect(find.byKey(const ValueKey('branch-closed-sheet')), findsNothing);
         expect(cart.items.values.single.id, 'bun');
@@ -308,6 +309,7 @@ void main() {
       await cart.restored;
       addTearDown(cart.dispose);
       await _renderCatalog(tester, api, cart, 'pickup');
+      api.setSession(accessToken: 'fixture-token');
       await _tapAdd(tester);
       expect(find.byKey(const ValueKey('branch-closed-sheet')), findsOneWidget);
       expect(cart.items, isEmpty);

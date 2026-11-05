@@ -341,8 +341,16 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     return await widget.onEnsureOrderTypeSelected?.call() ?? false;
   }
 
+  Future<bool> _ensureCustomerAuthenticated() async {
+    if (widget.api.isAuthenticated) return true;
+    final signedIn =
+        await (widget.onRequireAuth?.call() ?? Future.value(false));
+    return mounted && signedIn && widget.api.isAuthenticated;
+  }
+
   Future<void> _updateQuantity(CatalogProduct product, num newQty) async {
     if (product.isStopListed) return;
+    if (newQty > _quantity && !await _ensureCustomerAuthenticated()) return;
     if (newQty > _quantity && !await _ensureOrderTypeSelected()) return;
     if (!mounted) return;
     final next = newQty.clamp(0, _catalogProductQuantityLimit(product));
@@ -583,6 +591,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 
   Future<void> _addConfiguredProduct(CatalogProduct product) async {
+    if (!await _ensureCustomerAuthenticated()) return;
     if (!await _ensureOrderTypeSelected()) return;
     if (!mounted) return;
     if (_loadingOptions || _optionsFailed || !_validateConfiguredSelection()) {

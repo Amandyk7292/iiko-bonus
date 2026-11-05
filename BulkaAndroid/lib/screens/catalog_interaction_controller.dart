@@ -322,6 +322,11 @@ extension _CatalogInteractionController on _CatalogScreenState {
     final cart = context.read<CartProvider>();
     final previous = cart.getQuantity(product.id);
     var requested = quantity;
+    if (requested > previous && !_api.isAuthenticated) {
+      final signedIn =
+          await (widget.onRequireAuth?.call() ?? Future.value(false));
+      if (!mounted || !signedIn || !_api.isAuthenticated) return;
+    }
     if (requested != previous && await _productRequiresDetails(product)) {
       if (mounted) await _openProductDetails(product);
       return;

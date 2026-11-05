@@ -103,7 +103,8 @@ void main() {
               200,
             ),
     );
-    final api = BulkaApiClient(client: client);
+    final api = BulkaApiClient(client: client)
+      ..setSession(accessToken: 'fixture-token');
     final cart = CartProvider();
     final live = ValueNotifier<Map<String, CatalogProduct>>({
       product.id: product,
@@ -160,7 +161,8 @@ void main() {
         200,
       ),
     );
-    final api = BulkaApiClient(client: client);
+    final api = BulkaApiClient(client: client)
+      ..setSession(accessToken: 'fixture-token');
     final cart = CartProvider();
     final live = ValueNotifier<Map<String, CatalogProduct>>({
       product.id: product,
@@ -178,7 +180,7 @@ void main() {
     live.dispose();
     expect(
       added,
-      lessThanOrEqualTo(1),
+      1,
       reason: 'Only one configured product is available',
     );
   });

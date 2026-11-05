@@ -299,7 +299,8 @@ void main() {
           );
         });
         addTearDown(client.close);
-        final api = BulkaApiClient(client: client);
+        final api = BulkaApiClient(client: client)
+          ..setSession(accessToken: 'fixture-token');
 
         await tester.pumpWidget(
           ChangeNotifierProvider.value(
@@ -516,7 +517,10 @@ void main() {
         create: (_) => CartProvider(),
         child: MaterialApp(
           theme: buildBulkaTheme(),
-          home: CatalogScreen(api: BulkaApiClient(client: client)),
+          home: CatalogScreen(
+            api: BulkaApiClient(client: client)
+              ..setSession(accessToken: 'fixture-token'),
+          ),
         ),
       ),
     );

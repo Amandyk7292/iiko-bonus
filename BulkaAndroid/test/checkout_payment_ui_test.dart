@@ -70,10 +70,19 @@ class _PaymentUiApi extends BulkaApiClient {
         };
   }
 
-  List<Map<String, dynamic>> get cards => [
-    {'id': 'card-one', 'brand': 'visa', 'lastFour': '1328', 'isDefault': true},
-    {'id': 'card-two', 'brand': 'mastercard', 'lastFour': '2046'},
-  ];
+  List<Map<String, dynamic>>? updatedCards;
+
+  List<Map<String, dynamic>> get cards =>
+      updatedCards ??
+      [
+        {
+          'id': 'card-one',
+          'brand': 'visa',
+          'lastFour': '1328',
+          'isDefault': true,
+        },
+        {'id': 'card-two', 'brand': 'mastercard', 'lastFour': '2046'},
+      ];
 
   @override
   Future<List<BakeryLocation>> getFulfillmentLocations() async => const [
@@ -373,129 +382,49 @@ void main() {
   });
 
   testWidgets(
-    'adding a card starts the existing bank flow and preserves the selected card on failure',
+    'checkout opens saved cards and refreshes the card list on return',
     (tester) async {
       final api = await _openCheckout(tester);
       await _openMethods(tester);
       await tester.tap(find.byKey(const ValueKey('checkout-add-saved-card')));
       await tester.pumpAndSettle();
-      expect(api.cardSetupCalls, 1);
-      expect(find.text('payment_methods_add_unavailable'.tr), findsOneWidget);
-      expect(find.text('•••• 1328'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-  );
 
-  testWidgets(
-    'checkout waits for a requested card binding and recovers after a bank failure',
-    (tester) async {
-      final api = await _openCheckout(tester);
-      final setup = api.pendingCardSetup = Completer<Map<String, dynamic>>();
-      await _openMethods(tester);
-      await tester.tap(find.byKey(const ValueKey('checkout-add-saved-card')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-      expect(api.cardSetupCalls, 1);
-      expect(
-        tester
-            .widget<GradientButton>(
-              find.byKey(const ValueKey('checkout-submit')),
-            )
-            .onPressed,
-        isNull,
-      );
-      setup.completeError(
-        ApiException(
-          'Bank unavailable',
-          code: 'FORTE_WIDGET_CHECKOUT_DISABLED',
-        ),
-      );
+      expect(find.byType(PaymentMethodsScreen), findsOneWidget);
+      expect(find.text('Сохранённые карты'), findsOneWidget);
+      expect(find.text('Добавить новую карту'), findsOneWidget);
+      expect(api.cardSetupCalls, 0);
+
+      api.updatedCards = [
+        ...api.cards,
+        {'id': 'card-three', 'brand': 'visa', 'lastFour': '9999'},
+      ];
+      await tester.tap(find.byTooltip('back_tooltip'.tr));
       await tester.pumpAndSettle();
-      expect(find.text('•••• 1328'), findsOneWidget);
+      expect(find.byType(PaymentMethodsScreen), findsNothing);
+      await _openMethods(tester);
       expect(
-        tester
-            .widget<GradientButton>(
-              find.byKey(const ValueKey('checkout-submit')),
-            )
-            .onPressed,
-        isNotNull,
+        find.byKey(const ValueKey('checkout-saved-card-card-three')),
+        findsOneWidget,
       );
       expect(tester.takeException(), isNull);
     },
   );
 
   testWidgets(
-    'checkout close cancels binding before re-enabling order submission',
+    'returning from saved cards without changes keeps the selected card',
     (tester) async {
       final api = await _openCheckout(tester);
-      final setup = api.pendingCardSetup = Completer<Map<String, dynamic>>();
-      final cancel = api.pendingCancellation =
-          Completer<Map<String, dynamic>>();
       await _openMethods(tester);
       await tester.tap(find.byKey(const ValueKey('checkout-add-saved-card')));
-      setup.complete({
-        'operationId': 'setup-one',
-        'paymentStatus': 'pending',
-        'redirectUrl': 'https://invalid.example/checkout',
-      });
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Закрыть'));
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
-      await tester.pump();
-      expect(find.byType(FortePaymentScreen), findsNothing);
-      expect(find.byType(Dialog), findsNothing);
-      expect(api.cancelledSetups, ['setup-one']);
-      expect(
-        tester
-            .widget<GradientButton>(
-              find.byKey(const ValueKey('checkout-submit')),
-            )
-            .onPressed,
-        isNull,
-      );
-      cancel.complete({
-        'success': true,
-        'operationId': 'setup-one',
-        'paymentStatus': 'pending',
-        'cancelled': true,
-        'canResume': false,
-      });
+      expect(find.byType(PaymentMethodsScreen), findsOneWidget);
+      await tester.tap(find.byTooltip('back_tooltip'.tr));
       await tester.pumpAndSettle();
-      expect(await PendingCardSetupStore.load(api), isNull);
       expect(find.text('•••• 1328'), findsOneWidget);
-      expect(
-        tester
-            .widget<GradientButton>(
-              find.byKey(const ValueKey('checkout-submit')),
-            )
-            .onPressed,
-        isNotNull,
-      );
+      expect(api.cardSetupCalls, 0);
       expect(tester.takeException(), isNull);
     },
   );
-
-  testWidgets('a non-resumable bank token never opens in checkout', (
-    tester,
-  ) async {
-    final api = await _openCheckout(tester);
-    final setup = api.pendingCardSetup = Completer<Map<String, dynamic>>();
-    await _openMethods(tester);
-    await tester.tap(find.byKey(const ValueKey('checkout-add-saved-card')));
-    setup.complete({
-      'operationId': 'expired-setup',
-      'paymentStatus': 'pending',
-      'canResume': false,
-      'redirectUrl':
-          'https://bulka.com.kz/payments/forte-widget#consumed-token',
-    });
-    await tester.pumpAndSettle();
-    expect(find.byType(FortePaymentScreen), findsNothing);
-    expect(api.cancelledSetups, ['expired-setup']);
-    expect(await PendingCardSetupStore.load(api), isNull);
-    expect(find.text('•••• 1328'), findsOneWidget);
-  });
 
   testWidgets(
     'availability changes safely update an already open payment sheet',

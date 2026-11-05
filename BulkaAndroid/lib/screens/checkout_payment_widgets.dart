@@ -304,77 +304,17 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
 
   Future<void> _addCard() async {
     if (_adding || _loading || widget.busy) return;
-    if (_methods.length >= _maximumSavedPaymentMethods) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        bulkaSnackBar(content: Text('payment_methods_limit_reached'.tr)),
-      );
-      return;
-    }
-    final previousIds = _methods
-        .map((method) => (method['id'] ?? '').toString())
-        .toSet();
+    final session = widget.api.sessionCacheScope;
     _setPaymentState(() => _adding = true);
     widget.onBusyChanged?.call(true);
     try {
-      final session = widget.api.sessionCacheScope;
-      final result = await PendingCardSetupStore.createOrResume(widget.api);
-      if (!mounted || session != widget.api.sessionCacheScope) return;
-      if (result['paymentStatus'] == 'paid') {
-        await _load();
-        _selectAddedCard(previousIds);
-        return;
-      }
-      if (isTerminalForteFailure((result['paymentStatus'] ?? '').toString())) {
-        throw ApiException(
-          'card_setup_failed_hint'.tr,
-          code: 'CARD_SETUP_CLOSED',
-        );
-      }
-      final operationId = (result['operationId'] ?? '').toString();
-      final redirectUrl = (result['redirectUrl'] ?? '').toString();
-      if (operationId.isNotEmpty &&
-          (result['canResume'] == false || result['cancelled'] == true)) {
-        await PendingCardSetupStore.cancel(widget.api, operationId);
-        throw ApiException(
-          'card_setup_failed_hint'.tr,
-          code: 'CARD_SETUP_CLOSED',
-        );
-      }
-      if (operationId.isEmpty || redirectUrl.isEmpty) {
-        throw ApiException('payment_methods_add_error'.tr);
-      }
-      if (!mounted || widget.busy) return;
-      final setupResult = await Navigator.of(context).push<FortePaymentResult>(
-        MaterialPageRoute(
-          builder: (_) => FortePaymentScreen(
-            api: widget.api,
-            operationId: operationId,
-            redirectUrl: redirectUrl,
-            cardSetup: true,
-          ),
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => PaymentMethodsScreen(api: widget.api),
         ),
       );
       if (!mounted || session != widget.api.sessionCacheScope) return;
-      if (setupResult == null || setupResult.cancelCardSetup) {
-        final cancelled = await PendingCardSetupStore.cancel(
-          widget.api,
-          operationId,
-        );
-        if (!mounted || session != widget.api.sessionCacheScope) return;
-        if (cancelled['cardSaved'] == true ||
-            cancelled['paymentStatus'] == 'paid') {
-          await _load();
-          _selectAddedCard(previousIds);
-        }
-        return;
-      }
-      if (setupResult.outcome != FortePaymentOutcome.pending) {
-        await PendingCardSetupStore.clear(widget.api, operationId);
-      }
-      if (!setupResult.paid || !mounted) return;
       await _load();
-      if (!mounted) return;
-      _selectAddedCard(previousIds);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -386,19 +326,6 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
         _setPaymentState(() => _adding = false);
         widget.onBusyChanged?.call(false);
       }
-    }
-  }
-
-  void _selectAddedCard(Set<String> previousIds) {
-    if (!mounted || widget.busy) return;
-    final added = _methods.where(
-      (method) => !previousIds.contains((method['id'] ?? '').toString()),
-    );
-    final selectedId = added.isEmpty
-        ? _preferredMethodId(_methods)
-        : (added.first['id'] ?? '').toString();
-    if (selectedId != null && selectedId.isNotEmpty) {
-      widget.onSelect(selectedId);
     }
   }
 

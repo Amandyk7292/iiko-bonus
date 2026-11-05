@@ -1860,6 +1860,7 @@ void main() {
     tester,
   ) async {
     appLanguageNotifier.value = 'ru';
+    final api = _FakeBulkaApiClient()..setSession(accessToken: 'fixture-token');
     num selectedQuantity = 0;
     final liveProducts = ValueNotifier<Map<String, CatalogProduct>>(const {});
     addTearDown(liveProducts.dispose);
@@ -1879,7 +1880,7 @@ void main() {
         home: ChangeNotifierProvider(
           create: (_) => CartProvider(),
           child: ProductDetailsScreen(
-            api: _FakeBulkaApiClient(),
+            api: api,
             product: product,
             liveProducts: liveProducts,
             initialQuantity: 0,
@@ -2786,6 +2787,13 @@ class _DeliveryListApiClient extends _FakeBulkaApiClient {
 
 class _FakeBulkaApiClient extends BulkaApiClient {
   final List<DeliveryAddress> _addresses = [];
+
+  @override
+  Future<void> recordProductView(String productId) async {}
+
+  @override
+  Future<List<Map<String, dynamic>>> getSavedVariants(String productId) async =>
+      const [];
 
   @override
   Future<bool> isFortePaymentAvailable() async => true;
