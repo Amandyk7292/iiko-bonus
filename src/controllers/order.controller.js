@@ -1,6 +1,7 @@
 const {
   listAdminOrders,
   listCustomerOrders,
+  getCustomerOrder,
   markCustomerArrived,
   cancelCustomerOrder,
   updateAdminOrderStatus,
@@ -8,6 +9,20 @@ const {
 const { branchScopeForAdmin } = require('../utils/admin-scope.util');
 
 const branchScopeFor = (req) => branchScopeForAdmin(req.admin);
+
+const getCustomer = async (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
+  try {
+    const order = await getCustomerOrder(req.customerAuth.id, req.params.id);
+    res.json({ success: true, order, serverTime: new Date().toISOString() });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.statusCode ? error.message : 'Не удалось загрузить заказ',
+      code: error.statusCode ? error.code : undefined,
+    });
+  }
+};
 
 const listCustomer = async (req, res) => {
   try {
@@ -133,4 +148,11 @@ const updateAdminStatus = async (req, res) => {
   }
 };
 
-module.exports = { listAdmin, listCustomer, markArrived, cancelCustomer, updateAdminStatus };
+module.exports = {
+  listAdmin,
+  listCustomer,
+  getCustomer,
+  markArrived,
+  cancelCustomer,
+  updateAdminStatus,
+};

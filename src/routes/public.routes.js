@@ -477,6 +477,11 @@ router.delete(
 router.get('/api/customer/profile/export', publicController.exportProfile);
 router.get('/api/customer/loyalty', tierController.getCustomerLoyalty);
 router.get('/api/customer/orders', orderController.listCustomer);
+router.get(
+  '/api/customer/orders/:id',
+  validateRequest({ params: customerOrderParamsSchema }),
+  orderController.getCustomer,
+);
 require('./customer/delivery-resolution.routes').registerDeliveryResolutionRoutes(router);
 router.post(
   '/api/customer/orders/:id/arrived',

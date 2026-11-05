@@ -1123,87 +1123,122 @@ async function markOrderExternalDispatchActive(orderId) {
 
 async function supplementaryCourierData(info, job, config) {
   if (!COURIER_VISIBLE_STATUSES.has(info.status)) return {};
-  const updates = {};
-  try {
-    const position = await apiRequest('/claims/performer-position', {
-      method: 'GET',
-      query: { claim_id: job.external_claim_id },
-      config,
-    });
-    const point = position?.position;
-    const latitude = Number(point?.lat);
-    const longitude = Number(point?.lon);
-    if (
-      Number.isFinite(latitude) &&
-      latitude >= -90 &&
-      latitude <= 90 &&
-      Number.isFinite(longitude) &&
-      longitude >= -180 &&
-      longitude <= 180
-    ) {
-      const timestamp = Number(point?.timestamp);
-      const locationUpdatedAt =
-        Number.isFinite(timestamp) && timestamp > 0
-          ? new Date(timestamp * 1000).toISOString()
-          : new Date().toISOString();
-      const currentLocationTime = Date.parse(job.courier_location_updated_at || '');
-      const nextLocationTime = Date.parse(locationUpdatedAt);
-      if (
-        !Number.isFinite(currentLocationTime) ||
-        !Number.isFinite(nextLocationTime) ||
-        nextLocationTime >= currentLocationTime
-      ) {
-        updates.courier_latitude = latitude;
-        updates.courier_longitude = longitude;
-        updates.courier_location_updated_at = locationUpdatedAt;
-        if (Number.isFinite(Number(point?.accuracy)) && Number(point.accuracy) >= 0) {
-          updates.courier_location_accuracy = Number(point.accuracy);
-        }
-        if (Number.isFinite(Number(point?.speed)) && Number(point.speed) >= 0) {
-          updates.courier_speed = Number(point.speed);
-        }
-        if (Number.isFinite(Number(point?.direction)) && Number(point.direction) >= 0) {
-          updates.courier_direction = Math.min(360, Number(point.direction));
-        }
-      }
-    }
-  } catch (error) {
-    // A position is an enhancement, not a reason to lose the authoritative
-    // claim status. Yandex returns 404/409 until a performer is assigned and
-    // may throttle this optional endpoint; keep the last known point then.
-    if (![404, 409, 422, 429].includes(error.statusCode)) throw error;
-  }
-  if (!job.tracking_url) {
+  const updates = { trackingErrors: [] };
+  // These endpoints supplement claims/info. Their throttling, timeout or
+  // unavailability must never prevent assignment/status from being saved.
+  const optionalConfig = { ...config, timeoutMs: Math.min(config.timeoutMs, 4000) };
+  const optional = async (endpoint, read) => {
     try {
-      const links = await apiRequest('/claims/tracking-links', {
+      await read();
+    } catch (error) {
+      updates.trackingErrors.push({
+        endpoint,
+        code: boundedString(error.code || 'TRACKING_UNAVAILABLE', 100),
+        status: error.providerStatus || error.statusCode || null,
+      });
+    }
+  };
+  const requests = [
+    optional('/claims/performer-position', async () => {
+      const position = await apiRequest('/claims/performer-position', {
         method: 'GET',
         query: { claim_id: job.external_claim_id },
-        config,
+        config: optionalConfig,
       });
-      updates.tracking_url =
-        links.route_points?.find((point) => point.type === 'destination')?.sharing_link || null;
-    } catch (error) {
-      if (![404, 409, 422].includes(error.statusCode)) throw error;
-    }
+      const point = position?.position;
+      const latitude = Number(point?.lat);
+      const longitude = Number(point?.lon);
+      if (
+        point?.lat != null &&
+        point?.lon != null &&
+        Number.isFinite(latitude) &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        Number.isFinite(longitude) &&
+        longitude >= -180 &&
+        longitude <= 180 &&
+        (latitude !== 0 || longitude !== 0)
+      ) {
+        const timestamp = Number(point?.timestamp);
+        const locationUpdatedAt =
+          Number.isFinite(timestamp) && timestamp > 0 && timestamp < 8.64e12
+            ? new Date(timestamp * 1000).toISOString()
+            : new Date().toISOString();
+        const currentLocationTime = Date.parse(job.courier_location_updated_at || '');
+        const nextLocationTime = Date.parse(locationUpdatedAt);
+        if (
+          !Number.isFinite(currentLocationTime) ||
+          !Number.isFinite(nextLocationTime) ||
+          nextLocationTime >= currentLocationTime
+        ) {
+          updates.courier_latitude = latitude;
+          updates.courier_longitude = longitude;
+          updates.courier_location_updated_at = locationUpdatedAt;
+          if (
+            point?.accuracy != null &&
+            Number.isFinite(Number(point.accuracy)) &&
+            Number(point.accuracy) >= 0
+          ) {
+            updates.courier_location_accuracy = Number(point.accuracy);
+          }
+          if (
+            point?.speed != null &&
+            Number.isFinite(Number(point.speed)) &&
+            Number(point.speed) >= 0
+          ) {
+            updates.courier_speed = Number(point.speed);
+          }
+          if (
+            point?.direction != null &&
+            Number.isFinite(Number(point.direction)) &&
+            Number(point.direction) >= 0
+          ) {
+            updates.courier_direction = Math.min(360, Number(point.direction));
+          }
+        }
+      }
+    }),
+  ];
+  const trackingLinksSyncedAt = job.raw_response?.trackingLinksSyncedAt;
+  const linkAge = Date.now() - Date.parse(trackingLinksSyncedAt || '');
+  if (
+    !job.tracking_url ||
+    job.provider_status !== info.status ||
+    !Number.isFinite(linkAge) ||
+    linkAge >= 60000
+  ) {
+    requests.push(
+      optional('/claims/tracking-links', async () => {
+        const links = await apiRequest('/claims/tracking-links', {
+          method: 'GET',
+          query: { claim_id: job.external_claim_id },
+          config: optionalConfig,
+        });
+        updates.tracking_url =
+          links.route_points?.find((point) => point.type === 'destination')?.sharing_link || null;
+        updates.trackingLinksSyncedAt = new Date().toISOString();
+      }),
+    );
   }
   if (!job.courier_phone) {
     const sourcePoint = info.route_points?.find((point) => point.type === 'source');
     if (sourcePoint?.id != null) {
-      try {
-        const phone = await apiRequest('/driver-voiceforwarding', {
-          body: { claim_id: job.external_claim_id, point_id: sourcePoint.id },
-          config,
-        });
-        const courierPhone = boundedString(phone.phone, 20);
-        const phoneExtension = boundedString(phone.ext, 12).replace(/[^0-9#*]/g, '');
-        updates.courier_phone = courierPhone
-          ? boundedString(`${courierPhone}${phoneExtension ? `,${phoneExtension}` : ''}`, 32)
-          : null;
-      } catch (error) {
-        if (![404, 409, 422].includes(error.statusCode)) throw error;
-      }
+      requests.push(
+        optional('/driver-voiceforwarding', async () => {
+          const phone = await apiRequest('/driver-voiceforwarding', {
+            body: { claim_id: job.external_claim_id, point_id: sourcePoint.id },
+            config: optionalConfig,
+          });
+          const courierPhone = boundedString(phone.phone, 20);
+          const phoneExtension = boundedString(phone.ext, 12).replace(/[^0-9#*]/g, '');
+          updates.courier_phone = courierPhone
+            ? boundedString(`${courierPhone}${phoneExtension ? `,${phoneExtension}` : ''}`, 32)
+            : null;
+        }),
+      );
     }
   }
+  await Promise.all(requests);
   return updates;
 }
 
@@ -1900,7 +1935,7 @@ async function syncDeliveryJob(jobOrId) {
       courier_car_model: performer.car_model || job.courier_car_model,
       courier_car_number: performer.car_number || job.courier_car_number,
       courier_car_color: performer.car_color || job.courier_car_color,
-      ...(extra.tracking_url && { tracking_url: extra.tracking_url }),
+      ...(Object.hasOwn(extra, 'tracking_url') && { tracking_url: extra.tracking_url }),
       ...(extra.courier_phone && { courier_phone: extra.courier_phone }),
       ...(extra.courier_latitude != null && {
         courier_latitude: extra.courier_latitude,
@@ -1933,7 +1968,12 @@ async function syncDeliveryJob(jobOrId) {
         isTerminalStatus(info.status) && !['delivered', 'delivered_finish'].includes(info.status)
           ? job.cancelled_at || now
           : job.cancelled_at,
-      raw_response: info,
+      raw_response: {
+        ...info,
+        trackingLinksSyncedAt:
+          extra.trackingLinksSyncedAt || job.raw_response?.trackingLinksSyncedAt || null,
+        trackingErrors: extra.trackingErrors || [],
+      },
       last_error: null,
       last_synced_at: now,
     };

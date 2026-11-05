@@ -325,7 +325,11 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     preparationMinutes:
       order.preparation_minutes == null ? null : Number(order.preparation_minutes),
     trackingCode: order.tracking_code || null,
-    trackingUrl: external?.tracking_url || null,
+    trackingUrl:
+      !CLOSED_STATUSES.includes(normalizedOrderStatus(order)) &&
+      !['delivered', 'cancelled'].includes(external?.internal_status)
+        ? external?.tracking_url || null
+        : null,
     deliveryProvider: ownCourier ? 'bulka' : external?.provider || null,
     providerDeliveryStatus: external?.provider_status || null,
     customerArrivedAt: order.customer_arrived_at || null,
@@ -353,15 +357,28 @@ const DELIVERY_JOB_FIELDS =
 const SUBSTITUTION_FIELDS =
   'order_substitution_requests(id,line_key,product_id,product_name,quantity,action,status,replacement_product_id,replacement_product_name,note,error,refund_id,created_at,updated_at,responded_at,completed_at)';
 
+const CUSTOMER_ORDER_FIELDS = `${ORDER_FIELDS},branch_location:bulka_locations(name,address,city,latitude,longitude),payment_receipts(id,language),couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS},${SUBSTITUTION_FIELDS}`;
+
+async function getCustomerOrder(customerId, orderId) {
+  const { data, error } = await supabase
+    .from('kaspi_orders')
+    .select(CUSTOMER_ORDER_FIELDS)
+    .eq('id', orderId)
+    .eq('customer_id', customerId)
+    .in('status', ['paid', 'refunded'])
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw httpError(404, 'Заказ не найден', 'ORDER_NOT_FOUND');
+  const [order] = await attachOrderImages([normalizeOrder(data, { includeDeliveryPin: true })]);
+  return order;
+}
+
 async function listCustomerOrders(customerId, { scope = 'active', page = 1, pageSize = 30 } = {}) {
   const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
   const safePageSize = Math.min(50, Math.max(1, Number.parseInt(pageSize, 10) || 30));
   let query = supabase
     .from('kaspi_orders')
-    .select(
-      `${ORDER_FIELDS},branch_location:bulka_locations(name,address,city,latitude,longitude),payment_receipts(id,language),couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS},${SUBSTITUTION_FIELDS}`,
-      { count: 'exact' },
-    )
+    .select(CUSTOMER_ORDER_FIELDS, { count: 'exact' })
     .eq('customer_id', customerId)
     .in('status', ['paid', 'refunded']);
 
@@ -1209,6 +1226,7 @@ module.exports = {
   normalizeOrder,
   listAdminOrders,
   listCustomerOrders,
+  getCustomerOrder,
   canMarkCustomerArrived,
   canCustomerCancelOrder,
   cancelPaidOrder,

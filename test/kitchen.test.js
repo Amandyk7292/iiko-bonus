@@ -267,6 +267,25 @@ test('handed-over transition releases reservations and repeated close is idempot
   );
 });
 
+test('handing a delivery to the courier leaves it active until recipient delivery is confirmed', async (t) => {
+  const { service, events } = loadKitchen(
+    t,
+    baseOrder({
+      fulfillment_type: 'delivery',
+      fulfillment_status: 'ready',
+      kitchen_status: 'ready',
+      delivery_status: 'assigned',
+      courier_id: null,
+    }),
+  );
+  const result = await service.updateKitchenStatus(ORDER_ID, 'handed_over');
+  const patch = events.find(([name]) => name === 'publish');
+  assert.equal(result.fulfillmentStatus, 'ready');
+  assert.equal(result.kitchenStatus, 'handed_over');
+  assert.notEqual(result.deliveryStatus, 'delivered');
+  assert.ok(patch);
+});
+
 test('kitchen status responds before slow ETA and notification side effects finish', async (t) => {
   let releaseEta;
   let releaseNotification;

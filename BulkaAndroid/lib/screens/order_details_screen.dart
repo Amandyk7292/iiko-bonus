@@ -7,7 +7,7 @@ class OrderDetailsScreen extends StatefulWidget {
     required this.onRepeat,
     this.onReview,
     required this.onOrderChanged,
-    this.refreshOnOpen = false,
+    this.refreshOnOpen = true,
     super.key,
   });
 
@@ -29,6 +29,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
   late final _LiveRefresh _live;
   bool _visible = true;
   bool _refreshing = false;
+  Future<void>? _reloadFuture;
+  DateTime? _lastSuccessfulRefresh;
   bool _cancellationLoading = false;
   bool _repeatLoading = false;
   late bool _hasFreshSnapshot;
@@ -78,8 +80,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
     if (state == AppLifecycleState.resumed) _live.request(immediate: true);
   }
 
-  Future<void> _reload() async {
-    if (_refreshing) return;
+  Future<void> _reload() =>
+      _reloadFuture ??= _fetchOrder().whenComplete(() => _reloadFuture = null);
+
+  Future<void> _fetchOrder() async {
     final api = widget.api;
     final identity = api.sessionCacheScope;
     _refreshing = true;
@@ -91,6 +95,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
         setState(() {
           _order = updated;
           _hasFreshSnapshot = true;
+          _lastSuccessfulRefresh = DateTime.now();
           _now = DateTime.now();
         });
         widget.onOrderChanged(updated);
@@ -130,9 +135,19 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
   }
 
   Future<void> _openDeliveryTracking() async {
+    final requestedAt = DateTime.now();
+    await _reload();
+    if (!mounted || _order.isClosed) return;
+    if (_lastSuccessfulRefresh == null ||
+        _lastSuccessfulRefresh!.isBefore(requestedAt)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(bulkaSnackBar(content: Text('orders_load_error'.tr)));
+      return;
+    }
     final value = _order.trackingUrl?.trim() ?? '';
     final url = Uri.tryParse(value);
-    if (url == null || !url.hasScheme) return;
+    if (url == null || url.scheme != 'https' || url.host.isEmpty) return;
     await launchUrl(url, mode: LaunchMode.externalApplication);
   }
 

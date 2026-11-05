@@ -335,6 +335,9 @@ function loadService(t, { client, order, jobs, environment, beforeRun, cargoFetc
 
   installModule(t, '../src/config/supabase', { supabase: database.supabase });
   installModule(t, '../src/services/realtime.service', { publish: () => undefined });
+  installModule(t, '../src/services/delivery-budget.service', {
+    deliveryBudget: { ensureDispatch: async () => undefined, observeJob: async () => undefined },
+  });
   installModule(t, 'node-fetch', async (...args) => {
     cargoFetchCalls += 1;
     if (cargoFetchImpl) return cargoFetchImpl(...args);
@@ -392,6 +395,130 @@ const fixedRouteStats = (overrides = {}) => ({
       ...overrides,
     },
   ],
+});
+
+test('Cargo assignment survives optional tracking failures and later moves the saved courier', async (t) => {
+  const job = {
+    id: JOB_ID,
+    order_id: ORDER_ID,
+    provider: 'yandex',
+    api_family: 'cargo_v2',
+    external_claim_id: 'cargo-claim-1',
+    provider_status: 'performer_lookup',
+    internal_status: 'unassigned',
+    currency: 'KZT',
+    tracking_url: 'https://dostavka.yandex.ru/route/old',
+    courier_latitude: 43.6,
+    courier_longitude: 51.1,
+    courier_location_updated_at: '2026-11-06T08:00:00Z',
+  };
+  let failing = true;
+  const h = loadService(t, {
+    jobs: [job],
+    environment: { YANDEX_DELIVERY_API_MODE: 'cargo_v2' },
+    cargoFetchImpl: async (url) => {
+      const endpoint = new URL(url).pathname;
+      if (endpoint.endsWith('/claims/info'))
+        return {
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              status: 'pickuped',
+              performer_info: { courier_name: 'Тестовый курьер', car_model: 'Car' },
+              route_points: [{ id: 1, type: 'source' }],
+            }),
+        };
+      if (failing) {
+        if (endpoint.endsWith('/performer-position'))
+          return {
+            ok: false,
+            status: 429,
+            text: async () => JSON.stringify({ code: 'too_many_requests' }),
+          };
+        throw Object.assign(new Error('temporary network failure'), { code: 'ECONNRESET' });
+      }
+      return {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify(
+            endpoint.endsWith('/performer-position')
+              ? {
+                  position: {
+                    lat: 43.66,
+                    lon: 51.17,
+                    timestamp: Date.parse('2026-11-06T08:01:00Z') / 1000,
+                  },
+                }
+              : endpoint.endsWith('/tracking-links')
+                ? {
+                    route_points: [
+                      { type: 'source', sharing_link: 'https://example.test/wrong' },
+                      { type: 'destination', sharing_link: 'https://dostavka.yandex.ru/route/new' },
+                    ],
+                  }
+                : { phone: '+77001112233' },
+          ),
+      };
+    },
+  });
+  const first = await h.service.syncDeliveryJob(clone(job));
+  assert.equal(first.status, 'pickuped');
+  assert.equal(first.courier.name, 'Тестовый курьер');
+  assert.equal(first.courier.latitude, 43.6);
+  assert.equal(h.state.orders[0].fulfillment_status, 'ready');
+  assert.equal(h.state.orders[0].delivery_status, 'picked_up');
+  assert.equal(h.state.jobs[0].raw_response.trackingErrors.length, 3);
+  failing = false;
+  const moved = await h.service.syncDeliveryJob(clone(h.state.jobs[0]));
+  assert.equal(moved.courier.latitude, 43.66);
+  assert.equal(moved.courier.longitude, 51.17);
+  assert.equal(moved.trackingUrl, 'https://dostavka.yandex.ru/route/new');
+  assert.equal(h.state.jobs[0].raw_response.trackingErrors.length, 0);
+});
+
+test('Cargo cannot replace a valid courier point with null, zero or older coordinates', async (t) => {
+  for (const point of [
+    { lat: null, lon: null },
+    { lat: 0, lon: 0 },
+    { lat: 43.7, lon: 51.2, timestamp: Date.parse('2026-11-06T07:59:00Z') / 1000 },
+  ])
+    await t.test(JSON.stringify(point), async (subtest) => {
+      const job = {
+        id: JOB_ID,
+        order_id: ORDER_ID,
+        provider: 'yandex',
+        api_family: 'cargo_v2',
+        external_claim_id: 'cargo-claim-1',
+        provider_status: 'pickuped',
+        internal_status: 'picked_up',
+        courier_latitude: 43.66,
+        courier_longitude: 51.17,
+        courier_phone: '+77001112233',
+        courier_location_updated_at: '2026-11-06T08:00:00Z',
+        tracking_url: 'https://example.test/live',
+        raw_response: { trackingLinksSyncedAt: new Date().toISOString() },
+      };
+      const h = loadService(subtest, {
+        jobs: [job],
+        environment: { YANDEX_DELIVERY_API_MODE: 'cargo_v2' },
+        cargoFetchImpl: async (url) => ({
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify(
+              new URL(url).pathname.endsWith('/info')
+                ? { status: 'pickuped' }
+                : { position: point },
+            ),
+        }),
+      });
+      const updated = await h.service.syncDeliveryJob(clone(job));
+      assert.equal(updated.courier.latitude, 43.66);
+      assert.equal(updated.courier.longitude, 51.17);
+      assert.equal(updated.courier.locationUpdatedAt, job.courier_location_updated_at);
+    });
 });
 
 test('Business configuration status is explicit and never exposes its token', (t) => {
