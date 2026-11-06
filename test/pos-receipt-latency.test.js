@@ -197,6 +197,20 @@ function receiptFixture() {
         const url = new URL(typeof input === 'string' ? input : input.url);
         requests.push(url);
         let result = rows.slice();
+        for (const key of ['branch_id', 'order_id']) {
+          const value = url.searchParams.get(key);
+          if (value?.startsWith('eq.'))
+            result = result.filter((row) => row[key] === value.slice(3));
+        }
+        if (url.searchParams.get('status') === 'neq.completed')
+          result = result.filter((row) => row.status !== 'completed');
+        const terminalGuard = url.searchParams
+          .getAll('or')
+          .find((value) => value.startsWith('(terminal_id.is.null,terminal_id.eq.'));
+        if (terminalGuard) {
+          const terminal = terminalGuard.slice('(terminal_id.is.null,terminal_id.eq.'.length, -1);
+          result = result.filter((row) => row.terminal_id == null || row.terminal_id === terminal);
+        }
         if (url.searchParams.get('fiscal_due') === 'eq.true')
           result = result.filter((row) => row.fiscal_due);
         if (
@@ -227,6 +241,9 @@ function receiptFixture() {
   const add = (id, fiscalDue, assemblyStatus) => {
     const row = {
       order_id: id,
+      branch_id: 'branch',
+      terminal_id: null,
+      status: 'assigned',
       created_at: `2026-10-19T00:${String(rows.length).padStart(2, '0')}:00Z`,
       updated_at: `2026-10-19T00:${String(rows.length).padStart(2, '0')}:00Z`,
       fiscal_due: fiscalDue,
@@ -238,6 +255,40 @@ function receiptFixture() {
   };
   return { service, add, requests };
 }
+
+test('selected receipt recovery cannot process a different branch, terminal or completed sale behind a full backlog', async () => {
+  const f = receiptFixture();
+  for (let i = 0; i < 25; i++) f.add(`older-${i}`, true, 'printed');
+  const target = randomUUID();
+  const row = f.add(target, true, 'printed');
+  row.terminal_id = 'terminal';
+  const payload = { terminalId: 'terminal', assemblyVersion: 1, workOnly: true, orderId: target };
+  assert.equal(
+    frontAutoReceiptPollSchema.safeParse({ ...payload, terminalId: randomUUID() }).success,
+    true,
+  );
+  assert.equal(
+    frontAutoReceiptPollSchema.safeParse({
+      ...payload,
+      terminalId: randomUUID(),
+      orderId: '100075',
+    }).success,
+    false,
+  );
+  assert.deepEqual(
+    (await f.service.listAutoReceipts('branch', payload)).jobs.map((job) => job.orderId),
+    [target],
+  );
+  assert.equal(f.requests[0].searchParams.get('order_id'), `eq.${target}`);
+  row.branch_id = 'other-branch';
+  assert.deepEqual((await f.service.listAutoReceipts('branch', payload)).jobs, []);
+  row.branch_id = 'branch';
+  row.terminal_id = 'another-register';
+  assert.deepEqual((await f.service.listAutoReceipts('branch', payload)).jobs, []);
+  row.terminal_id = 'terminal';
+  row.status = 'completed';
+  assert.deepEqual((await f.service.listAutoReceipts('branch', payload)).jobs, []);
+});
 
 test('automatic receipt queue filters more than 20 idle jobs before paging, prioritizes fiscal work and keeps recovery work', async () => {
   const f = receiptFixture();

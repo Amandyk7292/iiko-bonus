@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Плагин Bulka · iiko 1.15.3</title>
+<style>body{font:16px/1.6 Arial,sans-serif;max-width:760px;margin:36px auto;padding:0 20px;background:#fffbf3;color:#593019}h1{font-size:30px}h2{font-size:22px;margin-top:30px}a{color:#814719}.download{display:inline-block;background:#ffbd12;color:#35180b;text-decoration:none;font-weight:bold;padding:13px 20px;border-radius:12px}.note{padding:16px 20px;border-radius:14px;background:#fff0c7}li{margin:10px 0}</style></head>
+<body><h1>Плагин Bulka · 1.15.3</h1>
+<p>Повторное закрытие незавершённого чека с сохранением исходной оплаты.</p>
+<h2>Если чек не оформился</h2>
+<ol><li>Проверьте сообщение кассы. При необходимости разблокируйте iiko Front PIN-кодом и откройте личную смену кассира. При ошибке печати проверьте WebKassa, принтер и кассовую смену.</li>
+<li>Откройте заказ в колонке «Выданы» и нажмите «Повторить закрытие чека».</li>
+<li>Подтвердите проверку и дождитесь результата.</li></ol>
+<p class="note">Повторная попытка использует исходный чек и внесённую оплату. Клиенту не выставляется новый платёж. Уже закрытая продажа повторно не проводится.</p>
+<p>В связанном чеке также доступно действие «Повторить закрытие чека Bulka». После смены проверяется архив iiko. Если исходный чек не найден, возвращён или изменён, нужна сверка: второй чек автоматически не создаётся.</p>
+<p>Для бумажной копии уже оформленного фискального чека используйте штатные средства iiko/WebKassa.</p>
+<h2>Обновление на кассе</h2><ol><li>Откройте «Плагины → Проверить обновления Bulka».</li><li>Нажмите «Скачать и установить», затем закройте iiko обычным способом.</li><li>Дождитесь завершения установки и запустите iiko.</li></ol>
+<p>Привязка, настройки и журналы сохраняются. Приложение клиента обновлять не нужно.</p>
+<h2>Установка вручную</h2><p><a class="download" href="/downloads/BulkaPlugin-1.15.3-update.zip">Скачать плагин 1.15.3</a></p><p>Закройте iiko и сохраните копию папки плагина. Замените DLL, Manifest.xml и BulkaPluginUpdater.exe из архива. Сохраните действующий .dll.config и локальные журналы.</p>
+</body></html>

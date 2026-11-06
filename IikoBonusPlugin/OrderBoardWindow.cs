@@ -39,7 +39,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private bool normalizingSearch, newOrdersOutsideSearch;
         private readonly bool canImport, automatic;
         private bool used, connected;
-        private string confirmation, confirmAction, lastError;
+        private string confirmation, confirmAction, lastError, receiptResult;
         private BoardResponse snapshot;
         internal long? SelectedReceiptNumber { get; private set; }
         internal event Action<InboxOrder, string> ActionRequested;
@@ -220,7 +220,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             { SetError("Введите номер заказа цифрами, например 100042."); return; }
             if (value.Length > 0) value = long.Parse(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
             normalizingSearch = true; searchInput.Text = value; normalizingSearch = false;
-            activeSearch = value; snapshot = null; lastError = null; connected = false; confirmation = null;
+            activeSearch = value; snapshot = null; lastError = null; receiptResult = null; connected = false; confirmation = null;
             if (value.Length == 0) newOrdersOutsideSearch = false;
             for (var i = 0; i < 4; i++) {
                 cards[i].Children.Clear(); pagination[i].Children.Clear(); counts[i].Text = "—";
@@ -274,10 +274,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
         }
         internal void SetConnected() { connected = true; }
         internal void SetError(string message) { lastError = message; connected = false; Render(); }
+        internal void ShowReceiptResult(string message) { receiptResult = message; Render(); }
         internal void FinishAction(string orderId) { pending.Remove(orderId); Render(); }
         private void Render()
         {
-            notice.Text = lastError ?? (snapshot == null ? (activeSearch.Length > 0 ? "Ищем заказ №" + activeSearch + "…" : "Загружаем заказы…") :
+            notice.Text = lastError ?? receiptResult ?? (snapshot == null ? (activeSearch.Length > 0 ? "Ищем заказ №" + activeSearch + "…" : "Загружаем заказы…") :
                 activeSearch.Length > 0 ? (snapshot.Columns.Sum(c => c.Total) > 0 ? "Заказ №" + activeSearch : "Заказ №" + activeSearch + " не найден в этой пекарне.") :
                 snapshot.Columns[0].Total > 0 ? "Новый заказ · Ожидают принятия: " + snapshot.Columns[0].Total : "Все новые заказы приняты");
             newOrdersButton.Visibility = newOrdersOutsideSearch && activeSearch.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -348,8 +349,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
             if (pending.Contains(order.Id)) actions.Children.Add(Text("Сохраняем…", 16));
             else if (confirmation == order.Id)
             {
-                actions.Children.Add(Text(confirmAction == "reject" ? "Отклонить №" + order.Number + "? Оплата будет возвращена." : "Выдать заказ №" + order.Number + "?", 17, bold: true));
-                actions.Children.Add(Button(confirmAction == "reject" ? "Да, отклонить" : "Да, заказ выдан", () => Submit(order, confirmAction), true));
+                actions.Children.Add(Text(confirmAction == "retry_receipt" ? "Повторить закрытие исходного чека №" + order.Number + "? Оплата клиента повторно не списывается." :
+                    confirmAction == "reject" ? "Отклонить №" + order.Number + "? Оплата будет возвращена." : "Выдать заказ №" + order.Number + "?", 17, bold: true));
+                actions.Children.Add(Button(confirmAction == "retry_receipt" ? "Да, проверить и закрыть" : confirmAction == "reject" ? "Да, отклонить" : "Да, заказ выдан", () => Submit(order, confirmAction), true));
                 actions.Children.Add(Button("Назад", () => { confirmation = null; Render(); }));
             }
             else if (order.DeliveryResolution?.NeedsApproval == true)
@@ -371,6 +373,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 actions.Children.Add(Text(!order.PosReceiptDue ? "Чек оформлен в iikoFront" :
                     string.IsNullOrWhiteSpace(order.ReceiptError) ? "Чек передаётся в кассу" : "Чек ожидает: " + order.ReceiptError,
                     14, order.PosReceiptDue ? "#8B5C24" : "#267147"));
+            if (order.AutomaticReceipt && order.PosReceiptDue && stage == 3 && order.DeliveryResolution?.Unresolved != true && confirmation != order.Id && !pending.Contains(order.Id))
+                actions.Children.Add(Button("Повторить закрытие чека", () => Confirm(order, "retry_receipt")));
             if (canImport && stage > 0 && order.PosReceiptDue && !order.AutomaticReceipt && order.DeliveryResolution?.Unresolved != true)
                 actions.Children.Add(Button("Оформить чек", () => { used = true; SelectedReceiptNumber = order.Number; Close(); }));
             body.Children.Add(actions);
@@ -384,7 +388,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private void Submit(InboxOrder order, string action)
         {
             if (!pending.Add(order.Id)) return;
-            used = true; confirmation = null; Render(); ActionRequested?.Invoke(order, action);
+            used = true; confirmation = null; receiptResult = null; Render(); ActionRequested?.Invoke(order, action);
         }
     }
 }

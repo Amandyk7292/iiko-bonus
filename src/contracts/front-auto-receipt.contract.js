@@ -6,6 +6,7 @@ const frontAutoReceiptPollSchema = z
     terminalId: iikoGuidSchema,
     assemblyVersion: z.literal(1).optional(),
     workOnly: z.boolean().optional(),
+    orderId: z.string().uuid().optional(),
   })
   .strict();
 const frontAutoReceiptActionSchema = z

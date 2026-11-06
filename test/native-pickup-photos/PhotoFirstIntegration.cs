@@ -329,7 +329,7 @@ internal static partial class Program
                 catch(NullReferenceException) {reachedFinancialImport=true;}
             }
             var saved=((IDictionary)AutomaticWorker.GetField("ledger",Instance).GetValue(automatic))[orderId];
-            Check(reachedFinancialImport && state.Claims==1 && state.Binds==1 && state.DraftReads==0 && state.PaymentTypeReads==1,
+            Check(reachedFinancialImport && state.Claims==1 && state.Binds==1 && state.DraftReads==0 && state.PaymentTypeReads==0,
                 "fiscal-due handover reaches financial import despite a busy worker and uncertain optional photo");
             Check(printed==0 && claims==0 && assemblyPrints==0 && state.AssemblyClaims==0 &&
                 !(bool)AutomaticJob.GetProperty("AssemblyPrinted").GetValue(saved),
@@ -348,7 +348,7 @@ internal static partial class Program
                 catch(NullReferenceException) {reachedFinancialImport=true;}
             }
             var saved=((IDictionary)AutomaticWorker.GetField("ledger",Instance).GetValue(automatic))[orderId];
-            Check(reachedFinancialImport && state.Claims==1 && state.Binds==1 && state.DraftReads==0 && state.PaymentTypeReads==1,
+            Check(reachedFinancialImport && state.Claims==1 && state.Binds==1 && state.DraftReads==0 && state.PaymentTypeReads==0,
                 "ordinary fiscal-due handover reaches financial import without waiting for a missed assembly");
             Check(printed==0 && claims==0 && assemblyPrints==0 && state.AssemblyClaims==0 &&
                 !(bool)AutomaticJob.GetProperty("AssemblyPrinted").GetValue(saved),

@@ -17,6 +17,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember(Name="terminalId")] public string TerminalId {get;set;}
         [DataMember(Name="assemblyVersion")] public int AssemblyVersion {get;set;} = 1;
         [DataMember(Name="workOnly",EmitDefaultValue=false)] public bool WorkOnly {get;set;}
+        [DataMember(Name="orderId",EmitDefaultValue=false)] public string OrderId {get;set;}
     }
     [DataContract] internal sealed class AutomaticReceiptJobs
     {

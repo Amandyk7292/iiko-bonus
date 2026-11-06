@@ -11,7 +11,7 @@ using Resto.Front.Api.Extensions;
 
 namespace Resto.Front.Api.IikoBonusPlugin
 {
-    internal sealed class OnlineReceiptSync : IDisposable
+    internal sealed partial class OnlineReceiptSync : IDisposable
     {
         internal const string Prefix="Bulka:";
         internal const string OrderDataKey="bulka.onlineOrderId";
@@ -139,9 +139,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     try { if(Process(job,os)) StatusText="Онлайн-чеки: переданы в iikoFront"; }
                     catch(Exception error)
                     {
-                        StatusText="Онлайн-чек №"+job.Number+": "+error.Message;
-                        PluginContext.Log.Warn(StatusText);
-                        try { Action(os,"problem",job.OrderId,error:error.Message.Substring(0,Math.Min(400,error.Message.Length))); } catch { }
+                        ReportProblem(os,job,error);
                     }
                     // Acceptance/handover can change fiscal work while this
                     // batch is running. Re-read it before processing more of
@@ -177,6 +175,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             Interlocked.Exchange(ref retryRequested,0);
             try {
                 if(PosPairing.Current==null) return "Сначала привяжите кассу.";
+                if(!storageHealthy && !TryLoad()) throw new InvalidOperationException(StatusText);
                 var os=PluginContext.Operations;
                 var jobs=Request<AutomaticReceiptJobs>("poll",new AutomaticReceiptPoll {TerminalId=os.GetHostTerminal().Id.ToString(),WorkOnly=true});
                 if(jobs?.Jobs==null) throw new InvalidOperationException("Нет ответа об очереди чеков.");
@@ -186,8 +185,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 foreach(var job in ready) {
                     try { result.Add(Process(job,os) ? "№"+job.Number+": обработан текущий доступный этап" : StatusText); }
                     catch(Exception error) {
-                        result.Add("№"+job.Number+": "+error.Message);
-                        try {Action(os,"problem",job.OrderId,error:error.Message.Substring(0,Math.Min(400,error.Message.Length)));} catch {}
+                        ReportProblem(os,job,error);
+                        result.Add(StatusText);
                     }
                     if(Volatile.Read(ref retryRequested)!=0) break;
                 }
@@ -199,7 +198,6 @@ namespace Resto.Front.Api.IikoBonusPlugin
             // A prepared assembly ticket is intentionally kept in the server
             // queue until handover. It needs no repeated claim/bind round trips.
             if(!job.FiscalDue && job.AssemblyStatus=="printed") return true;
-            var paymentType=job.FiscalDue ? FindPaymentType(os) : null;
             var terminal=os.GetHostTerminal();
             if(os.GetHostTerminalsGroup().MainTerminal?.Id!=terminal.Id && !os.IsConnectedToMainTerminal())
                 throw new InvalidOperationException("Нет связи с главной кассой. Чек сохранён в очереди.");
@@ -214,6 +212,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 (o.ExternalNumber==Prefix+job.OrderId || o.ExternalNumber=="Bulka №"+job.Number) && OrderId(o)==job.OrderId);
             if(order==null)
             {
+                if(Guid.TryParse(saved.ReceiptId,out var pastId))
+                {
+                    // Current-order storage is cleared after a shift. A missing
+                    // active order is not proof that its payment failed.
+                    PastOrder past;
+                    try {past=os.GetPastOrder(pastId);}
+                    catch(Resto.Front.Api.Exceptions.EntityNotFoundException) {past=null;}
+                    if(past!=null) {CompletePastReceipt(os,job.OrderId,past,pastId);return true;}
+                }
                 if(saved.CreationStarted || saved.ReceiptId!=null)
                     throw new InvalidOperationException("После сбоя не найден исходный чек. Нужна сверка; второй чек автоматически не создаётся.");
                 var sections=os.GetHostTerminalRestaurantSections().Select(s=>s.Id).ToArray();
@@ -246,6 +253,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     throw;
                 }
             }
+            if(Guid.TryParse(saved.ReceiptId,out var boundId) && order.Id!=boundId)
+                throw new InvalidOperationException("Найден другой чек. Исходная привязка сохранена; нужна сверка.");
             saved.ReceiptId=order.Id.ToString();
             DurableJsonFile.Write(path,ledger);
             Action(os,"bind",job.OrderId,order);
@@ -294,17 +303,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             if(!job.FiscalDue) return true;
             order=importer.ImportReceipt(order,job.Number,os,false);
             if(Action(os,"verify",job.OrderId,order).Status!="verified") throw new InvalidOperationException("Оплата Bulka не подтверждена");
-            if(order.Payments.Count==0)
-            {
-                // The processor verifies a prior online payment; it never calls an acquiring terminal.
-                os.AddExternalPaymentItem(order.ResultSum,false,null,null,paymentType,order,os.GetDefaultCredentials());
-                order=os.GetOrderById(order.Id);
-            }
-            if(order.Payments.Count!=1 || order.Payments[0].Type.Id!=paymentType.Id || order.Payments[0].Sum!=order.ResultSum)
-                throw new InvalidOperationException("В чеке другая оплата или сумма. Автозакрытие остановлено.");
-            os.PayOrder(order,true,os.GetDefaultCredentials(),null);
-            order=os.GetOrderById(order.Id);
-            if(order.Status!=OrderStatus.Closed) throw new InvalidOperationException("iikoFront ещё не подтвердил закрытие чека");
+            order=ClosePaidReceipt(os,order);
             CompleteReceipt(os,job.OrderId,order);
             return true;
         }

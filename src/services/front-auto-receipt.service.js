@@ -4,7 +4,10 @@ const {
   unresolvedDeliveryResolution,
   unresolvedDeliveryResolutionStatuses,
 } = require('../utils/delivery-resolution.util');
-async function listAutoReceipts(branchId, { terminalId, assemblyVersion, workOnly = false }) {
+async function listAutoReceipts(
+  branchId,
+  { terminalId, assemblyVersion, workOnly = false, orderId },
+) {
   let query = supabase
     .from('front_receipt_jobs')
     .select(
@@ -19,6 +22,9 @@ async function listAutoReceipts(branchId, { terminalId, assemblyVersion, workOnl
     )
     .or(`terminal_id.is.null,terminal_id.eq.${terminalId}`);
   if (assemblyVersion !== 1) query = query.eq('fiscal_due', true);
+  // Select before LIMIT. Recovery must not accidentally process another order
+  // or lose the target behind an older backlog. Branch/terminal guards remain.
+  if (orderId) query = query.eq('order_id', orderId);
   // Manual reprints and older plugins still need the full unfinished job list.
   // New automatic workers skip already assembled jobs while awaiting handover.
   // Filter before LIMIT so idle jobs cannot hide new assembly/fiscal work.

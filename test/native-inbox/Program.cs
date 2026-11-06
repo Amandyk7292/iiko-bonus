@@ -87,6 +87,7 @@ internal static partial class Program
             Scenario("hand_over", true, true, failRefresh: true);
             Scenario("accept", true, true, idempotent: true);
             Check(warnings == 1, "a wake-up failure is logged once without changing the confirmed action");
+            ReceiptRecoveryTests(services);
             Console.WriteLine("PASS: " + assertions + " inbox receipt wake-up and loopback HTTP assertions; no external HTTP, POS, printer or UI.");
         }
         finally { PluginContext.Uninitialize(); }

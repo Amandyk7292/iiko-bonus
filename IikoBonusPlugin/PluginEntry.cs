@@ -100,7 +100,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 catch(Exception error) { PluginContext.Log.Error("Bulka online payment registration: " + error.Message); }
                 _assemblyReprintButton = RegisterOrderAction("Сборочный чек Bulka",
                     (ValueTuple<IOrder,IOperationService,IViewManager> args) => AssemblyTicket.Reprint(args.Item1,args.Item2,args.Item3,_pickupPhotos));
-                _inbox = new OnlineOrderInbox(() => _automaticReceipts?.RequestRetry());
+                _inbox = new OnlineOrderInbox(() => _automaticReceipts?.RequestRetry(),
+                    id => _automaticReceipts?.RecoverOrder(id) ?? "Обработчик чеков недоступен. Проверьте регистрацию оплаты Bulka.");
                 _pairingMenu = PluginContext.Operations.AddButtonToPluginsMenu("Привязать кассу", args => PosPairing.Show(args.Item1));
                 _updateMenu = PluginContext.Operations.AddButtonToPluginsMenu("Проверить обновления Bulka", args => PluginUpdateFlow.Show(args.Item1));
                 RegisterOrderAction("Проверить обновления", args => PluginUpdateFlow.Show(args.Item3));
@@ -174,6 +175,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     try {
                         args.Item3.ShowOkPopup("Проверка очереди",_automaticReceipts?.CheckAndRecover() ?? "Обработчик чеков недоступен.","ОК");
                     } catch(Exception error) {args.Item3.ShowErrorPopup(error.Message,"ОК");}
+                });
+                RegisterOrderAction("Повторить закрытие чека Bulka", args => {
+                    try {args.Item3.ShowOkPopup("Чек Bulka",_automaticReceipts?.RecoverOrder(OnlineReceiptSync.OrderId(args.Item1)) ?? "Обработчик чеков недоступен.","ОК");}
+                    catch(Exception error) {args.Item3.ShowErrorPopup(error.Message,"ОК");}
                 });
                 RegisterOrderAction("Собрать диагностику", args => {
                     try { args.Item3.ShowOkPopup("Диагностика сохранена",PluginDiagnostics.Export(),"ОК"); }

@@ -51,6 +51,12 @@ internal static class BoardViewTests
         Check(Controls<TextBlock>(root).Count(t => t.Text.StartsWith("№10004") && EffectivelyVisible(t)) == 4, "wide board restores all four columns");
         Check(!VisibleButtons(root).Any(b => Label(b).Contains(" · 1")), "wide board does not show unnecessary stage selectors");
         var calls = new List<string>(); view.ActionRequested += (order, action) => calls.Add(order.Id + ":" + action);
+        Click(root, "Повторить закрытие чека");
+        Check(calls.Count == 0, "receipt retry requires confirmation");
+        Click(root, "Да, проверить и закрыть");
+        Check(calls.Single() == "order-3:retry_receipt", "receipt recovery is scoped to the issued order and not a second handover");
+        Check(!Buttons(root).Any(b => Label(b) == "Повторить закрытие чека"), "duplicate receipt retries disabled while pending");
+        view.FinishAction("order-3");calls.Clear();
         Click(root, "Принять заказ");
         Check(calls.SequenceEqual(new[] { "order-0:accept" }), "accept by card identity");
         Check(Buttons(root).All(b => Label(b) != "Принять заказ"), "duplicate acceptance disabled while pending");

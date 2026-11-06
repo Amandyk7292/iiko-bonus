@@ -13,6 +13,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private readonly object gate = new object();
         private readonly SemaphoreSlim network = new SemaphoreSlim(1, 1);
         private readonly Action requestReceiptProcessing;
+        private readonly Func<string,string> recoverReceipt;
         private OrderAlarmPlayer orderAlarm;
         private bool alarmUnavailable;
         private readonly int[] pages = {1, 1, 1, 1};
@@ -24,9 +25,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private string revision = "";
         private string search = "";
         private DateTime lastBoardLoaded = DateTime.MinValue;
-        internal OnlineOrderInbox(Action requestReceiptProcessing = null)
+        internal OnlineOrderInbox(Action requestReceiptProcessing = null):this(requestReceiptProcessing,null) { }
+        internal OnlineOrderInbox(Action requestReceiptProcessing,Func<string,string> recoverReceipt)
         {
             this.requestReceiptProcessing = requestReceiptProcessing;
+            this.recoverReceipt = recoverReceipt;
             timer = new Timer(Poll, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2));
             alarmTimer = new Timer(_ => PulseOrderAlarm(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
         }
@@ -235,6 +238,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 try
                 {
                     if (disposed) return;
+                    if (action == "retry_receipt")
+                    {
+                        if (recoverReceipt == null) throw new InvalidOperationException("Обработчик чеков недоступен. Проверьте регистрацию оплаты Bulka.");
+                        var message = recoverReceipt(order.Id);
+                        var refreshed = Load();
+                        OnWindow(view => { view.Update(refreshed); view.ShowReceiptResult(message); });
+                        return;
+                    }
                     Request<GuardResponse>(HttpMethod.Post, "orders/board/action", new InboxDecision {
                         OrderId = order.Id, TerminalId = PluginContext.Operations.GetHostTerminal().Id.ToString(), Action = action,
                         ResolutionId = order.DeliveryResolution?.NeedsApproval == true ? order.DeliveryResolution.Id : null });
