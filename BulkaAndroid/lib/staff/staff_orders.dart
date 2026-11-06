@@ -269,9 +269,21 @@ class _StaffOrdersState extends State<StaffOrders> {
   String? _error;
   int _page = 1, _total = 0, _generation = 0;
   bool _visible = true;
+  bool _reportLoading = false;
+  DateTimeRange? _range;
+  String _day(DateTime value) =>
+      '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+  String get _periodLabel => _range == null
+      ? 'Все даты'
+      : '${_day(_range!.start).split('-').reversed.join('.')} — ${_day(_range!.end).split('-').reversed.join('.')}';
   @override
   void initState() {
     super.initState();
+    if (widget.role == 'cashier') {
+      final now = DateTime.now().toUtc().add(const Duration(hours: 5));
+      final today = DateTime(now.year, now.month, now.day);
+      _range = DateTimeRange(start: today, end: today);
+    }
     _search = TextEditingController(text: widget.initialSearch);
     _live = StaffLiveRefresh(
       widget.api,
@@ -304,6 +316,8 @@ class _StaffOrdersState extends State<StaffOrders> {
           'search': _search.text.trim(),
           'paymentStatus': _payment,
           'orderStatus': _status,
+          if (_range != null) 'dateFrom': _day(_range!.start),
+          if (_range != null) 'dateTo': _day(_range!.end),
         },
       ).query;
       final result = await widget.api.request('/orders?$query');
@@ -320,6 +334,121 @@ class _StaffOrdersState extends State<StaffOrders> {
       if (mounted && generation == _generation) {
         setState(() => _loading = false);
       }
+    }
+  }
+
+  void _setDates(DateTimeRange range) {
+    setState(() {
+      _range = range;
+      _page = 1;
+    });
+    unawaited(_load());
+  }
+
+  Future<void> _dates() async {
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      initialDateRange: _range,
+      helpText: 'Период заказов',
+      saveText: 'Применить',
+    );
+    if (range != null && mounted) _setDates(range);
+  }
+
+  Future<void> _report() async {
+    if (_reportLoading) return;
+    if (_range == null) {
+      await _dates();
+      if (_range == null || !mounted) return;
+    }
+    final range = _range!;
+    final label = _periodLabel;
+    setState(() => _reportLoading = true);
+    try {
+      final result = await widget.api.request(
+        '/staff/order-sales-report?dateFrom=${_day(range.start)}&dateTo=${_day(range.end)}',
+      );
+      if (!mounted) return;
+      final report = Map<String, dynamic>.from(result['report'] as Map);
+      final revenue = (report['revenue'] as num?)?.toDouble() ?? 0;
+      final count = (report['orders'] as num?)?.toInt() ?? 0;
+      final channels = staffRows(report['channels']);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (context) => SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Отчёт по заказам',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                Text(label),
+                const SizedBox(height: 20),
+                Text(
+                  '${formatMoney(revenue)} ₸',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                Text('Выручка · $count завершённых заказов'),
+                const SizedBox(height: 16),
+                for (final entry in const {
+                  'delivery': 'Доставка',
+                  'pickup': 'Самовывоз',
+                  'preorder': 'Предзаказы',
+                  'other': 'Прочее',
+                }.entries)
+                  Builder(
+                    builder: (context) {
+                      final row = channels
+                          .where((item) => item['kind'] == entry.key)
+                          .firstOrNull;
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(entry.value),
+                        subtitle: Text('${row?['orders'] ?? 0} заказов'),
+                        trailing: Text(
+                          '${formatMoney((row?['revenue'] as num?)?.toDouble() ?? 0)} ₸',
+                        ),
+                      );
+                    },
+                  ),
+                const Divider(),
+                Text(
+                  'Средний чек: ${formatMoney(count == 0 ? 0 : revenue / count)} ₸',
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'По дате создания, время Казахстана. Завершённые оплаченные заказы, с учётом скидок и вычетом возвратов. Включает доставку. Бонусная оплата не считается денежной выручкой. Поиск и фильтры статуса не влияют на отчёт.',
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Не удалось загрузить отчёт: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _reportLoading = false);
     }
   }
 
@@ -340,6 +469,42 @@ class _StaffOrdersState extends State<StaffOrders> {
     child: ListView(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
       children: [
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            OutlinedButton(onPressed: _dates, child: Text(_periodLabel)),
+            FilledButton(
+              onPressed: _reportLoading ? null : _report,
+              child: Text(_reportLoading ? 'Загрузка…' : 'Отчёт'),
+            ),
+            for (final days in [0, 1, 6])
+              TextButton(
+                onPressed: () {
+                  final now = DateTime.now().toUtc().add(
+                    const Duration(hours: 5),
+                  );
+                  final today = DateTime(now.year, now.month, now.day);
+                  _setDates(
+                    DateTimeRange(
+                      start: today.subtract(Duration(days: days)),
+                      end: days == 1
+                          ? today.subtract(const Duration(days: 1))
+                          : today,
+                    ),
+                  );
+                },
+                child: Text(
+                  days == 0
+                      ? 'Сегодня'
+                      : days == 1
+                      ? 'Вчера'
+                      : '7 дней',
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 14),
         StaffTouchField(
           controller: _search,
           decoration: InputDecoration(

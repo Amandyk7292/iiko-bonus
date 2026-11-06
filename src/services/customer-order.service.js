@@ -465,7 +465,10 @@ async function listAdminOrders({
   paymentStatus,
   orderStatus,
   branchIds = [],
+  dateFrom,
+  dateTo,
 } = {}) {
+  const period = require('../utils/order-report-period.util').orderReportPeriod(dateFrom, dateTo);
   const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
   const safePageSize = Math.min(100, Math.max(10, Number.parseInt(pageSize, 10) || 50));
   const cleanSearch = String(search || '')
@@ -511,6 +514,7 @@ async function listAdminOrders({
   }
 
   const from = (safePage - 1) * safePageSize;
+  if (period) query = query.gte('created_at', period.start).lt('created_at', period.end);
   const { data, error, count } = await query
     .order('created_at', { ascending: false })
     .range(from, from + safePageSize - 1);

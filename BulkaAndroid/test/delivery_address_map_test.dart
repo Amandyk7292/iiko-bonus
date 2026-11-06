@@ -107,7 +107,7 @@ void main() {
   }
 
   testWidgets(
-    'delivery map hides pickup, inactive and unknown delivery branches',
+    'address map hides all branch markers and keeps delivery cities',
     (tester) async {
       await configureView(tester);
       final api = _DeliveryMapApi([
@@ -136,13 +136,7 @@ void main() {
       addTearDown(api.dispose);
       await _openMap(tester, api);
 
-      expect(_map(tester).branches.map((branch) => branch.id), [
-        'aktau-delivery',
-      ]);
-      expect(
-        _map(tester).branches.single.toPayload()['deliveryEnabled'],
-        isTrue,
-      );
+      expect(_map(tester).branches, isEmpty);
       expect(_cities(tester), ['Актау', 'Астана']);
       expect(api.locations, hasLength(5));
       expect(tester.takeException(), isNull);
@@ -150,7 +144,7 @@ void main() {
   );
 
   testWidgets(
-    'city switch updates delivery markers, center and address search',
+    'city switch keeps markers hidden and updates center and search',
     (tester) async {
       await configureView(tester);
       final api = _DeliveryMapApi([
@@ -168,9 +162,7 @@ void main() {
       await tester.tap(find.text('Астана').last);
       await tester.pumpAndSettle();
 
-      expect(_map(tester).branches.map((branch) => branch.id), [
-        'astana-delivery',
-      ]);
+      expect(_map(tester).branches, isEmpty);
       expect(_map(tester).center.latitude, _astanaDelivery.latitude);
       expect(_map(tester).center.longitude, _astanaDelivery.longitude);
       expect(_map(tester).selectedPoint, isNull);
@@ -216,9 +208,7 @@ void main() {
     await _openMap(tester, api, initialCity: 'Алматы');
 
     expect(_cities(tester), ['Астана']);
-    expect(_map(tester).branches.map((branch) => branch.id), [
-      'astana-delivery',
-    ]);
+    expect(_map(tester).branches, isEmpty);
     expect(_map(tester).center.latitude, _astanaDelivery.latitude);
     expect(_map(tester).center.longitude, _astanaDelivery.longitude);
     expect(tester.takeException(), isNull);
@@ -290,9 +280,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_cityPicker(tester).value, 'Астана');
-    expect(_map(tester).branches.map((branch) => branch.id), [
-      'astana-delivery',
-    ]);
+    expect(_map(tester).branches, isEmpty);
     expect(_map(tester).center.latitude, _astanaDelivery.latitude);
     expect(_map(tester).center.longitude, _astanaDelivery.longitude);
     expect(_map(tester).selectedPoint, isNull);
@@ -337,9 +325,7 @@ void main() {
     await tester.tap(find.byTooltip('Добавить адрес'));
     await tester.pumpAndSettle();
 
-    expect(_map(tester).branches.map((branch) => branch.id), [
-      'astana-delivery',
-    ]);
+    expect(_map(tester).branches, isEmpty);
     expect(_map(tester).center.latitude, _astanaDelivery.latitude);
     expect(_map(tester).center.longitude, _astanaDelivery.longitude);
     expect(_cities(tester), ['Астана']);

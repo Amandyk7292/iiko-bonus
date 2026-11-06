@@ -450,23 +450,6 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   String get _manualStreet =>
       _streetManuallyEdited ? _searchController.text.trim() : '';
 
-  List<YandexMapBranch> get _mapBranches => _locations
-      .where(
-        (location) =>
-            location.city.trim().toLowerCase() == _city.trim().toLowerCase(),
-      )
-      .map(
-        (location) => YandexMapBranch(
-          id: location.id,
-          name: location.name,
-          address: location.address,
-          point: LatLng(location.latitude!, location.longitude!),
-          active: location.active,
-          deliveryEnabled: location.deliveryEnabled,
-        ),
-      )
-      .toList();
-
   DeliveryLocation _selectedLocation() {
     return DeliveryLocation(
       city: _city,
@@ -621,8 +604,8 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                         center: _mapCenter,
                         selectedPoint: _pointSelected ? _point : null,
                         zoom: _zoom,
-                        branches: _mapBranches,
-                        semanticLabel: 'map_delivery_branches_title'.tr,
+                        branches: const [],
+                        semanticLabel: 'map_select_point'.tr,
                         unavailableLabel: 'map_unavailable'.tr,
                         onCameraChanged: (center, zoom) {
                           if (_validPoint(center)) _mapCenter = center;

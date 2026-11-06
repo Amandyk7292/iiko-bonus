@@ -562,6 +562,12 @@ const cashierMutationAllowed = (req, area) => {
   if (area === 'staff' && req.method === 'POST' && path === 'staff/pos/pairing-code') return true;
   if (
     area === 'staff' &&
+    req.method === 'DELETE' &&
+    /^staff\/pos\/devices\/[0-9a-f-]+$/i.test(path)
+  )
+    return true;
+  if (
+    area === 'staff' &&
     req.method === 'PATCH' &&
     /^staff\/catalog\/(?:[a-z0-9_:-]|%3a)+$/i.test(path)
   )

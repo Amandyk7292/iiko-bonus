@@ -26,7 +26,9 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
   String _codeRole = 'register';
   bool _loading = true;
   bool _creating = false;
+  String? _unlinking;
   bool _fetching = false;
+  int _devicesRevision = 0;
   bool _active = true;
   int _ticks = 0;
   Timer? _timer;
@@ -52,6 +54,7 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
   Future<void> _refresh() async {
     if (_fetching) return;
     _fetching = true;
+    final revision = _devicesRevision;
     try {
       final requestedPairing = _pairingId;
       final result = await widget.api.request(
@@ -61,7 +64,7 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
       final devices = (result['devices'] as List? ?? [])
           .map((row) => Map<String, dynamic>.from(row as Map))
           .toList();
-      if (!mounted) return;
+      if (!mounted || revision != _devicesRevision) return;
       setState(() {
         _devices = devices;
         _loading = false;
@@ -88,7 +91,7 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
         }
       });
     } catch (error) {
-      if (mounted) {
+      if (mounted && revision == _devicesRevision) {
         setState(() {
           _error = '$error';
           _loading = false;
@@ -126,6 +129,58 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
       if (mounted) setState(() => _error = '$error');
     } finally {
       if (mounted) setState(() => _creating = false);
+    }
+  }
+
+  Future<void> _unlink(Map<String, dynamic> device) async {
+    if (_unlinking != null) return;
+    final id = '${device['terminalId']}';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          staffText(
+            'Отвязать устройство?',
+            'Құрылғыны ажырату керек пе?',
+            'Unlink device?',
+          ),
+        ),
+        content: Text(
+          '«${device['name']}» больше не сможет получать заказы и передавать данные. Для подключения потребуется новый код.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(staffText('Отмена', 'Бас тарту', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(staffText('Отвязать', 'Ажырату', 'Unlink')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _unlinking = id;
+      _error = null;
+    });
+    try {
+      await widget.api.request(
+        '/staff/pos/devices/${Uri.encodeComponent(id)}',
+        method: 'DELETE',
+      );
+      if (!mounted) return;
+      setState(() {
+        _devicesRevision++;
+        _devices.removeWhere((row) => row['terminalId'] == id);
+        _connectedName = null;
+      });
+      await _refresh();
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    } finally {
+      if (mounted) setState(() => _unlinking = null);
     }
   }
 
@@ -267,12 +322,15 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
                         ),
                       ),
                     ),
-                    trailing: Icon(
-                      Icons.circle,
-                      size: 10,
-                      color: online
-                          ? const Color(0xff218659)
-                          : const Color(0xffb4ada6),
+                    trailing: TextButton(
+                      onPressed: _unlinking == null
+                          ? () => _unlink(device)
+                          : null,
+                      child: Text(
+                        _unlinking == device['terminalId']
+                            ? '…'
+                            : staffText('Отвязать', 'Ажырату', 'Unlink'),
+                      ),
                     ),
                   ),
                 );

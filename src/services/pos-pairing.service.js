@@ -129,4 +129,26 @@ async function listPosDevices(admin, pairingId = '', db = supabase) {
   };
 }
 
-module.exports = { activatePosDevice, issuePosPairingCode, listPosDevices, posDeviceTokenHash };
+async function unlinkPosDevice(admin, terminalId, db = supabase) {
+  const branch = await selectedBranch(admin, db);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(terminalId)) {
+    throw failure('Некорректная касса');
+  }
+  const { data, error } = await db
+    .from('pos_devices')
+    .update({ active: false })
+    .eq('terminal_id', terminalId)
+    .eq('branch_id', branch.id)
+    .select('terminal_id')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw failure('Касса этого филиала не найдена', 404);
+  return { terminalId: data.terminal_id };
+}
+module.exports = {
+  activatePosDevice,
+  issuePosPairingCode,
+  listPosDevices,
+  posDeviceTokenHash,
+  unlinkPosDevice,
+};
