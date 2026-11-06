@@ -273,9 +273,15 @@ class _StaffOrdersState extends State<StaffOrders> {
   DateTimeRange? _range;
   String _day(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
-  String get _periodLabel => _range == null
-      ? 'Все даты'
-      : '${_day(_range!.start).split('-').reversed.join('.')} — ${_day(_range!.end).split('-').reversed.join('.')}';
+  String get _periodLabel {
+    if (_range == null) return 'Все даты';
+    final now = DateTime.now().toUtc().add(const Duration(hours: 5));
+    if (_day(_range!.start) == _day(now) && _day(_range!.end) == _day(now)) {
+      return 'Сегодня';
+    }
+    return '${_day(_range!.start).split('-').reversed.join('.')} — ${_day(_range!.end).split('-').reversed.join('.')}';
+  }
+
   @override
   void initState() {
     super.initState();
