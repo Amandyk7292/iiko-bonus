@@ -469,10 +469,7 @@ class _MainShellState extends State<MainShell> {
     ];
     final tabSwitcher = _PersistentTabSwitcher(
       index: _tab,
-      children: [
-        for (final page in pages)
-          StableContent(inputs: pageInputs, child: page),
-      ],
+      children: memoizedInput<List<Widget>>(this, pageInputs, () => pages),
     );
     return ChatGptCartHandoff(
       api: widget.api,

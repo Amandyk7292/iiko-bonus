@@ -81,29 +81,26 @@ extension _CatalogInteractionController on _CatalogScreenState {
   Future<BakeryLocation?> _resolveDeliveryBranch(DeliveryAddress address) =>
       resolveCatalogDeliveryBranch(_api, address);
 
-  List<Object?> get _productFilterInputs => [
-    _allProducts,
-    _searchQuery,
-    _favoritesOnly,
-    _favoriteProductIds,
-    _sort,
-    _dietaryFilters,
-    _excludedAllergens,
-    AppLang.current,
-  ];
-
   List<CatalogProduct> get _filteredProducts {
-    // Reuse the feed's products until menu/filter inputs change. Quantities
+    // Reuse products until menu/filter inputs change. Quantities
     // and transitions do not change product ordering or row measurements.
-    final cached = _catalogFeedLayout;
-    if (cached != null &&
-        listEquals(cached.filterInputs, _productFilterInputs)) {
-      return cached.products;
-    }
-    return _applyActiveProductFilters(
-      _allProducts,
-      includeSearch: true,
-      includeFavorites: true,
+    return memoizedInput<List<CatalogProduct>>(
+      this,
+      [
+        _allProducts,
+        _searchQuery,
+        _favoritesOnly,
+        _favoriteProductIds,
+        _sort,
+        _dietaryFilters,
+        _excludedAllergens,
+        AppLang.current,
+      ],
+      () => _applyActiveProductFilters(
+        _allProducts,
+        includeSearch: true,
+        includeFavorites: true,
+      ),
     );
   }
 
@@ -118,22 +115,22 @@ extension _CatalogInteractionController on _CatalogScreenState {
     required bool includeSearch,
     required bool includeFavorites,
   }) {
-    final dietary = _dietaryFilters.map(normalizeCatalogSearch).toSet();
-    final allergens = _excludedAllergens.map(normalizeCatalogSearch).toSet();
     final candidates = source.where((p) {
       final matchesFavorite =
           !includeFavorites ||
           !_favoritesOnly ||
           _favoriteProductIds.contains(p.id);
-      final matchesDiet =
-          dietary.isEmpty ||
-          p.dietaryTags
-              .map(normalizeCatalogSearch)
-              .toSet()
-              .containsAll(dietary);
-      final avoidsAllergens =
-          allergens.isEmpty ||
-          !p.allergens.map(normalizeCatalogSearch).any(allergens.contains);
+      final normalizedTags = p.dietaryTags.map(normalizeCatalogSearch).toSet();
+      final normalizedAllergens = p.allergens
+          .map(normalizeCatalogSearch)
+          .toSet();
+      final matchesDiet = _dietaryFilters.every(
+        (tag) => normalizedTags.contains(normalizeCatalogSearch(tag)),
+      );
+      final avoidsAllergens = _excludedAllergens.every(
+        (allergen) =>
+            !normalizedAllergens.contains(normalizeCatalogSearch(allergen)),
+      );
       return matchesFavorite && matchesDiet && avoidsAllergens;
     }).toList();
     final products = !includeSearch || _searchQuery.trim().isEmpty

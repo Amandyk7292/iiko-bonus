@@ -39,6 +39,7 @@ import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'core/cart_provider.dart';
+import 'core/memoized_input.dart';
 import 'core/product_image_cache.dart';
 import 'core/api_origin.dart';
 import 'core/browser_form_factor.dart';
@@ -61,7 +62,6 @@ import 'firebase_options.dart';
 import 'widgets/admin_portal_webview.dart';
 import 'widgets/forte_checkout_webview.dart';
 import 'widgets/pickup_camera.dart' as pickup_camera;
-import 'widgets/stable_content.dart';
 import 'widgets/yandex_map/yandex_map.dart';
 part 'api/bulka_api_client.dart';
 part 'screens/checkout_pickup_photo.dart';

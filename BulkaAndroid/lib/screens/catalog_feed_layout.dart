@@ -60,7 +60,6 @@ class _CatalogFeedLayout {
   }
 
   static const spacing = 14.0;
-  List<Object?> filterInputs = const [];
   final List<CatalogProduct> products;
   final List<String> categoryOrder;
   final double width;
@@ -237,7 +236,6 @@ extension _CatalogFeedView on _CatalogScreenState {
         grouped: grouped,
       );
     }
-    _catalogFeedLayout!.filterInputs = _productFilterInputs;
     _scheduleCatalogScrollSync();
     return _catalogFeedLayout!;
   }
@@ -291,11 +289,18 @@ extension _CatalogFeedView on _CatalogScreenState {
                       const SizedBox(width: _CatalogFeedLayout.spacing),
                     Expanded(
                       child: column < products.length
-                          ? Selector<CartProvider, num>(
-                              selector: (_, cart) =>
-                                  cart.getQuantity(products[column].id),
-                              builder: (_, quantity, _) =>
-                                  _buildProductCard(products[column], quantity),
+                          ? Builder(
+                              builder: (context) {
+                                final quantity = context
+                                    .select<CartProvider, num>(
+                                      (cart) =>
+                                          cart.getQuantity(products[column].id),
+                                    );
+                                return _buildProductCard(
+                                  products[column],
+                                  quantity,
+                                );
+                              },
                             )
                           : const SizedBox.shrink(),
                     ),
