@@ -40,6 +40,8 @@ class _CatalogScreenState extends State<CatalogScreen>
   final _activeCatalogCategory = ValueNotifier(_catalogAllCategoryKey);
   final _categoryChipKeys = <String, GlobalKey>{};
   _CatalogFeedLayout? _catalogFeedLayout;
+  Object? _filteredProductsScope;
+  List<CatalogProduct> _filteredProductsCache = const [];
   double _catalogHeaderExtent = 0;
   String? _pendingCategoryScroll;
   bool _catalogSyncScheduled = false;

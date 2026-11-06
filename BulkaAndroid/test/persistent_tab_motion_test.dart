@@ -88,6 +88,7 @@ Future<void> _openCustomer(
   WidgetTester tester, {
   bool reduced = false,
   TargetPlatform platform = TargetPlatform.android,
+  ValueNotifier<Customer?>? account,
 }) async {
   _usePhoneViewport(tester);
   SharedPreferences.setMockInitialValues({
@@ -109,6 +110,13 @@ Future<void> _openCustomer(
   final api = _MotionApi(client);
   final cart = CartProvider();
   await cart.restored;
+  Widget shell(Customer? customer) => MainShell(
+    api: api,
+    customer: customer,
+    transactions: const [],
+    onLogout: () async {},
+    onRefreshProfile: () async {},
+  );
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
     api.dispose();
@@ -124,13 +132,12 @@ Future<void> _openCustomer(
           data: MediaQuery.of(context).copyWith(disableAnimations: reduced),
           child: child!,
         ),
-        home: MainShell(
-          api: api,
-          customer: null,
-          transactions: const [],
-          onLogout: () async {},
-          onRefreshProfile: () async {},
-        ),
+        home: account == null
+            ? shell(null)
+            : ValueListenableBuilder<Customer?>(
+                valueListenable: account,
+                builder: (_, customer, _) => shell(customer),
+              ),
       ),
     ),
   );
@@ -175,7 +182,86 @@ void main() {
     appLanguageNotifier.value = 'ru';
   });
 
+  testWidgets('reused tabs receive profile changes and clear on logout', (
+    tester,
+  ) async {
+    const customer = Customer(
+      id: 'customer-a',
+      name: 'A',
+      phone: '77010000001',
+      balance: 0,
+      totalSpent: 0,
+      createdAt: '2026-08-08T00:00:00Z',
+      isVip: false,
+      cashbackPercent: 0,
+      vipThreshold: 0,
+      tier: null,
+    );
+    final account = ValueNotifier<Customer?>(customer);
+    addTearDown(account.dispose);
+    await _openCustomer(tester, account: account);
+    await _selectCustomer(tester, 4);
+    await tester.pumpAndSettle();
+    await _selectCustomer(tester, 1);
+    await tester.pumpAndSettle();
+    final updated = Customer.fromJson({...customer.toJson(), 'balance': 200});
+    account.value = updated;
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<HomeScreen>(find.byType(HomeScreen, skipOffstage: false))
+          .customer,
+      same(updated),
+    );
+    expect(
+      tester
+          .widget<ProfileScreen>(
+            find.byType(ProfileScreen, skipOffstage: false),
+          )
+          .customer,
+      same(updated),
+    );
+    await _selectCustomer(tester, 4);
+    await tester.pumpAndSettle();
+    account.value = null;
+    await tester.pumpAndSettle();
+    expect(find.byType(ProfileScreen, skipOffstage: false), findsNothing);
+    expect(find.byType(AccountProfileScreen), findsOneWidget);
+    expect(
+      tester
+          .widget<HomeScreen>(find.byType(HomeScreen, skipOffstage: false))
+          .customer,
+      isNull,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+    testWidgets(
+      'switching other tabs does not rebuild the hidden catalog: $platform',
+      (tester) async {
+        await _openCustomer(tester, platform: platform);
+        await _selectCustomer(tester, 1);
+        await tester.pumpAndSettle();
+        await _selectCustomer(tester, 0);
+        await tester.pumpAndSettle();
+        var catalogBuilds = 0;
+        final previous = debugOnRebuildDirtyWidget;
+        debugOnRebuildDirtyWidget = (element, builtOnce) {
+          previous?.call(element, builtOnce);
+          if (element.widget is CatalogScreen) catalogBuilds++;
+        };
+        addTearDown(() => debugOnRebuildDirtyWidget = previous);
+
+        await _selectCustomer(tester, 3);
+        await tester.pumpAndSettle();
+        await _selectCustomer(tester, 4);
+        await tester.pumpAndSettle();
+        expect(catalogBuilds, 0);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     testWidgets(
       'opposite-side painted destination keeps coverage on complex reversal: $platform',
       (tester) async {

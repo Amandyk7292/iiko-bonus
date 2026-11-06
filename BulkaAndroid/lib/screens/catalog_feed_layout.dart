@@ -241,7 +241,6 @@ extension _CatalogFeedView on _CatalogScreenState {
   }
 
   Widget _buildCatalogFeed(_CatalogFeedLayout feed) {
-    final cart = context.read<CartProvider>();
     return SliverPadding(
       padding: EdgeInsets.fromLTRB(
         16,
@@ -290,9 +289,11 @@ extension _CatalogFeedView on _CatalogScreenState {
                       const SizedBox(width: _CatalogFeedLayout.spacing),
                     Expanded(
                       child: column < products.length
-                          ? _buildProductCard(
-                              products[column],
-                              cart.getQuantity(products[column].id),
+                          ? Selector<CartProvider, num>(
+                              selector: (_, cart) =>
+                                  cart.getQuantity(products[column].id),
+                              builder: (_, quantity, _) =>
+                                  _buildProductCard(products[column], quantity),
                             )
                           : const SizedBox.shrink(),
                     ),

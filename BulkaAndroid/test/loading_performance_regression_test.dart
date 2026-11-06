@@ -225,6 +225,72 @@ void main() {
     },
   );
 
+  testWidgets('cart quantities update without rebuilding the catalog layout', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'selected_bakery_location_id_pickup': 'branch-one',
+      'selected_bakery_location_pickup': 'Филиал',
+    });
+    final events = StreamController<Map<String, dynamic>>.broadcast();
+    final api = EventMenuApi(
+      MockClient(
+        (request) async => request.url.path == '/api/guest/locations'
+            ? selectedBakeryLocationsResponse()
+            : request.url.path == '/api/guest/menu'
+            ? response(menu)
+            : response({'success': true, 'products': {}}),
+      ),
+      events.stream,
+    );
+    final cart = CartProvider();
+    await cart.restored;
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: cart,
+        child: MaterialApp(
+          theme: buildBulkaTheme(),
+          home: CatalogScreen(api: api, hasSelectedOrderType: true),
+        ),
+      ),
+    );
+    await frames(tester);
+    final layout = tester.element(
+      find
+          .descendant(
+            of: find.byType(CatalogScreen),
+            matching: find.byType(LayoutBuilder),
+          )
+          .first,
+    );
+    var layoutBuilds = 0;
+    final previous = debugOnRebuildDirtyWidget;
+    debugOnRebuildDirtyWidget = (element, builtOnce) {
+      previous?.call(element, builtOnce);
+      if (identical(element, layout)) layoutBuilds++;
+    };
+    addTearDown(() => debugOnRebuildDirtyWidget = previous);
+    cart.addItem(productId: 'bun', name: 'Булочка', price: 300, imageUrl: '');
+    await tester.pumpAndSettle();
+    final quantity = find.byKey(const ValueKey('catalog-quantity-bun'));
+    expect(
+      find.descendant(of: quantity, matching: find.text('1')),
+      findsOneWidget,
+    );
+    cart.addItem(productId: 'bun', name: 'Булочка', price: 300, imageUrl: '');
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: quantity, matching: find.text('2')),
+      findsOneWidget,
+    );
+    expect(layoutBuilds, 0);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await events.close();
+    api.dispose();
+    cart.dispose();
+  });
+
   testWidgets(
     'catalog coalesces update bursts and does not poll a hidden tab',
     (tester) async {

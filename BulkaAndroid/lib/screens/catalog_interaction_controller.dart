@@ -82,7 +82,21 @@ extension _CatalogInteractionController on _CatalogScreenState {
       resolveCatalogDeliveryBranch(_api, address);
 
   List<CatalogProduct> get _filteredProducts {
-    return _applyActiveProductFilters(
+    // These collections are replaced on menu/filter updates. Cart quantities,
+    // route transitions and TickerMode changes do not change the product order.
+    final scope = (
+      _allProducts,
+      _searchQuery,
+      _favoritesOnly,
+      _favoriteProductIds,
+      _sort,
+      _dietaryFilters,
+      _excludedAllergens,
+      AppLang.current,
+    );
+    if (_filteredProductsScope == scope) return _filteredProductsCache;
+    _filteredProductsScope = scope;
+    return _filteredProductsCache = _applyActiveProductFilters(
       _allProducts,
       includeSearch: true,
       includeFavorites: true,
@@ -100,22 +114,22 @@ extension _CatalogInteractionController on _CatalogScreenState {
     required bool includeSearch,
     required bool includeFavorites,
   }) {
+    final dietary = _dietaryFilters.map(normalizeCatalogSearch).toSet();
+    final allergens = _excludedAllergens.map(normalizeCatalogSearch).toSet();
     final candidates = source.where((p) {
       final matchesFavorite =
           !includeFavorites ||
           !_favoritesOnly ||
           _favoriteProductIds.contains(p.id);
-      final normalizedTags = p.dietaryTags.map(normalizeCatalogSearch).toSet();
-      final normalizedAllergens = p.allergens
-          .map(normalizeCatalogSearch)
-          .toSet();
-      final matchesDiet = _dietaryFilters.every(
-        (tag) => normalizedTags.contains(normalizeCatalogSearch(tag)),
-      );
-      final avoidsAllergens = _excludedAllergens.every(
-        (allergen) =>
-            !normalizedAllergens.contains(normalizeCatalogSearch(allergen)),
-      );
+      final matchesDiet =
+          dietary.isEmpty ||
+          p.dietaryTags
+              .map(normalizeCatalogSearch)
+              .toSet()
+              .containsAll(dietary);
+      final avoidsAllergens =
+          allergens.isEmpty ||
+          !p.allergens.map(normalizeCatalogSearch).any(allergens.contains);
       return matchesFavorite && matchesDiet && avoidsAllergens;
     }).toList();
     final products = !includeSearch || _searchQuery.trim().isEmpty

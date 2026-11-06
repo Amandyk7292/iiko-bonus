@@ -2,7 +2,6 @@ part of '../main.dart';
 
 extension _CatalogScreenLayout on _CatalogScreenState {
   Widget _buildCatalogScreen(BuildContext context, double contentExtent) {
-    context.watch<CartProvider>();
     final scheme = Theme.of(context).colorScheme;
     final products = _filteredProducts;
     final needsBakery = _menuScopeReady && _selectedBakeryId.isEmpty;
