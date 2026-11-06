@@ -41,6 +41,7 @@ class _FortunePrizesViewState extends State<FortunePrizesView> {
   String? _error;
   String? _notice;
   late final VoidCallback _disposeLive;
+  Future<void>? _loadTask;
 
   @override
   void initState() {
@@ -58,51 +59,66 @@ class _FortunePrizesViewState extends State<FortunePrizesView> {
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load() =>
+      _loadTask ??= _loadPrizes().whenComplete(() => _loadTask = null);
+
+  bool _sameAccount(String? account) =>
+      mounted &&
+      widget.api.isAuthenticated &&
+      account == widget.api.sessionCacheScope;
+
+  Future<void> _refreshProfile() async {
+    // A profile refresh must not turn a successful prize operation into an
+    // unhandled exception or invite a duplicate redemption.
+    try {
+      await widget.onRefreshProfile?.call();
+    } catch (_) {
+      // The profile's own refresh/recovery will retry independently.
+    }
+  }
+
+  Future<void> _loadPrizes() async {
     if (_claiming || _redeemingId != null) return;
     final account = widget.api.sessionCacheScope;
     setState(() {
       _loading = true;
       _error = null;
     });
-    final pending = await PendingFortuneClaim.read();
-    if (!mounted ||
-        !widget.api.isAuthenticated ||
-        account != widget.api.sessionCacheScope) {
-      return;
-    }
-    if (pending != null) {
-      setState(() => _claiming = true);
-      try {
-        await widget.api.claimFortunePrize(pending);
-        if (!mounted || account != widget.api.sessionCacheScope) return;
-        await PendingFortuneClaim.clear(pending);
-        final current = currentClientUri();
-        if (PendingFortuneClaim.tokenFromFragment(current) == pending) {
-          replaceClientUri(current.replace(fragment: ''));
-        }
-        _notice = fortuneText('claimed');
-        if (widget.onRefreshProfile != null) {
-          unawaited(widget.onRefreshProfile!());
-        }
-      } catch (error) {
-        if (!mounted || account != widget.api.sessionCacheScope) return;
-        final terminal =
-            error is ApiException &&
-            const {
-              'FORTUNE_CLAIM_EXPIRED',
-              'FORTUNE_CLAIM_INVALID',
-              'FORTUNE_EXPIRED',
-              'FORTUNE_ALREADY_CLAIMED',
-              'FORTUNE_PRIZE_EXPIRED',
-            }.contains(error.code);
-        if (terminal) await PendingFortuneClaim.clear(pending);
-        _error = fortuneText(terminal ? 'terminal' : 'claimError');
-      } finally {
-        if (mounted) setState(() => _claiming = false);
-      }
-    }
     try {
+      if (!_sameAccount(account)) return;
+      final pending = await PendingFortuneClaim.read();
+      if (!_sameAccount(account)) return;
+      if (pending != null) {
+        setState(() => _claiming = true);
+        try {
+          await widget.api.claimFortunePrize(pending);
+          if (!mounted || account != widget.api.sessionCacheScope) return;
+          await PendingFortuneClaim.clear(pending);
+          final current = currentClientUri();
+          if (PendingFortuneClaim.tokenFromFragment(current) == pending) {
+            replaceClientUri(current.replace(fragment: ''));
+          }
+          _notice = fortuneText('claimed');
+          if (widget.onRefreshProfile != null) {
+            unawaited(_refreshProfile());
+          }
+        } catch (error) {
+          if (!mounted || account != widget.api.sessionCacheScope) return;
+          final terminal =
+              error is ApiException &&
+              const {
+                'FORTUNE_CLAIM_EXPIRED',
+                'FORTUNE_CLAIM_INVALID',
+                'FORTUNE_EXPIRED',
+                'FORTUNE_ALREADY_CLAIMED',
+                'FORTUNE_PRIZE_EXPIRED',
+              }.contains(error.code);
+          if (terminal) await PendingFortuneClaim.clear(pending);
+          _error = fortuneText(terminal ? 'terminal' : 'claimError');
+        } finally {
+          if (mounted) setState(() => _claiming = false);
+        }
+      }
       final items = await widget.api.getFortunePrizes();
       if (!mounted || account != widget.api.sessionCacheScope) return;
       setState(() => _prizes = items);
@@ -212,7 +228,7 @@ class _FortunePrizesViewState extends State<FortunePrizesView> {
         _notice = fortuneText('credited');
       });
       if (widget.onRefreshProfile != null) {
-        unawaited(widget.onRefreshProfile!());
+        unawaited(_refreshProfile());
       }
     } catch (error) {
       if (mounted && account == widget.api.sessionCacheScope) {

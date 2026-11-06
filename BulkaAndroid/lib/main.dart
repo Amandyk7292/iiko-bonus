@@ -55,7 +55,8 @@ import 'core/cashier_invite.dart';
 import 'core/cashier_live_camera.dart';
 import 'core/cashier_qr_decoder.dart' deferred as cashier_qr;
 import 'core/photo_orientation.dart' deferred as pickup_photo_orientation;
-import 'screens/fortune_prizes_view.dart' deferred as fortune_prizes;
+import 'screens/fortune_prizes_view.dart' as fortune_prizes;
+import 'core/orientation_policy.dart';
 import 'core/referral_device_identity.dart';
 import 'core/walking_rewards_native.dart';
 import 'firebase_options.dart';
@@ -350,6 +351,7 @@ void main() {
   runZonedGuarded(
     () {
       WidgetsFlutterBinding.ensureInitialized();
+      BulkaOrientationPolicy().start();
       if (kIsWeb) {
         PendingChatGptCartLink.capture(currentClientUri());
       }

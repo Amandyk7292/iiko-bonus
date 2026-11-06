@@ -29,10 +29,10 @@ class _CatalogFilterActions extends StatelessWidget {
     );
     final applyLabel = 'catalog_apply'.tr;
     final resetLabel = 'catalog_reset'.tr;
-    final applyButton = ElevatedButton(
+    final applyButton = FilledButton(
       key: const ValueKey('catalog-filter-apply'),
       onPressed: onApply,
-      style: ElevatedButton.styleFrom(
+      style: FilledButton.styleFrom(
         minimumSize: const Size(0, 50),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
         backgroundColor: _bulkaYellow,
@@ -48,6 +48,7 @@ class _CatalogFilterActions extends StatelessWidget {
       key: const ValueKey('catalog-filter-reset'),
       onPressed: onReset,
       style: OutlinedButton.styleFrom(
+        backgroundColor: Colors.transparent,
         minimumSize: const Size(0, 50),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
         side: BorderSide(color: colors.brandBrown, width: 1.5),
@@ -99,6 +100,7 @@ class _CatalogFilterScreen extends StatefulWidget {
     required this.allergens,
     required this.initialDietaryTags,
     required this.initialExcludedAllergens,
+    this.initialOnlyInStock = false,
   });
 
   final _CatalogSort initialSort;
@@ -106,6 +108,7 @@ class _CatalogFilterScreen extends StatefulWidget {
   final List<String> allergens;
   final Set<String> initialDietaryTags;
   final Set<String> initialExcludedAllergens;
+  final bool initialOnlyInStock;
 
   @override
   State<_CatalogFilterScreen> createState() => _CatalogFilterScreenState();
@@ -114,6 +117,7 @@ class _CatalogFilterScreen extends StatefulWidget {
 class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
   final Set<String> _expandedSections = {'sort'};
   final Set<String> _selectedFilters = {};
+  bool _onlyInStock = false;
 
   Map<String, List<String>> get _sections => {
     'sort': const ['menu', 'priceLow', 'priceHigh'],
@@ -128,6 +132,7 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
   @override
   void initState() {
     super.initState();
+    _onlyInStock = widget.initialOnlyInStock;
     _selectedFilters.add(widget.initialSort.name);
     _selectedFilters.addAll(
       widget.initialDietaryTags.map((tag) => 'dietary:$tag'),
@@ -198,6 +203,7 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
     Navigator.of(context).pop(
       _CatalogFilterResult(
         sort: sort,
+        onlyInStock: _onlyInStock,
         dietaryTags: _selectedFilters
             .where((value) => value.startsWith('dietary:'))
             .map((value) => value.substring('dietary:'.length))
@@ -212,6 +218,7 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
 
   void _reset() {
     setState(() {
+      _onlyInStock = false;
       _selectedFilters
         ..clear()
         ..add(_CatalogSort.menu.name);
@@ -249,9 +256,12 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                   ),
                   Expanded(
                     child: Center(
-                      child: _BulkaPageTitle(
-                        'catalog_filter'.tr,
-                        color: scheme.onSurface,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: _BulkaPageTitle(
+                          'catalog_filter'.tr,
+                          color: scheme.onSurface,
+                        ),
                       ),
                     ),
                   ),
@@ -266,163 +276,206 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                   vertical: 8,
                 ),
                 child: Column(
-                  children: _sections.entries.map((entry) {
-                    final sectionTitle = entry.key;
-                    final options = entry.value;
-                    final isExpanded = _expandedSections.contains(sectionTitle);
+                  children: [
+                    SwitchListTile.adaptive(
+                      key: const ValueKey('catalog-only-in-stock'),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      title: Text(
+                        'catalog_only_in_stock'.tr,
+                        style: TextStyle(
+                          color: colors.brandBrown,
+                          fontSize: BulkaTypeScale.body,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      value: _onlyInStock,
+                      activeThumbColor: colors.brandBrown,
+                      activeTrackColor: colors.brandGold,
+                      inactiveThumbColor: Colors.white,
+                      inactiveTrackColor: colors.cardBorder,
+                      trackOutlineColor: WidgetStatePropertyAll(
+                        colors.cardBorder,
+                      ),
+                      onChanged: (value) =>
+                          setState(() => _onlyInStock = value),
+                    ),
+                    const SizedBox(height: 12),
+                    ..._sections.entries.map((entry) {
+                      final sectionTitle = entry.key;
+                      final options = entry.value;
+                      final isExpanded = _expandedSections.contains(
+                        sectionTitle,
+                      );
 
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Semantics(
-                          button: true,
-                          label: _sectionLabel(sectionTitle),
-                          hint: isExpanded
-                              ? 'catalog_filter_collapse'.tr
-                              : 'catalog_filter_expand'.tr,
-                          excludeSemantics: true,
-                          child: InkWell(
-                            onTap: () => _toggleSection(sectionTitle),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    _sectionLabel(sectionTitle),
-                                    style: TextStyle(
-                                      fontSize: BulkaTypeScale.body,
-                                      fontWeight: FontWeight.w600,
-                                      color: scheme.onSurface,
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Semantics(
+                            button: true,
+                            label: _sectionLabel(sectionTitle),
+                            hint: isExpanded
+                                ? 'catalog_filter_collapse'.tr
+                                : 'catalog_filter_expand'.tr,
+                            excludeSemantics: true,
+                            child: InkWell(
+                              onTap: () => _toggleSection(sectionTitle),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _sectionLabel(sectionTitle),
+                                        style: TextStyle(
+                                          fontSize: BulkaTypeScale.body,
+                                          fontWeight: FontWeight.w600,
+                                          color: scheme.onSurface,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  AnimatedRotation(
-                                    turns: isExpanded ? 0.5 : 0,
-                                    duration: BulkaMotion.duration(
-                                      context,
-                                      BulkaMotion.fast,
+                                    const SizedBox(width: 12),
+                                    AnimatedRotation(
+                                      turns: isExpanded ? 0.5 : 0,
+                                      duration: BulkaMotion.duration(
+                                        context,
+                                        BulkaMotion.fast,
+                                      ),
+                                      curve: BulkaMotion.standardCurve,
+                                      child: Icon(
+                                        Icons.keyboard_arrow_down_rounded,
+                                        color: colors.brandBrown,
+                                        size: 24,
+                                      ),
                                     ),
-                                    curve: BulkaMotion.standardCurve,
-                                    child: Icon(
-                                      Icons.keyboard_arrow_down_rounded,
-                                      color: colors.brandBrown,
-                                      size: 24,
-                                    ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        BulkaExpandable(
-                          expanded: isExpanded,
-                          duration: BulkaMotion.fast,
-                          child: Column(
-                            children: options.map((option) {
-                              final isSelected = _selectedFilters.contains(
-                                option,
-                              );
-                              final isSingleChoice = sectionTitle == 'sort';
-                              return Semantics(
-                                checked: isSelected,
-                                inMutuallyExclusiveGroup: isSingleChoice,
-                                label: _optionLabel(option),
-                                excludeSemantics: true,
-                                child: Material(
-                                  color: Colors.transparent,
-                                  borderRadius: BorderRadius.circular(
-                                    BulkaRadii.control,
-                                  ),
-                                  child: InkWell(
-                                    onTap: () => _toggleFilter(option),
-                                    borderRadius: BorderRadius.circular(
-                                      BulkaRadii.control,
-                                    ),
-                                    child: BulkaButtonSurface(
-                                      ink: true,
-                                      tone: isSelected
-                                          ? BulkaButtonTone.choice
-                                          : BulkaButtonTone.secondary,
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 12,
-                                          horizontal: 8,
+                          BulkaExpandable(
+                            expanded: isExpanded,
+                            duration: BulkaMotion.fast,
+                            child: Column(
+                              children: options.map((option) {
+                                final isSelected = _selectedFilters.contains(
+                                  option,
+                                );
+                                final isSingleChoice = sectionTitle == 'sort';
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: Semantics(
+                                    checked: isSelected,
+                                    inMutuallyExclusiveGroup: isSingleChoice,
+                                    label: _optionLabel(option),
+                                    excludeSemantics: true,
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      borderRadius: BorderRadius.circular(
+                                        BulkaRadii.control,
+                                      ),
+                                      child: InkWell(
+                                        onTap: () => _toggleFilter(option),
+                                        borderRadius: BorderRadius.circular(
+                                          BulkaRadii.control,
                                         ),
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                _optionLabel(option),
-                                                style: TextStyle(
-                                                  fontSize: BulkaTypeScale.body,
-                                                  color: isSelected
-                                                      ? Colors.white
-                                                      : colors.mutedText,
-                                                  fontWeight: isSelected
-                                                      ? FontWeight.w600
-                                                      : FontWeight.w400,
-                                                ),
-                                              ),
+                                        child: BulkaButtonSurface(
+                                          ink: true,
+                                          tone: isSelected
+                                              ? BulkaButtonTone.choice
+                                              : BulkaButtonTone.secondary,
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 12,
+                                              horizontal: 16,
                                             ),
-                                            const SizedBox(width: 16),
-                                            Container(
-                                              width: 22,
-                                              height: 22,
-                                              decoration: BoxDecoration(
-                                                shape: isSingleChoice
-                                                    ? BoxShape.circle
-                                                    : BoxShape.rectangle,
-                                                color: isSingleChoice
-                                                    ? Colors.white
-                                                    : isSelected
-                                                    ? _bulkaYellow
-                                                    : Colors.white,
-                                                borderRadius: isSingleChoice
-                                                    ? null
-                                                    : BorderRadius.circular(6),
-                                                border: Border.all(
-                                                  color: isSelected
-                                                      ? colors.brandBrown
-                                                      : colors.cardBorder,
-                                                  width: isSelected ? 2 : 1.5,
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    _optionLabel(option),
+                                                    style: TextStyle(
+                                                      fontSize:
+                                                          BulkaTypeScale.body,
+                                                      color: isSelected
+                                                          ? Colors.white
+                                                          : colors.mutedText,
+                                                      fontWeight: isSelected
+                                                          ? FontWeight.w600
+                                                          : FontWeight.w400,
+                                                    ),
+                                                  ),
                                                 ),
-                                              ),
-                                              child: isSelected
-                                                  ? isSingleChoice
-                                                        ? Center(
-                                                            child: Container(
-                                                              width: 10,
-                                                              height: 10,
-                                                              decoration: BoxDecoration(
-                                                                color: colors
-                                                                    .brandBrown,
-                                                                shape: BoxShape
-                                                                    .circle,
-                                                              ),
-                                                            ),
-                                                          )
-                                                        : const Icon(
-                                                            Icons.check_rounded,
-                                                            size: 15,
-                                                            color: _textDark,
-                                                          )
-                                                  : null,
+                                                const SizedBox(width: 16),
+                                                Container(
+                                                  width: 22,
+                                                  height: 22,
+                                                  decoration: BoxDecoration(
+                                                    shape: isSingleChoice
+                                                        ? BoxShape.circle
+                                                        : BoxShape.rectangle,
+                                                    color: isSingleChoice
+                                                        ? Colors.white
+                                                        : isSelected
+                                                        ? _bulkaYellow
+                                                        : Colors.white,
+                                                    borderRadius: isSingleChoice
+                                                        ? null
+                                                        : BorderRadius.circular(
+                                                            6,
+                                                          ),
+                                                    border: Border.all(
+                                                      color: isSelected
+                                                          ? colors.brandBrown
+                                                          : colors.cardBorder,
+                                                      width: isSelected
+                                                          ? 2
+                                                          : 1.5,
+                                                    ),
+                                                  ),
+                                                  child: isSelected
+                                                      ? isSingleChoice
+                                                            ? Center(
+                                                                child: Container(
+                                                                  width: 10,
+                                                                  height: 10,
+                                                                  decoration: BoxDecoration(
+                                                                    color: colors
+                                                                        .brandBrown,
+                                                                    shape: BoxShape
+                                                                        .circle,
+                                                                  ),
+                                                                ),
+                                                              )
+                                                            : const Icon(
+                                                                Icons
+                                                                    .check_rounded,
+                                                                size: 15,
+                                                                color:
+                                                                    _textDark,
+                                                              )
+                                                      : null,
+                                                ),
+                                              ],
                                             ),
-                                          ],
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              );
-                            }).toList(),
+                                );
+                              }).toList(),
+                            ),
                           ),
-                        ),
-                        Divider(color: colors.cardBorder, height: 1),
-                      ],
-                    );
-                  }).toList(),
+                          const SizedBox(height: 8),
+                          Divider(color: colors.cardBorder, height: 1),
+                        ],
+                      );
+                    }),
+                  ],
                 ),
               ),
             ),

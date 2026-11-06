@@ -26,7 +26,8 @@ class _AuthLoginMethodSelector extends StatelessWidget {
       ),
       child: Row(
         children: [
-          for (final adminMethod in [false, true])
+          for (final adminMethod in [false, true]) ...[
+            if (adminMethod) const SizedBox(width: 8),
             Expanded(
               child: Semantics(
                 selected: admin == adminMethod,
@@ -94,6 +95,7 @@ class _AuthLoginMethodSelector extends StatelessWidget {
                 ),
               ),
             ),
+          ],
         ],
       ),
     );

@@ -45,7 +45,11 @@ class FortuneApi extends BulkaApiClient {
   Stream<Map<String, dynamic>> get customerEvents => const Stream.empty();
 }
 
-Future<void> mount(WidgetTester tester, BulkaApiClient api) async {
+Future<void> mount(
+  WidgetTester tester,
+  BulkaApiClient api, {
+  Future<void> Function()? onRefreshProfile,
+}) async {
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox());
     api.dispose();
@@ -53,27 +57,25 @@ Future<void> mount(WidgetTester tester, BulkaApiClient api) async {
   await tester.pumpWidget(
     MaterialApp(
       theme: buildBulkaTheme(),
-      home: FortunePrizesScreen(api: api),
+      home: FortunePrizesScreen(api: api, onRefreshProfile: onRefreshProfile),
     ),
   );
   await tester.pumpAndSettle();
 }
 
-Map<String, Object?> prize({
-  String kind = 'gift',
-  String status = 'claimed',
-}) => {
-  'id': 'prize-1',
-  'prizeLabel': kind == 'bonus' ? '100 бонусов' : 'Кофе в подарок',
-  'prizeKind': kind,
-  'status': status,
-  'bonusAmount': kind == 'bonus' ? 100 : null,
-  'expiresAt': future,
-  'branchName': '19а ЖК Жасыл дала',
-  'redemptionCode': kind == 'gift' ? productCode : null,
-  if (status == 'redeemed')
-    'redeemedAt': DateTime.now().toUtc().toIso8601String(),
-};
+Map<String, Object?> prize({String kind = 'gift', String status = 'claimed'}) =>
+    {
+      'id': 'prize-1',
+      'prizeLabel': kind == 'bonus' ? '100 бонусов' : 'Кофе в подарок',
+      'prizeKind': kind,
+      'status': status,
+      'bonusAmount': kind == 'bonus' ? 100 : null,
+      'expiresAt': future,
+      'branchName': '19а ЖК Жасыл дала',
+      'redemptionCode': kind == 'gift' ? productCode : null,
+      if (status == 'redeemed')
+        'redeemedAt': DateTime.now().toUtc().toIso8601String(),
+    };
 
 void main() {
   setUp(() async {
@@ -155,6 +157,73 @@ void main() {
       expect(find.text('Бонусы начислены'), findsNothing);
     },
   );
+
+  testWidgets('prizes open, fail safely, retry and reopen from navigation', (
+    tester,
+  ) async {
+    var requests = 0;
+    final api = FortuneApi((_) async {
+      if (++requests == 1) throw StateError('offline');
+      return response({'success': true, 'items': []});
+    });
+    addTearDown(api.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => FortunePrizesScreen(api: api),
+                ),
+              ),
+              child: const Text('Мои призы'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Мои призы'));
+    await tester.pumpAndSettle();
+    expect(find.text(fortuneText('loadError')), findsOneWidget);
+    await tester.tap(find.text(fortuneText('retry')));
+    await tester.pumpAndSettle();
+    expect(find.text(fortuneText('empty')), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Мои призы'));
+    await tester.pumpAndSettle();
+    expect(find.text(fortuneText('empty')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('profile refresh failure cannot crash successful prize claim', (
+    tester,
+  ) async {
+    await PendingFortuneClaim.capture(link);
+    final api = FortuneApi(
+      (request) async => response(
+        request.url.path.endsWith('/claim')
+            ? {'success': true, 'prize': prize()}
+            : {
+                'success': true,
+                'items': [prize()],
+              },
+      ),
+    );
+    await mount(
+      tester,
+      api,
+      onRefreshProfile: () async {
+        throw StateError('Profile unavailable');
+      },
+    );
+    expect(find.text('Кофе в подарок'), findsOneWidget);
+    expect(await PendingFortuneClaim.read(), isNull);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('network failure retains claim and visible retry succeeds once', (
     tester,

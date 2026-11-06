@@ -180,14 +180,17 @@ class _CatalogFilterResult {
     required this.sort,
     this.dietaryTags = const {},
     this.excludedAllergens = const {},
+    this.onlyInStock = false,
   });
 
   final _CatalogSort sort;
   final Set<String> dietaryTags;
   final Set<String> excludedAllergens;
+  final bool onlyInStock;
 
   bool get isActive =>
       sort != _CatalogSort.menu ||
+      onlyInStock ||
       dietaryTags.isNotEmpty ||
       excludedAllergens.isNotEmpty;
 }

@@ -467,15 +467,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // Menu List Card
               Container(
                 decoration: BoxDecoration(
-                  color: colors.surfaceCream,
+                  gradient: BulkaButtonSurface.ivoryGradient,
                   borderRadius: BorderRadius.circular(BulkaRadii.card),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x0C000000),
-                      blurRadius: 16,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
+                  border: Border.all(color: colors.cardBorder),
                 ),
                 child: Column(
                   children: [
@@ -593,34 +587,28 @@ class _ProfileMenuItem extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(BulkaRadii.card),
-        child: BulkaButtonSurface(
-          ink: true,
-          tone: BulkaButtonTone.secondary,
-          radius: BulkaRadii.card,
-          borderColor: Colors.transparent,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Row(
-              children: [
-                Icon(icon, color: colors.brandBrown, size: 24),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: colors.brandBrown,
-                      fontSize: BulkaTypeScale.body,
-                      fontWeight: FontWeight.w500,
-                    ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          child: Row(
+            children: [
+              Icon(icon, color: colors.brandBrown, size: 24),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: colors.brandBrown,
+                    fontSize: BulkaTypeScale.body,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: colors.brandBrown.withValues(alpha: 0.55),
-                  size: 22,
-                ),
-              ],
-            ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: colors.brandBrown.withValues(alpha: 0.55),
+                size: 22,
+              ),
+            ],
           ),
         ),
       ),

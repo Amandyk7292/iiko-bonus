@@ -54,6 +54,7 @@ class _CatalogScreenState extends State<CatalogScreen>
   DeliveryAddress? _selectedDeliveryAddress;
   String _searchQuery = '';
   _CatalogSort _sort = _CatalogSort.menu;
+  bool _onlyInStock = false;
   Set<String> _dietaryFilters = const {};
   Set<String> _excludedAllergens = const {};
   Set<String> _favoriteProductIds = const {};

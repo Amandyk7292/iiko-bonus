@@ -244,9 +244,9 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'en': 'Create an account',
   },
   'auth_registration_subtitle': {
-    'ru': 'Задайте пароль и выберите, куда отправить код подтверждения.',
-    'kk': 'Құпиясөз орнатып, растау кодын қайда жіберуді таңдаңыз.',
-    'en': 'Set a password and choose where to receive your confirmation code.',
+    'ru': 'Задайте пароль и подтвердите номер телефона.',
+    'kk': 'Құпиясөз орнатып, телефон нөмірін растаңыз.',
+    'en': 'Set a password and confirm your phone number.',
   },
   'auth_recovery_title': {
     'ru': 'Забыли пароль?',

@@ -92,6 +92,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
         _favoritesOnly,
         _favoriteProductIds,
         _sort,
+        _onlyInStock,
         _dietaryFilters,
         _excludedAllergens,
         AppLang.current,
@@ -106,6 +107,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
 
   bool get _filterActive => _CatalogFilterResult(
     sort: _sort,
+    onlyInStock: _onlyInStock,
     dietaryTags: _dietaryFilters,
     excludedAllergens: _excludedAllergens,
   ).isActive;
@@ -116,6 +118,8 @@ extension _CatalogInteractionController on _CatalogScreenState {
     required bool includeFavorites,
   }) {
     final candidates = source.where((p) {
+      // Use the same branch availability flag as the product's order button.
+      if (_onlyInStock && p.isStopListed) return false;
       final matchesFavorite =
           !includeFavorites ||
           !_favoritesOnly ||
@@ -192,6 +196,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
           heightFactor: 0.9,
           child: _CatalogFilterScreen(
             initialSort: _sort,
+            initialOnlyInStock: _onlyInStock,
             dietaryTags: _availableDietaryTags,
             allergens: _availableAllergens,
             initialDietaryTags: _dietaryFilters,
@@ -202,6 +207,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
       if (!mounted || result == null) return;
       _updateCatalogState(() {
         _sort = result.sort;
+        _onlyInStock = result.onlyInStock;
         _dietaryFilters = result.dietaryTags;
         _excludedAllergens = result.excludedAllergens;
       });
@@ -220,6 +226,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
     _updateCatalogState(() {
       _searchQuery = '';
       _sort = _CatalogSort.menu;
+      _onlyInStock = false;
       _dietaryFilters = const {};
       _excludedAllergens = const {};
       _favoritesOnly = false;

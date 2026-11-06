@@ -88,6 +88,11 @@ const Map<String, Map<String, String>> _featureStateTranslations = {
     'kk': 'Қоймада бар',
     'en': 'In stock',
   },
+  'catalog_only_in_stock': {
+    'ru': 'Только в наличии',
+    'kk': 'Тек қолда бар',
+    'en': 'In stock only',
+  },
   'catalog_stock_count': {
     'ru': 'В наличии: {count}',
     'kk': 'Қолда бар: {count}',
