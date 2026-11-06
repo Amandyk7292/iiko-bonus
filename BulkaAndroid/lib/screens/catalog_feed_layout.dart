@@ -60,6 +60,7 @@ class _CatalogFeedLayout {
   }
 
   static const spacing = 14.0;
+  List<Object?> filterInputs = const [];
   final List<CatalogProduct> products;
   final List<String> categoryOrder;
   final double width;
@@ -236,6 +237,7 @@ extension _CatalogFeedView on _CatalogScreenState {
         grouped: grouped,
       );
     }
+    _catalogFeedLayout!.filterInputs = _productFilterInputs;
     _scheduleCatalogScrollSync();
     return _catalogFeedLayout!;
   }

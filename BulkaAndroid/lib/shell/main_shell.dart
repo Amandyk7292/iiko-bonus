@@ -58,8 +58,6 @@ class _MainShellState extends State<MainShell> {
   bool _fortuneFlowInProgress = false;
   final _navigationGate = _AsyncActionGate();
   Route<void>? _faqRoute;
-  List<Widget>? _pages;
-  Object? _pagesSelection;
 
   static int? _tabForClientUri(Uri uri) {
     final segments = uri.pathSegments
@@ -117,9 +115,6 @@ class _MainShellState extends State<MainShell> {
   @override
   void didUpdateWidget(covariant MainShell oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // A parent update can change the account, balance or callbacks. Tab-only
-    // navigation below reuses these widgets instead of rebuilding hidden pages.
-    _pages = null;
     if (oldWidget.initialTab != widget.initialTab &&
         _tab != widget.initialTab) {
       _tab = widget.initialTab.clamp(0, 4).toInt();
@@ -391,18 +386,10 @@ class _MainShellState extends State<MainShell> {
     widget.onTabChanged?.call(index);
   }
 
-  List<Widget> _tabPages() {
-    final selection = (
-      _catalogOrderType,
-      _hasCatalogOrderType,
-      _catalogSelectionRevision,
-      _lastOrderableCartType,
-      _pendingCatalogProduct,
-    );
-    if (_pages != null && _pagesSelection == selection) return _pages!;
-    _pagesSelection = selection;
+  @override
+  Widget build(BuildContext context) {
     final customer = widget.customer;
-    return _pages = [
+    final pages = [
       HomeScreen(
         key: const PageStorageKey('home-tab'),
         api: widget.api,
@@ -470,13 +457,22 @@ class _MainShellState extends State<MainShell> {
           onOpenFaq: _openFaq,
         ),
     ];
-  }
-
-  @override
-  Widget build(BuildContext context) {
+    // Parent updates refresh account data/callbacks; tab-only changes retain
+    // each page's widget so hidden screens do not rebuild during navigation.
+    final pageInputs = <Object?>[
+      widget,
+      _catalogOrderType,
+      _hasCatalogOrderType,
+      _catalogSelectionRevision,
+      _lastOrderableCartType,
+      _pendingCatalogProduct,
+    ];
     final tabSwitcher = _PersistentTabSwitcher(
       index: _tab,
-      children: _tabPages(),
+      children: [
+        for (final page in pages)
+          StableContent(inputs: pageInputs, child: page),
+      ],
     );
     return ChatGptCartHandoff(
       api: widget.api,

@@ -81,22 +81,26 @@ extension _CatalogInteractionController on _CatalogScreenState {
   Future<BakeryLocation?> _resolveDeliveryBranch(DeliveryAddress address) =>
       resolveCatalogDeliveryBranch(_api, address);
 
+  List<Object?> get _productFilterInputs => [
+    _allProducts,
+    _searchQuery,
+    _favoritesOnly,
+    _favoriteProductIds,
+    _sort,
+    _dietaryFilters,
+    _excludedAllergens,
+    AppLang.current,
+  ];
+
   List<CatalogProduct> get _filteredProducts {
-    // These collections are replaced on menu/filter updates. Cart quantities,
-    // route transitions and TickerMode changes do not change the product order.
-    final scope = (
-      _allProducts,
-      _searchQuery,
-      _favoritesOnly,
-      _favoriteProductIds,
-      _sort,
-      _dietaryFilters,
-      _excludedAllergens,
-      AppLang.current,
-    );
-    if (_filteredProductsScope == scope) return _filteredProductsCache;
-    _filteredProductsScope = scope;
-    return _filteredProductsCache = _applyActiveProductFilters(
+    // Reuse the feed's products until menu/filter inputs change. Quantities
+    // and transitions do not change product ordering or row measurements.
+    final cached = _catalogFeedLayout;
+    if (cached != null &&
+        listEquals(cached.filterInputs, _productFilterInputs)) {
+      return cached.products;
+    }
+    return _applyActiveProductFilters(
       _allProducts,
       includeSearch: true,
       includeFavorites: true,
