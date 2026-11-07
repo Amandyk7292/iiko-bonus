@@ -305,10 +305,14 @@ private func statusText(_ raw: String?) -> String {
         return localized("Готовим", "Дайындалып жатыр", "Preparing")
     case "ready", "ready_for_pickup":
         return localized("Можно забирать", "Алып кетуге дайын", "Ready for pickup")
-    case "handed_over", "picked_up":
+    case "delivery_ready":
+        return localized("Заказ готов, ждём курьера", "Тапсырыс дайын, курьерді күтеміз", "Order ready, waiting for a courier")
+    case "courier_collecting":
+        return localized("Курьер едет за вашим заказом", "Курьер тапсырысыңызды алуға бара жатыр", "Courier on the way to collect your order")
+    case "handed_over":
         return localized("Заказ передан", "Тапсырыс берілді", "Handed over")
-    case "on_the_way", "in_transit", "en_route":
-        return localized("Курьер в пути", "Курьер жолда", "On the way")
+    case "on_the_way", "in_transit", "picked_up", "en_route":
+        return localized("Курьер везёт ваш заказ", "Курьер тапсырысыңызды жеткізіп жатыр", "Courier is delivering your order")
     case "completed":
         return localized("Заказ завершён", "Тапсырыс аяқталды", "Order complete")
     case "delivered":
@@ -423,8 +427,8 @@ private func liveStatusIcon(_ status: String) -> String {
     switch status {
     case "accepted", "confirmed": return "checkmark.seal.fill"
     case "preparing", "cooking": return "flame.fill"
-    case "ready", "ready_for_pickup": return "shippingbox.fill"
-    case "picked_up", "en_route": return "scooter"
+    case "ready", "ready_for_pickup", "delivery_ready": return "shippingbox.fill"
+    case "courier_collecting", "picked_up", "en_route": return "scooter"
     case "delivered", "completed": return "checkmark.circle.fill"
     case "cancelled", "canceled": return "xmark.circle.fill"
     default: return "bag.fill"
@@ -470,7 +474,7 @@ private struct BulkaLiveOrderView: View {
                 }
                 Spacer(minLength: 0)
             }
-            if ["new", "accepted", "preparing", "picked_up", "en_route"].contains(liveOrderStatus(context.state)) {
+            if ["new", "accepted", "preparing", "courier_collecting", "picked_up", "en_route"].contains(liveOrderStatus(context.state)) {
                 HStack(spacing: 6) {
                     Image(systemName: "clock")
                     liveEta(context.state.etaTimestamp.map(Date.init(timeIntervalSince1970:)), compact: false, status: liveOrderStatus(context.state))
@@ -495,8 +499,8 @@ private struct BulkaLiveOrderView: View {
 
 @ViewBuilder
 private func liveEta(_ eta: Date?, compact: Bool, status: String) -> some View {
-    if ["ready", "completed", "delivered", "cancelled"].contains(status) {
-        Text(status == "ready" ? localized("Готов", "Дайын", "Ready") : localized("Завершён", "Аяқталды", "Ended"))
+    if ["ready", "delivery_ready", "completed", "delivered", "cancelled"].contains(status) {
+        Text(["ready", "delivery_ready"].contains(status) ? localized("Готов", "Дайын", "Ready") : localized("Завершён", "Аяқталды", "Ended"))
             .font(.system(size: 12, weight: .bold))
             .foregroundStyle(BulkaWidgetPalette.gold)
     } else if let eta, eta > Date() {
@@ -505,7 +509,11 @@ private func liveEta(_ eta: Date?, compact: Bool, status: String) -> some View {
             .font(.system(size: compact ? 12 : 14, weight: .semibold, design: .rounded))
             .foregroundStyle(BulkaWidgetPalette.gold)
     } else {
-        Text(compact ? localized("Уточняем", "Нақтылауда", "Updating") : localized("Уточняем время готовности", "Дайын болу уақытын нақтылауда", "Confirming the time"))
+        let delivering = ["courier_collecting", "picked_up", "en_route"].contains(status)
+        let fullText = delivering
+            ? localized("Уточняем время доставки", "Жеткізу уақытын нақтылауда", "Confirming delivery time")
+            : localized("Уточняем время готовности", "Дайын болу уақытын нақтылауда", "Confirming the time")
+        Text(compact ? localized("Уточняем", "Нақтылауда", "Updating") : fullText)
             .font(.system(size: compact ? 12 : 13, weight: .medium, design: .rounded))
             .foregroundStyle(BulkaWidgetPalette.gold)
     }
