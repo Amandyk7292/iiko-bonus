@@ -24,9 +24,12 @@ jobs:
               exit 1
             fi
           done
-      - name: Read App Store versions and build processing
+      - name: Submit Bulka iOS 1.0.10 build 52 to App Review
+        if: github.ref == 'refs/heads/codex/ios-store-1.0.10'
         shell: bash
-        run: ruby scripts/ios-store-status.rb | tee ios-store-status.json
+        run: |
+          ruby -c scripts/ios-store-status.rb
+          ruby scripts/ios-store-status.rb submit-1.0.10-build-52 | tee ios-store-status.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ios-store-status-${{ github.run_id }}
