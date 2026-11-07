@@ -15,7 +15,7 @@ const col = (n) => {
   return result;
 };
 
-function reportWorkbook(report) {
+function worksheet(report) {
   const fields = Object.keys(report.columns);
   const rows = [
     fields.map((key) => report.columns[key]?.name || key),
@@ -34,6 +34,22 @@ function reportWorkbook(report) {
           .join('')}</row>`,
     )
     .join('');
+  const widths = fields
+    .map(
+      (field, i) =>
+        `<col min="${i + 1}" max="${i + 1}" width="${report.columns[field]?.width ?? 26}" customWidth="1"/>`,
+    )
+    .join('');
+  return `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${widths}</cols><sheetData>${xmlRows}</sheetData><autoFilter ref="A1:${col(fields.length - 1)}${rows.length}"/></worksheet>`;
+}
+
+function reportWorkbook(report) {
+  const sheets = (Array.isArray(report) ? report : [report]).map((data, index) => ({
+    data,
+    name: escape(data.name || 'iiko'),
+    id: index + 1,
+    file: `worksheets/sheet${index + 1}.xml`,
+  }));
   const zip = new AdmZip();
   const add = (name, body) =>
     zip.addFile(
@@ -42,7 +58,7 @@ function reportWorkbook(report) {
     );
   add(
     '[Content_Types].xml',
-    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>',
+    `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map(({ file }) => `<Override PartName="/xl/${file}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`,
   );
   add(
     '_rels/.rels',
@@ -50,16 +66,13 @@ function reportWorkbook(report) {
   );
   add(
     'xl/workbook.xml',
-    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="iiko" sheetId="1" r:id="rId1"/></sheets></workbook>',
+    `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map(({ id, name }) => `<sheet name="${name}" sheetId="${id}" r:id="rId${id}"/>`).join('')}</sheets></workbook>`,
   );
   add(
     'xl/_rels/workbook.xml.rels',
-    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map(({ id, file }) => `<Relationship Id="rId${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="${file}"/>`).join('')}</Relationships>`,
   );
-  add(
-    'xl/worksheets/sheet1.xml',
-    `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${fields.map((_, i) => `<col min="${i + 1}" max="${i + 1}" width="26" customWidth="1"/>`).join('')}</cols><sheetData>${xmlRows}</sheetData><autoFilter ref="A1:${col(fields.length - 1)}${rows.length}"/></worksheet>`,
-  );
+  for (const { data, file } of sheets) add(`xl/${file}`, worksheet(data));
   return zip.toBuffer();
 }
 function balanceReport(data, query) {

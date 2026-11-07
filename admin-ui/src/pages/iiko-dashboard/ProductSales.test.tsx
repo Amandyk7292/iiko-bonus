@@ -96,3 +96,60 @@ it('hides stale results after changing a point and clears the product on city ch
   await waitFor(() => expect(screen.getByRole('combobox', { name: 'Товар iiko' })).toHaveValue(''));
   expect(screen.getByRole('button', { name: 'Показать продажи' })).toBeDisabled();
 });
+
+it('keeps selections across searches and exports the full report for the exact selected period', async () => {
+  const cinnamon = {
+    id: '445d874d-49d0-4a41-b1ef-3d3f845b2c41',
+    name: 'Синнабон',
+    archived: false,
+  };
+  const quantities = [
+    { unit: 'шт', quantity: 13 },
+    { unit: 'кг', quantity: 2 },
+  ];
+  const summary = { net: 8000, gross: 8250, quantities };
+  mock.productSearch.mockImplementation((_server, query) =>
+    Promise.resolve({
+      products: query === 'Коже' ? [result.product] : [cinnamon],
+    }),
+  );
+  mock.loadControls.mockResolvedValue({
+    ...result,
+    products: [result.product, cinnamon],
+    summary,
+    daily: [{ date: '2026-08-01', ...summary }],
+    byDepartment: [{ department: 'Bulka 16 мкр 85 дом', ...summary }],
+    byProduct: [
+      { product: result.product, net: 6400, gross: 6500, quantities: quantities.slice(0, 1) },
+      { product: cinnamon, net: 1600, gross: 1750, quantities: quantities.slice(1) },
+    ],
+  });
+  const ui = render(view());
+  const search = screen.getByRole('combobox', { name: 'Товар iiko' });
+  fireEvent.change(search, { target: { value: 'Коже' } });
+  fireEvent.click(await screen.findByRole('option', { name: 'Коже' }));
+  fireEvent.change(search, { target: { value: 'Синн' } });
+  await screen.findByRole('option', { name: 'Синнабон' });
+  fireEvent.keyDown(search, { key: 'ArrowDown' });
+  fireEvent.keyDown(search, { key: 'Enter' });
+  expect(screen.getByText('Выбрано товаров 2')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Показать продажи' }));
+  expect(await screen.findByRole('heading', { name: 'По товарам' })).toBeVisible();
+  const download = screen.getByRole('button', { name: 'Скачать Excel' });
+  fireEvent.click(download);
+  fireEvent.click(screen.getByRole('button', { name: 'Полный отчёт' }));
+  expect(mock.exportProductSales).toHaveBeenCalledWith(
+    {
+      serverId: props.serverId,
+      department: '',
+      from: props.from,
+      to: props.to,
+      productIds: [productId, cinnamon.id],
+    },
+    'full',
+  );
+  ui.rerender(view({ ...props, to: '2026-08-30' }));
+  expect(download).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Убрать товар Коже' }));
+  expect(screen.getByText('Выбрано товаров 1')).toBeVisible();
+});

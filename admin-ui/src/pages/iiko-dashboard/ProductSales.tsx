@@ -1,17 +1,21 @@
-import { useEffect, useId, useRef, useState } from 'react';
-import { ChevronDown, Download, Search } from '../../components/BulkaIcons';
+import { useEffect, useId, useState } from 'react';
+import { Check, ChevronDown, Download, Search, X } from '../../components/BulkaIcons';
 import { useI18n } from '../../lib/i18n';
 import { dashboardApi, exportProductSales } from './api';
 import { loadControls } from './load-controls';
 import {
   errorKey,
   validRange,
+  type CombinedSalesTotals,
   type ProductChoice,
   type ProductSalesExportView,
   type ProductSalesQuery,
   type ProductSalesResult,
 } from './model';
+import { productSalesCopy } from './product-sales-copy';
 import './product-sales.css';
+
+const maxProducts = 40;
 
 export default function ProductSales({
   serverId,
@@ -28,13 +32,13 @@ export default function ProductSales({
   configured: boolean;
   refresh: number;
 }) {
-  const { t, formatDate, formatNumber } = useI18n();
+  const { t, locale, formatDate, formatNumber } = useI18n();
+  const copy = productSalesCopy[locale];
   const inputId = useId();
   const listId = `${inputId}-suggestions`;
   const exportOptionsId = `${inputId}-export-options`;
-  const exportRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
-  const [product, setProduct] = useState<ProductChoice>();
+  const [products, setProducts] = useState<ProductChoice[]>([]);
   const [suggestions, setSuggestions] = useState<ProductChoice[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -42,44 +46,47 @@ export default function ProductSales({
   const [searchError, setSearchError] = useState(false);
   const [searchAttempt, setSearchAttempt] = useState(0);
   const [submitted, setSubmitted] = useState<ProductSalesQuery>();
-  const [attempt, setAttempt] = useState(0);
   const [report, setReport] = useState<ProductSalesResult>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const periodValid = validRange(from, to);
-  const current = product ? { serverId, from, to, department, productId: product.id } : undefined;
-  const isCurrent = submitted && current && JSON.stringify(submitted) === JSON.stringify(current);
+  const scope = { serverId, from, to, department };
+  const current: ProductSalesQuery | undefined =
+    products.length === 1
+      ? { ...scope, productId: products[0].id }
+      : products.length > 1
+        ? { ...scope, productIds: products.map(({ id }) => id).sort() }
+        : undefined;
+  const isCurrent = Boolean(
+    submitted && current && JSON.stringify(submitted) === JSON.stringify(current),
+  );
   const visibleReport = isCurrent ? report : undefined;
-  const visibleOptions = suggestions.slice(0, 40);
+  const selectedIds = new Set(products.map(({ id }) => id));
+  const visibleOptions =
+    products.length >= maxProducts
+      ? suggestions.filter(({ id }) => selectedIds.has(id))
+      : suggestions;
+  const suggestionsOpen = open && search.trim().length >= 2;
 
   useEffect(() => {
     if (!visibleReport) setExportOpen(false);
   }, [visibleReport]);
 
   useEffect(() => {
-    if (!exportOpen) return;
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (event.target instanceof Node && !exportRef.current?.contains(event.target))
-        setExportOpen(false);
-    };
-    document.addEventListener('pointerdown', closeOnOutsideClick);
-    return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
-  }, [exportOpen]);
-
-  useEffect(() => {
-    setProduct(undefined);
+    setProducts([]);
     setSearch('');
     setSuggestions([]);
     setSearchError(false);
     setOpen(false);
     setSubmitted(undefined);
     setReport(undefined);
+    setError('');
   }, [serverId]);
 
   useEffect(() => {
-    if (!configured || product || search.trim().length < 2) {
+    if (!configured || search.trim().length < 2) {
       setSearching(false);
       setSuggestions([]);
       return;
@@ -107,7 +114,7 @@ export default function ProductSales({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [serverId, configured, search, product, searchAttempt]);
+  }, [serverId, configured, search, searchAttempt]);
 
   useEffect(() => {
     if (!submitted || !isCurrent || !configured || !periodValid) {
@@ -132,26 +139,18 @@ export default function ProductSales({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [
-    submitted,
-    attempt,
-    refresh,
-    serverId,
-    from,
-    to,
-    department,
-    product?.id,
-    configured,
-    periodValid,
-  ]);
+  }, [submitted, isCurrent, refresh, configured, periodValid]);
 
-  const selectProduct = (value: ProductChoice) => {
-    setProduct(value);
-    setSearch(value.name);
-    setOpen(false);
+  const toggleProduct = (value: ProductChoice) => {
+    setProducts((selected) => {
+      if (selected.some(({ id }) => id === value.id))
+        return selected.filter(({ id }) => id !== value.id);
+      return selected.length < maxProducts ? [...selected, value] : selected;
+    });
     setActive(-1);
     setReport(undefined);
     setSubmitted(undefined);
+    setError('');
   };
   const dateLabel = (value: string) =>
     formatDate(`${value}T00:00:00Z`, {
@@ -161,31 +160,70 @@ export default function ProductSales({
       timeZone: 'UTC',
     });
   const money = (value: number) => formatNumber(value);
+  const quantity = (row: CombinedSalesTotals | { quantity: number }, unit = '') => {
+    if ('quantity' in row) return `${formatNumber(row.quantity)}${unit ? ` ${unit}` : ''}`;
+    return (
+      row.quantities
+        .map((entry) => `${formatNumber(entry.quantity)} ${entry.unit || copy.unknownUnit}`)
+        .join(' · ') || formatNumber(0)
+    );
+  };
   const show = () => {
     if (!current || !configured || !periodValid) return;
+    setOpen(false);
     setReport(undefined);
     setSubmitted(current);
-    setAttempt((value) => value + 1);
   };
   const exportView = (view: ProductSalesExportView) => {
-    if (!submitted) return;
+    if (!submitted || !visibleReport) return;
     setExportOpen(false);
     setExporting(true);
     void exportProductSales(submitted, view)
       .catch((caught) => setError(errorKey(caught)))
       .finally(() => setExporting(false));
   };
+  const combined = visibleReport && 'products' in visibleReport ? visibleReport : undefined;
+  function salesTable(
+    title: string,
+    label: string,
+    rows: { key: string; name: string; sold: string; net: number }[],
+  ) {
+    return (
+      <div>
+        <h3>{title}</h3>
+        <div className="id-product-sales-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>{label}</th>
+                <th>{t('id.productSalesSold')}</th>
+                <th>{t('id.productSalesRevenue')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ key, name, sold, net }) => (
+                <tr key={key}>
+                  <td>{name}</td>
+                  <td>{sold}</td>
+                  <td>{money(net)} ₸</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <section className="card id-panel id-product-sales">
       <div className="id-product-sales-heading">
         <div>
           <h2>{t('id.productSales')}</h2>
-          <p className="id-muted">{t('id.productSalesHint')}</p>
+          <p className="id-muted">{copy.hint}</p>
         </div>
         <div
           className="id-product-sales-export"
-          ref={exportRef}
           onBlur={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget as Node | null))
               setExportOpen(false);
@@ -202,7 +240,7 @@ export default function ProductSales({
             onClick={() => setExportOpen((open) => !open)}
           >
             <Download size={17} />
-            {t('id.productSalesExport')}
+            {copy.export}
             <ChevronDown size={15} aria-hidden="true" />
           </button>
           {exportOpen && (
@@ -210,14 +248,22 @@ export default function ProductSales({
               className="id-product-sales-export-options"
               id={exportOptionsId}
               role="group"
-              aria-label={t('id.productSalesExportOptions')}
+              aria-label={copy.exportOptions}
             >
-              <button type="button" onClick={() => exportView('daily')}>
-                {t('id.productSalesExportByDay')}
-              </button>
-              <button type="button" onClick={() => exportView('points')}>
-                {t('id.productSalesExportByPoint')}
-              </button>
+              {combined ? (
+                <button type="button" onClick={() => exportView('full')}>
+                  {copy.full}
+                </button>
+              ) : (
+                <>
+                  <button type="button" onClick={() => exportView('daily')}>
+                    {copy.exportByDay}
+                  </button>
+                  <button type="button" onClick={() => exportView('points')}>
+                    {copy.exportByPoint}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -229,30 +275,36 @@ export default function ProductSales({
             if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
           }}
         >
-          <label htmlFor={inputId}>{t('id.productSalesSearch')}</label>
+          <div className="id-product-sales-lookup-label">
+            <label htmlFor={inputId}>{copy.search}</label>
+            {products.length > 0 && (
+              <span className="id-muted" role="status">
+                {copy.selected} {products.length}
+                {products.length === maxProducts && ` / ${maxProducts}`}
+              </span>
+            )}
+          </div>
           <div className="id-product-sales-input">
             <Search size={17} aria-hidden="true" />
             <input
               id={inputId}
               role="combobox"
               aria-autocomplete="list"
-              aria-expanded={open && search.trim().length >= 2}
-              aria-controls={open ? listId : undefined}
+              aria-expanded={suggestionsOpen}
+              aria-controls={suggestionsOpen ? listId : undefined}
               aria-activedescendant={
-                open && active >= 0 ? `${inputId}-option-${active}` : undefined
+                suggestionsOpen && active >= 0 ? `${inputId}-option-${active}` : undefined
               }
               autoComplete="off"
               disabled={!configured}
               maxLength={160}
               value={search}
-              placeholder={t('id.productSalesPlaceholder')}
+              placeholder={copy.placeholder}
               onFocus={() => setOpen(true)}
               onChange={(event) => {
                 setSearch(event.target.value);
-                setProduct(undefined);
                 setSuggestions([]);
-                setSubmitted(undefined);
-                setReport(undefined);
+                setSearchError(false);
                 setOpen(true);
                 setActive(-1);
               }}
@@ -276,40 +328,42 @@ export default function ProductSales({
                           visibleOptions.length,
                     );
                   }
-                } else if (event.key === 'Enter' && open && active >= 0) {
+                } else if (event.key === 'Enter' && suggestionsOpen && visibleOptions[active]) {
                   event.preventDefault();
-                  selectProduct(visibleOptions[active]);
+                  toggleProduct(visibleOptions[active]);
                 }
               }}
             />
           </div>
-          {open && search.trim().length >= 2 && !product && (
+          {suggestionsOpen && (
             <div className="id-product-sales-suggestions">
               {searching && <p role="status">{t('id.loading')}</p>}
               {searchError && (
                 <p role="alert">
-                  {t('id.productSalesSearchError')}{' '}
+                  {copy.searchError}{' '}
                   <button type="button" onClick={() => setSearchAttempt((value) => value + 1)}>
                     {t('id.refresh')}
                   </button>
                 </p>
               )}
-              {!searching && !searchError && visibleOptions.length === 0 && (
-                <p role="status">{t('id.productSalesNotFound')}</p>
+              {!searching && !searchError && suggestions.length === 0 && (
+                <p role="status">{copy.notFound}</p>
               )}
-              <ul role="listbox" id={listId} aria-label={t('id.productSalesSearch')}>
+              <ul role="listbox" id={listId} aria-label={copy.search} aria-multiselectable="true">
                 {visibleOptions.map((option, index) => (
                   <li key={option.id} role="presentation">
                     <button
                       id={`${inputId}-option-${index}`}
                       type="button"
                       role="option"
-                      aria-selected={index === active}
+                      aria-selected={selectedIds.has(option.id)}
+                      data-active={index === active || undefined}
                       onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => selectProduct(option)}
+                      onClick={() => toggleProduct(option)}
                     >
                       {option.name}
-                      {option.archived && <small>{t('id.productSalesArchived')}</small>}
+                      {option.archived && <small>{copy.archived}</small>}
+                      {selectedIds.has(option.id) && <Check size={16} aria-hidden="true" />}
                     </button>
                   </li>
                 ))}
@@ -322,9 +376,27 @@ export default function ProductSales({
           disabled={!current || !configured || !periodValid || loading}
           onClick={show}
         >
-          {t('id.productSalesShow')}
+          {copy.show}
         </button>
       </div>
+      {products.length > 0 && (
+        <div className="id-product-sales-selection">
+          <ul>
+            {products.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => toggleProduct(item)}
+                  aria-label={`${copy.remove} ${item.name}`}
+                >
+                  <span>{item.name}</span>
+                  <X size={14} aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {!configured && (
         <p className="id-error" role="alert">
           {t('id.notConfigured')}
@@ -342,11 +414,11 @@ export default function ProductSales({
       )}
       {loading && (
         <p className="id-muted" role="status">
-          {t('id.productSalesLoading')}
+          {copy.loading}
         </p>
       )}
       {!loading && !visibleReport && !error && (
-        <p className="id-product-sales-start">{t('id.productSalesEmpty')}</p>
+        <p className="id-product-sales-start">{copy.empty}</p>
       )}
       {visibleReport && (
         <>
@@ -354,8 +426,7 @@ export default function ProductSales({
             <div>
               <span>{t('id.productSalesSold')}</span>
               <strong>
-                {formatNumber(visibleReport.summary.quantity)}
-                {visibleReport.unit ? ` ${visibleReport.unit}` : ''}
+                {quantity(visibleReport.summary, 'unit' in visibleReport ? visibleReport.unit : '')}
               </strong>
             </div>
             <div>
@@ -367,63 +438,50 @@ export default function ProductSales({
               <strong>{money(visibleReport.summary.gross)} ₸</strong>
             </div>
           </div>
-          {visibleReport.summary.quantity === 0 && (
-            <p className="id-muted">{t('id.productSalesNoSales')}</p>
+          {!visibleReport.rows.some((row) => row.quantity || row.net || row.gross) && (
+            <p className="id-muted">{copy.noSales}</p>
+          )}
+          {combined && (
+            <div className="id-product-sales-tables single id-product-sales-by-product">
+              {salesTable(
+                copy.byProduct,
+                copy.search,
+                combined.byProduct.map((row) => ({
+                  key: row.product.id,
+                  name: row.product.name,
+                  sold: quantity(row),
+                  net: row.net,
+                })),
+              )}
+            </div>
           )}
           <div
             className={`id-product-sales-tables${visibleReport.selectedDepartment ? ' single' : ''}`}
           >
-            <div>
-              <h3>{t('id.productSalesDaily')}</h3>
-              <div className="id-product-sales-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{t('id.period')}</th>
-                      <th>{t('id.productSalesSold')}</th>
-                      <th>{t('id.productSalesRevenue')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleReport.daily.map((row) => (
-                      <tr key={row.date}>
-                        <td>{dateLabel(row.date)}</td>
-                        <td>{formatNumber(row.quantity)}</td>
-                        <td>{money(row.net)} ₸</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            {!visibleReport.selectedDepartment && (
-              <div>
-                <h3>{t('id.productSalesPoints')}</h3>
-                <div className="id-product-sales-table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>{t('id.point')}</th>
-                        <th>{t('id.productSalesSold')}</th>
-                        <th>{t('id.productSalesRevenue')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleReport.byDepartment.map((row) => (
-                        <tr key={row.department}>
-                          <td>{row.department}</td>
-                          <td>{formatNumber(row.quantity)}</td>
-                          <td>{money(row.net)} ₸</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+            {salesTable(
+              t('id.productSalesDaily'),
+              t('id.period'),
+              visibleReport.daily.map((row) => ({
+                key: row.date,
+                name: dateLabel(row.date),
+                sold: quantity(row),
+                net: row.net,
+              })),
             )}
+            {!visibleReport.selectedDepartment &&
+              salesTable(
+                t('id.productSalesPoints'),
+                t('id.point'),
+                visibleReport.byDepartment.map((row) => ({
+                  key: row.department,
+                  name: row.department,
+                  sold: quantity(row),
+                  net: row.net,
+                })),
+              )}
           </div>
           <p className="id-muted id-product-sales-note">
-            {t('id.productSalesDateNote')} {t('id.updated')}:{' '}
+            {copy.dateNote} {t('id.updated')}:{' '}
             {formatDate(visibleReport.fetchedAt, {
               day: '2-digit',
               month: '2-digit',

@@ -50,12 +50,16 @@ if (adminDirectory) {
     /^(?:FortunePage|FortuneRedeemPage|fortune)-/.test(path.basename(file)),
   );
   const deferredRounds = javascript.filter((file) => /^RoundsPage-/.test(path.basename(file)));
+  const deferredProductSales = javascript.filter((file) =>
+    /^ProductSales-/.test(path.basename(file)),
+  );
   const coreJavascript = javascript.filter(
     (file) =>
       !deferredPriceLabelPdf.includes(file) &&
       !deferredPriceLabelCorel.includes(file) &&
       !deferredAcademy.includes(file) &&
       !deferredRounds.includes(file) &&
+      !deferredProductSales.includes(file) &&
       !deferredFortune.includes(file),
   );
   const styles = assets.filter((file) => file.endsWith('.css'));
@@ -69,6 +73,11 @@ if (adminDirectory) {
     // Accessible table scroll controls and viewport sizing load only on this route.
     // Measures 8,196 B; retain the unchanged shared-shell and largest-chunk limits.
     8_400,
+  );
+  assertBudget(
+    'Admin deferred product sales total gzip',
+    deferredProductSales.reduce((sum, file) => sum + gzipSize(file), 0),
+    5_000,
   );
   assertBudget(
     'Admin deferred academy total gzip',

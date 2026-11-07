@@ -19,14 +19,13 @@ export interface ProductChoice {
   name: string;
   archived: boolean;
 }
-export interface ProductSalesQuery {
+export type ProductSalesQuery = {
   serverId: string;
-  productId: string;
   from: string;
   to: string;
   department: string;
-}
-export type ProductSalesExportView = 'daily' | 'points';
+} & ({ productId: string } | { productIds: string[] });
+export type ProductSalesExportView = 'daily' | 'points' | 'full';
 export interface ProductSalesRow {
   date: string;
   department: string;
@@ -34,7 +33,7 @@ export interface ProductSalesRow {
   net: number;
   gross: number;
 }
-export interface ProductSalesResult {
+interface SingleProductSalesResult {
   product: ProductChoice;
   unit: string;
   city: Server['city'];
@@ -46,6 +45,23 @@ export interface ProductSalesResult {
   summary: { quantity: number; net: number; gross: number };
   fetchedAt: string;
 }
+export interface CombinedSalesTotals {
+  net: number;
+  gross: number;
+  quantities: { unit: string; quantity: number }[];
+}
+type CombinedProductSalesResult = Pick<
+  SingleProductSalesResult,
+  'city' | 'selectedDepartment' | 'period' | 'fetchedAt'
+> & {
+  products: ProductChoice[];
+  rows: (ProductSalesRow & { productId: string; unit: string })[];
+  daily: ({ date: string } & CombinedSalesTotals)[];
+  byDepartment: ({ department: string } & CombinedSalesTotals)[];
+  byProduct: ({ product: ProductChoice } & CombinedSalesTotals)[];
+  summary: CombinedSalesTotals;
+};
+export type ProductSalesResult = SingleProductSalesResult | CombinedProductSalesResult;
 export function retailDepartmentsForCity(city: Server['city'], departments: string[]) {
   return departments.filter((name) => {
     if (!/^Bulka\s/iu.test(name)) return false;

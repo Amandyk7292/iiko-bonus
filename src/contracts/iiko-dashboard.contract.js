@@ -76,18 +76,28 @@ const productSearchQuery = z
 const productSalesQuery = z
   .object({
     serverId,
-    productId: z.uuid(),
+    productId: z.uuid().optional(),
+    productIds: z
+      .array(z.uuid().transform((id) => id.toLowerCase()))
+      .min(1)
+      .max(40)
+      .optional(),
     from: date,
     to: date,
     department: z.string().trim().max(250).default(''),
   })
   .strict()
+  .refine((input) => Boolean(input.productId) !== Boolean(input.productIds), 'Укажите товары')
+  .refine(
+    (input) => !input.productIds || new Set(input.productIds).size === input.productIds.length,
+    'Товары не должны повторяться',
+  )
   .refine((input) => {
     const days = (Date.parse(input.to) - Date.parse(input.from)) / 86400000;
     return days >= 0 && days <= 366;
   }, 'Период должен быть от 1 до 367 дней');
 const productSalesExportQuery = z
-  .object({ view: z.enum(['daily', 'points']).default('daily') })
+  .object({ view: z.enum(['daily', 'points', 'full']).default('daily') })
   .strict();
 const balancesQuery = z.object({ serverId, date }).strict();
 const revisionQuery = z

@@ -1,5 +1,6 @@
 const { failure } = require('./iiko-dashboard-client-errors');
 const { reportSource } = require('./iiko-dashboard-source');
+const { combinedSales, combinedExport } = require('./iiko-dashboard-product-sales-combined');
 
 const productIdPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const normalizeSearch = (value) =>
@@ -78,8 +79,10 @@ async function productSales(service, input) {
     productCatalog(service, input.serverId),
     service.departments({ serverId: input.serverId }),
   ]);
-  const product = products.find((candidate) => candidate.id === input.productId);
-  if (!product) throw failure('IIKO_REPORT_FIELD', 404);
+  const ids = input.productIds || [input.productId];
+  const catalog = new Map(products.map((item) => [item.id.toLowerCase(), item]));
+  const selectedProducts = ids.map((id) => catalog.get(id.toLowerCase()));
+  if (selectedProducts.some((item) => !item)) throw failure('IIKO_REPORT_FIELD', 404);
   const names = retailDepartments(source.city, departmentResult.departments);
   if (!names.length) throw failure('IIKO_REPORT_UNAVAILABLE', 409);
   if (input.department && !names.includes(input.department))
@@ -94,30 +97,56 @@ async function productSales(service, input) {
     groupBy: ['OpenDate.Typed', 'Department', 'DishId', 'DishName', 'DishMeasureUnit'],
     aggregate: ['DishAmountInt', 'DishDiscountSumInt', 'DishSumInt'],
     filters: [
-      { field: 'DishId', values: [input.productId] },
+      { field: 'DishId', values: selectedProducts.map((item) => item.id) },
       { field: 'OrderDeleted', values: ['NOT_DELETED'] },
       { field: 'DeletedWithWriteoff', values: ['NOT_DELETED'] },
-      ...(input.department ? [{ field: 'Department', values: [input.department] }] : []),
+      { field: 'Department', values: selectedDepartments },
     ],
   });
-  const byDayDepartment = new Map();
-  const units = new Set();
+  const productsById = new Map(selectedProducts.map((item) => [item.id.toLowerCase(), item]));
+  const details = [];
   for (const sourceRow of sourceReport.rows) {
-    if (String(sourceRow.DishId || '') !== input.productId) continue;
+    const product = productsById.get(String(sourceRow.DishId || '').toLowerCase());
+    if (!product) continue;
     const department = String(sourceRow.Department || '');
     if (!selectedNames.has(department)) continue;
     const date = String(sourceRow['OpenDate.Typed'] || '').slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < input.from || date > input.to)
       throw failure('IIKO_REPORT_RESPONSE');
-    const unit = String(sourceRow.DishMeasureUnit || '').trim();
-    if (unit) units.add(unit);
-    const key = `${date}\u0000${department}`;
-    const current = byDayDepartment.get(key) || emptyTotals();
-    addTotals(current, {
+    details.push({
+      date,
+      department,
+      productId: product.id,
+      unit: String(sourceRow.DishMeasureUnit || '').trim(),
       quantity: amount(sourceRow.DishAmountInt),
       net: amount(sourceRow.DishDiscountSumInt),
       gross: amount(sourceRow.DishSumInt),
     });
+  }
+  const days = [];
+  for (
+    const day = new Date(`${input.from}T00:00:00Z`);
+    day.toISOString().slice(0, 10) <= input.to;
+    day.setUTCDate(day.getUTCDate() + 1)
+  ) {
+    days.push(day.toISOString().slice(0, 10));
+  }
+  const scope = {
+    period: { from: input.from, to: input.to },
+    city: source.city,
+    selectedDepartment: input.department || '',
+    fetchedAt: sourceReport.fetchedAt,
+  };
+  if (input.productIds)
+    return combinedSales(scope, selectedProducts, selectedDepartments, days, details);
+
+  const byDayDepartment = new Map();
+  const units = new Set();
+  for (const row of details) {
+    if (row.unit) units.add(row.unit);
+    const key = `${row.date}\u0000${row.department}`;
+    const current = byDayDepartment.get(key) || emptyTotals();
+    addTotals(current, row);
     byDayDepartment.set(key, current);
   }
   if (units.size > 1) throw failure('IIKO_REPORT_RESPONSE');
@@ -127,7 +156,7 @@ async function productSales(service, input) {
     selectedDepartments.map((department) => [department, emptyTotals()]),
   );
   const summary = emptyTotals();
-  for (let date = input.from; date <= input.to;) {
+  for (const date of days) {
     const day = emptyTotals();
     for (const department of selectedDepartments) {
       const row = {
@@ -141,25 +170,20 @@ async function productSales(service, input) {
     }
     daily.push({ date, ...day });
     addTotals(summary, day);
-    const next = new Date(`${date}T00:00:00Z`);
-    next.setUTCDate(next.getUTCDate() + 1);
-    date = next.toISOString().slice(0, 10);
   }
   return {
-    period: { from: input.from, to: input.to },
-    product,
-    city: source.city,
-    selectedDepartment: input.department || '',
+    ...scope,
+    product: selectedProducts[0],
     unit: [...units][0] || '',
     rows,
     daily,
     byDepartment: [...byDepartment].map(([department, totals]) => ({ department, ...totals })),
     summary,
-    fetchedAt: sourceReport.fetchedAt,
   };
 }
 
 function exportProductSales(report, view = 'daily') {
+  if (report.products) return combinedExport(report, view);
   const date = (value) => `${value.slice(8, 10)}.${value.slice(5, 7)}.${value.slice(0, 4)}`;
   const byPoints = view === 'points';
   const items = byPoints ? report.byDepartment : report.daily;

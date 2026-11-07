@@ -4,6 +4,7 @@ const express = require('express');
 const AdmZip = require('adm-zip');
 const { ReportCache } = require('../src/services/iiko-dashboard-cache');
 const {
+  exportProductSales,
   productSales,
   retailDepartments,
   searchProducts,
@@ -12,6 +13,7 @@ const { productSalesQuery } = require('../src/contracts/iiko-dashboard.contract'
 const { registerIikoDashboardRoutes } = require('../src/routes/admin/iiko-dashboard.routes');
 
 const productId = '2f53ff93-cb20-4325-a8d7-7d13659f4f45';
+const otherId = '11111111-1111-4111-8111-111111111111';
 const koze = { id: productId, name: ' Коже', type: 'DISH', deleted: false };
 const departments = [
   { name: 'Bulka 16 мкр 85 дом' },
@@ -61,7 +63,7 @@ const sourceRows = [
   },
 ];
 
-function fixture() {
+function fixture(rows = sourceRows) {
   const queries = [];
   const service = {
     reports: new ReportCache(),
@@ -70,7 +72,7 @@ function fixture() {
         work(async () => [
           koze,
           {
-            id: '11111111-1111-4111-8111-111111111111',
+            id: otherId,
             name: 'Синнабон',
             type: 'DISH',
             deleted: false,
@@ -82,7 +84,7 @@ function fixture() {
     report: async (query) => {
       queries.push(query);
       return {
-        rows: sourceRows,
+        rows,
         fetchedAt: '2026-09-23T12:16:12Z',
         columns: {},
         serverId: query.serverId,
@@ -177,6 +179,9 @@ test('cold daily sales loads product and department metadata together before req
 test('period validation rejects malformed requests and export keeps amounts as numbers', async () => {
   for (const patch of [
     { productId: 'bad' },
+    { productIds: [productId] },
+    { productId: undefined, productIds: [] },
+    { productId: undefined, productIds: [productId, productId.toUpperCase()] },
     { to: '2026-07-31' },
     { to: '2028-08-01' },
     { reportType: 'TRANSACTIONS' },
@@ -186,13 +191,55 @@ test('period validation rejects malformed requests and export keeps amounts as n
   const { service } = fixture();
   const result = await productSales(service, period);
   const { reportWorkbook } = require('../src/services/iiko-dashboard-export');
-  const { exportProductSales } = require('../src/services/iiko-dashboard-product-sales');
   const zip = new AdmZip(reportWorkbook(exportProductSales(result)));
   const sheet = zip.readAsText('xl/worksheets/sheet1.xml');
   assert.match(sheet, /01\.08\.2026/);
   assert.match(sheet, /<v>6400<\/v>/);
   assert.match(sheet, /<v>13<\/v>/);
   assert.doesNotMatch(sheet, /Bulka Ozen/);
+});
+
+test('combined export filters both products in one query and separates units in every summary', async () => {
+  const { service, queries } = fixture([
+    ...sourceRows,
+    {
+      ...sourceRows[0],
+      DishId: otherId,
+      DishMeasureUnit: 'кг',
+      DishAmountInt: 1.25,
+      DishDiscountSumInt: 1000.25,
+      DishSumInt: 1200.75,
+    },
+  ]);
+  const { productId: _single, ...scope } = period;
+  const result = await productSales(service, { ...scope, productIds: [productId, otherId] });
+  assert.equal(queries.length, 1);
+  assert.deepEqual(queries[0].filters.find(({ field }) => field === 'DishId').values, [
+    productId,
+    otherId,
+  ]);
+  assert.deepEqual(result.summary, {
+    quantities: [
+      { unit: 'шт', quantity: 13 },
+      { unit: 'кг', quantity: 1.25 },
+    ],
+    net: 7400.25,
+    gross: 7700.75,
+  });
+  assert.equal(result.rows.length, 3);
+  assert.equal(result.byDepartment[1].net, 0);
+  const { reportWorkbook } = require('../src/services/iiko-dashboard-export');
+  const zip = new AdmZip(reportWorkbook(exportProductSales(result, 'full')));
+  const manifest = zip.readAsText('xl/workbook.xml');
+  for (const name of ['По товарам', 'По точкам', 'По дням', 'Детализация'])
+    assert.match(manifest, new RegExp(name));
+  const products = zip.readAsText('xl/worksheets/sheet1.xml');
+  assert.match(products, /Количество, кг/);
+  assert.match(products, /Количество, шт/);
+  assert.match(products, /Синнабон/);
+  assert.match(products, /<v>7400.25<\/v>/);
+  assert.match(products, /<v>300.5<\/v>/);
+  assert.doesNotMatch(zip.readAsText('xl/worksheets/sheet4.xml'), /Bulka Ozen/);
 });
 
 test('sales and Excel endpoints are owner-only and reject invalid payloads before iiko', async (t) => {

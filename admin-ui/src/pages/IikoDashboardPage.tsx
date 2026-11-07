@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BarChart3,
   ChartNoAxesCombined,
@@ -46,12 +46,12 @@ import Barters from './iiko-dashboard/Barters';
 import Invoices from './iiko-dashboard/Invoices';
 import Revision from './iiko-dashboard/Revision';
 import CashReport from './iiko-dashboard/CashReport';
-import ProductSales from './iiko-dashboard/ProductSales';
 import TopDishes from './iiko-dashboard/TopDishes';
 import './iiko-dashboard/dashboard.css';
 import './iiko-dashboard/workspace.css';
 
 const preferenceKey = 'bulka-iiko-dashboard-v1';
+const ProductSales = lazy(() => import('./iiko-dashboard/ProductSales'));
 const tabs = [
   { id: 'overview', icon: ChartNoAxesCombined },
   { id: 'productSales', icon: PackageSearch },
@@ -544,14 +544,22 @@ export default function IikoDashboardPage({ readOnly = false }: { readOnly?: boo
       )}
       {tab === 'overview' && overview && <Overview data={overview} cards={preferences.cards} />}
       {tab === 'productSales' && (
-        <ProductSales
-          serverId={serverId}
-          from={from}
-          to={to}
-          department={department}
-          configured={Boolean(selectedServer?.configured)}
-          refresh={refresh}
-        />
+        <Suspense
+          fallback={
+            <div className="id-skeleton" role="status">
+              {t('id.loading')}
+            </div>
+          }
+        >
+          <ProductSales
+            serverId={serverId}
+            from={from}
+            to={to}
+            department={department}
+            configured={Boolean(selectedServer?.configured)}
+            refresh={refresh}
+          />
+        </Suspense>
       )}
       {tab === 'topDishes' && (
         <TopDishes
