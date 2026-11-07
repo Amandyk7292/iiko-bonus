@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -49,6 +51,10 @@ class YandexMapView extends StatefulWidget {
 }
 
 class _YandexMapViewState extends State<YandexMapView> {
+  static final _trackingGestures = <Factory<OneSequenceGestureRecognizer>>{
+    Factory<EagerGestureRecognizer>(EagerGestureRecognizer.new),
+  };
+
   WebViewController? _webController;
   bool _ready = false;
 
@@ -194,7 +200,14 @@ class _YandexMapViewState extends State<YandexMapView> {
     if (controller != null) {
       return Semantics(
         label: widget.semanticLabel,
-        child: WebViewWidget(controller: controller),
+        child: WebViewWidget(
+          controller: controller,
+          // Keep drags and both fingers of a pinch inside the tracking map.
+          gestureRecognizers:
+              widget.interactive && widget.trackingPoints.isNotEmpty
+              ? _trackingGestures
+              : const {},
+        ),
       );
     }
     return Material(

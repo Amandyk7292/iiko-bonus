@@ -530,6 +530,8 @@ async function listAdminOrders({
 async function notifyOrderStatus(order) {
   if (!order.customer_id) return;
   const number = order.order_number;
+  const delivery = isDeliveryFulfillment(order);
+  const courierAssigned = order.delivery_status === 'assigned';
   const refundAmount = Number(order.refund_amount || order.amount || 0).toLocaleString('ru-RU');
   const cancellationReason = String(order.cancellation_reason || '').trim();
   const cancellationReasonByLanguage = {
@@ -542,7 +544,14 @@ async function notifyOrderStatus(order) {
     ru: {
       accepted: ['Заказ принят', `Заказ №${number} принят в работу.`],
       preparing: ['Заказ готовится', `Мы готовим заказ №${number}.`],
-      ready: ['Заказ готов', `Заказ №${number} готов к выдаче.`],
+      ready: [
+        'Заказ готов',
+        delivery
+          ? courierAssigned
+            ? `Курьер едет за вашим заказом №${number}.`
+            : `Заказ №${number} готов. Ждём курьера.`
+          : `Заказ №${number} готов, можно забирать.`,
+      ],
       completed: ['Заказ выдан', `Заказ №${number} завершён. Спасибо!`],
       cancelled:
         order.status === 'refunded'
@@ -557,7 +566,14 @@ async function notifyOrderStatus(order) {
     kk: {
       accepted: ['Тапсырыс қабылданды', `№${number} тапсырыс жұмысқа қабылданды.`],
       preparing: ['Тапсырыс дайындалып жатыр', `№${number} тапсырысты дайындап жатырмыз.`],
-      ready: ['Тапсырыс дайын', `№${number} тапсырыс алып кетуге дайын.`],
+      ready: [
+        'Тапсырыс дайын',
+        delivery
+          ? courierAssigned
+            ? `Курьер №${number} тапсырысыңызды алуға бара жатыр.`
+            : `№${number} тапсырыс дайын. Курьерді күтіп жатырмыз.`
+          : `№${number} тапсырыс алып кетуге дайын.`,
+      ],
       completed: ['Тапсырыс табысталды', `№${number} тапсырыс аяқталды. Рақмет!`],
       cancelled:
         order.status === 'refunded'
@@ -572,7 +588,14 @@ async function notifyOrderStatus(order) {
     en: {
       accepted: ['Order accepted', `Order #${number} has been accepted.`],
       preparing: ['Order is being prepared', `We are preparing order #${number}.`],
-      ready: ['Order is ready', `Order #${number} is ready for pickup.`],
+      ready: [
+        'Order is ready',
+        delivery
+          ? courierAssigned
+            ? `The courier is on the way to collect your order #${number}.`
+            : `Order #${number} is ready. We’re waiting for a courier.`
+          : `Order #${number} is ready for pickup.`,
+      ],
       completed: ['Order collected', `Order #${number} is complete. Thank you!`],
       cancelled:
         order.status === 'refunded'

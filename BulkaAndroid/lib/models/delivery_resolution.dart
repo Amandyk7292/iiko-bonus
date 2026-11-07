@@ -112,6 +112,16 @@ String customerOrderStatusLabel(CustomerOrder order) {
     case 'cancel_refunding':
       return 'delivery_choice_refunding'.tr;
     default:
+      if (order.usesDelivery && !order.isClosed) {
+        if (const {'picked_up', 'en_route'}.contains(order.deliveryStatus)) {
+          return 'order_courier_delivering'.tr;
+        }
+        if (order.orderStatus == 'ready') {
+          return order.deliveryStatus == 'assigned'
+              ? 'order_courier_collecting'.tr
+              : 'order_delivery_ready'.tr;
+        }
+      }
       return 'order_status_${order.orderStatus}'.tr;
   }
 }

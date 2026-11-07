@@ -157,6 +157,13 @@ test('ready pickup ends at one hour with immediate dismissal; delivery keeps upd
   order.fulfillment_type = 'delivery';
   await service.sendOrderLiveActivity(order, { now: Date.parse('2026-09-09T06:01:00Z') });
   assert.equal(sent.at(-1).payload.aps.event, 'update');
+  assert.equal(sent.at(-1).payload.aps['content-state'].orderStatus, 'delivery_ready');
+  order.delivery_status = 'assigned';
+  await service.sendOrderLiveActivity(order);
+  assert.equal(sent.at(-1).payload.aps['content-state'].orderStatus, 'courier_collecting');
+  order.delivery_status = 'picked_up';
+  await service.sendOrderLiveActivity(order);
+  assert.equal(sent.at(-1).payload.aps['content-state'].deliveryStatus, 'picked_up');
 });
 
 test('late registration of an expired ready pickup is ended immediately', async (t) => {

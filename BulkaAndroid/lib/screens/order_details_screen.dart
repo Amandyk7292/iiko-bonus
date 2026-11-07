@@ -26,11 +26,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
     with WidgetsBindingObserver {
   late CustomerOrder _order;
   final YandexMapController _mapController = YandexMapController();
+  final GlobalKey _trackingMapKey = GlobalKey();
   late final _LiveRefresh _live;
   bool _visible = true;
   bool _refreshing = false;
   Future<void>? _reloadFuture;
-  DateTime? _lastSuccessfulRefresh;
   bool _cancellationLoading = false;
   bool _repeatLoading = false;
   late bool _hasFreshSnapshot;
@@ -95,7 +95,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
         setState(() {
           _order = updated;
           _hasFreshSnapshot = true;
-          _lastSuccessfulRefresh = DateTime.now();
           _now = DateTime.now();
         });
         widget.onOrderChanged(updated);
@@ -135,20 +134,17 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
   }
 
   Future<void> _openDeliveryTracking() async {
-    final requestedAt = DateTime.now();
-    await _reload();
-    if (!mounted || _order.isClosed) return;
-    if (_lastSuccessfulRefresh == null ||
-        _lastSuccessfulRefresh!.isBefore(requestedAt)) {
-      ScaffoldMessenger.of(
+    final mapContext = _trackingMapKey.currentContext;
+    if (mapContext == null) return;
+    await Scrollable.ensureVisible(
+      mapContext,
+      alignment: 0.04,
+      duration: BulkaMotion.duration(
         context,
-      ).showSnackBar(bulkaSnackBar(content: Text('orders_load_error'.tr)));
-      return;
-    }
-    final value = _order.trackingUrl?.trim() ?? '';
-    final url = Uri.tryParse(value);
-    if (url == null || url.scheme != 'https' || url.host.isEmpty) return;
-    await launchUrl(url, mode: LaunchMode.externalApplication);
+        const Duration(milliseconds: 260),
+      ),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   Future<void> _cancelOrder() async {
@@ -232,12 +228,14 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
 
   String get _etaText {
     if (_order.hasDeliveryResolutionInProgress) return '';
+    final readyForPickup =
+        !_order.usesDelivery && _order.orderStatus == 'ready';
     final minimum = _order.etaMinAt?.toLocal();
     final maximum = _order.etaMaxAt?.toLocal();
     if (minimum != null && maximum != null) {
       final maximumDifference = maximum.difference(_now);
       if (maximumDifference.isNegative) {
-        return _order.orderStatus == 'ready' || _order.isClosed
+        return readyForPickup
             ? 'order_eta_ready'.tr
             : 'order_eta_clarifying'.tr;
       }
@@ -264,9 +262,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
     }
     final difference = eta.toLocal().difference(_now);
     if (difference.isNegative) {
-      return _order.orderStatus == 'ready' || _order.isClosed
-          ? 'order_eta_ready'.tr
-          : 'order_eta_clarifying'.tr;
+      return readyForPickup ? 'order_eta_ready'.tr : 'order_eta_clarifying'.tr;
     }
     final totalMinutes = max(1, difference.inMinutes);
     final hours = totalMinutes ~/ 60;
@@ -403,7 +399,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
               const SizedBox(height: 16),
               _RefundProgressCard(order: _order),
             ],
-            if (_order.trackingUrl?.isNotEmpty == true &&
+            if (_order.usesDelivery &&
+                trackingPoints.isNotEmpty &&
+                !trackingInterrupted &&
                 !_order.hasDeliveryResolutionInProgress) ...[
               const SizedBox(height: 16),
               SizedBox(
@@ -411,7 +409,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
                 child: FilledButton.icon(
                   onPressed: _openDeliveryTracking,
                   icon: const Icon(Icons.delivery_dining_rounded),
-                  label: Text('orders_track_yandex'.tr),
+                  label: Text('orders_track_courier'.tr),
                 ),
               ),
             ],
@@ -448,6 +446,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
                     const SizedBox(height: 12),
                     if (trackingPoints.isNotEmpty)
                       OrderTrackingMap(
+                        key: _trackingMapKey,
                         points: trackingPoints,
                         controller: _mapController,
                       ),
@@ -689,7 +688,10 @@ class _OrderTimeline extends StatelessWidget {
     (key: 'new', icon: Icons.receipt_long_rounded),
     (key: 'accepted', icon: Icons.thumb_up_alt_rounded),
     (key: 'preparing', icon: Icons.bakery_dining_rounded),
-    (key: 'ready', icon: Icons.inventory_2_rounded),
+    (
+      key: order.usesDelivery ? 'delivery_ready' : 'ready',
+      icon: Icons.inventory_2_rounded,
+    ),
     if (order.usesDelivery)
       (key: 'en_route', icon: Icons.delivery_dining_rounded),
     (key: 'completed', icon: Icons.check_circle_rounded),

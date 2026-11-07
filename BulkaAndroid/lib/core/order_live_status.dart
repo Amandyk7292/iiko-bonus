@@ -64,13 +64,25 @@ abstract final class OrderLiveStatus {
   }
 
   static String _status(CustomerOrder order) {
-    if (order.hasDeliveryResolutionInProgress) {
+    if (order.hasDeliveryResolutionInProgress ||
+        order.orderStatus == 'ready' ||
+        const {'picked_up', 'en_route'}.contains(order.deliveryStatus)) {
       return customerOrderStatusLabel(order);
     }
     if (order.usesDelivery && order.deliveryStatus != 'unassigned') {
       return 'delivery_status_${order.deliveryStatus}'.tr;
     }
     return 'order_status_${order.orderStatus}'.tr;
+  }
+
+  static String _activityOrderStatus(CustomerOrder order) {
+    if (order.orderStatus != 'ready' || !order.usesDelivery) {
+      return order.orderStatus;
+    }
+    // Existing iOS widgets use the pickup label for the raw `ready` code.
+    return order.deliveryStatus == 'assigned'
+        ? 'courier_collecting'
+        : 'delivery_ready';
   }
 
   static Future<bool> _ordersEnabled() async {
@@ -163,7 +175,7 @@ abstract final class OrderLiveStatus {
       'branch': order.branch,
       'status': _status(order),
       'paymentStatus': order.paymentStatus,
-      'orderStatus': order.orderStatus,
+      'orderStatus': _activityOrderStatus(order),
       'deliveryStatus': order.deliveryStatus,
       'fulfillmentType': order.effectiveFulfillmentType,
       'etaMillis': eta?.millisecondsSinceEpoch,
@@ -212,7 +224,7 @@ abstract final class OrderLiveStatus {
           'orderId': order.id,
           'orderNumber': order.number,
           'status': _status(order),
-          'orderStatus': order.orderStatus,
+          'orderStatus': _activityOrderStatus(order),
           'deliveryStatus': order.deliveryStatus,
           'fulfillmentType': order.effectiveFulfillmentType,
           'progress': 1.0,

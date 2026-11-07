@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const http2 = require('http2');
 const { supabase } = require('../config/supabase');
+const { isDeliveryFulfillment } = require('../utils/fulfillment.util');
 const { isPickupLiveActivityExpired } = require('../utils/live-activity-expiry.util');
 
 const liveActivityError = (message, statusCode = 400) =>
@@ -42,10 +43,14 @@ const progressForOrder = (order) => {
 };
 
 function buildContentState(order) {
+  const deliveryStatus = order.delivery_status || 'unassigned';
+  let orderStatus = order.fulfillment_status || 'new';
+  // Installed iOS widgets render any `ready` state as ready for pickup.
+  if (orderStatus === 'ready' && isDeliveryFulfillment(order)) {
+    orderStatus = deliveryStatus === 'assigned' ? 'courier_collecting' : 'delivery_ready';
+  }
   const status =
-    order.delivery_status && order.delivery_status !== 'unassigned'
-      ? order.delivery_status
-      : order.fulfillment_status || 'new';
+    deliveryStatus === 'unassigned' ? orderStatus : deliveryStatus;
   const eta =
     order.eta_max_at ||
     order.estimated_delivery_at ||
@@ -54,8 +59,8 @@ function buildContentState(order) {
     null;
   return {
     status,
-    orderStatus: order.fulfillment_status || 'new',
-    deliveryStatus: order.delivery_status || 'unassigned',
+    orderStatus,
+    deliveryStatus,
     etaTimestamp: eta ? Math.floor(new Date(eta).getTime() / 1000) : null,
     etaMinTimestamp: order.eta_min_at
       ? Math.floor(new Date(order.eta_min_at).getTime() / 1000)

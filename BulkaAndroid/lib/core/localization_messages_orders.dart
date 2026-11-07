@@ -538,6 +538,21 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'Тапсырыс дайын',
     'en': 'Your order is ready',
   },
+  'order_delivery_ready': {
+    'ru': 'Заказ готов, ждём курьера',
+    'kk': 'Тапсырыс дайын, курьерді күтеміз',
+    'en': 'Order ready, waiting for a courier',
+  },
+  'order_courier_collecting': {
+    'ru': 'Курьер едет за вашим заказом',
+    'kk': 'Курьер тапсырысыңызды алуға бара жатыр',
+    'en': 'Courier on the way to collect your order',
+  },
+  'order_courier_delivering': {
+    'ru': 'Курьер везёт ваш заказ',
+    'kk': 'Курьер тапсырысыңызды жеткізіп жатыр',
+    'en': 'Courier is delivering your order',
+  },
   'order_eta_clarifying': {
     'ru': 'Уточняем время у команды',
     'kk': 'Уақытты командадан нақтылап жатырмыз',
@@ -567,6 +582,11 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'ru': 'Готов к выдаче',
     'kk': 'Беруге дайын',
     'en': 'Ready for pickup',
+  },
+  'order_timeline_delivery_ready': {
+    'ru': 'Заказ собран',
+    'kk': 'Тапсырыс жиналды',
+    'en': 'Order packed',
   },
   'order_timeline_en_route': {
     'ru': 'Курьер в пути',

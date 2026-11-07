@@ -811,7 +811,7 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Курьерді картадан көрсету',
     'en': 'Show courier on map',
   },
-  'orders_track_yandex': {
+  'orders_track_courier': {
     'ru': 'Отследить курьера',
     'kk': 'Курьерді бақылау',
     'en': 'Track courier',

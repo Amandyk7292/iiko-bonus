@@ -1,10 +1,12 @@
 const crypto = require('crypto');
 const fetch = require('node-fetch');
 const { supabase } = require('../config/supabase');
+const { runBackgroundTask } = require('../utils/background-task.util');
 const { isDeliveryFulfillment } = require('../utils/fulfillment.util');
 const { deliveryDestination } = require('../utils/delivery-address.util');
 const { credentialHash, decryptSecret, encryptSecret } = require('../utils/secret-envelope.util');
 const realtime = require('./realtime.service');
+const { sendOrderLiveActivity } = require('./live-activity.service');
 const businessApi = require('./yandex-business-api');
 const { assertCargoPrice } = require('./yandex-cargo-price');
 const {
@@ -1101,6 +1103,23 @@ async function updateOrderFromJob(job, info) {
     adminOnly: true,
     branchId: current.branch_id,
   });
+  if (
+    current.customer_id &&
+    orderStatus !== (current.delivery_status || 'unassigned') &&
+    orderStatus !== 'delivered'
+  ) {
+    runBackgroundTask(`Yandex delivery Live Activity ${job.order_id}`, async () => {
+      const { data: order, error } = await supabase
+        .from('kaspi_orders')
+        .select('*')
+        .eq('id', job.order_id)
+        .maybeSingle();
+      if (error) throw error;
+      if (order?.status === 'paid' && !['completed', 'cancelled'].includes(order.fulfillment_status)) {
+        await sendOrderLiveActivity(order);
+      }
+    });
+  }
 }
 
 async function markOrderExternalDispatchActive(orderId) {
