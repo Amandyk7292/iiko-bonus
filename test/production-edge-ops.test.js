@@ -54,6 +54,15 @@ test('www activation refuses DNS mismatch and verifies canonical redirect', () =
   assert.match(script, /rollback\(\)/);
 });
 
+test('www activation keeps the HTTP challenge route after certificate issuance', () => {
+  const script = read('scripts/activate-www-domain.sh');
+  const [beforeIssuance, afterIssuance] = script.split('certbot certonly --webroot');
+
+  assert.match(beforeIssuance, /location \^~ \/\.well-known\/acme-challenge\//);
+  assert.match(afterIssuance, /cat >>"\$redirect_conf"/);
+  assert.doesNotMatch(afterIssuance, /cat >"\$redirect_conf"/);
+});
+
 test('www activation ignores resolver-generated IPv4-mapped IPv6 addresses', () => {
   const script = read('scripts/activate-www-domain.sh');
   const filter = script.match(/filter_native_ipv6_addresses\(\) \{[\s\S]*?^\}/m);

@@ -119,6 +119,8 @@ server {
 
     location ^~ /.well-known/acme-challenge/ {
         root ${webroot};
+        default_type text/plain;
+        try_files \$uri =404;
     }
 
     location / {
@@ -133,13 +135,8 @@ certbot certonly --webroot --webroot-path "$webroot" \
   --cert-name "$domain" --expand --non-interactive \
   -d "$domain" -d "$www_domain"
 
-cat >"$redirect_conf" <<EOF
-server {
-    listen 80;
-    listen [::]:80;
-    server_name ${www_domain};
-    return 308 https://${domain}\$request_uri;
-}
+# Keep the HTTP challenge route available for future renewals.
+cat >>"$redirect_conf" <<EOF
 
 server {
     listen 443 ssl;

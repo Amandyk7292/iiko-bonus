@@ -45,6 +45,12 @@ sudo EXPECTED_ORIGIN_IP='REPLACE_WITH_APPROVED_ORIGIN' \
 This expands the existing certificate and adds a permanent redirect to the
 canonical apex. It refuses to run while apex and `www` resolve differently.
 
+Keep `/.well-known/acme-challenge/` served from `/var/www/letsencrypt` on port 80
+for both names. Put HTTP redirects inside `location /` so they do not intercept
+the challenge. On production, `certbot.timer` renews the certificate and the
+`60-bulka-site` deploy hook validates and reloads Nginx. Verify both steps with
+`sudo certbot renew --cert-name bulka.com.kz --dry-run --run-deploy-hooks`.
+
 ## External WAF
 
 Follow `docs/external-waf.md`. DNS must be moved to the verified Cloudflare
