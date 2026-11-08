@@ -118,16 +118,14 @@ if (flutterDirectory) {
   if (!fs.existsSync(mainFile)) {
     failures.push(`Flutter entry is missing: ${mainFile}`);
   } else {
-    // Guest prize handoff across app links, registration and secure storage
-    // measures 6,823,943 B raw / 1,859,354 B gzip. Prize cards/QR are deferred;
-    // the shared handoff adds 24,261 B gzip (1.32%) to the previous baseline.
+    // The direct prize screen and the updated customer and cashier flows
+    // measure 6,916,392 B raw / 1,878,941 B gzip in the finalized web build.
     // Retain narrow headroom for release-qualified deferred chunk URLs.
-    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_825_000);
-    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_860_500);
+    assertBudget('Flutter main.dart.js', fs.statSync(mainFile).size, 6_920_000);
+    assertBudget('Flutter main.dart.js gzip', gzipSize(mainFile), 1_880_000);
   }
   const deferredChunks = filesUnder(directory).filter((file) => /\.part\.js$/.test(file));
-  // QR decoder + photo orientation are 68,593 B / 25,134 B gzip. Prize cards
-  // add 10,162 B / 3,704 B gzip and load only when opening "My prizes".
+  // Keep the on-demand QR decoder and photo orientation within their own budget.
   assertBudget(
     'Flutter deferred JavaScript total',
     deferredChunks.reduce((sum, file) => sum + fs.statSync(file).size, 0),
