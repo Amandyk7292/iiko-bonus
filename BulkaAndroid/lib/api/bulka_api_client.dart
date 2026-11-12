@@ -574,7 +574,9 @@ class BulkaApiClient {
   Future<List<AppNotification>> getNotifications() async {
     final json = await _get('/api/customer/notifications');
     final items = json['notifications'];
-    if (json['success'] != true || items is! List) return const [];
+    if (json['success'] != true || items is! List) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
     return items.map((item) => AppNotification.fromJson(_asMap(item))).toList();
   }
 
@@ -1310,7 +1312,8 @@ class BulkaApiClient {
       );
       final products = _asMap(json['products']);
       for (final id in batch) {
-        result[id] = products[id] == true;
+        final flag = products[id];
+        if (flag is bool) result[id] = flag;
       }
     }
     return result;

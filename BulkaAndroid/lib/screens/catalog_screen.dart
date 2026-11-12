@@ -82,6 +82,7 @@ class _CatalogScreenState extends State<CatalogScreen>
   Map<String, dynamic>? _lastLiveMenu;
   DateTime? _lastMenuCacheWrite;
   int _productOptionsRevision = 0;
+  DateTime? _lastProductOptionsRefresh;
   Future<void>? _silentRefreshRequest;
   int _activeMenuLoads = 0;
 
@@ -126,7 +127,11 @@ class _CatalogScreenState extends State<CatalogScreen>
       _silentRefresh,
       busy: () => !_menuScopeReady || _activeMenuLoads > 0,
       active: () => mounted && (_wasActive || _productRouteOpen),
-      acceptEvent: _matchesCatalogBranch,
+      acceptEvent: (event) {
+        if (!_matchesCatalogBranch(event)) return false;
+        _lastProductOptionsRefresh = null;
+        return true;
+      },
       // The retry timer already handles the healthy/offline intervals.
       fallbackInterval: null,
     );

@@ -121,15 +121,6 @@ class AppNotification {
     return legacyTitles[normalizedTitle];
   }
 
-  bool get isPushOnlyOrderStatus => const {
-    'order_accepted',
-    'order_preparing',
-    'order_ready',
-    'order_completed',
-    'order_cancelled',
-    'order_refunded',
-  }.contains(_systemMessageKey);
-
   String get _orderNumber {
     final fromPayload = _asString(
       payload['orderNumber'] ?? payload['order_number'],

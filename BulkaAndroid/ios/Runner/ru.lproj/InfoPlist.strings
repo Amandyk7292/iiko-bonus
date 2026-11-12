@@ -1,5 +1,7 @@
 "CFBundleDisplayName" = "Пекарня Bulka";
 "CFBundleName" = "Пекарня Bulka";
 "NSMotionUsageDescription" = "Bulka считает шаги iPhone для награды: 10 000 шагов за день — 200 бонусов. Ручные записи не учитываются.";
-"NSLocationWhenInUseUsageDescription" = "Геолокация нужна, чтобы показать ближайшие пекарни Bulka и помочь выбрать точку самовывоза.";
-"NSPhotoLibraryUsageDescription" = "Доступ к фотографиям нужен, чтобы прикрепить пример оформления торта или выпечки.";
+"NSLocationWhenInUseUsageDescription" = "Геолокация помогает найти ближайшие пекарни и указать адрес доставки на карте.";
+"NSPhotoLibraryUsageDescription" = "Доступ к фото нужен, чтобы прикрепить фото к заказу или обновить материалы пекарни.";
+"NSCameraUsageDescription" = "Камера нужна, чтобы сканировать QR-коды и снимать фото для чека самовывоза.";
+"NSMicrophoneUsageDescription" = "Микрофон нужен сотруднику для записи голосового ответа клиенту в WhatsApp.";

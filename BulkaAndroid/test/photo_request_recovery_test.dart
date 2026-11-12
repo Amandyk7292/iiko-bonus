@@ -12,6 +12,9 @@ import 'package:http/testing.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  final imageBytes = base64Decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lCYAAAAASUVORK5CYII=',
+  );
 
   test('stalled proxy falls back without forwarding proxy headers', () async {
     final requests = <http.Request>[];
@@ -23,7 +26,7 @@ void main() {
           return Completer<http.Response>().future;
         }
         return http.Response.bytes(
-          [1, 2, 3],
+          imageBytes,
           200,
           headers: {'content-type': 'image/png'},
         );
@@ -34,7 +37,10 @@ void main() {
       headers: {'If-None-Match': 'proxy-etag', 'Authorization': 'private'},
     );
     expect(response.statusCode, 200);
-    expect(await response.content.expand((bytes) => bytes).toList(), [1, 2, 3]);
+    expect(
+      await response.content.expand((bytes) => bytes).toList(),
+      imageBytes,
+    );
     expect(requests, hasLength(2));
     expect(
       requests.last.url.path,
@@ -64,7 +70,7 @@ void main() {
               return http.Response('', 503);
             }
             return http.Response.bytes(
-              [1, 2, 3],
+              imageBytes,
               200,
               headers: {
                 'content-type': 'image/png',
@@ -79,14 +85,14 @@ void main() {
         'https://bulka.com.kz/api/public/image?path=menu_images/drink.png&edge=768';
     final first = createCache();
     try {
-      expect(await (await first.getSingleFile(url)).readAsBytes(), [1, 2, 3]);
+      expect(await (await first.getSingleFile(url)).readAsBytes(), imageBytes);
       expect(calls, 2);
     } finally {
       await first.dispose();
     }
     final second = createCache();
     try {
-      expect(await (await second.getSingleFile(url)).readAsBytes(), [1, 2, 3]);
+      expect(await (await second.getSingleFile(url)).readAsBytes(), imageBytes);
       expect(calls, 2);
     } finally {
       await second.dispose();
@@ -105,7 +111,7 @@ void main() {
       final service = ProductImageFileService(
         clientFactory: () => MockClient((_) async {
           calls++;
-          return http.Response('', status);
+          return http.Response.bytes(status == 200 ? imageBytes : [], status);
         }),
       );
       final response = await service.get(
@@ -115,6 +121,59 @@ void main() {
       expect(calls, 1);
     }
   });
+
+  test(
+    'invalid proxy bytes fall back without caching the origin ETag',
+    () async {
+      var calls = 0;
+      final service = ProductImageFileService(
+        clientFactory: () => MockClient((request) async {
+          calls++;
+          if (request.url.host == 'bulka.com.kz') {
+            return http.Response('<html>Unavailable</html>', 200);
+          }
+          return http.Response.bytes(
+            imageBytes,
+            200,
+            headers: {'etag': 'origin-etag'},
+          );
+        }),
+      );
+      final response = await service.get(
+        'https://bulka.com.kz/api/public/image?path=menu_images/bread.png',
+      );
+      expect(response.eTag, isNull);
+      expect(
+        await response.content.expand((bytes) => bytes).toList(),
+        imageBytes,
+      );
+      expect(calls, 2);
+    },
+  );
+
+  test(
+    'options summary preserves unknown options for individual validation',
+    () async {
+      final api = BulkaApiClient(
+        client: MockClient(
+          (_) async => http.Response(
+            '{"success":true,"products":{"plain":false,"custom":true,"bad":null}}',
+            200,
+          ),
+        ),
+      );
+      addTearDown(api.dispose);
+      expect(
+        await api.getProductOptionFlagsBatch([
+          'plain',
+          'custom',
+          'bad',
+          'missing',
+        ]),
+        {'plain': false, 'custom': true},
+      );
+    },
+  );
 
   test('options deduplicate openings and invalidate on menu updates', () async {
     var calls = 0;

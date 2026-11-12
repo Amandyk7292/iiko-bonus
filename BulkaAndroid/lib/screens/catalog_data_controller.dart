@@ -68,6 +68,8 @@ extension _CatalogDataController on _CatalogScreenState {
     final revision = ++_menuLoadRevision;
     final endpoint = _menuEndpoint;
     final cacheKey = _menuCacheKey;
+    Future<void>? cachedPreview;
+    var liveApplied = false;
     try {
       if (!silent) {
         _updateCatalogState(() {
@@ -77,13 +79,12 @@ extension _CatalogDataController on _CatalogScreenState {
         });
       }
       if (_allProducts.isEmpty) {
-        await _restoreCachedMenu(
+        cachedPreview = _restoreCachedMenu(
           cacheKey: cacheKey,
           revision: revision,
           endpoint: endpoint,
-          preview: true,
+          canApply: () => !liveApplied,
         );
-        if (!_isCurrentMenuRequest(revision, endpoint)) return;
       }
       final json = await _api._get(endpoint);
       if (!_isCurrentMenuRequest(revision, endpoint)) return;
@@ -99,6 +100,7 @@ extension _CatalogDataController on _CatalogScreenState {
           _allProducts.isNotEmpty &&
           _lastLiveMenuScope == cacheKey &&
           _sameJsonValue(_lastLiveMenu, snapshot)) {
+        liveApplied = true;
         // Reconcile newly added cart lines, but keep displayed widgets and
         // details notifiers intact when the server sends the same menu.
         if (_lastMenuCacheWrite == null ||
@@ -107,7 +109,11 @@ extension _CatalogDataController on _CatalogScreenState {
           unawaited(_cacheMenu(json, cacheKey: cacheKey));
         }
         _syncCartWithMenu(_allProducts, notifyDetails: false);
-        unawaited(_refreshProductOptionFlags(_allProducts));
+        if (_lastProductOptionsRefresh == null ||
+            DateTime.now().difference(_lastProductOptionsRefresh!) >=
+                const Duration(minutes: 1)) {
+          unawaited(_refreshProductOptionFlags(_allProducts));
+        }
         _resumeProductAfterFulfillment();
         _applyPendingClientUri();
         return;
@@ -131,6 +137,7 @@ extension _CatalogDataController on _CatalogScreenState {
         products.add(_catalogProduct(p, categoryMap));
       }
 
+      liveApplied = true;
       _lastLiveMenu = snapshot;
       _lastLiveMenuScope = cacheKey;
       unawaited(_cacheMenu(json, cacheKey: cacheKey));
@@ -158,6 +165,7 @@ extension _CatalogDataController on _CatalogScreenState {
         );
       }
     } catch (e) {
+      if (cachedPreview != null) await cachedPreview;
       if (!_isCurrentMenuRequest(revision, endpoint)) return;
       if (_allProducts.isNotEmpty) {
         _updateCatalogState(() {
@@ -168,15 +176,6 @@ extension _CatalogDataController on _CatalogScreenState {
         _applyPendingClientUri();
         return;
       }
-      if (_allProducts.isEmpty &&
-          await _restoreCachedMenu(
-            cacheKey: cacheKey,
-            revision: revision,
-            endpoint: endpoint,
-          )) {
-        return;
-      }
-      if (!_isCurrentMenuRequest(revision, endpoint)) return;
       _updateCatalogState(() {
         _isLoading = false;
         _loadError = e.toString();
@@ -199,6 +198,9 @@ extension _CatalogDataController on _CatalogScreenState {
       if (!mounted || revision != _productOptionsRevision) return;
       final currentIds = _allProducts.map((product) => product.id).toSet();
       final resolved = optionFlags.keys.where(currentIds.contains).toSet();
+      if (resolved.length == currentIds.length) {
+        _lastProductOptionsRefresh = DateTime.now();
+      }
       final configurable = optionFlags.entries
           .where((entry) => currentIds.contains(entry.key) && entry.value)
           .map((entry) => entry.key)
@@ -383,16 +385,17 @@ extension _CatalogDataController on _CatalogScreenState {
     return cachedAt;
   }
 
-  Future<bool> _restoreCachedMenu({
+  Future<void> _restoreCachedMenu({
     required String cacheKey,
     required int revision,
     required String endpoint,
-    bool preview = false,
+    required bool Function() canApply,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      if (!canApply() || !_isCurrentMenuRequest(revision, endpoint)) return;
       final raw = prefs.getString(cacheKey);
-      if (raw == null) return false;
+      if (raw == null) return;
       final envelope = _asMap(jsonDecode(raw));
       final nested = _asMap(envelope['payload']);
       final json = nested.isEmpty ? envelope : nested;
@@ -412,12 +415,7 @@ extension _CatalogDataController on _CatalogScreenState {
           .map((value) => _catalogProduct(value, categoryMap))
           .where((product) => product.id.isNotEmpty)
           .toList();
-      if (!_isCurrentMenuRequest(revision, endpoint) || products.isEmpty) {
-        return false;
-      }
-      // Cached prices and stock may be stale: only the live response should
-      // update cart lines during online revalidation.
-      if (!preview) _syncCartWithMenu(products);
+      if (products.isEmpty) return;
       _updateCatalogState(() {
         _categories = categoryNames;
         _menuProfileKey = _asString(json['iikoProfile']);
@@ -426,14 +424,9 @@ extension _CatalogDataController on _CatalogScreenState {
         _usingCachedMenu = true;
         _loadError = null;
       });
-      if (!preview) {
-        unawaited(_refreshProductOptionFlags(products));
-        _applyPendingClientUri();
-      }
       unawaited(_warmProductImages(products));
-      return true;
     } catch (_) {
-      return false;
+      // The live request can still supply the menu.
     }
   }
 

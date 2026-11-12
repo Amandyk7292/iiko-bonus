@@ -409,8 +409,10 @@ void main() {
     await AppLang.init();
     final response = Completer<http.Response>();
     var markAllStarted = false;
+    var contactsRequests = 0;
     final client = MockClient((request) async {
       if (request.url.path == '/api/public/contact-center') {
+        contactsRequests++;
         return http.Response(
           jsonEncode({'success': true, 'cards': const []}),
           200,
@@ -428,6 +430,15 @@ void main() {
                 'body': 'Попробуйте сегодня',
                 'type': 'broadcast',
                 'createdAt': '2026-08-03T12:00:00Z',
+                'isRead': false,
+              },
+              {
+                'id': 'notification-2',
+                'title': 'Заказ готов',
+                'body': 'Курьер едет за вашим заказом.',
+                'type': 'order',
+                'payload': {'messageKey': 'order_ready', 'orderNumber': '102'},
+                'createdAt': '2026-08-03T11:00:00Z',
                 'isRead': false,
               },
             ],
@@ -452,6 +463,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(contactsRequests, 0);
+    expect(find.text('Заказ готов'), findsOneWidget);
     expect(find.text('Прочитать все'), findsOneWidget);
 
     await tester.tap(find.text('Прочитать все'));

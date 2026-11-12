@@ -322,6 +322,13 @@ void main() {
 
 http.Client _menuClient(List<String?> branchReads) =>
     MockClient((request) async {
+      if (request.url.path == '/api/public/product-options/summary') {
+        return http.Response(
+          '{"success":true,"products":{"bun":false}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }
       if (request.url.path == '/api/guest/menu') {
         branchReads.add(request.url.queryParameters['branchId']);
         return http.Response(

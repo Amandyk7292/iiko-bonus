@@ -1,5 +1,7 @@
 "CFBundleDisplayName" = "Bulka Bakery";
 "CFBundleName" = "Bulka Bakery";
-"NSMotionUsageDescription" = "Bulka counts iPhone steps: 10,000 steps a day earns 1,000 bonus points. Manually entered steps are excluded.";
-"NSLocationWhenInUseUsageDescription" = "Your location helps us show nearby Bulka bakeries and choose a pickup point.";
-"NSPhotoLibraryUsageDescription" = "Photo access lets you attach a cake or pastry design reference.";
+"NSMotionUsageDescription" = "Bulka counts iPhone steps. Walking 10,000 steps in a day earns 200 bonus points. Manually entered steps do not count.";
+"NSLocationWhenInUseUsageDescription" = "Your location helps you find nearby bakeries and set your delivery address on the map.";
+"NSPhotoLibraryUsageDescription" = "Photo access lets you attach images to orders or update bakery content.";
+"NSCameraUsageDescription" = "Use the camera to scan QR codes and take a photo for your pickup receipt.";
+"NSMicrophoneUsageDescription" = "Staff use the microphone to record voice replies to customers in WhatsApp.";

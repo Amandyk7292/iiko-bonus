@@ -76,10 +76,13 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   late final _LiveRefresh _live;
+  late final _LiveRefresh _contactsLive;
   late final ContactCenterRepository _contactsRepository;
-  late Future<List<AppContactCard>> _contactsFuture;
+  Future<List<AppContactCard>>? _contactsFuture;
   Future<List<AppNotification>>? _notificationsFuture;
+  Future<void>? _notificationsRefresh;
   List<AppNotification> _notifications = const [];
+  bool _hasLoadedNotifications = false;
   int _selectedTab = 0;
 
   bool get _isAuthenticated => widget.api.isAuthenticated;
@@ -88,28 +91,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void initState() {
     super.initState();
     _contactsRepository = ContactCenterRepository(api: widget.api);
-    _contactsFuture = _contactsRepository.load();
-    _live = _LiveRefresh(
+    _contactsLive = _LiveRefresh(
       widget.api,
-      {
-        'notification.created',
-        'contacts',
-        'notifications',
-        'order.updated',
-        'transaction.created',
-      },
-      () async {
-        final contacts = await _contactsRepository.load();
-        if (!mounted) return;
-        setState(() {
-          _contactsFuture = SynchronousFuture(contacts);
-        });
-        if (_isAuthenticated) {
-          final items = await widget.api.getNotifications();
-          if (mounted) _showNotifications(items);
-        }
-      },
+      {'contacts'},
+      _reloadContacts,
+      active: () => _selectedTab == 1,
+      fallbackInterval: null,
     );
+    _live = _LiveRefresh(widget.api, {
+      'notification.created',
+      'notifications',
+      'order.updated',
+      'transaction.created',
+    }, _reloadNotifications);
     if (_isAuthenticated) {
       _notificationsFuture = _fetchNotifications();
     }
@@ -118,12 +112,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void dispose() {
     _live.dispose();
+    _contactsLive.dispose();
     super.dispose();
   }
 
   Future<List<AppNotification>> _fetchNotifications() async {
+    final session = widget.api._sessionRevision;
     final items = await widget.api.getNotifications();
-    _notifications = items;
+    if (mounted && session == widget.api._sessionRevision) {
+      _notifications = items;
+      _hasLoadedNotifications = true;
+    }
     return items;
   }
 
@@ -134,27 +133,48 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
   }
 
-  Future<void> _reloadNotifications() async {
-    if (!_isAuthenticated) return;
+  Future<void> _reloadNotifications() {
+    if (!mounted || !_isAuthenticated) return Future<void>.value();
+    return _notificationsRefresh ??= _refreshNotifications().whenComplete(
+      () => _notificationsRefresh = null,
+    );
+  }
+
+  Future<void> _refreshNotifications() async {
+    final session = widget.api._sessionRevision;
     final future = _fetchNotifications();
-    setState(() {
-      _notificationsFuture = future;
-    });
-    await future;
+    if (!_hasLoadedNotifications) {
+      setState(() => _notificationsFuture = future);
+    }
+    try {
+      final items = await future;
+      if (mounted && session == widget.api._sessionRevision) {
+        _showNotifications(items);
+      }
+    } catch (_) {
+      // Keep the last loaded history while the device is offline.
+    }
   }
 
   Future<void> _reloadContacts() async {
+    if (!mounted) return;
     final future = _contactsRepository.load();
     setState(() {
       _contactsFuture = future;
     });
-    await future;
+    try {
+      await future;
+    } catch (_) {
+      // The contacts tab renders the request error and its retry button.
+    }
   }
 
   Future<void> _requestAuthentication() async {
     final authenticated = await widget.onRequireAuth?.call() ?? false;
     if (!mounted || !authenticated) return;
     setState(() {
+      _notifications = const [];
+      _hasLoadedNotifications = false;
       _notificationsFuture = _fetchNotifications();
     });
   }
@@ -163,9 +183,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (_selectedTab == index) return;
     BulkaMotion.selection();
     setState(() => _selectedTab = index);
+    if (index == 1 && _contactsFuture != null) _contactsLive.request();
   }
 
   Future<void> _markAllRead() async {
+    final session = widget.api._sessionRevision;
     final previous = _notifications;
     final updated = [
       for (final notification in previous) notification.copyWith(isRead: true),
@@ -174,22 +196,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       await widget.api.markAllNotificationsRead();
     } catch (error) {
-      if (!mounted) return;
-      _showNotifications(previous);
+      if (!mounted || session != widget.api._sessionRevision) return;
+      if (identical(_notifications, updated)) _showNotifications(previous);
+      _live.request();
       _showError(localizeErrorMessage(error));
     }
   }
 
   Future<void> _openNotification(AppNotification notification) async {
     if (!notification.isRead) {
+      final session = widget.api._sessionRevision;
       final previous = _notifications;
-      _showNotifications([
+      final updated = [
         for (final item in previous)
           item.id == notification.id ? item.copyWith(isRead: true) : item,
-      ]);
+      ];
+      _showNotifications(updated);
       unawaited(
         widget.api.markNotificationRead(notification.id).catchError((_) {
-          if (mounted) _showNotifications(previous);
+          if (!mounted || session != widget.api._sessionRevision) return;
+          if (identical(_notifications, updated)) _showNotifications(previous);
+          _live.request();
         }),
       );
     }
@@ -331,7 +358,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           return _NotificationErrorState(onRetry: _reloadNotifications);
         }
         final items = [...?snapshot.data]
-          ..removeWhere((item) => item.isPushOnlyOrderStatus)
           ..sort(
             (a, b) =>
                 (DateTime.tryParse(b.createdAt)?.millisecondsSinceEpoch ?? 0)
@@ -437,7 +463,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget _buildContacts() {
     return FutureBuilder<List<AppContactCard>>(
       key: const ValueKey('contact-list'),
-      future: _contactsFuture,
+      future: _contactsFuture ??= _contactsRepository.load(),
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());

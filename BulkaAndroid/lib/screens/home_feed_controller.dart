@@ -2,19 +2,21 @@ part of '../main.dart';
 
 extension _HomeFeedController on _HomeScreenState {
   Future<void> _initializeFeed() async {
-    try {
-      await _loadCachedFeed();
-    } catch (_) {
-      // Local storage failure must not prevent the live feed from loading.
-    }
-    if (mounted) await _loadFeed();
+    await Future.wait([
+      _loadCachedFeed().catchError((_) {
+        // Local storage failure must not prevent the live feed from loading.
+      }),
+      _loadFeed(),
+    ]);
   }
 
   Future<void> _loadCachedFeed() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     final cachedStories = prefs.getString('cached_stories_json');
-    if (cachedStories != null && _stories.isEmpty) {
+    if (cachedStories != null &&
+        _stories.isEmpty &&
+        (_initialLoading || _storiesLoadFailed)) {
       try {
         final decoded = jsonDecode(cachedStories) as List<dynamic>;
         _updateHomeState(() {

@@ -323,6 +323,13 @@ void main() {
       if (request.url.path.endsWith('/api/guest/locations')) {
         return selectedBakeryLocationsResponse();
       }
+      if (request.url.path == '/api/public/product-options/summary') {
+        return http.Response(
+          '{"success":true,"products":{"bun-1":false}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }
       final payload = request.url.path.endsWith('/api/guest/menu')
           ? {
               'success': true,
@@ -525,6 +532,13 @@ void main() {
     final client = MockClient((request) async {
       if (request.url.path.endsWith('/api/guest/locations')) {
         return selectedBakeryLocationsResponse();
+      }
+      if (request.url.path == '/api/public/product-options/summary') {
+        return http.Response(
+          '{"success":true,"products":{"bun-1":false}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
       }
       final payload = request.url.path.endsWith('/api/guest/menu')
           ? {
