@@ -38,11 +38,13 @@ function deliveryDb(
     ownerError = null,
     order = null,
     orderError = null,
+    historyError = null,
   } = {},
 ) {
   const updates = [];
   return {
     updates,
+    notifications: new Map(),
     orderReads: 0,
     async rpc(name, args) {
       assert.equal(name, 'claim_push_notification_outbox');
@@ -50,6 +52,17 @@ function deliveryDb(
       return { data: [row], error: null };
     },
     from(table) {
+      if (table === 'customer_notifications') {
+        return {
+          upsert: (record) => ({
+            abortSignal: async () => {
+              if (historyError) return { error: historyError, status: 503 };
+              this.notifications.set(record.id, record);
+              return { error: null, status: 201 };
+            },
+          }),
+        };
+      }
       if (table === 'kaspi_orders') {
         this.orderReads++;
         return {
@@ -142,6 +155,55 @@ test('push outbox does not retry invalid tokens', async () => {
   assert.equal(outcome.queued, false);
   assert.equal(db.updates.at(-1).values.status, 'skipped');
   assert.deepEqual(db.updates.at(-1).values.pending_tokens, []);
+});
+
+test('campaign history uses one ID across devices and retries', async () => {
+  const row = queuedRow({ payload: { type: 'marketing_birthday' } });
+  const db = deliveryDb(row);
+  const deliveries = [];
+  const options = {
+    isAllowed: async () => true,
+    async sendToken(token, _title, _body, data) {
+      deliveries.push({ id: data.notificationId, saved: db.notifications.size });
+      const delivered = token.includes('-ok-') || row.attempt_count === 2;
+      return { delivered, terminal: delivered };
+    },
+  };
+  const [first] = await deliverPushOutbox(options, { db });
+  assert.equal(first.status, 'retry');
+  assert.equal(db.notifications.get(row.id).customer_id, row.customer_id);
+  assert.equal(db.notifications.get(row.id).type, 'broadcast');
+
+  Object.assign(row, db.updates[0].values, db.updates.at(-1).values, {
+    status: 'processing',
+    attempt_count: 2,
+  });
+  const [second] = await deliverPushOutbox(options, { db });
+  assert.equal(second.status, 'sent');
+  assert.deepEqual(deliveries, Array(3).fill({ id: row.id, saved: 1 }));
+});
+
+test('campaigns excluded by preferences do not enter notification history', async () => {
+  const db = deliveryDb(queuedRow({ payload: { type: 'marketing_inactive' } }));
+  const sendToken = test.mock.fn();
+  const [outcome] = await deliverPushOutbox({ isAllowed: async () => false, sendToken }, { db });
+  assert.equal(outcome.status, 'skipped');
+  assert.equal(db.notifications.size, 0);
+  assert.equal(sendToken.mock.callCount(), 0);
+});
+
+test('a failed campaign history write retries before any device delivery', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  const db = deliveryDb(queuedRow({ payload: { type: 'broadcast' } }), {
+    historyError: { code: '08006' },
+  });
+  const sendToken = t.mock.fn();
+  await assert.rejects(
+    deliverPushOutbox({ isAllowed: async () => true, sendToken }, { db }),
+    /campaign history is temporarily unavailable/,
+  );
+  assert.equal(sendToken.mock.callCount(), 0);
+  assert.equal(db.updates.at(-1).values.status, 'retry');
 });
 
 test('push enqueue is idempotent and strips internal dedupe metadata', async () => {

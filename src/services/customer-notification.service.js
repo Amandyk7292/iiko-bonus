@@ -1,8 +1,8 @@
 const { randomUUID } = require('node:crypto');
 const { supabase } = require('../config/supabase');
 
-async function saveCustomerNotification(fields, { db = supabase } = {}) {
-  const record = { ...fields, id: randomUUID() };
+async function saveCustomerNotification(fields, { db = supabase, id = randomUUID() } = {}) {
+  const record = { ...fields, id };
   let failure;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {

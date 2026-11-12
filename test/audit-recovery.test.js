@@ -192,7 +192,7 @@ test('a birthday push already queued at night retains tokens and send attempts u
     pending_tokens: ['isolated-test-device'],
     title: 'Reminder',
     body: 'Body',
-    payload: { type: 'marketing_birthday' },
+    payload: { type: 'marketing_birthday', notificationId: 'saved-birthday' },
     dedupe_key: 'same-event',
     attempt_count: 7,
     max_attempts: 8,

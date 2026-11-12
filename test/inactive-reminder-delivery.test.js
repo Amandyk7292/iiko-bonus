@@ -4,6 +4,7 @@ const { randomUUID } = require('node:crypto');
 const customerId = '00000000-0000-4000-8000-000000000001';
 const messages = [];
 const outbox = [];
+const notifications = new Map();
 let preferences = {};
 let allowed = true;
 let eligibilityError = null;
@@ -27,6 +28,19 @@ const supabase = {
     return { data: rows.map((r) => ({ ...r })), error: null };
   },
   from(table) {
+    if (table === 'customer_notifications') {
+      return {
+        upsert(record, options) {
+          assert.deepEqual(options, { onConflict: 'id', ignoreDuplicates: true });
+          return {
+            async abortSignal() {
+              if (!notifications.has(record.id)) notifications.set(record.id, record);
+              return { error: null };
+            },
+          };
+        },
+      };
+    }
     const filters = [];
     let inserted;
     let updates;
@@ -136,6 +150,7 @@ function payload(date = '2026-10-04') {
 test.beforeEach(() => {
   messages.length = 0;
   outbox.length = 0;
+  notifications.clear();
   preferences = {};
   allowed = true;
   eligibilityError = null;
@@ -260,10 +275,14 @@ test('lost marketing acknowledgement and repeat worker use one durable daily out
   });
   assert.equal(outbox.length, 1);
   assert.equal(messages.length, 1);
+  assert.equal(notifications.size, 1);
+  assert.equal(messages[0].data.notificationId, outbox[0].id);
+  assert.equal(notifications.get(outbox[0].id).title, 'Reminder');
   t.mock.timers.setTime(new Date('2026-10-05T08:00:00Z').getTime());
   await sendPushToCustomer(customerId, 'Reminder', 'Bread', payload('2026-10-05'));
   assert.equal(outbox.length, 2);
   assert.equal(messages.length, 2);
+  assert.equal(notifications.size, 2);
 });
 
 test('missing outbox schema never falls back to immediate non-deduplicated reminders', async (t) => {

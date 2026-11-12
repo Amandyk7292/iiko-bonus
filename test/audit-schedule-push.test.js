@@ -142,7 +142,7 @@ function queue() {
     dedupe_key: 'birthday:test:2026',
     title: 'Birthday',
     body: 'Greeting',
-    payload: { type: 'marketing_birthday' },
+    payload: { type: 'marketing_birthday', notificationId: 'saved-birthday' },
     pending_tokens: ['test-device-token-0001'],
     status: 'queued',
     attempt_count: 0,

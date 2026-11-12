@@ -13,6 +13,16 @@ let tokenReads;
 // Only the database boundary and Firebase transport are replaced.
 const db = {
   from(table) {
+    if (table === 'customer_notifications') {
+      return {
+        upsert: (record) => ({
+          abortSignal: async () => {
+            tables.customer_notifications.set(record.id, record);
+            return { error: null, status: 201 };
+          },
+        }),
+      };
+    }
     const predicates = [];
     let updates;
     let inserted;
@@ -146,6 +156,7 @@ test.beforeEach(() => {
     customers: [{ id: customerId, deleted_at: null, fcm_token: null, preferred_language: 'ru' }],
     customer_push_tokens: [{ customer_id: customerId, token: deviceToken }],
     customer_notification_preferences: [],
+    customer_notifications: new Map(),
     marketing_deliveries: [],
     push_notification_outbox: [],
   };
@@ -201,6 +212,8 @@ for (const trigger of ['birthday', 'inactive']) {
       assert.equal(tables.push_notification_outbox[0].status, 'sent');
       assert.equal(sentMessages.length, 1);
       assert.equal(sentMessages[0].token, deviceToken);
+      assert.equal(sentMessages[0].data.notificationId, tables.push_notification_outbox[0].id);
+      assert.equal(tables.customer_notifications.size, 1);
       assert.equal(await deliverAutomatedMessages(100, { db }), 0);
       assert.equal(sentMessages.length, 1);
       assert.equal(tokenReads, 3); // failed read, recovered read, final ownership recheck

@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const { supabase } = require('../config/supabase');
 const { prepareBonusExpiryReminder } = require('./bonus-expiry-reminder.service');
+const { saveCustomerNotification } = require('./customer-notification.service');
 
 const PUSH_OUTBOX_SCHEMA_MISSING_CODES = new Set(['42P01', '42883', 'PGRST202', 'PGRST205']);
 
@@ -342,7 +343,39 @@ async function deliverPushOutbox(
       if (!row.data.orderUpdatedAt && orderState.updatedAt) {
         row.data = { ...row.data, orderUpdatedAt: orderState.updatedAt };
       }
-      await updateOutbox(row, { in_flight_tokens: row.tokens }, { db });
+      const type = cleanText(row.data.type, 40);
+      const missingCampaignHistory =
+        !row.data.notificationId &&
+        (!type || type === 'broadcast' || type.startsWith('marketing_'));
+      if (missingCampaignHistory) {
+        // The outbox UUID stays the same across retries and device deliveries.
+        const notificationId = await saveCustomerNotification(
+          {
+            customer_id: row.customerId,
+            title: row.title,
+            body: row.body,
+            type: 'broadcast',
+          },
+          { db, id: row.id },
+        );
+        if (!notificationId) throw new Error('Push campaign history is temporarily unavailable');
+        row.data = { ...row.data, notificationId };
+        require('./realtime.service').publish(
+          'notification.created',
+          {},
+          {
+            customerId: row.customerId,
+          },
+        );
+      }
+      await updateOutbox(
+        row,
+        {
+          in_flight_tokens: row.tokens,
+          ...(missingCampaignHistory && { payload: row.data }),
+        },
+        { db },
+      );
       const results = await Promise.all(
         row.tokens.map(async (token) => {
           try {
