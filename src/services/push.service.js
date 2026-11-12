@@ -1,6 +1,7 @@
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getMessaging } = require('firebase-admin/messaging');
 const { supabase } = require('../config/supabase');
+const { saveCustomerNotification } = require('./customer-notification.service');
 const { notificationAllowed } = require('./notification-preferences.service');
 const { inactiveReminderTiming } = require('./inactive-reminder-window');
 const { bonusExpiryReminderTiming } = require('./bonus-expiry-reminder.service');
@@ -613,37 +614,27 @@ async function notifyBonusChange({
     }
   }
 
-  let savedNotificationId = '';
-  if (customerId) {
-    try {
-      const { data: saved } = await supabase
-        .from('customer_notifications')
-        .insert({
-          customer_id: customerId,
-          title: String(title).slice(0, 160),
-          body: String(body).slice(0, 2000),
-          type: 'bonus',
-          payload: {
-            messageKey: Number(amount) >= 0 && !isOrder ? 'bonus_awarded' : 'bonus_change',
-            amount: Number(amount || 0),
-            balance: Number(balance || 0),
-            i18n: {
-              titles: Object.fromEntries(
-                Object.entries(copies).map(([code, copy]) => [code, copy.title]),
-              ),
-              bodies: Object.fromEntries(
-                Object.entries(copies).map(([code, copy]) => [code, copy.body]),
-              ),
-            },
+  const savedNotificationId = customerId
+    ? await saveCustomerNotification({
+        customer_id: customerId,
+        title: String(title).slice(0, 160),
+        body: String(body).slice(0, 2000),
+        type: 'bonus',
+        payload: {
+          messageKey: Number(amount) >= 0 && !isOrder ? 'bonus_awarded' : 'bonus_change',
+          amount: Number(amount || 0),
+          balance: Number(balance || 0),
+          i18n: {
+            titles: Object.fromEntries(
+              Object.entries(copies).map(([code, copy]) => [code, copy.title]),
+            ),
+            bodies: Object.fromEntries(
+              Object.entries(copies).map(([code, copy]) => [code, copy.body]),
+            ),
           },
-        })
-        .select('id')
-        .single();
-      if (saved) savedNotificationId = saved.id;
-    } catch (dbErr) {
-      console.error('Failed to insert customer_notification for bonus:', dbErr.message);
-    }
-  }
+        },
+      })
+    : '';
 
   if (customerId || fcmToken) {
     await sendPushToCustomer(

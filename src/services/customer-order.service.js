@@ -3,6 +3,7 @@ const crypto = require('node:crypto');
 const { attachOrderImages } = require('./order-images.service');
 const { supabase } = require('../config/supabase');
 const { sendPushToCustomer } = require('./push.service');
+const { saveCustomerNotification } = require('./customer-notification.service');
 const orderPaymentState = require('./order-payment-state.service');
 const { releaseOrderReservations } = require('./inventory.service');
 const realtime = require('./realtime.service');
@@ -620,9 +621,11 @@ async function notifyOrderStatus(order) {
       ? 'order_refunded'
       : `order_${order.fulfillment_status}`;
 
-  await sendOrderLiveActivity(order, {
-    end: ['completed', 'cancelled'].includes(order.fulfillment_status),
-  }).catch((error) => console.error('Не удалось обновить Live Activity:', error.message));
+  runBackgroundTask('Order Live Activity', () =>
+    sendOrderLiveActivity(order, {
+      end: ['completed', 'cancelled'].includes(order.fulfillment_status),
+    }),
+  );
 
   const { data: customer } = await supabase
     .from('customers')
@@ -641,22 +644,18 @@ async function notifyOrderStatus(order) {
       Object.entries(localizedCopies).map(([code, value]) => [code, value[1]]),
     ),
   };
-  const { data: saved } = await supabase
-    .from('customer_notifications')
-    .insert({
-      customer_id: order.customer_id,
-      title: copy[0],
-      body: copy[1],
-      type: 'order',
-      payload: {
-        orderId: order.id,
-        orderNumber: order.order_number,
-        messageKey,
-        i18n,
-      },
-    })
-    .select('id')
-    .maybeSingle();
+  const notificationId = await saveCustomerNotification({
+    customer_id: order.customer_id,
+    title: copy[0],
+    body: copy[1],
+    type: 'order',
+    payload: {
+      orderId: order.id,
+      orderNumber: order.order_number,
+      messageKey,
+      i18n,
+    },
+  });
   if (order.customer_id) {
     await sendPushToCustomer(
       order.customer_id,
@@ -672,7 +671,7 @@ async function notifyOrderStatus(order) {
         fulfillmentType: effectiveFulfillmentType(order),
         orderEta: String(order.promised_ready_at || order.estimated_delivery_at || ''),
         deepLink: `${String(process.env.PUBLIC_BASE_URL || 'https://bulka.com.kz').replace(/\/$/, '')}/orders?order=${encodeURIComponent(order.id)}`,
-        notificationId: String(saved?.id || ''),
+        notificationId,
       },
       customer?.fcm_token,
     );

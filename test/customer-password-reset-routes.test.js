@@ -47,6 +47,7 @@ mockModule('../src/services/customer-password-reset-link.service', {
   },
 });
 mockModule('../src/services/otpStore.service', {
+  get: async () => ({ purpose: 'customer_password_reset' }),
   consume: async () => ({ status: 'success', payload: { purpose: 'customer_password_reset' } }),
 });
 mockModule('../src/services/customer-session.service', {

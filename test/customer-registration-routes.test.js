@@ -139,6 +139,7 @@ mockModule('../src/services/customer-session.service', {
   }),
 });
 mockModule('../src/services/otpStore.service', {
+  get: async () => ({ purpose: 'customer_login' }),
   consume: async (value, code) => {
     assert.equal(value, phone);
     assert.equal(code, '1234');

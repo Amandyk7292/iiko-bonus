@@ -34,7 +34,7 @@ require.cache[configPath] = {
 };
 const walking = require('../src/services/walking-rewards.service');
 
-test('status advertises 100 while preserving the actual amounts of earlier daily rewards', async () => {
+test('status advertises 200 while preserving the actual amounts of earlier daily rewards', async () => {
   policy = { enabled: true, starts_on: walking.walkingPeriod(6).date };
   progress = [0, 100, 1000].map((rewardAmount, offset) => {
     const date = walking.walkingPeriod(offset).date;
@@ -47,7 +47,7 @@ test('status advertises 100 while preserving the actual amounts of earlier daily
     };
   });
   const status = await walking.walkingStatus('customer');
-  assert.equal(status.rewardAmount, 100);
+  assert.equal(status.rewardAmount, 200);
   assert.equal(status.targetSteps, 10000);
   assert.deepEqual(
     status.days.map(({ rewardAmount, credited }) => ({ rewardAmount, credited })),

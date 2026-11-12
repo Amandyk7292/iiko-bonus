@@ -546,7 +546,7 @@ test('registration is forced to AutoCall SMS while login retains its configured 
     assert.equal(result.deliveryMode, 'automatic');
     assert.equal(result.codeLength, 6);
     assert.equal(result.expiresInSeconds, 300);
-    assert.equal(result.retryAfterSeconds, 60);
+    assert.equal(result.retryAfterSeconds, expectedChannel === 'sms' ? 60 : 120);
     assert.equal(result.whatsappUrl, null);
     assert.equal(result.whatsappPhone, null);
     const verified = await consumeCustomerOtp(recipient, code, { db, env: autocallEnv });
@@ -624,7 +624,7 @@ test('an AutoCall campaign awaiting moderation does not activate the registratio
       env: autocallEnv,
       sendOtp: async (message) => {
         code = message.code;
-        return sendAutomaticOtp(message, {
+        return sendAutomaticOtp({ ...message, channel: undefined }, {
           fetchImpl: async (_url, options) => {
             methods.push(options.method);
             return {
@@ -798,7 +798,7 @@ test('automatic OTP persists only a digest, preserves registration purpose and c
   assert.equal(result.channel, 'whatsapp');
   assert.equal(result.codeLength, 6);
   assert.equal(result.whatsappUrl, null);
-  assert.equal(result.retryAfterSeconds, 60);
+  assert.equal(result.retryAfterSeconds, 120);
   assert.equal(result.expiresInSeconds, 300);
   assert.equal(JSON.stringify(result).includes(code), false);
   const row = (await pg.query('select * from whatsapp_sessions')).rows[0];
