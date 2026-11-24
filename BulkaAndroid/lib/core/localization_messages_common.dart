@@ -105,6 +105,11 @@ const Map<String, Map<String, String>> _commonTranslations = {
     'kk': 'Сервер тіркелуді жасамады. Қайталаңыз.',
     'en': 'The server did not start registration. Please retry.',
   },
+  'error_open_link': {
+    'ru': 'Не удалось открыть ссылку.',
+    'kk': 'Сілтемені ашу мүмкін болмады.',
+    'en': 'Could not open the link.',
+  },
   'error_open_whatsapp': {
     'ru': 'Не удалось открыть WhatsApp.',
     'kk': 'WhatsApp қолданбасын ашу мүмкін болмады.',

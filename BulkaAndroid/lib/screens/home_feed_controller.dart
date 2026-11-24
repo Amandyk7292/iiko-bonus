@@ -50,7 +50,7 @@ extension _HomeFeedController on _HomeScreenState {
 
   Future<void> _loadStories() async {
     try {
-      final stories = await widget.api.getStories();
+      final stories = await widget.api.getStories(includeBanners: true);
       if (!mounted) return;
       _updateHomeState(() {
         _stories = stories;

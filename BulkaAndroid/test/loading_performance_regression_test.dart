@@ -35,7 +35,7 @@ class FeedApi extends BulkaApiClient {
   final stories = Completer<List<PromoStory>>();
   int storyRequests = 0;
   @override
-  Future<List<PromoStory>> getStories() {
+  Future<List<PromoStory>> getStories({bool includeBanners = false}) {
     storyRequests++;
     return stories.future;
   }

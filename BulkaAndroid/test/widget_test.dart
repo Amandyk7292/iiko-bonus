@@ -2816,7 +2816,7 @@ class _FakeBulkaApiClient extends BulkaApiClient {
   };
 
   @override
-  Future<List<PromoStory>> getStories() async => const [
+  Future<List<PromoStory>> getStories({bool includeBanners = false}) async => const [
     PromoStory(
       id: 1,
       title: 'НОВИНКА',

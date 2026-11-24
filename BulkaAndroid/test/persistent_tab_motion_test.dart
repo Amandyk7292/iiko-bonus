@@ -20,7 +20,7 @@ class _MotionApi extends BulkaApiClient {
   Stream<Map<String, dynamic>> get customerEvents => const Stream.empty();
 
   @override
-  Future<List<PromoStory>> getStories() async => const [];
+  Future<List<PromoStory>> getStories({bool includeBanners = false}) async => const [];
 }
 
 Finder _slot(int index) =>

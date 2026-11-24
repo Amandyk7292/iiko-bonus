@@ -135,6 +135,26 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Future<void> _openHomeBanner(String actionUrl) async {
+    final uri = Uri.tryParse(actionUrl);
+    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) return;
+    var opened = false;
+    try {
+      opened = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+        webOnlyWindowName: kIsWeb ? '_blank' : null,
+      );
+    } catch (_) {
+      // Some browsers or devices cannot launch an external handler.
+    }
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(bulkaSnackBar(content: Text('error_open_link'.tr)));
+    }
+  }
+
   Future<void> _openNotifications() async {
     await _navigationGate.run(() async {
       await Navigator.of(context).push<void>(
@@ -183,7 +203,20 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final customer = widget.customer;
-    final storyGroups = _groupStories(_stories);
+    final now = DateTime.now();
+    final visible = _stories.where((story) {
+      if (story.placement != 'banner') return story.enabled;
+      final start = DateTime.tryParse(story.startsAt ?? '');
+      final end = DateTime.tryParse(story.endsAt ?? '');
+      return story.enabled &&
+          (start == null || !now.isBefore(start)) &&
+          (end == null || now.isBefore(end));
+    }).toList();
+    final storyGroups = _groupStories(
+      visible.where((s) => s.placement != 'banner').toList(),
+    );
+    final banners = visible.where((s) => s.placement == 'banner').toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -270,6 +303,33 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         const SizedBox(height: 18),
                       ],
+                      for (final banner in banners)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+                          child: Semantics(
+                            button: banner.actionUrl != null,
+                            label: banner.localizedTitle,
+                            child: InkWell(
+                              onTap: banner.actionUrl == null
+                                  ? null
+                                  : () => _openHomeBanner(banner.actionUrl!),
+                              borderRadius: BorderRadius.circular(20),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: AspectRatio(
+                                  aspectRatio: 8 / 3,
+                                  child: Image.network(
+                                    banner.localizedContentUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const SizedBox.shrink(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: _SectionTitle('home_select_order_type'.tr),

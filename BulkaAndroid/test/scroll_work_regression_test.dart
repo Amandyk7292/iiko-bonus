@@ -7,7 +7,7 @@ class _PerformanceStoriesApi extends BulkaApiClient {
   @override
   Stream<Map<String, dynamic>> get customerEvents => const Stream.empty();
   @override
-  Future<List<PromoStory>> getStories() async {
+  Future<List<PromoStory>> getStories({bool includeBanners = false}) async {
     reads++;
     return List.generate(
       20,

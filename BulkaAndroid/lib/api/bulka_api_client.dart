@@ -552,8 +552,12 @@ class BulkaApiClient {
     throw ApiException(_messageFrom(json, 'wallet_unavailable'.tr));
   }
 
-  Future<List<PromoStory>> getStories() async {
-    final json = await _get('/api/guest/stories');
+  Future<List<PromoStory>> getStories({bool includeBanners = false}) async {
+    final json = await _get(
+      includeBanners
+          ? '/api/guest/stories?includeBanners=1'
+          : '/api/guest/stories',
+    );
     final stories = json['stories'];
     if (json['success'] == true && stories is List) {
       return stories.map((item) => PromoStory.fromJson(_asMap(item))).toList();

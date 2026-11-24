@@ -141,7 +141,7 @@ class _DesktopViewportProbe extends StatelessWidget {
 
 class _AdaptiveNavigationApiClient extends BulkaApiClient {
   @override
-  Future<List<PromoStory>> getStories() async => const [];
+  Future<List<PromoStory>> getStories({bool includeBanners = false}) async => const [];
 
   @override
   Future<List<BakeryLocation>> getFulfillmentLocations() async => const [];

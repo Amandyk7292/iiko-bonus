@@ -24,7 +24,7 @@ class _LocationsApi extends BulkaApiClient {
 
 class _HomeApi extends BulkaApiClient {
   @override
-  Future<List<PromoStory>> getStories() async => const [];
+  Future<List<PromoStory>> getStories({bool includeBanners = false}) async => const [];
 }
 
 void main() {
