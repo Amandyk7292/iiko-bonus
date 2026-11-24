@@ -35,7 +35,7 @@ concurrency:
 
 jobs:
   ipa:
-    runs-on: macos-15
+    runs-on: macos-latest
     timeout-minutes: 45
     defaults:
       run:
@@ -54,8 +54,6 @@ jobs:
       REQUESTED_BUILD_NAME: ${{ inputs.build_name }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Select Xcode 26 for App Store SDK compatibility
-        run: sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
       - name: Resolve explicit release identity
         run: |
           python3 - <<'PY'
