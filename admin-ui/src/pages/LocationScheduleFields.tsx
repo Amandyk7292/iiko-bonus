@@ -56,7 +56,18 @@ export default function LocationScheduleFields({
               type={value.roundTheClock ? 'time' : 'text'}
               inputMode="numeric"
               value={value[key as keyof Omit<LocationSchedule, 'roundTheClock'>]}
-              onChange={(event) => onChange({ [key]: event.target.value })}
+              onChange={(event) => {
+                const input = event.target.value;
+                if (value.roundTheClock) {
+                  onChange({ [key]: input });
+                  return;
+                }
+                const digits = input.replace(/\D/g, '').slice(0, 4);
+                const formatted = digits.length > 2
+                  ? `${digits.slice(0, 2)}:${digits.slice(2)}`
+                  : digits;
+                onChange({ [key]: formatted });
+              }}
               placeholder={placeholder}
               required
             />
