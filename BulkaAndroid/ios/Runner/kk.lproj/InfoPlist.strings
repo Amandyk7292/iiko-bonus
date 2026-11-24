@@ -1,5 +1,5 @@
-"CFBundleDisplayName" = "Bulka наубайханасы";
-"CFBundleName" = "Bulka наубайханасы";
+"CFBundleDisplayName" = "Bulka Bakery";
+"CFBundleName" = "Bulka Bakery";
 "NSMotionUsageDescription" = "Bulka сыйақы үшін iPhone қадамдарын санайды: күніне 10 000 қадам — 200 бонус. Қолмен енгізілген қадамдар есептелмейді.";
 "NSLocationWhenInUseUsageDescription" = "Геолокация жақын наубайханаларды табуға және жеткізу мекенжайын картада көрсетуге көмектеседі.";
 "NSPhotoLibraryUsageDescription" = "Фотосуреттерге рұқсат тапсырысқа фото тіркеуге және наубайхана материалдарын жаңартуға қажет.";
