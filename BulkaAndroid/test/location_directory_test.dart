@@ -151,6 +151,56 @@ void main() {
     );
   });
 
+  test('open locations are listed first and keep their relative order', () {
+    const closed = BakeryLocation(
+      id: 'closed',
+      name: 'Closed first from API',
+      city: 'Актау',
+      address: '1',
+      hours: {
+        'daily': {'open': '08:00', 'close': '21:00'},
+      },
+    );
+    const unknown = BakeryLocation(
+      id: 'unknown',
+      name: 'Unknown hours',
+      city: 'Актау',
+      address: '2',
+    );
+    const openOne = BakeryLocation(
+      id: 'open-one',
+      name: 'Open one',
+      city: 'Актау',
+      address: '3',
+      hours: {
+        'daily': {'open': '08:00', 'close': '23:30'},
+      },
+    );
+    const openTwo = BakeryLocation(
+      id: 'open-two',
+      name: 'Open two',
+      city: 'Актау',
+      address: '4',
+      hours: {
+        'daily': {'open': '09:00', 'close': '23:45'},
+      },
+    );
+
+    final ordered = orderBakeryLocationsOpenFirst(const [
+      closed,
+      unknown,
+      openOne,
+      openTwo,
+    ], DateTime.utc(2026, 11, 25, 17, 35));
+
+    expect(ordered.map((branch) => branch.id), [
+      'open-one',
+      'open-two',
+      'closed',
+      'unknown',
+    ]);
+  });
+
   for (final language in ['ru', 'kk', 'en']) {
     testWidgets('directory city, search and details work in $language', (
       tester,

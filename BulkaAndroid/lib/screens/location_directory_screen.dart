@@ -64,6 +64,18 @@ Uri bakeryDirectionsUri(BakeryLocation branch) {
   );
 }
 
+List<BakeryLocation> orderBakeryLocationsOpenFirst(
+  Iterable<BakeryLocation> branches,
+  DateTime now,
+) {
+  final open = <BakeryLocation>[];
+  final other = <BakeryLocation>[];
+  for (final branch in branches) {
+    (bakeryHoursToday(branch, now).open == true ? open : other).add(branch);
+  }
+  return [...open, ...other];
+}
+
 Map<String, dynamic>? _bakeryDayHours(BakeryLocation branch, String day) {
   final raw = branch.hours[day] ?? branch.hours['daily'];
   return raw is Map ? Map<String, dynamic>.from(raw) : null;
@@ -142,16 +154,17 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
 
   List<String> get _cities =>
       _branches.map((b) => b.city).toSet().toList()..sort();
-  List<BakeryLocation> get _visible => _branches
-      .where(
-        (b) =>
-            b.city == _city &&
-            (_filter == 'all' || b.supports(_filter)) &&
-            '${b.name} ${b.address}'.toLowerCase().contains(
-              _search.text.trim().toLowerCase(),
-            ),
-      )
-      .toList();
+  List<BakeryLocation> get _visible => orderBakeryLocationsOpenFirst(
+    _branches.where(
+      (b) =>
+          b.city == _city &&
+          (_filter == 'all' || b.supports(_filter)) &&
+          '${b.name} ${b.address}'.toLowerCase().contains(
+            _search.text.trim().toLowerCase(),
+          ),
+    ),
+    DateTime.now(),
+  );
 
   Future<void> _load({bool silent = false}) async {
     if (_refreshingLocations) return;
