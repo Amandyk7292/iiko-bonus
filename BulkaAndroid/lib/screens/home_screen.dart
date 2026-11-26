@@ -1,5 +1,8 @@
 part of '../main.dart';
 
+Iterable<PromoStory> storyViewerEligibleStories(Iterable<PromoStory> stories) =>
+    stories.where((story) => story.placement.trim().toLowerCase() != 'banner');
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     required this.api,
@@ -412,7 +415,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _openStoryGroup(StoryGroup group) async {
     await _navigationGate.run(() async {
       final sequence = _groupStories(
-        _stories,
+        storyViewerEligibleStories(_stories).toList(growable: false),
       ).expand((item) => item.stories).toList(growable: false);
       if (sequence.isEmpty) return;
       final matchedIndex = sequence.indexWhere(

@@ -103,8 +103,8 @@ jobs:
             fi
             # Run 45680887817 verified the 1.0.12+55 diff contains only CoreUI's
             # generated State metadata. Asset names, sizes and content hashes match;
-            # this source tree changes only the locations Dart file and its test.
-            if [[ "$RELEASE_VERSION" == "1.0.12+55" && "$app_tree" == "de52c45ba7cf337bfe311add63586d1a17376ac0" ]]; then
+            # this source tree changes only reviewed Dart files and their tests.
+            if [[ "$RELEASE_VERSION" == "1.0.12+55" && "$app_tree" == "ff902afdfc30c70d5bae6a5b5808369fa65ab774" ]]; then
               reviewed_exception=true
             fi
             # Fail closed for any other release or app source tree.

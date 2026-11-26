@@ -5,6 +5,30 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('home banners never enter the fullscreen story sequence', () {
+    const story = PromoStory(
+      id: 1,
+      title: 'Bulka story',
+      imageUrl: '',
+      contentUrl: '',
+      groupId: 'bulka-story',
+      groupTitle: 'Bulka story',
+      groupCoverUrl: '',
+    );
+    const banner = PromoStory(
+      id: 2,
+      title: 'Kamaji banner',
+      imageUrl: '',
+      contentUrl: '',
+      groupId: 'kamaji',
+      groupTitle: 'Kamaji',
+      groupCoverUrl: '',
+      placement: 'banner',
+    );
+
+    expect(storyViewerEligibleStories(const [story, banner]), [story]);
+  });
+
   for (final width in [320.0, 390.0]) {
     testWidgets('promotion labels stay complete at $width with enlarged text', (
       tester,
