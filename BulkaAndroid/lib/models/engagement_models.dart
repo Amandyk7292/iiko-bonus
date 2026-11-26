@@ -251,6 +251,7 @@ class PromoStory {
     required this.groupId,
     required this.groupTitle,
     required this.groupCoverUrl,
+    this.placement = 'story',
     this.sortOrder = 0,
     this.description,
     this.details,
@@ -275,6 +276,7 @@ class PromoStory {
   final String groupId;
   final String groupTitle;
   final String groupCoverUrl;
+  final String placement;
   final int sortOrder;
   final String? description;
   final String? details;
@@ -349,6 +351,7 @@ class PromoStory {
             json['group_cover_url'],
         fallback: image,
       ),
+      placement: _asString(json['placement'], fallback: 'story'),
       sortOrder: _asInt(json['sortOrder'] ?? json['sort_order']),
       description: _nullableString(json['description']),
       details: _nullableString(json['details']),
@@ -375,6 +378,7 @@ class PromoStory {
     'groupId': groupId,
     'groupTitle': groupTitle,
     'groupCoverUrl': groupCoverUrl,
+    'placement': placement,
     'sortOrder': sortOrder,
     'description': description,
     'details': details,
